@@ -110,6 +110,26 @@ const _buildLock = (): LockFunc => {
 
 const nexusLock: LockFunc = _buildLock();
 
+// Custom storage adapter para respeitar a flag "Manter conectado"
+const customStorage = typeof window !== 'undefined' ? {
+    getItem: (key: string) => {
+        return window.sessionStorage.getItem(key) || window.localStorage.getItem(key);
+    },
+    setItem: (key: string, value: string) => {
+        if (window.localStorage.getItem('nexus_ephemeral_login') === 'true') {
+            window.sessionStorage.setItem(key, value);
+            window.localStorage.removeItem(key); // Garantir que não vaze para o localStorage
+        } else {
+            window.localStorage.setItem(key, value);
+            window.sessionStorage.removeItem(key);
+        }
+    },
+    removeItem: (key: string) => {
+        window.sessionStorage.removeItem(key);
+        window.localStorage.removeItem(key);
+    }
+} : undefined;
+
 // ---------------------------------------------------------------
 // ✅ Singleton — única instância para toda a aplicação.
 // Importado via src/lib/supabase.ts pelos consumidores.
@@ -121,7 +141,7 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
         autoRefreshToken: true,             // SDK gerencia o refresh do JWT
         detectSessionInUrl: false,          // Orchestrator: false
         flowType: 'pkce',                   // Arquitetura moderna Pkce
-        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+        storage: customStorage,
     },
 
     realtime: {

@@ -1429,7 +1429,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       onClick={() => handlePrintOrder(selectedOrder.id)}
                       className="h-9 px-2 sm:px-4 gap-1.5 hidden sm:flex"
                     >
-                      <Printer size={14} /> <span className="hidden md:inline">Imprimir PDF</span>
+                      <Printer size={14} /> <span className="hidden md:inline">Gerar PDF</span>
                     </Button>
                     {selectedOrder.status !== OrderStatus.COMPLETED && selectedOrder.status !== OrderStatus.CANCELED && (
                       <Button

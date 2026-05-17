@@ -208,20 +208,7 @@ export const TenantService = {
                 name: 'Administradores',
                 description: 'Grupo com permissões completas de administração do sistema',
                 is_system: true,
-                permissions: {
-                    orders: { create: true, read: true, update: true, delete: true },
-                    customers: { create: true, read: true, update: true, delete: true },
-                    equipments: { create: true, read: true, update: true, delete: true },
-                    technicians: { create: true, read: true, update: true, delete: true },
-                    quotes: { create: true, read: true, update: true, delete: true },
-                    contracts: { create: true, read: true, update: true, delete: true },
-                    stock: { create: true, read: true, update: true, delete: true },
-                    forms: { create: true, read: true, update: true, delete: true },
-                    settings: true,
-                    manageUsers: true,
-                    accessSuperAdmin: false,
-                    financial: { read: true, update: true }
-                }
+                permissions: ADMIN_PERMISSIONS
             };
 
             const { data: groupData } = await supabase.from('user_groups').insert([adminGroupData]).select().single();
@@ -244,8 +231,25 @@ export const TenantService = {
                     forms: { create: true, read: true, update: true, delete: false },
                     settings: false,
                     manageUsers: false,
+                    manageGroups: false,
                     accessSuperAdmin: false,
-                    financial: { read: true, update: false }
+                    financial: { read: true, update: false, invoice: false, discounts: false },
+                    menuAccess: {
+                        dashboard: true,
+                        orders: true,
+                        calendar: true,
+                        map: true,
+                        financial: false,
+                        quotes: true,
+                        stock: true,
+                        contracts: true,
+                        customers: true,
+                        equipments: true,
+                        forms: true,
+                        technicians: true,
+                        users: false,
+                        settings: false,
+                    }
                 }
             };
             await supabase.from('user_groups').insert([opGroup]);
@@ -382,18 +386,30 @@ export const TenantService = {
                 throw error;
             }
 
-            return (data as DbUser[]).map(u => ({
-                id: u.id,
-                name: u.name,
-                email: u.email,
-                role: u.role as UserRole,
-                active: u.active,
-                avatar: u.avatar,
-                groupId: u.group_id as string,
-                groupIds: u.group_ids || (u.group_id ? [u.group_id] : []),
-                tenantId: u.tenant_id as string,
-                permissions: u.permissions as any
-            }));
+            return (data as DbUser[]).map(u => {
+                let parsedGroupIds: string[] = [];
+                if (u.group_ids) {
+                    if (typeof u.group_ids === 'string') {
+                        try { parsedGroupIds = JSON.parse(u.group_ids); }
+                        catch (e) { parsedGroupIds = [u.group_ids]; }
+                    } else if (Array.isArray(u.group_ids)) {
+                        parsedGroupIds = u.group_ids;
+                    }
+                }
+                
+                return {
+                    id: u.id,
+                    name: u.name,
+                    email: u.email,
+                    role: u.role as UserRole,
+                    active: u.active,
+                    avatar: u.avatar,
+                    groupId: u.group_id as string,
+                    groupIds: parsedGroupIds.length > 0 ? parsedGroupIds : (u.group_id ? [u.group_id] : []),
+                    tenantId: u.tenant_id as string,
+                    permissions: u.permissions as any
+                };
+            });
         }
         return [];
     },

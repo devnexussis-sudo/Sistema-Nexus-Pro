@@ -53,6 +53,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onToggleMaster }) => {
     setError('');
 
     try {
+      if (!keepConnected) {
+        localStorage.setItem('nexus_ephemeral_login', 'true');
+      } else {
+        localStorage.removeItem('nexus_ephemeral_login');
+      }
+
       const user = await DataService.login(email, password);
       if (user) {
         onLogin(user, keepConnected);

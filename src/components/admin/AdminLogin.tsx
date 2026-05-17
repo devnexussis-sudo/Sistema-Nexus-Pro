@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { Mail, Lock, Shield } from 'lucide-react';
+import { Mail, Lock, Shield, Eye, EyeOff } from 'lucide-react';
 import { DataService } from '../../services/dataService';
 import { User } from '../../types';
 
@@ -16,6 +16,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
     const [keepLoggedIn, setKeepLoggedIn] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
 
     const [showForgotPassword, setShowForgotPassword] = useState(false);
     const [resetEmailSent, setResetEmailSent] = useState(false);
@@ -26,6 +27,12 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
         setLoading(true);
 
         try {
+            if (!keepLoggedIn) {
+                localStorage.setItem('nexus_ephemeral_login', 'true');
+            } else {
+                localStorage.removeItem('nexus_ephemeral_login');
+            }
+
             const user = await DataService.login(email, password);
 
             if (!user) {
@@ -141,7 +148,6 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                             <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">
                                 {showForgotPassword ? 'Recuperar Senha' : 'Entre com a sua conta'}
                             </h1>
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] mt-2">Field Service Management</p>
                         </div>
                     </div>
 
@@ -159,7 +165,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                             <form onSubmit={handleSubmit} className="space-y-5">
                                 <div className="space-y-2">
                                     <div className="flex justify-between items-center px-1">
-                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                        <label className="text-[10px] font-bold text-slate-500 ml-1">
                                             E-mail Administrativo *
                                         </label>
                                     </div>
@@ -169,33 +175,42 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
                                         placeholder="Digite seu e-mail"
-                                        className="bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-300 rounded-2xl py-4.5 focus:ring-4 focus:ring-primary-100 transition-all font-bold uppercase text-[11px]"
+                                        className="bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-300 rounded-2xl py-4.5 focus:ring-4 focus:ring-primary-100 transition-all font-medium text-sm"
                                         icon={<Mail size={18} className="text-slate-300" />}
                                     />
                                 </div>
 
                                 <div className="space-y-2">
                                     <div className="flex justify-between items-center px-1">
-                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                        <label className="text-[10px] font-bold text-slate-500 ml-1">
                                             Senha de Acesso *
                                         </label>
                                         <button
                                             type="button"
                                             onClick={() => setShowForgotPassword(true)}
-                                            className="text-[9px] font-black text-primary-600 uppercase tracking-widest hover:underline"
+                                            className="text-[10px] font-bold text-primary-600 hover:text-primary-700 hover:underline transition-colors"
                                         >
                                             Esqueci a senha
                                         </button>
                                     </div>
-                                    <Input
-                                        type="password"
-                                        required
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        placeholder="Digite sua senha"
-                                        className="bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-300 rounded-2xl py-4.5 focus:ring-4 focus:ring-primary-100 transition-all font-bold uppercase text-[11px]"
-                                        icon={<Lock size={18} className="text-slate-300" />}
-                                    />
+                                    <div className="relative">
+                                        <Input
+                                            type={showPassword ? "text" : "password"}
+                                            required
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            placeholder="Digite sua senha"
+                                            className="bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-300 rounded-2xl py-4.5 pr-12 focus:ring-4 focus:ring-primary-100 transition-all font-medium text-sm"
+                                            icon={<Lock size={18} className="text-slate-300" />}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-600 transition-colors"
+                                        >
+                                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="flex items-center gap-3 px-1">
@@ -206,21 +221,21 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                                         onChange={(e) => setKeepLoggedIn(e.target.checked)}
                                         className="w-5 h-5 rounded-lg border-slate-300 text-primary-600 focus:ring-primary-100 cursor-pointer transition-all"
                                     />
-                                    <label htmlFor="keep-logged" className="text-slate-500 text-[10px] font-bold uppercase tracking-wider cursor-pointer select-none">
+                                    <label htmlFor="keep-logged" className="text-slate-500 text-[10px] font-medium cursor-pointer select-none">
                                         Manter conectado nesta sessão
                                     </label>
                                 </div>
 
                                 {error && (
                                     <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                        <p className="text-rose-600 text-[10px] font-black text-center uppercase tracking-tight italic leading-tight">{error}</p>
+                                        <p className="text-rose-600 text-[11px] font-medium text-center italic leading-tight">{error}</p>
                                     </div>
                                 )}
 
                                 <Button
                                     type="submit"
                                     disabled={loading}
-                                    className="w-full bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-2xl py-5 font-black uppercase tracking-[0.25em] shadow-2xl shadow-primary-900/20 border-none transition-all active:scale-[0.97] text-[11px]"
+                                    className="w-full bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-2xl py-5 font-bold text-sm shadow-2xl shadow-primary-900/20 border-none transition-all active:scale-[0.97]"
                                 >
                                     {loading ? 'Validando Acesso...' : 'Continuar'}
                                 </Button>
@@ -229,7 +244,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                             <form onSubmit={handleForgotPassword} className="space-y-5">
                                 <div className="space-y-2">
                                     <div className="flex justify-between items-center px-1">
-                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                        <label className="text-[10px] font-bold text-slate-500 ml-1">
                                             E-mail Administrativo *
                                         </label>
                                     </div>
@@ -239,14 +254,14 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
                                         placeholder="Digite seu e-mail"
-                                        className="bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-300 rounded-2xl py-4.5 focus:ring-4 focus:ring-primary-100 transition-all font-bold uppercase text-[11px]"
+                                        className="bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-300 rounded-2xl py-4.5 focus:ring-4 focus:ring-primary-100 transition-all font-medium text-sm"
                                         icon={<Mail size={18} className="text-slate-300" />}
                                     />
                                 </div>
 
                                 {error && (
                                     <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                        <p className="text-rose-600 text-[10px] font-black text-center uppercase tracking-tight italic leading-tight">{error}</p>
+                                        <p className="text-rose-600 text-[11px] font-medium text-center italic leading-tight">{error}</p>
                                     </div>
                                 )}
 
@@ -254,14 +269,14 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                                     <Button
                                         type="submit"
                                         disabled={loading}
-                                        className="w-full bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-2xl py-5 font-black uppercase tracking-[0.25em] shadow-2xl shadow-primary-900/20 border-none transition-all active:scale-[0.97] text-[11px]"
+                                        className="w-full bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-2xl py-5 font-bold text-sm shadow-2xl shadow-primary-900/20 border-none transition-all active:scale-[0.97]"
                                     >
                                         {loading ? 'Enviando...' : 'Enviar Recuperação'}
                                     </Button>
                                     <button
                                         type="button"
                                         onClick={() => { setShowForgotPassword(false); setError(''); }}
-                                        className="w-full text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-slate-600 transition-all"
+                                        className="w-full text-slate-500 text-[10px] font-bold hover:text-slate-700 hover:underline transition-all"
                                     >
                                         Voltar para o Login
                                     </button>

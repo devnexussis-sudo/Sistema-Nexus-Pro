@@ -55,6 +55,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+    const [activeModalTab, setActiveModalTab] = useState<'gerais' | 'produtos'>('gerais');
     const [isConverting, setIsConverting] = useState(false);
     const [isPrinting, setIsPrinting] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -318,6 +319,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
         setDiscount(0);
         setDiscountType('fixed');
         setLoading(false);
+        setActiveModalTab('gerais');
     };
 
     const handleConvertToOrder = async (quote: Quote) => {
@@ -788,238 +790,287 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                             </button>
                         </div>
 
-                        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden bg-slate-50/30">
-                            <div className="w-full lg:w-[38%] border-b lg:border-b-0 lg:border-r border-slate-200 p-8 space-y-8 overflow-y-auto custom-scrollbar">
-                                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-                                    <h3 className="text-sm font-medium text-slate-900 border-l-4 border-[#1c2d4f] pl-3 uppercase">dados básicos</h3>
-                                    <div className="space-y-4">
-                                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                            <label className="text-[10px] font-medium text-slate-400 uppercase block mb-1">Identificador da Proposta</label>
-                                            <p className="text-lg font-medium text-[#1c2d4f] tracking-tight">{previewId}</p>
-                                        </div>
-                                        <div className="space-y-2 relative">
-                                            <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">selecionar cliente</label>
-                                            <div className="relative">
-                                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                                                <input
-                                                    type="text"
-                                                    placeholder={customerName || "Buscar por Nome, CPF ou CNPJ..."}
-                                                    value={isClientListOpen ? clientSearch : (customerName || clientSearch)}
-                                                    onChange={e => {
-                                                        setClientSearch(e.target.value);
-                                                        setIsClientListOpen(true);
-                                                        if (!e.target.value) setCustomerName('');
-                                                    }}
-                                                    onFocus={() => setIsClientListOpen(true)}
-                                                    className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-10 py-3 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all"
-                                                />
-                                                {customerName && !isClientListOpen && (
-                                                    <button onClick={() => { setCustomerName(''); setClientSearch(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500">
-                                                        <X size={14} />
-                                                    </button>
-                                                )}
-                                            </div>
-                                            {isClientListOpen && (
-                                                <div className="absolute z-[1300] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar animate-scale-up">
-                                                    {filteredClients.length > 0 ? (
-                                                        filteredClients.map(c => (
-                                                            <button
-                                                                key={c.id}
-                                                                onClick={() => {
-                                                                    setCustomerName(c.name);
-                                                                    setClientSearch(c.name);
-                                                                    setIsClientListOpen(false);
-                                                                }}
-                                                                className="w-full text-left px-5 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors group"
-                                                            >
-                                                                <p className="text-xs font-medium text-slate-800 group-hover:text-[#1c2d4f]">{c.name}</p>
-                                                                <p className="text-[10px] text-slate-400 font-medium">{c.document || c.cnpj || c.cpf || 'Sem documento'}</p>
+                        <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-white">
+                            
+                            {/* DESKTOP SIDEBAR TABS */}
+                            <div className="hidden md:flex flex-col w-56 border-r border-slate-200 bg-slate-50/80 p-3 gap-1 overflow-y-auto custom-scrollbar shrink-0">
+                                <div className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest mb-2 px-2">Navegação</div>
+                                {[
+                                    { id: 'gerais', label: 'Dados Gerais', icon: FileText },
+                                    { id: 'produtos', label: `Produtos e Serviços${items.length > 0 ? ` (${items.length})` : ''}`, icon: ListPlus }
+                                ].map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveModalTab(tab.id as 'gerais' | 'produtos')}
+                                        className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all w-full text-left font-poppins
+                                        ${activeModalTab === tab.id 
+                                            ? 'bg-[#1c2d4f] text-white shadow-md ring-1 ring-[#1c2d4f]' 
+                                            : 'text-slate-500 hover:bg-white hover:text-[#1c2d4f] hover:shadow-sm'}`}
+                                    >
+                                        <tab.icon size={15} className={activeModalTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} /> 
+                                        <span className="flex-1 truncate">{tab.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* MOBILE TABS */}
+                            <div className="md:hidden border-b border-slate-200 bg-white p-3 flex gap-2 overflow-x-auto custom-scrollbar shrink-0">
+                                {[
+                                    { id: 'gerais', label: 'Dados Gerais', icon: FileText },
+                                    { id: 'produtos', label: `Produtos e Serviços${items.length > 0 ? ` (${items.length})` : ''}`, icon: ListPlus }
+                                ].map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveModalTab(tab.id as 'gerais' | 'produtos')}
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap font-poppins
+                                        ${activeModalTab === tab.id 
+                                            ? 'bg-[#1c2d4f] text-white shadow-md' 
+                                            : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
+                                    >
+                                        <tab.icon size={14} className={activeModalTab === tab.id ? 'text-white' : 'text-slate-400'} /> 
+                                        {tab.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* CONTENT AREA */}
+                            <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-50/50 custom-scrollbar flex flex-col">
+                                {activeModalTab === 'gerais' && (
+                                    <div className="max-w-4xl space-y-6">
+                                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                                            <h3 className="text-sm font-medium text-slate-900 border-l-4 border-[#1c2d4f] pl-3 uppercase">dados básicos</h3>
+                                            <div className="space-y-4">
+                                                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                                    <label className="text-[10px] font-medium text-slate-400 uppercase block mb-1">Identificador da Proposta</label>
+                                                    <p className="text-lg font-medium text-[#1c2d4f] tracking-tight">{previewId}</p>
+                                                </div>
+                                                <div className="space-y-2 relative">
+                                                    <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">selecionar cliente</label>
+                                                    <div className="relative">
+                                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                        <input
+                                                            type="text"
+                                                            placeholder={customerName || "Buscar por Nome, CPF ou CNPJ..."}
+                                                            value={isClientListOpen ? clientSearch : (customerName || clientSearch)}
+                                                            onChange={e => {
+                                                                setClientSearch(e.target.value);
+                                                                setIsClientListOpen(true);
+                                                                if (!e.target.value) setCustomerName('');
+                                                            }}
+                                                            onFocus={() => setIsClientListOpen(true)}
+                                                            className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-10 py-3 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all"
+                                                        />
+                                                        {customerName && !isClientListOpen && (
+                                                            <button onClick={() => { setCustomerName(''); setClientSearch(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500">
+                                                                <X size={14} />
                                                             </button>
-                                                        ))
-                                                    ) : (
-                                                        <div className="p-6 text-center text-xs font-medium text-slate-400">Nenhum cliente localizado</div>
+                                                        )}
+                                                    </div>
+                                                    {isClientListOpen && (
+                                                        <div className="absolute z-[1300] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar animate-scale-up">
+                                                            {filteredClients.length > 0 ? (
+                                                                filteredClients.map(c => (
+                                                                    <button
+                                                                        key={c.id}
+                                                                        onClick={() => {
+                                                                            setCustomerName(c.name);
+                                                                            setClientSearch(c.name);
+                                                                            setIsClientListOpen(false);
+                                                                        }}
+                                                                        className="w-full text-left px-5 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors group"
+                                                                    >
+                                                                        <p className="text-xs font-medium text-slate-800 group-hover:text-[#1c2d4f]">{c.name}</p>
+                                                                        <p className="text-[10px] text-slate-400 font-medium">{c.document || c.cnpj || c.cpf || 'Sem documento'}</p>
+                                                                    </button>
+                                                                ))
+                                                            ) : (
+                                                                <div className="p-6 text-center text-xs font-medium text-slate-400">Nenhum cliente localizado</div>
+                                                            )}
+                                                        </div>
                                                     )}
                                                 </div>
-                                            )}
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">título da proposta</label>
-                                            <input
-                                                type="text"
-                                                value={title}
-                                                onChange={(e) => setTitle(e.target.value)}
-                                                placeholder="Ex: Manutenção Preventiva de Geradores..."
-                                                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all"
-                                            />
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">validade</label>
-                                                <div className="relative">
-                                                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">título da proposta</label>
                                                     <input
-                                                        type="date"
-                                                        value={validUntil}
-                                                        onChange={(e) => setValidUntil(e.target.value)}
-                                                        className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-3 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all"
+                                                        type="text"
+                                                        value={title}
+                                                        onChange={(e) => setTitle(e.target.value)}
+                                                        placeholder="Ex: Manutenção Preventiva de Geradores..."
+                                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all"
+                                                    />
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">validade</label>
+                                                        <div className="relative">
+                                                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                            <input
+                                                                type="date"
+                                                                value={validUntil}
+                                                                onChange={(e) => setValidUntil(e.target.value)}
+                                                                className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-3 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">vincular O.S.</label>
+                                                        <div className="relative">
+                                                            <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                            <select
+                                                                value={linkedOrderId}
+                                                                onChange={(e) => setLinkedOrderId(e.target.value)}
+                                                                className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-3 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all appearance-none cursor-pointer"
+                                                            >
+                                                                <option value="">Nenhum Vínculo</option>
+                                                                {customerOrders.map(o => (
+                                                                    <option key={o.id} value={o.displayId || o.id}>
+                                                                        {o.displayId || o.id.slice(0, 8)} — {o.title}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        {customerName && (() => {
+                                            const c = customers.find(cust => cust.name === customerName);
+                                            if (!c) return null;
+                                            return (
+                                                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                                                    <h3 className="text-sm font-medium text-slate-900 border-l-4 border-emerald-500 pl-3 uppercase flex items-center gap-2">
+                                                        <User size={16} className="text-emerald-500" /> Informações do Cliente
+                                                    </h3>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        <div className="space-y-1"><label className="text-[10px] font-medium text-slate-400 uppercase">CPF / CNPJ</label><p className="text-xs font-semibold text-slate-700">{c.document || '—'}</p></div>
+                                                        <div className="space-y-1"><label className="text-[10px] font-medium text-slate-400 uppercase">{t.common.email}</label><p className="text-xs font-semibold text-slate-700">{c.email || '—'}</p></div>
+                                                        <div className="space-y-1"><label className="text-[10px] font-medium text-slate-400 uppercase">{t.common.phone}</label><p className="text-xs font-semibold text-slate-700">{c.phone || '—'}</p></div>
+                                                        <div className="space-y-1"><label className="text-[10px] font-medium text-slate-400 uppercase">WhatsApp</label><p className="text-xs font-semibold text-slate-700">{c.whatsapp || '—'}</p></div>
+                                                        <div className="space-y-1 md:col-span-2"><label className="text-[10px] font-medium text-slate-400 uppercase">Endereço Completo</label><p className="text-xs font-semibold text-slate-700">{[c.address, c.number, c.complement, c.neighborhood, c.city, c.state ? `/${c.state}` : null, c.zip ? `CEP: ${c.zip}` : null].filter(Boolean).join(' - ').replace(' - /', '/')}</p></div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                                            <h3 className="text-sm font-medium text-slate-900 border-l-4 border-amber-500 pl-3 uppercase">detalhamento</h3>
+                                            <div className="space-y-4">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">escopo técnico</label>
+                                                    <textarea
+                                                        value={description}
+                                                        onChange={(e) => setDescription(e.target.value)}
+                                                        rows={3}
+                                                        placeholder="Descreva detalhadamente o serviço..."
+                                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all resize-none custom-scrollbar"
                                                     />
                                                 </div>
                                             </div>
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">vincular O.S.</label>
-                                                <div className="relative">
-                                                    <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                                                    <select
-                                                        value={linkedOrderId}
-                                                        onChange={(e) => setLinkedOrderId(e.target.value)}
-                                                        className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-3 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all appearance-none cursor-pointer"
-                                                    >
-                                                        <option value="">Nenhum Vínculo</option>
-                                                        {customerOrders.map(o => (
-                                                            <option key={o.id} value={o.displayId || o.id}>
-                                                                {o.displayId || o.id.slice(0, 8)} — {o.title}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                                
-                                {customerName && (() => {
-                                    const c = customers.find(cust => cust.name === customerName);
-                                    if (!c) return null;
-                                    return (
-                                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-                                            <h3 className="text-sm font-medium text-slate-900 border-l-4 border-emerald-500 pl-3 uppercase flex items-center gap-2">
-                                                <User size={16} className="text-emerald-500" /> Informações do Cliente
-                                            </h3>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <div className="space-y-1"><label className="text-[10px] font-medium text-slate-400 uppercase">CPF / CNPJ</label><p className="text-xs font-semibold text-slate-700">{c.document || '—'}</p></div>
-                                                <div className="space-y-1"><label className="text-[10px] font-medium text-slate-400 uppercase">{t.common.email}</label><p className="text-xs font-semibold text-slate-700">{c.email || '—'}</p></div>
-                                                <div className="space-y-1"><label className="text-[10px] font-medium text-slate-400 uppercase">{t.common.phone}</label><p className="text-xs font-semibold text-slate-700">{c.phone || '—'}</p></div>
-                                                <div className="space-y-1"><label className="text-[10px] font-medium text-slate-400 uppercase">WhatsApp</label><p className="text-xs font-semibold text-slate-700">{c.whatsapp || '—'}</p></div>
-                                                <div className="space-y-1 md:col-span-2"><label className="text-[10px] font-medium text-slate-400 uppercase">Endereço Completo</label><p className="text-xs font-semibold text-slate-700">{[c.address, c.number, c.complement, c.neighborhood, c.city, c.state ? `/${c.state}` : null, c.zip ? `CEP: ${c.zip}` : null].filter(Boolean).join(' - ').replace(' - /', '/')}</p></div>
-                                            </div>
-                                        </div>
-                                    );
-                                })()}
-                                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                                    <h3 className="text-sm font-medium text-slate-900 border-l-4 border-amber-500 pl-3 uppercase">detalhamento</h3>
-                                    <div className="space-y-4">
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">escopo técnico</label>
-                                            <textarea
-                                                value={description}
-                                                onChange={(e) => setDescription(e.target.value)}
-                                                rows={3}
-                                                placeholder="Descreva detalhadamente o serviço..."
-                                                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all resize-none custom-scrollbar"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                                )}
 
-                            <div className="w-full lg:w-[62%] flex flex-col bg-white">
-                                <div className="px-8 py-5 border-b border-slate-200 flex items-center justify-between bg-white z-10">
-                                    <h3 className="text-sm font-medium text-slate-900 flex items-center gap-2">
-                                        <ListPlus size={16} className="text-emerald-500" /> Itens e Composição
-                                    </h3>
-                                    <button onClick={handleAddItem} className="flex items-center gap-2 px-4 py-2 bg-[#1c2d4f] text-white rounded-xl text-xs font-medium hover:bg-[#253a66] transition-all shadow-md active:scale-95">
-                                        <Plus size={16} /> Adicionar Item
-                                    </button>
-                                </div>
-                                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-visible">
-                                        <table className="w-full text-left table-fixed lg:table-auto overflow-visible">
-                                            <thead className="bg-slate-50 border-b border-slate-200">
-                                                <tr className="text-[10px] font-medium text-slate-400 uppercase">
-                                                    <th className="px-6 py-3 w-28">Código</th>
-                                                    <th className="px-4 py-3">Descrição / Item</th>
-                                                    <th className="px-4 py-3 w-20 text-center">Qtd</th>
-                                                    <th className="px-4 py-3 w-28">Unitário</th>
-                                                    <th className="px-4 py-3 w-32 text-right">Subtotal</th>
-                                                    <th className="px-6 py-3 w-16"></th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100 overflow-visible">
-                                                {items.map((item, index) => (
-                                                    <tr key={item.id} className={`hover:bg-slate-50/50 group transition-all ${isStockListOpen[index] ? 'z-[1400] relative bg-slate-50/80 shadow-sm' : 'z-auto'}`}>
-                                                        <td className="px-6 py-4">
-                                                            <input
-                                                                placeholder="Opcional"
-                                                                value={item.stockCode || ''}
-                                                                onChange={e => updateItem(index, { stockCode: e.target.value })}
-                                                                className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium py-1.5 px-3 font-mono tracking-wider text-[#3e5b99] uppercase"
-                                                            />
-                                                        </td>
-                                                        <td className="px-4 py-4">
-                                                            <div className="relative">
-                                                                <input
-                                                                    placeholder="Buscar item ou descrever..."
-                                                                    value={item.description}
-                                                                    onFocus={() => setIsStockListOpen(prev => ({ ...prev, [index]: true }))}
-                                                                    onChange={e => {
-                                                                        updateItem(index, { description: e.target.value });
-                                                                        setIsStockListOpen(prev => ({ ...prev, [index]: true }));
-                                                                    }}
-                                                                    className="w-full bg-transparent border-none text-sm font-semibold text-slate-700 outline-none p-0 focus:ring-0"
-                                                                />
-                                                                {isStockListOpen[index] && item.description.length > 0 && (
-                                                                    <div className="absolute z-[1300] top-full left-0 w-[450px] mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto custom-scrollbar animate-scale-up">
-                                                                        <button
-                                                                            onClick={() => setIsStockListOpen(prev => ({ ...prev, [index]: false }))}
-                                                                            className="w-full text-left px-5 py-3 hover:bg-slate-50 border-b border-slate-100 bg-primary-50/50 text-[#1c2d4f] font-medium text-[11px] uppercase transition-colors flex items-center justify-between"
-                                                                        >
-                                                                            <span>Usar como item avulso: "{item.description.slice(0, 25)}..."</span>
-                                                                            <Plus size={14} />
-                                                                        </button>
-                                                                        {stockItems
-                                                                            .filter(s => s.active !== false && (
-                                                                                s.description.toLowerCase().includes(item.description.toLowerCase()) ||
-                                                                                (s.code && s.code.toLowerCase().includes(item.description.toLowerCase()))
-                                                                            ))
-                                                                            .map(s => (
+                                {activeModalTab === 'produtos' && (
+                                    <div className="flex-1 flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[400px]">
+                                        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-white z-10">
+                                            <h3 className="text-sm font-medium text-slate-900 flex items-center gap-2">
+                                                <ListPlus size={16} className="text-emerald-500" /> Itens e Composição
+                                            </h3>
+                                            <button onClick={handleAddItem} className="flex items-center gap-2 px-4 py-2 bg-[#1c2d4f] text-white rounded-xl text-xs font-medium hover:bg-[#253a66] transition-all shadow-md active:scale-95">
+                                                <Plus size={16} /> Adicionar Item
+                                            </button>
+                                        </div>
+                                        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
+                                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-visible">
+                                                <table className="w-full text-left table-fixed lg:table-auto overflow-visible">
+                                                    <thead className="bg-slate-50 border-b border-slate-200">
+                                                        <tr className="text-[10px] font-medium text-slate-400 uppercase">
+                                                            <th className="px-6 py-3 w-28">Código</th>
+                                                            <th className="px-4 py-3">Descrição / Item</th>
+                                                            <th className="px-4 py-3 w-20 text-center">Qtd</th>
+                                                            <th className="px-4 py-3 w-28">Unitário</th>
+                                                            <th className="px-4 py-3 w-32 text-right">Subtotal</th>
+                                                            <th className="px-6 py-3 w-16"></th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100 overflow-visible">
+                                                        {items.map((item, index) => (
+                                                            <tr key={item.id} className={`hover:bg-slate-50/50 group transition-all ${isStockListOpen[index] ? 'z-[1400] relative bg-slate-50/80 shadow-sm' : 'z-auto'}`}>
+                                                                <td className="px-6 py-4">
+                                                                    <input
+                                                                        placeholder="Opcional"
+                                                                        value={item.stockCode || ''}
+                                                                        onChange={e => updateItem(index, { stockCode: e.target.value })}
+                                                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium py-1.5 px-3 font-mono tracking-wider text-[#3e5b99] uppercase"
+                                                                    />
+                                                                </td>
+                                                                <td className="px-4 py-4">
+                                                                    <div className="relative">
+                                                                        <input
+                                                                            placeholder="Buscar item ou descrever..."
+                                                                            value={item.description}
+                                                                            onFocus={() => setIsStockListOpen(prev => ({ ...prev, [index]: true }))}
+                                                                            onChange={e => {
+                                                                                updateItem(index, { description: e.target.value });
+                                                                                setIsStockListOpen(prev => ({ ...prev, [index]: true }));
+                                                                            }}
+                                                                            className="w-full bg-transparent border-none text-sm font-semibold text-slate-700 outline-none p-0 focus:ring-0"
+                                                                        />
+                                                                        {isStockListOpen[index] && item.description.length > 0 && (
+                                                                            <div className="absolute z-[1300] top-full left-0 w-[450px] mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto custom-scrollbar animate-scale-up">
                                                                                 <button
-                                                                                    key={s.id}
-                                                                                    onClick={() => {
-                                                                                        updateItem(index, { description: s.description, unitPrice: s.sellPrice, stockCode: s.code });
-                                                                                        setIsStockListOpen(prev => ({ ...prev, [index]: false }));
-                                                                                    }}
-                                                                                    className="w-full text-left px-5 py-4 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors group/item"
+                                                                                    onClick={() => setIsStockListOpen(prev => ({ ...prev, [index]: false }))}
+                                                                                    className="w-full text-left px-5 py-3 hover:bg-slate-50 border-b border-slate-100 bg-primary-50/50 text-[#1c2d4f] font-medium text-[11px] uppercase transition-colors flex items-center justify-between"
                                                                                 >
-                                                                                    <div className="flex justify-between items-start">
-                                                                                        <div>
-                                                                                            <p className="text-xs font-medium text-slate-800 group-hover/item:text-[#1c2d4f]">{s.description}</p>
-                                                                                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">SKU: {s.code}</p>
-                                                                                        </div>
-                                                                                        <p className="text-xs font-medium text-emerald-600">R$ {s.sellPrice?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                                                                                    </div>
+                                                                                    <span>Usar como item avulso: "{item.description.slice(0, 25)}..."</span>
+                                                                                    <Plus size={14} />
                                                                                 </button>
-                                                                            ))
-                                                                        }
+                                                                                {stockItems
+                                                                                    .filter(s => s.active !== false && (
+                                                                                        s.description.toLowerCase().includes(item.description.toLowerCase()) ||
+                                                                                        (s.code && s.code.toLowerCase().includes(item.description.toLowerCase()))
+                                                                                    ))
+                                                                                    .map(s => (
+                                                                                        <button
+                                                                                            key={s.id}
+                                                                                            onClick={() => {
+                                                                                                updateItem(index, { description: s.description, unitPrice: s.sellPrice, stockCode: s.code });
+                                                                                                setIsStockListOpen(prev => ({ ...prev, [index]: false }));
+                                                                                            }}
+                                                                                            className="w-full text-left px-5 py-4 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors group/item"
+                                                                                        >
+                                                                                            <div className="flex justify-between items-start">
+                                                                                                <div>
+                                                                                                    <p className="text-xs font-medium text-slate-800 group-hover/item:text-[#1c2d4f]">{s.description}</p>
+                                                                                                    <p className="text-[10px] text-slate-400 font-medium mt-0.5">SKU: {s.code}</p>
+                                                                                                </div>
+                                                                                                <p className="text-xs font-medium text-emerald-600">R$ {s.sellPrice?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                                                            </div>
+                                                                                        </button>
+                                                                                    ))
+                                                                                }
+                                                                            </div>
+                                                                        )}
                                                                     </div>
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-4 py-4"><input type="number" value={item.quantity} onChange={e => updateItem(index, { quantity: Number(e.target.value) })} className="w-full bg-slate-50 border border-slate-200 rounded-lg text-center text-xs font-medium py-1.5" /></td>
-                                                        <td className="px-4 py-4"><input type="number" value={item.unitPrice} onChange={e => updateItem(index, { unitPrice: Number(e.target.value) })} className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium py-1.5 px-2" /></td>
-                                                        <td className="px-4 py-4 text-right text-sm font-medium text-[#1c2d4f]">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                                        <td className="px-6 py-4"><button onClick={() => setItems(items.filter((_, i) => i !== index))} className="text-slate-300 hover:text-rose-600 transition-colors"><Trash2 size={16} /></button></td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                        {items.length === 0 && (
-                                            <div className="py-20 text-center flex flex-col items-center gap-4">
-                                                <ShoppingCart size={48} className="text-slate-200" />
-                                                <p className="text-sm font-medium text-slate-400">Nenhum item na proposta</p>
+                                                                </td>
+                                                                <td className="px-4 py-4"><input type="number" value={item.quantity} onChange={e => updateItem(index, { quantity: Number(e.target.value) })} className="w-full bg-slate-50 border border-slate-200 rounded-lg text-center text-xs font-medium py-1.5" /></td>
+                                                                <td className="px-4 py-4"><input type="number" value={item.unitPrice} onChange={e => updateItem(index, { unitPrice: Number(e.target.value) })} className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium py-1.5 px-2" /></td>
+                                                                <td className="px-4 py-4 text-right text-sm font-medium text-[#1c2d4f]">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                                                <td className="px-6 py-4"><button onClick={() => setItems(items.filter((_, i) => i !== index))} className="text-slate-300 hover:text-rose-600 transition-colors"><Trash2 size={16} /></button></td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                                {items.length === 0 && (
+                                                    <div className="py-20 text-center flex flex-col items-center gap-4">
+                                                        <ShoppingCart size={48} className="text-slate-200" />
+                                                        <p className="text-sm font-medium text-slate-400">Nenhum item na proposta</p>
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                             </div>
                         </div>
 
@@ -1543,7 +1594,7 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                         <div className="col-span-5 p-2.5 grid grid-cols-2 gap-3 bg-slate-50/30">
                             <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Criação</label><div className="font-medium">{fmt(quote.createdAt)}</div></div>
                             <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Validade</label><div className="font-medium">{quote.validUntil ? fmt(quote.validUntil) : '—'}</div></div>
-                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase">{t.common.status}</label><div className="font-medium text-[9px] border border-slate-200 px-1.5 py-0.5 rounded inline-block bg-white uppercase">{quote.status}</div></div>
+                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Status</label><div className="font-medium text-[9px] border border-slate-200 px-1.5 py-0.5 rounded inline-block bg-white uppercase">{quote.status}</div></div>
                             {quote.linkedOrderId && (
                                 <div><label className="block text-[8px] font-medium text-slate-400 uppercase">O.S. Vinculada</label><div className="font-medium uppercase">{quote.linkedOrderId.slice(0, 8)}</div></div>
                             )}

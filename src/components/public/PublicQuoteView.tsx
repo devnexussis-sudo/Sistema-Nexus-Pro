@@ -440,7 +440,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
     const PrintLayout = () => (
         <>
         <style type="text/css" media="print">
-            {`@page { size: A4 portrait; margin: 10mm; }`}
+            {`@page { size: A4 portrait; margin: 10mm 4mm 10mm 4mm; }`}
         </style>
         <div className="bg-white text-xs leading-relaxed font-poppins p-4 sm:p-6 min-h-[297mm] w-full max-w-full mx-auto border sm:border-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', boxSizing: 'border-box' }}>
             {/* Header: Company & Quote Info */}

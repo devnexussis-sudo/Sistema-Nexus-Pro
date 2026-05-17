@@ -74,6 +74,12 @@ export const TechLogin: React.FC<TechLoginProps> = ({ onLogin }) => {
         setLoading(true);
 
         try {
+            if (!rememberMe) {
+                localStorage.setItem('nexus_ephemeral_login', 'true');
+            } else {
+                localStorage.removeItem('nexus_ephemeral_login');
+            }
+
             const user = await DataService.login(email, password);
 
             if (!user) {

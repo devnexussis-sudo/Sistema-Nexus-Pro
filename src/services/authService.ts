@@ -3,7 +3,7 @@ import { logger } from '../lib/logger';
 import { GlobalStorage, SessionStorage } from '../lib/sessionStorage';
 import { adminAuthProxy, supabase } from '../lib/supabase';
 import { getCurrentTenantId as _getTenantId } from '../lib/tenantContext';
-import { User, UserRole } from '../types';
+import { User, UserRole, ADMIN_PERMISSIONS, DEFAULT_PERMISSIONS } from '../types';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 const MOCK_USERS_POOL = []; // Removing mock data dependency for clean separation, assuming cloud first
@@ -57,7 +57,11 @@ export const AuthService = {
 
                 // Persistência
                 SessionStorage.set('user', fullUser);
-                GlobalStorage.set('persistent_user', fullUser);
+                if (localStorage.getItem('nexus_ephemeral_login') !== 'true') {
+                    GlobalStorage.set('persistent_user', fullUser);
+                } else {
+                    GlobalStorage.remove('persistent_user');
+                }
 
                 // Define current tenant na sessão
                 if (fullUser.tenantId) {
@@ -164,20 +168,45 @@ export const AuthService = {
             return undefined;
         }
 
-        // 3. Se tiver grupo, busca as permissões do grupo
-        let permissions = dbUser.permissions || {};
+        // 3. Se tiver grupo vinculado, as permissões do GRUPO têm prioridade total
+        // O grupo é a fonte de verdade — permissões diretas no usuário são apenas fallback
+        let permissions = dbUser.permissions || DEFAULT_PERMISSIONS;
         let groupName = '';
 
-        if (dbUser.group_id) {
+        // Usa group_ids (array) ou group_id (legado) para encontrar o grupo primário
+        let parsedGroupIds: string[] = [];
+        if (dbUser.group_ids) {
+            if (typeof dbUser.group_ids === 'string') {
+                try { parsedGroupIds = JSON.parse(dbUser.group_ids); } 
+                catch (e) { parsedGroupIds = [dbUser.group_ids]; }
+            } else if (Array.isArray(dbUser.group_ids)) {
+                parsedGroupIds = dbUser.group_ids;
+            }
+        }
+
+        const primaryGroupId = parsedGroupIds.length > 0
+            ? parsedGroupIds[0]
+            : dbUser.group_id;
+
+        if (primaryGroupId) {
             const { data: group } = await supabase
                 .from('user_groups')
                 .select('permissions, name')
-                .eq('id', dbUser.group_id)
+                .eq('id', primaryGroupId)
                 .single();
 
             if (group) {
-                permissions = { ...group.permissions, ...permissions }; // Permissões diretas sobrescrevem grupo? Ou merge? Geralmente merge.
-                groupName = group.name;
+                groupName = group.name || '';
+                
+                if (group.permissions) {
+                    // 🔑 GRUPO TEM PRIORIDADE TOTAL:
+                    // Se for o grupo Administradores, força as permissões máximas para corrigir JSONs legados
+                    if (group.name?.toLowerCase() === 'administradores') {
+                        permissions = ADMIN_PERMISSIONS;
+                    } else {
+                        permissions = group.permissions;
+                    }
+                }
             }
         }
 
@@ -190,7 +219,7 @@ export const AuthService = {
             avatar: dbUser.avatar,
             active: dbUser.active,
             groupId: dbUser.group_id,
-            groupIds: dbUser.group_ids || (dbUser.group_id ? [dbUser.group_id] : []),
+            groupIds: parsedGroupIds.length > 0 ? parsedGroupIds : (dbUser.group_id ? [dbUser.group_id] : []),
             groupName: groupName,
             permissions: permissions
         };

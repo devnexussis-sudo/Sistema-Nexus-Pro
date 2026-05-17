@@ -16,6 +16,7 @@ import { DataService } from '../../services/dataService';
 import { StorageService } from '../../services/storageService';
 import XLSX from 'xlsx-js-style';
 import { NexusQueryClient } from '../../hooks/nexusHooks';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface FinancialDashboardProps {
     orders: ServiceOrder[];
@@ -29,6 +30,7 @@ interface FinancialDashboardProps {
 export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, quotes, techs, customers = [], tenant, onRefresh }) => {
   const { t } = useI18n();
   const { showAlert } = useDialog();
+  const { can } = usePermissions();
 
     const printRef = useRef<HTMLDivElement>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -823,8 +825,11 @@ ${container.innerHTML}
                                     </button>
 
                                     <button
-                                        onClick={handleInvoiceBatch}
-                                        className="flex items-center gap-2 px-2.5 py-1 bg-slate-800 hover:bg-slate-800 text-white rounded-md text-[10px] font-semibold uppercase transition-all shadow-lg shadow-slate-800/20 active:scale-95 whitespace-nowrap"
+                                        onClick={() => {
+                                            if (can('financial', 'invoice')) handleInvoiceBatch();
+                                            else showAlert("Acesso Negado: Você não tem permissão para faturar.", 'warning');
+                                        }}
+                                        className={`flex items-center gap-2 px-2.5 py-1 text-white rounded-md text-[10px] font-semibold uppercase transition-all whitespace-nowrap ${can('financial', 'invoice') ? 'bg-slate-800 hover:bg-slate-800 shadow-lg shadow-slate-800/20 active:scale-95' : 'bg-slate-800/30 text-white/50 grayscale cursor-not-allowed'}`}
                                         title="Faturar Seleção"
                                     >
                                         <DollarSign size={13} /> Faturar
@@ -1180,8 +1185,15 @@ ${container.innerHTML}
                                 </button>
                                 {selectedItem.status !== 'PAID' && (
                                     <button
-                                        onClick={() => { setSelectedIds([selectedItem.id]); setIsInvoiceModalOpen(true); }}
-                                        className="h-9 px-2 sm:px-4 gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-all flex items-center shadow-md shadow-emerald-600/20"
+                                        onClick={() => {
+                                            if (can('financial', 'invoice')) {
+                                                setSelectedIds([selectedItem.id]);
+                                                setIsInvoiceModalOpen(true);
+                                            } else {
+                                                showAlert("Acesso Negado: Você não tem permissão para faturar.", 'warning');
+                                            }
+                                        }}
+                                        className={`h-9 px-2 sm:px-4 gap-1.5 rounded-lg text-xs font-medium transition-all flex items-center shadow-md ${can('financial', 'invoice') ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20' : 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-50'}`}
                                     >
                                         <DollarSign size={14} /> <span className="hidden md:inline">Faturar</span>
                                     </button>
@@ -1385,9 +1397,10 @@ ${container.innerHTML}
                                                         <p className={`text-[8px] font-medium uppercase tracking-widest leading-none mb-1 ${selectedItem.status !== 'PAID' ? 'text-rose-500' : 'text-slate-400'}`}>Vencimento</p>
                                                         {selectedItem.status !== 'PAID' ? (
                                                             <div className="flex items-center gap-2">
-                                                                <input
-                                                                    type="date"
-                                                                    value={editingDueDate || (() => {
+                                                                    <input
+                                                                        type="date"
+                                                                        disabled={!can('financial', 'update')}
+                                                                        value={editingDueDate || (() => {
                                                                         const raw = selectedItem.dueDate || selectedItem.date;
                                                                         if (!raw) return '';
                                                                         try { return new Date(raw).toISOString().split('T')[0]; } catch { return ''; }
@@ -1397,8 +1410,11 @@ ${container.innerHTML}
                                                                 />
                                                                 {editingDueDate && (
                                                                     <button
-                                                                        disabled={isProcessing}
+                                                                        disabled={isProcessing || !can('financial', 'update')}
                                                                         onClick={async () => {
+                                                                            if (!can('financial', 'update')) {
+                                                                                showAlert("Acesso Negado", "warning"); return;
+                                                                            }
                                                                             if (!editingDueDate) return;
                                                                             const newDateISO = new Date(editingDueDate + 'T12:00:00').toISOString();
                                                                             setIsProcessing(true);
@@ -1833,38 +1849,58 @@ ${container.innerHTML}
                                         <h3 className="text-sm font-medium text-slate-800 mb-4 flex items-center gap-2">
                                             <Tag size={16} className="text-slate-400"/> Aplicar Desconto Extra
                                         </h3>
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex border border-slate-200 rounded-lg overflow-hidden shrink-0">
-                                                <button
-                                                    onClick={() => setBillingDiscountType('fixed')}
-                                                    className={`px-3 py-2 text-[10px] font-semibold transition-all ${billingDiscountType === 'fixed' ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
-                                                >R$</button>
-                                                <button
-                                                    onClick={() => setBillingDiscountType('percent')}
-                                                    className={`px-3 py-2 text-[10px] font-semibold transition-all ${billingDiscountType === 'percent' ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
-                                                >%</button>
+                                        {can('financial', 'discounts') ? (
+                                            <div className="space-y-3 pt-3 border-t border-slate-100">
+                                                <div className="flex gap-2">
+                                                    <div className="flex rounded-lg overflow-hidden border border-slate-200 shrink-0">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setBillingDiscountType('fixed')}
+                                                            className={`px-3 py-2 text-[10px] font-semibold transition-all ${billingDiscountType === 'fixed' ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+                                                        >
+                                                            R$
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setBillingDiscountType('percent')}
+                                                            className={`px-3 py-2 text-[10px] font-semibold transition-all ${billingDiscountType === 'percent' ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+                                                        >
+                                                            %
+                                                        </button>
+                                                    </div>
+                                                    <div className="relative flex-1">
+                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
+                                                            {billingDiscountType === 'percent' ? '%' : 'R$'}
+                                                        </span>
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            max={billingDiscountType === 'percent' ? 100 : undefined}
+                                                            step={billingDiscountType === 'percent' ? "1" : "0.01"}
+                                                            value={billingDiscount || ''}
+                                                            onChange={(e) => setBillingDiscount(Number(e.target.value))}
+                                                            className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-slate-800/10 transition-all"
+                                                            placeholder="0.00"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                {billingDiscount > 0 && (
+                                                    <p className="text-[10px] font-medium text-rose-500 bg-rose-50 px-2 py-1.5 rounded-md mt-2 flex items-center justify-between">
+                                                        <span>Desconto concedido:</span>
+                                                        <span className="font-bold">
+                                                            - {billingDiscountType === 'percent'
+                                                                ? formatCurrency((selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal) * billingDiscount / 100)
+                                                                : formatCurrency(billingDiscount)}
+                                                        </span>
+                                                    </p>
+                                                )}
                                             </div>
-                                            <div className="relative flex-1">
-                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-400">
-                                                    {billingDiscountType === 'percent' ? '%' : 'R$'}
-                                                </span>
-                                                <input
-                                                    type="number"
-                                                    min={0}
-                                                    max={billingDiscountType === 'percent' ? 100 : undefined}
-                                                    step={0.01}
-                                                    value={billingDiscount || ''}
-                                                    onChange={e => setBillingDiscount(parseFloat(e.target.value) || 0)}
-                                                    placeholder="0"
-                                                    className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-800 outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition-all shadow-sm"
-                                                />
+                                        ) : (
+                                            <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-start gap-2 opacity-50">
+                                                <ShieldCheck size={14} className="text-slate-400 shrink-0 mt-0.5" />
+                                                <p className="text-[10px] text-slate-500 leading-relaxed">Você não tem permissão para aplicar descontos.</p>
                                             </div>
-                                            {billingDiscount > 0 && (
-                                                <button onClick={() => setBillingDiscount(0)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all">
-                                                    <X size={16} />
-                                                </button>
-                                            )}
-                                        </div>
+                                        )}
                                     </div>
                                 </div>
 

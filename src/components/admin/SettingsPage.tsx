@@ -12,6 +12,7 @@ import {
   Monitor
 } from 'lucide-react';
 import { useI18n, TIMEZONE_OPTIONS, type SupportedLocale, type SupportedTimezone } from '../../i18n';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface CompanyData {
   name: string;
@@ -60,7 +61,20 @@ interface SystemParams {
 
 export const SettingsPage: React.FC = () => {
   const { t, locale, timezone, setLocale, setTimezone } = useI18n();
-  const [activeTab, setActiveTab] = useState<'company' | 'system' | 'app' | 'dashboard'>('company');
+  const { isAdmin, permissions } = usePermissions();
+
+  // Determina quais abas o usuário pode acessar
+  const tabAccess = {
+    company: isAdmin || permissions?.settingsTabs?.company === true,
+    system: isAdmin || permissions?.settingsTabs?.system === true,
+    app: isAdmin || permissions?.settingsTabs?.app === true,
+    dashboard: isAdmin || permissions?.settingsTabs?.dashboard === true,
+  };
+
+  // Primeira aba acessível como default
+  const firstAvailable = (['company', 'system', 'app', 'dashboard'] as const).find(k => tabAccess[k]) || 'company';
+
+  const [activeTab, setActiveTab] = useState<'company' | 'system' | 'app' | 'dashboard'>(firstAvailable);
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showSuperUserUnlock, setShowSuperUserUnlock] = useState(false);
@@ -436,36 +450,44 @@ export const SettingsPage: React.FC = () => {
     <div className="p-2 flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
       {/* Toolbar */}
       <div className="mb-2 flex flex-col xl:flex-row gap-3 items-center">
-        {/* Tabs */}
+        {/* Tabs — só exibe abas que o grupo pode acessar */}
         <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-lg shadow-slate-200/50 flex-shrink-0">
-          <button
-            type="button"
-            onClick={() => setActiveTab('company')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'company' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            <Building2 size={14} /> {t.settings.tabs.company}
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('system')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'system' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            <Monitor size={14} /> {t.settings.tabs.system}
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('app')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'app' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            <Smartphone size={14} /> {t.settings.tabs.app}
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('dashboard')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'dashboard' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            <PieChart size={14} /> {t.settings.tabs.dashboard}
-          </button>
+          {tabAccess.company && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('company')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'company' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <Building2 size={14} /> {t.settings.tabs.company}
+            </button>
+          )}
+          {tabAccess.system && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('system')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'system' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <Monitor size={14} /> {t.settings.tabs.system}
+            </button>
+          )}
+          {tabAccess.app && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('app')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'app' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <Smartphone size={14} /> {t.settings.tabs.app}
+            </button>
+          )}
+          {tabAccess.dashboard && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('dashboard')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'dashboard' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <PieChart size={14} /> {t.settings.tabs.dashboard}
+            </button>
+          )}
         </div>
 
         {/* Middle Spacer / Status */}
@@ -495,7 +517,15 @@ export const SettingsPage: React.FC = () => {
         <div className="flex-1 overflow-y-auto px-3 py-2 custom-scrollbar">
           <form id="settings-form" onSubmit={handleSave} className="max-w-7xl mx-auto space-y-3">
 
-            {activeTab === 'company' && (
+            {!tabAccess.company && !tabAccess.system && !tabAccess.app && !tabAccess.dashboard && (
+              <div className="flex flex-col items-center justify-center p-12 text-slate-400 space-y-4">
+                <ShieldAlert size={48} className="text-slate-300" />
+                <h3 className="text-lg font-medium text-slate-600">Acesso Restrito</h3>
+                <p className="text-[11px] uppercase tracking-widest text-center max-w-sm">Você não tem permissão para visualizar ou editar as configurações do sistema.</p>
+              </div>
+            )}
+
+            {activeTab === 'company' && tabAccess.company && (
               <div className="space-y-3 animate-fade-in">
                 {/* SEÇÃO PRINCIPAL - DENSIDADE BIG TECH */}
                 <section className="bg-white p-3 rounded-xl border border-gray-100 shadow-xl space-y-3">
@@ -692,7 +722,7 @@ export const SettingsPage: React.FC = () => {
               </div>
             )}
 
-            {activeTab === 'system' && (
+            {activeTab === 'system' && tabAccess.system && (
               <div className="space-y-4 animate-fade-in">
                 <section className="bg-white p-4 rounded-xl border border-gray-100 shadow-xl space-y-4">
                   <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
@@ -761,7 +791,7 @@ export const SettingsPage: React.FC = () => {
               </div>
             )}
 
-            {activeTab === 'dashboard' && (
+            {activeTab === 'dashboard' && tabAccess.dashboard && (
               <div className="space-y-4 animate-fade-in">
                 <section className="bg-white p-4 rounded-xl border border-gray-100 shadow-xl space-y-4">
                   <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
@@ -829,7 +859,7 @@ export const SettingsPage: React.FC = () => {
               </div>
             )}
 
-            {activeTab === 'app' && (
+            {activeTab === 'app' && tabAccess.app && (
               <div className="space-y-4 animate-fade-in">
                 <section className="bg-white p-4 rounded-xl border border-gray-100 shadow-xl space-y-4">
                   <div className="flex items-center gap-3 border-b border-gray-50 pb-4">

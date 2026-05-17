@@ -4,6 +4,7 @@ import { useGroupStore } from '../../store/groupStore';
 import {
   ArrowLeft,
   Box, Building2,
+  Calendar,
   CalendarClock,
   Check,
   ClipboardList,
@@ -12,8 +13,10 @@ import {
   Filter,
   FolderTree,
   Key,
+  LayoutDashboard,
   Loader2,
   Mail,
+  Navigation,
   Package,
   Save,
   Search,
@@ -30,13 +33,28 @@ import { useUserGroups, useUsers } from '../../hooks/nexusHooks';
 import { useI18n } from '../../i18n/I18nContext';
 import { DataService } from '../../services/dataService';
 import { TenantService } from '../../services/tenantService';
+import { AuthService } from '../../services/authService';
+import { useAuth } from '../../contexts/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { ADMIN_PERMISSIONS, DEFAULT_PERMISSIONS, User, UserGroup, UserPermissions, UserRole } from '../../types';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Pagination } from '../ui/Pagination';
 
-const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, title, subtitle, onBack, disabled = false, linkedUsers }: { perms: UserPermissions, onUpdate: (p: UserPermissions) => void, title: string, subtitle: string, onBack: () => void, disabled?: boolean, linkedUsers?: User[] }) => {
+const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, onSave, title, subtitle, onBack, disabled = false, linkedUsers }: { perms: UserPermissions, onUpdate: (p: UserPermissions) => void, onSave?: () => Promise<void> | void, title: string, subtitle: string, onBack: () => void, disabled?: boolean, linkedUsers?: User[] }) => {
+
   const [activeTab, setActiveTab] = React.useState<'permissions' | 'users'>('permissions');
+  const [isSaving, setIsSaving] = React.useState(false);
+
+  const handleSave = async () => {
+    if (!onSave) return;
+    setIsSaving(true);
+    try {
+      await onSave();
+    } finally {
+      setIsSaving(false);
+    }
+  };
   const modules = [
     { id: 'orders', label: 'Ordens de Serviço (O.S.)', icon: ClipboardList },
     { id: 'customers', label: 'Cadastro de Clientes', icon: Building2 },
@@ -82,6 +100,16 @@ const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, title, subtit
               <ShieldCheck size={16} />
               <span className="text-[10px] font-bold">Perfil Master Protegido</span>
             </div>
+          )}
+          {onSave && !disabled && (
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="px-5 h-10 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all text-[12px] font-bold ml-2"
+            >
+              {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              {isSaving ? 'Salvando...' : 'Salvar Configurações'}
+            </Button>
           )}
         </div>
       </div>
@@ -151,8 +179,10 @@ const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, title, subtit
                 </div>
                 <div className="p-3">
                   {[
-                    { key: 'read', label: 'Visualizar Custos e Faturamento' },
-                    { key: 'update', label: 'Alterar Tabelas de Preço' },
+                    { key: 'read', label: 'Acesso ao Módulo Financeiro' },
+                    { key: 'invoice', label: 'Faturar e Gerar Cobranças' },
+                    { key: 'update', label: 'Alterar Valores e Preços' },
+                    { key: 'discounts', label: 'Aplicar Descontos em OS' },
                   ].map((action) => {
                     const isChecked = perms.financial?.[action.key as keyof typeof perms.financial] || false;
                     return (
@@ -162,7 +192,7 @@ const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, title, subtit
                           onClick={() => {
                             if (disabled) return;
                             const newPerms = { ...perms };
-                            if (!newPerms.financial) newPerms.financial = { read: false, update: false };
+                            if (!newPerms.financial) newPerms.financial = { read: false, update: false, invoice: false, discounts: false };
                             newPerms.financial = { ...newPerms.financial, [action.key]: !newPerms.financial[action.key as keyof typeof perms.financial] };
                             onUpdate(newPerms);
                           }}
@@ -184,7 +214,8 @@ const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, title, subtit
                 <div className="p-3">
                   {[
                     { key: 'settings', label: 'Acesso a Configurações Globais', icon: Settings },
-                    { key: 'manageUsers', label: 'Gestão de Usuários e Grupos', icon: ShieldCheck },
+                    { key: 'manageUsers', label: 'Gerenciar Perfis de Usuários', icon: Users },
+                    { key: 'manageGroups', label: 'Gerenciar Grupos e Permissões', icon: ShieldCheck },
                   ].map((item) => {
                     const isChecked = (perms as any)[item.key] || false;
                     return (
@@ -207,6 +238,103 @@ const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, title, subtit
                     );
                   })}
                 </div>
+              </div>
+            </div>
+
+            {/* ── ABAS DE CONFIGURAÇÃO (granular) ── */}
+            {(perms.settings || disabled) && (
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden mb-6">
+                <div className="p-5 border-b border-slate-100 bg-violet-50/50 flex items-center gap-4">
+                  <div className="p-2.5 bg-violet-100 rounded-xl text-violet-600"><Settings size={16} /></div>
+                  <div>
+                    <h3 className="font-bold text-slate-800 text-[13px]">Abas de Configuração</h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Controla quais abas da página de Configurações este grupo pode visualizar e editar.</p>
+                  </div>
+                </div>
+                <div className="p-3">
+                  {[
+                    { key: 'company', label: 'Dados da Empresa', desc: 'Razão social, CNPJ, endereço, logotipo' },
+                    { key: 'system', label: 'Parâmetros do Sistema', desc: 'Idioma, fuso horário, link público' },
+                    { key: 'app', label: 'App do Técnico', desc: 'Preços, compartilhamento, impedimentos' },
+                    { key: 'dashboard', label: 'Indicadores e SLA', desc: 'Metas de SLA 24h e 48h do dashboard' },
+                  ].map((tab) => {
+                    const tabs = perms.settingsTabs || { company: false, system: false, app: false, dashboard: false };
+                    const isChecked = tabs[tab.key as keyof typeof tabs] === true;
+                    return (
+                      <div key={tab.key} className="flex items-center justify-between p-3 px-4 hover:bg-slate-50 rounded-2xl transition-colors">
+                        <div>
+                          <span className="text-[12px] font-bold text-slate-600 block">{tab.label}</span>
+                          <span className="text-[9px] text-slate-400 font-medium">{tab.desc}</span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (disabled) return;
+                            const newTabs = { ...(perms.settingsTabs || { company: false, system: false, app: false, dashboard: false }), [tab.key]: !isChecked };
+                            onUpdate({ ...perms, settingsTabs: newTabs });
+                          }}
+                          className={`w-11 h-6 rounded-full relative transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-violet-500 ${isChecked ? 'bg-violet-500' : 'bg-slate-200'} ${disabled ? 'opacity-70 cursor-not-allowed' : ''}`}
+                        >
+                          <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${isChecked ? 'left-[26px]' : 'left-1'}`} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden mb-6">
+              <div className="p-5 border-b border-slate-100 bg-[#1c2d4f]/5 flex items-center gap-4">
+                <div className="p-2.5 bg-[#1c2d4f]/10 rounded-xl text-[#1c2d4f]"><Key size={16} /></div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-[13px]">Acesso aos Menus e Páginas</h3>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Controla quais páginas este grupo pode visualizar e acessar. Páginas desativadas ficam ocultas e bloqueadas.</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-0 divide-x divide-y divide-slate-100">
+                {[
+                  { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+                  { key: 'orders', label: 'Ordens de Serviço', icon: ClipboardList },
+                  { key: 'calendar', label: 'Agenda', icon: Calendar },
+                  { key: 'map', label: 'Visão de Campo', icon: Navigation },
+                  { key: 'financial', label: 'Financeiro', icon: Building2 },
+                  { key: 'quotes', label: 'Orçamentos', icon: FileText },
+                  { key: 'stock', label: 'Estoque', icon: Package },
+                  { key: 'contracts', label: 'Contratos / PMOC', icon: CalendarClock },
+                  { key: 'customers', label: 'Clientes', icon: Users },
+                  { key: 'equipments', label: 'Ativos', icon: Box },
+                  { key: 'forms', label: 'Formulários', icon: Workflow },
+                  { key: 'technicians', label: 'Técnicos', icon: UserCheck },
+                  { key: 'users', label: 'Usuários e Grupos', icon: ShieldAlert },
+                  { key: 'settings', label: 'Configurações', icon: Settings },
+                ].map((menu) => {
+                  const currentAccess = perms.menuAccess || {};
+                  const isChecked = (currentAccess as any)[menu.key] === true;
+                  return (
+                    <div key={menu.key} className={`flex items-center justify-between p-4 transition-colors hover:bg-slate-50/80 ${isChecked ? '' : 'bg-rose-50/30'}`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg transition-all ${isChecked ? 'bg-slate-100 text-slate-500' : 'bg-rose-100 text-rose-400'}`}>
+                          <menu.icon size={14} />
+                        </div>
+                        <div>
+                          <span className="text-[11px] font-bold text-slate-700 block">{menu.label}</span>
+                          <span className={`text-[9px] font-bold uppercase tracking-wider ${isChecked ? 'text-emerald-500' : 'text-rose-400'}`}>
+                            {isChecked ? 'Liberado' : 'Bloqueado'}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (disabled) return;
+                          const newMenuAccess = { ...(perms.menuAccess || {}), [menu.key]: !isChecked };
+                          onUpdate({ ...perms, menuAccess: newMenuAccess as any });
+                        }}
+                        className={`w-11 h-6 rounded-full relative transition-all shrink-0 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#1c2d4f] ${isChecked ? 'bg-[#1c2d4f]' : 'bg-rose-300'} ${disabled ? 'opacity-70 cursor-not-allowed' : ''}`}
+                      >
+                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${isChecked ? 'left-[26px]' : 'left-1'}`} />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </>
@@ -260,6 +388,8 @@ const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, title, subtit
 
 export const UserManagement: React.FC = () => {
   const { t } = useI18n();
+  const { refreshUser } = useAuth();
+  const { can } = usePermissions();
 
   const isMasterMode = window.location.pathname === '/master';
   const {
@@ -282,7 +412,7 @@ export const UserManagement: React.FC = () => {
     selectedUser,
     setSelectedUser,
   } = useGroupStore();
-  const [activeTab, setActiveTab] = useState<'users' | 'groups'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'groups'>(can('manageUsers') ? 'users' : 'groups');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [showFilters, setShowFilters] = useState(false);
@@ -380,6 +510,8 @@ export const UserManagement: React.FC = () => {
 
       if (editingUser) {
         await TenantService.updateUser({ ...dataToSave, id: editingUser.id } as User);
+        // Atualiza o cache local caso o usuário editado seja ele mesmo
+        await AuthService.refreshUser();
       } else {
         const newUser = {
           ...dataToSave,
@@ -411,6 +543,8 @@ export const UserManagement: React.FC = () => {
     try {
       if (editingGroup) {
         await TenantService.updateUserGroup({ ...groupFormData, id: editingGroup.id } as UserGroup);
+        // Atualiza a sessão local caso o admin pertença ao grupo modificado
+        await AuthService.refreshUser();
       } else {
         await TenantService.createUserGroup({ ...groupFormData, tenantId: DataService.getCurrentTenantId() } as any);
       }
@@ -487,7 +621,20 @@ export const UserManagement: React.FC = () => {
       return (
         <PermissionEditor
           perms={selectedUser.permissions || DEFAULT_PERMISSIONS}
-          onUpdate={(p) => handleUpdatePermissions(selectedUser.id, p)}
+          onUpdate={(p) => {
+            const updated = { ...selectedUser, permissions: p };
+            setSelectedUser(updated);
+          }}
+          onSave={async () => {
+            try {
+              if (selectedUser.permissions) {
+                await handleUpdatePermissions(selectedUser.id, selectedUser.permissions);
+                alert("✅ Permissões do usuário salvas com sucesso!");
+              }
+            } catch (err: any) {
+              alert("Erro ao salvar permissões do usuário: " + err.message);
+            }
+          }}
           title="Privilégios do Usuário"
           subtitle={`Ajustando Perfil: ${selectedUser.name}`}
           onBack={() => { setActiveSubView('list'); setSelectedUser(null); setSelectedGroup(null); }}
@@ -500,12 +647,23 @@ export const UserManagement: React.FC = () => {
       return (
         <PermissionEditor
           perms={isMasterGroup ? ADMIN_PERMISSIONS : (selectedGroup.permissions || DEFAULT_PERMISSIONS)}
-          onUpdate={async (p) => {
-            if (isMasterGroup) return; // Prevent saving if master
+          onUpdate={(p) => {
+            if (isMasterGroup) return; // Prevent updating if master
             const updated = { ...selectedGroup, permissions: p };
-            setSelectedGroup(updated); // Optimistic UI update without triggering a remount because PermissionEditor is now external!
-            await TenantService.updateUserGroup(updated);
-            loadData();
+            setSelectedGroup(updated); // Optimistic UI update, DOES NOT save to DB yet
+          }}
+          onSave={async () => {
+            if (isMasterGroup) return;
+            try {
+              await TenantService.updateUserGroup(selectedGroup);
+              // Refresh logged in user session se eles pertencerem a este grupo
+              await AuthService.refreshUser(); // Updates local storage
+              await refreshUser(); // Updates React context to trigger UI re-renders without reload
+              await loadData();
+              alert("✅ Permissões do grupo atualizadas com sucesso!");
+            } catch (error: any) {
+              alert("Erro ao salvar permissões: " + error.message);
+            }
           }}
           title="Permissões do Grupo"
           subtitle={`Configurando Grupo: ${selectedGroup.name}`}
@@ -526,14 +684,20 @@ export const UserManagement: React.FC = () => {
           <div className="flex items-center gap-1 w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0 hide-scrollbar">
             <div className="flex bg-white/60 p-1 rounded-xl border border-[#1c2d4f]/10 shadow-sm shrink-0">
               <button
-                onClick={() => setActiveTab('users')}
-                className={`px-3 h-8 rounded-lg text-[9px] transition-all flex items-center gap-1.5 ${activeTab === 'users' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}
+                onClick={() => {
+                  if (can('manageUsers')) setActiveTab('users');
+                  else alert("Acesso Negado: Você não tem permissão para gerenciar usuários.");
+                }}
+                className={`px-3 h-8 rounded-lg text-[9px] transition-all flex items-center gap-1.5 ${!can('manageUsers') ? 'opacity-30 cursor-not-allowed grayscale' : activeTab === 'users' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}
               >
                 <Users size={14} /> <span className="whitespace-nowrap">{t.users.title}</span>
               </button>
               <button
-                onClick={() => setActiveTab('groups')}
-                className={`px-3 h-8 rounded-lg text-[9px] transition-all flex items-center gap-1.5 ${activeTab === 'groups' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}
+                onClick={() => {
+                  if (can('manageGroups')) setActiveTab('groups');
+                  else alert("Acesso Negado: Você não tem permissão para gerenciar grupos.");
+                }}
+                className={`px-3 h-8 rounded-lg text-[9px] transition-all flex items-center gap-1.5 ${!can('manageGroups') ? 'opacity-30 cursor-not-allowed grayscale' : activeTab === 'groups' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}
               >
                 <FolderTree size={14} /> <span className="whitespace-nowrap">{t.users.groups}</span>
               </button>
@@ -614,8 +778,15 @@ export const UserManagement: React.FC = () => {
                           </div>
                         </div>
                         <div className="truncate">
-                          <p className="text-slate-900 tracking-tighter text-[13px] font-medium truncate max-w-[150px]">{user.name}</p>
                           <p className="text-[11px] text-slate-400 mt-0.5 truncate max-w-[180px]">{user.email}</p>
+                          <p className="text-[9px] font-bold text-slate-500 mt-1 truncate max-w-[180px] uppercase tracking-wider flex items-center gap-1">
+                            <FolderTree size={10} className="text-slate-400" />
+                            {(() => {
+                              const groupId = user.groupIds?.[0] || user.groupId;
+                              const g = groups.find(g => g.id === groupId);
+                              return g ? g.name : 'Nenhum Grupo';
+                            })()}
+                          </p>
                         </div>
                       </div>
                     </td>
@@ -853,10 +1024,10 @@ export const UserManagement: React.FC = () => {
 
                         {/* Cabeçalho com contador */}
                         <div className="flex items-center justify-between mb-4">
-                          <h3 className="text-sm font-bold text-slate-900 border-l-4 border-amber-500 pl-3">grupos de acesso</h3>
+                          <h3 className="text-sm font-bold text-slate-900 border-l-4 border-amber-500 pl-3">grupo de acesso</h3>
                           {(formData.groupIds?.length || 0) > 0 && (
                             <span className="text-[9px] font-bold bg-[#1c2d4f] text-white px-2 py-0.5 rounded-full">
-                              {formData.groupIds?.length} selecionado{(formData.groupIds?.length || 0) > 1 ? 's' : ''}
+                              1 selecionado
                             </span>
                           )}
                         </div>
@@ -911,12 +1082,9 @@ export const UserManagement: React.FC = () => {
                                   key={g.id}
                                   type="button"
                                   onClick={() => {
-                                    const current = formData.groupIds || [];
                                     setFormData({
                                       ...formData,
-                                      groupIds: isSelected
-                                        ? current.filter(id => id !== g.id)
-                                        : [...current, g.id]
+                                      groupIds: isSelected ? [] : [g.id]
                                     });
                                   }}
                                   className={`w-full flex items-center gap-2.5 p-2.5 rounded-xl border transition-all text-left ${isSelected
@@ -924,12 +1092,12 @@ export const UserManagement: React.FC = () => {
                                     : 'border-slate-100 bg-slate-50/50 hover:border-slate-200 hover:bg-white'
                                     }`}
                                 >
-                                  {/* Checkbox visual */}
-                                  <div className={`w-4 h-4 rounded flex items-center justify-center border transition-all shrink-0 ${isSelected
+                                  {/* Radio visual */}
+                                  <div className={`w-4 h-4 rounded-full flex items-center justify-center border transition-all shrink-0 ${isSelected
                                     ? 'bg-[#1c2d4f] border-[#1c2d4f]'
                                     : 'bg-white border-slate-300'
                                     }`}>
-                                    {isSelected && <Check size={10} className="text-white" />}
+                                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                                   </div>
                                   <div className={`w-7 h-7 rounded-lg flex items-center justify-center border shrink-0 transition-colors ${isSelected
                                     ? 'bg-[#1c2d4f] border-[#1c2d4f] text-white'

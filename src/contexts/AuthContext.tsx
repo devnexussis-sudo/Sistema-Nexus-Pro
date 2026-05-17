@@ -126,7 +126,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, []);
 
     const logout = useCallback(async () => {
-        setAuth({ user: null, isAuthenticated: false });
+        // Exibe o spinner global (splash screen) IMEDIATAMENTE antes de qualquer mudança de estado.
+        // Isso evita que o React re-renderize para a tela de Login enquanto a navegação/signOut ainda está processando.
+        const splash = document.getElementById('nexus-loading-screen');
+        if (splash) {
+            splash.style.transition = 'none'; // Remove fade-out
+            splash.style.opacity = '1';
+            splash.style.pointerEvents = 'auto';
+            splash.style.display = 'flex';
+            splash.classList.remove('fade-out');
+        }
+
         SessionStorage.clear();
         GlobalStorage.remove('persistent_user');
         try {
@@ -134,6 +144,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch (err) {
             console.error('[AuthContext] signOut error:', err);
         }
+        
+        // setAuth não é chamado aqui de propósito para evitar que a UI "pisque" para a tela de login
+        // antes do redirecionamento global (window.location.href = '/') fazer o refresh.
     }, []);
 
     const refreshUser = useCallback(async () => {

@@ -23,10 +23,36 @@ export interface UserPermissions {
   forms: { create: boolean; read: boolean; update: boolean; delete: boolean };
   // Configurações e Sistema
   settings: boolean;
+  // Configurações por aba (granular)
+  settingsTabs?: {
+    company: boolean;    // Dados da Empresa
+    system: boolean;     // Parâmetros do Sistema
+    app: boolean;        // App do Técnico
+    dashboard: boolean;  // Indicadores / SLA
+  };
   manageUsers: boolean;
+  manageGroups: boolean;
   accessSuperAdmin: boolean;
   // Custos e Financeiro
-  financial: { read: boolean; update: boolean };
+  financial: { read: boolean; update: boolean; invoice?: boolean; discounts?: boolean; };
+  // ── Acesso aos Menus/Páginas (controle de navegação) ──────────
+  // Se true: o menu aparece e a rota é acessível. Se false: oculto e bloqueado.
+  menuAccess?: {
+    dashboard: boolean;
+    orders: boolean;
+    calendar: boolean;
+    map: boolean;
+    financial: boolean;
+    quotes: boolean;
+    stock: boolean;
+    contracts: boolean;
+    customers: boolean;
+    equipments: boolean;
+    forms: boolean;
+    technicians: boolean;
+    users: boolean;
+    settings: boolean;
+  };
 }
 
 export const DEFAULT_PERMISSIONS: UserPermissions = {
@@ -39,9 +65,32 @@ export const DEFAULT_PERMISSIONS: UserPermissions = {
   stock: { create: true, read: true, update: true, delete: false },
   forms: { create: true, read: true, update: true, delete: false },
   settings: false,
+  settingsTabs: {
+    company: false,
+    system: false,
+    app: false,
+    dashboard: false,
+  },
   manageUsers: false,
+  manageGroups: false,
   accessSuperAdmin: false,
-  financial: { read: false, update: false }
+  financial: { read: false, update: false, invoice: false, discounts: false },
+  menuAccess: {
+    dashboard: true,
+    orders: true,
+    calendar: true,
+    map: true,
+    financial: false,
+    quotes: true,
+    stock: true,
+    contracts: true,
+    customers: true,
+    equipments: true,
+    forms: true,
+    technicians: true,
+    users: false,
+    settings: false,
+  }
 };
 
 export const ADMIN_PERMISSIONS: UserPermissions = {
@@ -54,9 +103,32 @@ export const ADMIN_PERMISSIONS: UserPermissions = {
   stock: { create: true, read: true, update: true, delete: true },
   forms: { create: true, read: true, update: true, delete: true },
   settings: true,
+  settingsTabs: {
+    company: true,
+    system: true,
+    app: true,
+    dashboard: true,
+  },
   manageUsers: true,
+  manageGroups: true,
   accessSuperAdmin: false,
-  financial: { read: true, update: true }
+  financial: { read: true, update: true, invoice: true, discounts: true },
+  menuAccess: {
+    dashboard: true,
+    orders: true,
+    calendar: true,
+    map: true,
+    financial: true,
+    quotes: true,
+    stock: true,
+    contracts: true,
+    customers: true,
+    equipments: true,
+    forms: true,
+    technicians: true,
+    users: true,
+    settings: true,
+  }
 };
 
 export interface UserGroup {

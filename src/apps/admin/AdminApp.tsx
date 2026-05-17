@@ -39,6 +39,7 @@ import {
 import { useDashboardSummary } from '../../hooks/useDashboardSummary';
 import { AuthState, User } from '../../types';
 import { AdminLayout } from '../../components/layout/AdminLayout';
+import { PermissionGuard } from '../../components/layout/PermissionGuard';
 
 interface AdminAppProps {
     auth: AuthState;
@@ -341,45 +342,59 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                     </RouteGuard>
                 } />
                 <Route path="/orders" element={
-                    <RouteGuard isLoading={oLoading && fullOrders.length === 0}>
-                        <AdminDashboard techs={techs} customers={customers} startDate={activitiesDateRange.start} endDate={activitiesDateRange.end} onDateChange={(start, end) => handleDateValidation(start, end, setActivitiesDateRange)} onUpdateOrders={fetchGlobalData} onEditOrder={async (o) => { await DataService.updateOrder(o); await NexusQueryClient.invalidateOrders(); await oRefetch(); }} onCreateOrder={async (o) => { const created = await DataService.createOrder(o as any); await NexusQueryClient.invalidateOrders(); await oRefetch(); return created; }} />
-                    </RouteGuard>
+                    <PermissionGuard requiredMenu="orders">
+                        <RouteGuard isLoading={oLoading && fullOrders.length === 0}>
+                            <AdminDashboard techs={techs} customers={customers} startDate={activitiesDateRange.start} endDate={activitiesDateRange.end} onDateChange={(start, end) => handleDateValidation(start, end, setActivitiesDateRange)} onUpdateOrders={fetchGlobalData} onEditOrder={async (o) => { await DataService.updateOrder(o); await NexusQueryClient.invalidateOrders(); await oRefetch(); }} onCreateOrder={async (o) => { const created = await DataService.createOrder(o as any); await NexusQueryClient.invalidateOrders(); await oRefetch(); return created; }} />
+                        </RouteGuard>
+                    </PermissionGuard>
                 } />
                 <Route path="/contracts" element={
-                    <RouteGuard isLoading={cLoading && contracts.length === 0}>
-                        <PlannedMaintenance orders={contracts} techs={techs} customers={customers} equipments={equipments} user={auth.user} onUpdateOrders={fetchGlobalData} onEditOrder={async (c) => { await DataService.updateContract(c); await NexusQueryClient.invalidateContracts(); await cRefetch(); }} onCreateOrder={async (c) => { await DataService.createContract(c); await NexusQueryClient.invalidateContracts(); await cRefetch(); }} />
-                    </RouteGuard>
+                    <PermissionGuard requiredMenu="contracts">
+                        <RouteGuard isLoading={cLoading && contracts.length === 0}>
+                            <PlannedMaintenance orders={contracts} techs={techs} customers={customers} equipments={equipments} user={auth.user} onUpdateOrders={fetchGlobalData} onEditOrder={async (c) => { await DataService.updateContract(c); await NexusQueryClient.invalidateContracts(); await cRefetch(); }} onCreateOrder={async (c) => { await DataService.createContract(c); await NexusQueryClient.invalidateContracts(); await cRefetch(); }} />
+                        </RouteGuard>
+                    </PermissionGuard>
                 } />
                 <Route path="/quotes" element={
-                    <RouteGuard isLoading={(qLoading && quotes.length === 0) || (oLoading && fullOrders.length === 0)}>
-                        <QuoteManagement quotes={quotes} customers={customers} orders={fullOrders} stockItems={stockItems} onUpdateQuotes={fetchGlobalData} onEditQuote={async (q) => { await DataService.updateQuote(q); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onCreateQuote={async (q) => { await DataService.createQuote(q); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onDeleteQuote={async (id) => { await DataService.deleteQuote(id); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onCreateOrder={async (o) => { await DataService.createOrder(o as any); await NexusQueryClient.invalidateOrders(); await oRefetch(); }} />
-                    </RouteGuard>
+                    <PermissionGuard requiredMenu="quotes">
+                        <RouteGuard isLoading={(qLoading && quotes.length === 0) || (oLoading && fullOrders.length === 0)}>
+                            <QuoteManagement quotes={quotes} customers={customers} orders={fullOrders} stockItems={stockItems} onUpdateQuotes={fetchGlobalData} onEditQuote={async (q) => { await DataService.updateQuote(q); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onCreateQuote={async (q) => { await DataService.createQuote(q); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onDeleteQuote={async (id) => { await DataService.deleteQuote(id); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onCreateOrder={async (o) => { await DataService.createOrder(o as any); await NexusQueryClient.invalidateOrders(); await oRefetch(); }} />
+                        </RouteGuard>
+                    </PermissionGuard>
                 } />
                 <Route path="/customers" element={
-                    <RouteGuard isLoading={custLoading && customers.length === 0}>
-                        <CustomerManagement customers={customers} equipments={equipments} onUpdateCustomers={fetchGlobalData} onSwitchView={(v, p) => { /* Legacy Switch */ }} />
-                    </RouteGuard>
+                    <PermissionGuard requiredMenu="customers">
+                        <RouteGuard isLoading={custLoading && customers.length === 0}>
+                            <CustomerManagement customers={customers} equipments={equipments} onUpdateCustomers={fetchGlobalData} onSwitchView={(v, p) => { /* Legacy Switch */ }} />
+                        </RouteGuard>
+                    </PermissionGuard>
                 } />
                 <Route path="/equipments" element={
-                    <RouteGuard isLoading={eLoading && equipments.length === 0}>
-                        <EquipmentManagement equipments={equipments} customers={customers} onUpdateEquipments={fetchGlobalData} />
-                    </RouteGuard>
+                    <PermissionGuard requiredMenu="equipments">
+                        <RouteGuard isLoading={eLoading && equipments.length === 0}>
+                            <EquipmentManagement equipments={equipments} customers={customers} onUpdateEquipments={fetchGlobalData} />
+                        </RouteGuard>
+                    </PermissionGuard>
                 } />
-                <Route path="/stock" element={<StockManagement />} />
-                <Route path="/technicians" element={<TechnicianManagement />} />
-                <Route path="/map" element={<TechnicianMap />} />
-                <Route path="/forms" element={<FormManagement />} />
-                <Route path="/users" element={<UserManagement />} />
-                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/stock" element={<PermissionGuard requiredMenu="stock"><StockManagement /></PermissionGuard>} />
+                <Route path="/technicians" element={<PermissionGuard requiredMenu="technicians"><TechnicianManagement /></PermissionGuard>} />
+                <Route path="/map" element={<PermissionGuard requiredMenu="map"><TechnicianMap /></PermissionGuard>} />
+                <Route path="/forms" element={<PermissionGuard requiredMenu="forms"><FormManagement /></PermissionGuard>} />
+                <Route path="/users" element={<PermissionGuard requiredMenu="users"><UserManagement /></PermissionGuard>} />
+                <Route path="/settings" element={<PermissionGuard requiredMenu="settings"><SettingsPage /></PermissionGuard>} />
                 <Route path="/financial" element={
-                    <RouteGuard isLoading={oLoading && fullOrders.length === 0}>
-                        <FinancialDashboard orders={fullOrders} quotes={quotes} techs={techs} customers={customers} tenant={tenantData} onRefresh={fetchGlobalData} />
-                    </RouteGuard>
+                    <PermissionGuard requiredMenu="financial">
+                        <RouteGuard isLoading={oLoading && fullOrders.length === 0}>
+                            <FinancialDashboard orders={fullOrders} quotes={quotes} techs={techs} customers={customers} tenant={tenantData} onRefresh={fetchGlobalData} />
+                        </RouteGuard>
+                    </PermissionGuard>
                 } />
                 <Route path="/calendar" element={
-                    <RouteGuard isLoading={oLoading && fullOrders.length === 0}>
-                        <OrderCalendar orders={fullOrders} techs={techs} customers={customers} />
-                    </RouteGuard>
+                    <PermissionGuard requiredMenu="calendar">
+                        <RouteGuard isLoading={oLoading && fullOrders.length === 0}>
+                            <OrderCalendar orders={fullOrders} techs={techs} customers={customers} />
+                        </RouteGuard>
+                    </PermissionGuard>
                 } />
 
                 {/* Fallback */}

@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
 import {
     Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Calendar,
@@ -8,13 +7,14 @@ import {
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { NexusBranding } from '../ui/NexusBranding';
-import { User, UserRole, UserPermissions } from '../../types';
+import { User } from '../../types';
+
 import SessionStorage from '../../lib/sessionStorage';
 import { supabase } from '../../lib/supabase';
 import { Button } from '../ui/Button';
-
 import { ResilienceIndicator } from '../ResilienceIndicator';
 import { useI18n } from '../../i18n';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface AdminLayoutProps {
     children: React.ReactNode;
@@ -51,42 +51,39 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    const hasPermission = (module: keyof UserPermissions, action: 'read' | 'create' | 'update' | 'delete' | null = 'read'): boolean => {
-        if (isImpersonating) return true;
+
+    const { t } = useI18n();
+    const { canAccessMenu, isAdmin, can } = usePermissions();
+
+    // Usa isAdmin do hook — que já respeita grupos vinculados corretamente
+    const menuVisible = (menu: string): boolean => {
         if (!user) return false;
-        if (user.role === UserRole.ADMIN) return true;
-        if (!user.permissions) return false;
-        const perms = user.permissions as any;
-        if (typeof perms[module] === 'boolean') return perms[module];
-        if (action && perms[module]?.[action] !== undefined) return perms[module][action];
-        return false;
+        if (isAdmin) return true;
+        return canAccessMenu(menu as any);
     };
 
     const isModuleEnabled = (moduleId: string): boolean => {
-        if (isImpersonating) return true;
-        if (user?.role === UserRole.ADMIN) return true;
-        if (!user || !user.enabledModules) return true;
-        return user.enabledModules[moduleId] !== false;
+        if (isAdmin) return true;
+        if (!user || !(user as any).enabledModules) return true;
+        return (user as any).enabledModules[moduleId] !== false;
     };
 
-    const { t } = useI18n();
-
     const menuItems = [
-        { path: '/admin', id: 'dashboard', label: t.nav.dashboard, icon: LayoutDashboard, visible: true, enabled: isModuleEnabled('dashboard') },
-        { path: '/admin/orders', id: 'orders', label: t.nav.orders, icon: ClipboardList, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
-        { path: '/admin/calendar', id: 'calendar', label: t.nav.calendar, icon: Calendar, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
-        { path: '/admin/map', id: 'map', label: t.nav.map, icon: Navigation, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('map') },
-        { path: '/admin/financial', id: 'financial', label: t.nav.financial, icon: DollarSign, visible: hasPermission('financial', 'read'), enabled: isModuleEnabled('financial') },
-        { path: '/admin/quotes', id: 'quotes', label: t.nav.quotes, icon: FileText, visible: hasPermission('quotes', 'read'), enabled: isModuleEnabled('quotes') },
-        { path: '/admin/stock', id: 'stock', label: t.nav.stock, icon: Package, visible: hasPermission('stock', 'read'), enabled: isModuleEnabled('stock') },
-        { path: '/admin/contracts', id: 'contracts', label: t.nav.contracts, icon: CalendarClock, visible: hasPermission('contracts', 'read'), enabled: isModuleEnabled('contracts') },
-        { path: '/admin/customers', id: 'clients', label: t.nav.customers, icon: Users, visible: hasPermission('customers', 'read'), enabled: isModuleEnabled('clients') },
-        { path: '/admin/equipments', id: 'equip', label: t.nav.equipments, icon: Box, visible: hasPermission('equipments', 'read'), enabled: isModuleEnabled('equip') },
-        { path: '/admin/forms', id: 'forms', label: t.nav.forms, icon: Workflow, visible: hasPermission('forms', 'read'), enabled: isModuleEnabled('forms') },
-        { path: '/admin/technicians', id: 'techs', label: t.nav.technicians, icon: Wrench, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('techs') },
-        { path: '/admin/users', id: 'users', label: t.nav.users, icon: ShieldAlert, visible: hasPermission('manageUsers'), enabled: isModuleEnabled('users') },
-        { path: '/admin/settings', id: 'settings', label: t.nav.settings, icon: Settings, visible: hasPermission('settings'), enabled: isModuleEnabled('settings') },
-    ].filter(item => item.visible);
+        { path: '/admin', id: 'dashboard', label: t.nav.dashboard, icon: LayoutDashboard, visible: menuVisible('dashboard'), enabled: isModuleEnabled('dashboard') },
+        { path: '/admin/orders', id: 'orders', label: t.nav.orders, icon: ClipboardList, visible: menuVisible('orders'), enabled: isModuleEnabled('orders') },
+        { path: '/admin/calendar', id: 'calendar', label: t.nav.calendar, icon: Calendar, visible: menuVisible('calendar'), enabled: isModuleEnabled('orders') },
+        { path: '/admin/map', id: 'map', label: t.nav.map, icon: Navigation, visible: menuVisible('map'), enabled: isModuleEnabled('map') },
+        { path: '/admin/financial', id: 'financial', label: t.nav.financial, icon: DollarSign, visible: menuVisible('financial'), enabled: isModuleEnabled('financial') },
+        { path: '/admin/quotes', id: 'quotes', label: t.nav.quotes, icon: FileText, visible: menuVisible('quotes'), enabled: isModuleEnabled('quotes') },
+        { path: '/admin/stock', id: 'stock', label: t.nav.stock, icon: Package, visible: menuVisible('stock'), enabled: isModuleEnabled('stock') },
+        { path: '/admin/contracts', id: 'contracts', label: t.nav.contracts, icon: CalendarClock, visible: menuVisible('contracts'), enabled: isModuleEnabled('contracts') },
+        { path: '/admin/customers', id: 'clients', label: t.nav.customers, icon: Users, visible: menuVisible('customers'), enabled: isModuleEnabled('clients') },
+        { path: '/admin/equipments', id: 'equip', label: t.nav.equipments, icon: Box, visible: menuVisible('equipments'), enabled: isModuleEnabled('equip') },
+        { path: '/admin/forms', id: 'forms', label: t.nav.forms, icon: Workflow, visible: menuVisible('forms'), enabled: isModuleEnabled('forms') },
+        { path: '/admin/technicians', id: 'techs', label: t.nav.technicians, icon: Wrench, visible: menuVisible('technicians'), enabled: isModuleEnabled('techs') },
+        { path: '/admin/users', id: 'users', label: t.nav.users, icon: ShieldAlert, visible: menuVisible('users'), enabled: isModuleEnabled('users') },
+        { path: '/admin/settings', id: 'settings', label: t.nav.settings, icon: Settings, visible: menuVisible('settings'), enabled: isModuleEnabled('settings') },
+    ];
 
     const activeItem = menuItems.find(item =>
         location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path))
@@ -101,16 +98,20 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     return (
                         <Link
                             key={item.id}
-                            to={item.enabled ? item.path : '#'}
+                            to={item.enabled && item.visible ? item.path : '#'}
                             onClick={(e) => {
                                 if (!item.enabled) {
                                     e.preventDefault();
+                                    alert("Módulo desabilitado temporariamente.");
+                                } else if (!item.visible) {
+                                    e.preventDefault();
+                                    alert("Acesso Negado: Você não tem permissão para acessar este módulo. Contate o administrador.");
                                 } else if (onItemClick) {
                                     onItemClick();
                                 }
                             }}
-                            className={`w-full flex items-center ${isSidebarCollapsed && !onItemClick ? 'justify-center px-0' : 'px-3'} py-2.5 rounded-md text-sm font-medium transition-all duration-200 ${!item.enabled
-                                ? 'opacity-20 grayscale cursor-not-allowed'
+                            className={`w-full flex items-center ${isSidebarCollapsed && !onItemClick ? 'justify-center px-0' : 'px-3'} py-2.5 rounded-md text-sm font-medium transition-all duration-200 ${(!item.enabled || !item.visible)
+                                ? 'bg-slate-800/30 text-slate-400 cursor-not-allowed hover:bg-slate-800/50'
                                 : isActive
                                     ? 'bg-white/10 text-white shadow-sm'
                                     : 'text-white/70 hover:text-white hover:bg-white/5'
@@ -193,7 +194,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     {/* User info — hidden on very small screens */}
                     <div className="hidden sm:flex flex-col items-end border-r border-slate-100 pr-6">
                         <span className="text-sm font-semibold text-slate-900 tracking-tight">{user?.name}</span>
-                        <span className="text-[10px] font-medium text-slate-400  tracking-tighter">{t.layout.adminRole}</span>
+                        <span className="text-[10px] font-medium text-slate-400  tracking-tighter">{user?.groupName || t.layout.adminRole}</span>
                     </div>
                     <div className="flex items-center gap-2 relative">
                         <button onClick={() => setShowInbox(!showInbox)} className="p-2 text-slate-400 hover:text-[#1c2d4f] hover:bg-slate-50 rounded-md transition-all relative">

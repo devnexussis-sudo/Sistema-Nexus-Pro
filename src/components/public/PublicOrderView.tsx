@@ -218,25 +218,7 @@ const VisitCard: React.FC<{
             })()}
           </div>
 
-          {/* Relatório Técnico da Visita */}
-          {(visitData.technical_report || visitData.technicalReport || visit.notes) && (
-            <div className="p-4 bg-[#1c2d4f]/5 rounded-xl border border-[#1c2d4f]/10">
-              <p className="text-xs font-bold text-[#1c2d4f] opacity-60 uppercase tracking-widest mb-2">Relatório do Técnico</p>
-              <p className="text-sm font-medium text-slate-700 leading-relaxed whitespace-pre-wrap">
-                {visitData.technical_report || visitData.technicalReport || visit.notes}
-              </p>
-            </div>
-          )}
-
-          {/* Peças Utilizadas nesta Visita */}
-          {(visitData.parts_used || visitData.partsUsed) && (
-            <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-100">
-              <p className="text-xs font-bold text-amber-700 opacity-60 uppercase tracking-widest mb-2">Peças e Materiais Utilizados</p>
-              <p className="text-sm font-medium text-slate-700 leading-relaxed whitespace-pre-wrap">
-                {visitData.parts_used || visitData.partsUsed}
-              </p>
-            </div>
-          )}
+          {/* O Relatório Técnico e as Peças foram movidos para baixo dos formulários (Agrupamento por Equipamento) */}
 
           {/* Agrupamento por Equipamento dentro desta Visita */}
           {(() => {
@@ -283,38 +265,75 @@ const VisitCard: React.FC<{
             });
           })()}
 
-          {/* Fotos e Vídeos de Anexo da Visita (Evidências) */}
-          {(visitPhotos.length > 0 || visitData.videoUrl || visitData.video_url) && (
-            <div className="pt-2">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Anexos e Evidências da Visita</p>
-              <div className="flex flex-wrap gap-3">
-                {(visitData.videoUrl || visitData.video_url) && (
-                  <div
-                    className="w-[80px] h-[80px] sm:w-[100px] sm:h-[100px] shrink-0 rounded-xl overflow-hidden border border-slate-200 bg-black cursor-zoom-in group hover:shadow-md transition-all active:scale-95 relative"
-                    onClick={() => onImageClick(visitData.videoUrl || visitData.video_url)}
-                  >
-                    <video src={visitData.videoUrl || visitData.video_url} className="w-full h-full object-cover opacity-60" />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Play size={16} className="text-white fill-white group-hover:scale-110 transition-transform" />
+          {/* Relatório Técnico, Peças e Evidências da Visita */}
+          {(visitData.technical_report || visitData.technicalReport || visit.notes || visitData.parts_used || visitData.partsUsed || visitPhotos.length > 0 || visitData.videoUrl || visitData.video_url) && (
+            <div className="mt-6 border border-slate-200 bg-slate-50/50 rounded-2xl overflow-hidden shadow-sm">
+              <div className="bg-slate-100 px-4 py-3 border-b border-slate-200">
+                <p className="text-xs font-bold text-slate-600 uppercase tracking-widest">Relatório de Atendimento da Visita</p>
+              </div>
+              <div className="p-4 sm:p-5 space-y-5">
+                
+                {/* Relato do Técnico */}
+                {(visitData.technical_report || visitData.technicalReport || visit.notes) && (
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Relato do Técnico</p>
+                    <div className="p-3 bg-white rounded-xl border border-slate-200">
+                      <p className="text-sm font-medium text-slate-700 leading-relaxed whitespace-pre-wrap">
+                        {visitData.technical_report || visitData.technicalReport || visit.notes}
+                      </p>
                     </div>
                   </div>
                 )}
-                {visitPhotos.map((url: string, pIdx: number) => (
-                  <div
-                    key={pIdx}
-                    className="w-[80px] h-[80px] sm:w-[100px] sm:h-[100px] rounded-xl overflow-hidden border border-slate-200 bg-white cursor-zoom-in group hover:shadow-md transition-all active:scale-95"
-                    onClick={() => onImageClick(url)}
-                  >
-                    {isVideoUrl(url) ? (
-                      <div className="w-full h-full bg-black relative flex items-center justify-center">
-                        <video src={url} className="w-full h-full object-cover opacity-50" />
-                        <Play size={16} className="text-white absolute" />
-                      </div>
-                    ) : (
-                      <img src={url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={`Visita ${idx + 1} Foto ${pIdx + 1}`} />
-                    )}
+
+                {/* Peças Utilizadas */}
+                {(visitData.parts_used || visitData.partsUsed) && (
+                  <div>
+                    <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mb-1.5">Peças e Materiais Utilizados</p>
+                    <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-100">
+                      <p className="text-sm font-medium text-slate-700 leading-relaxed whitespace-pre-wrap">
+                        {visitData.parts_used || visitData.partsUsed}
+                      </p>
+                    </div>
                   </div>
-                ))}
+                )}
+
+                {/* Fotos e Vídeos */}
+                {(visitPhotos.length > 0 || visitData.videoUrl || visitData.video_url) && (
+                  <div className={(visitData.technical_report || visitData.technicalReport || visit.notes || visitData.parts_used || visitData.partsUsed) ? "pt-2 border-t border-slate-200 mt-2" : ""}>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Anexos e Evidências</p>
+                    <div className="flex flex-wrap gap-3">
+                      {(visitData.videoUrl || visitData.video_url) && (
+                        <div
+                          className="w-[80px] h-[80px] sm:w-[100px] sm:h-[100px] shrink-0 rounded-xl overflow-hidden border border-slate-200 bg-black cursor-zoom-in group hover:shadow-md transition-all active:scale-95 relative"
+                          onClick={() => onImageClick(visitData.videoUrl || visitData.video_url)}
+                        >
+                          <video src={`${visitData.videoUrl || visitData.video_url}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Play size={16} className="text-white fill-white group-hover:scale-110 transition-transform" />
+                          </div>
+                        </div>
+                      )}
+                      {visitPhotos.map((url: string, pIdx: number) => (
+                        <div
+                          key={pIdx}
+                          className="w-[80px] h-[80px] sm:w-[100px] sm:h-[100px] shrink-0 rounded-xl overflow-hidden border border-slate-200 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95 relative"
+                          onClick={() => onImageClick(url)}
+                        >
+                          {isVideoUrl(url) ? (
+                            <div className="w-full h-full bg-black relative flex items-center justify-center">
+                              <video src={`${url}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <Play size={16} className="text-white fill-white group-hover:scale-110 transition-transform" />
+                              </div>
+                            </div>
+                          ) : (
+                            <img src={url} className="w-full h-full object-cover" alt={`Anexo ${pIdx + 1}`} />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -563,16 +582,16 @@ const CollapsibleFormSection: React.FC<{
                             <div className="grid grid-cols-2 divide-x divide-slate-200">
                               {/* Pergunta */}
                               <div className="p-4 bg-slate-50/50 flex items-center">
-                                <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                                <p className="text-xs font-semibold text-slate-800 uppercase tracking-wide">
                                   {resolvePublicLabel(key)}
                                 </p>
                               </div>
                               {/* Resposta */}
                               <div className="p-4 flex flex-col justify-center">
                                 {text !== null && (
-                                  <p className={`text-sm font-bold leading-snug flex items-center gap-1.5 ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok'
+                                  <p className={`text-sm font-medium leading-snug flex items-center gap-1.5 ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok'
                                     ? 'text-emerald-600'
-                                    : 'text-slate-800'
+                                    : 'text-slate-500'
                                     }`}>
                                     {(text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok') && <CheckCircle2 size={13} />}
                                     {formatPublicValue(text)}
@@ -856,13 +875,20 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
   // Handle auto-print when opening from Admin with ?print=true
   React.useEffect(() => {
-    if (typeof window !== 'undefined' && window.location.href.includes('print=true')) {
+    if (typeof window !== 'undefined' && window.location.href.includes('print=true') && order) {
       const timer = setTimeout(() => {
+        const originalTitle = document.title;
+        const cleanCustomer = (order.customerName || 'Cliente').substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, "").trim();
+        document.title = `OS_${order.displayId || order.serviceOrderNumber || order.id.substring(0, 8)}_${cleanCustomer}`;
+        
         window.print();
+        
+        document.title = originalTitle;
+        setTimeout(() => window.close(), 500);
       }, 1500); // Give it time to load data, map and images
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [order]);
 
   // Busca endereço atualizado do cliente na tabela customers
   const [freshCustomerPhone, setFreshCustomerPhone] = React.useState<string | null>(null);
@@ -1081,7 +1107,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         {/* Equipamentos Vinculados (print) */}
         {linkedEquipments.length > 0 ? (
           <div className="border border-slate-300 rounded-lg overflow-hidden print-no-break">
-            <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700 print-section-header">
+            <div className="bg-sky-50 text-sky-900 px-3 py-2 border-b border-sky-100 font-bold text-sm uppercase tracking-wider print-section-header">
               Equipamentos Vinculados ({linkedEquipments.length})
             </div>
             <div className="w-full"><table className="w-full text-left break-words table-fixed">
@@ -1098,22 +1124,22 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 {linkedEquipments.map((eq: any, i: number) => (
                   <tr key={eq.id || i}>
                     <td className="px-3 py-1.5 text-xs font-bold text-slate-400">{i + 1}</td>
-                    <td className="px-3 py-1.5 text-xs font-bold text-slate-900 uppercase">{eq.equipment_name || eq.equipmentName || '—'}</td>
-                    <td className="px-3 py-1.5 text-xs text-slate-600 uppercase">{eq.equipment_model || eq.equipmentModel || '—'}</td>
-                    <td className="px-3 py-1.5 text-xs text-slate-600 ">{eq.equipment_serial || eq.equipmentSerial || '—'}</td>
-                    <td className="px-3 py-1.5 text-xs text-slate-600 uppercase">{eq.equipment_family || eq.equipmentFamily || '—'}</td>
+                    <td className="px-3 py-1.5 text-xs font-bold text-slate-800 uppercase">{eq.equipment_name || eq.equipmentName || '—'}</td>
+                    <td className="px-3 py-1.5 text-xs font-medium text-slate-600 uppercase">{eq.equipment_model || eq.equipmentModel || '—'}</td>
+                    <td className="px-3 py-1.5 text-xs font-mono font-bold text-[#1c2d4f]">{eq.equipment_serial || eq.equipmentSerial || '—'}</td>
+                    <td className="px-3 py-1.5 text-xs font-medium text-slate-600 uppercase">{eq.equipment_family || eq.equipmentFamily || '—'}</td>
                   </tr>
                 ))}
               </tbody>
             </table></div>
           </div>
         ) : (order.equipmentName || order.equipmentModel || order.equipmentSerial) && (
-          <div className="border border-slate-300 rounded-lg overflow-hidden print-no-break">
-            <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700">Dados do Equipamento</div>
+          <div className="border border-slate-200 rounded-lg overflow-hidden print-no-break shadow-sm">
+            <div className="bg-sky-50 text-sky-900 px-3 py-2 border-b border-sky-100 font-bold text-sm uppercase tracking-wider">Dados do Equipamento</div>
             <div className="p-3 bg-white grid grid-cols-3 gap-4">
-              <div className="col-span-1"><label className="block text-xs font-bold text-slate-400 uppercase">Equipamento</label><div className="font-bold text-slate-900 text-sm uppercase">{order.equipmentName || '—'}</div></div>
-              <div className="col-span-1"><label className="block text-xs font-bold text-slate-400 uppercase">Modelo</label><div className="font-bold text-slate-900 text-sm uppercase">{order.equipmentModel || '—'}</div></div>
-              <div className="col-span-1"><label className="block text-xs font-bold text-slate-400 uppercase">Nº Sér / ID</label><div className="font-bold text-slate-900 text-sm uppercase ">{order.equipmentSerial || '—'}</div></div>
+              <div className="col-span-1"><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Equipamento</label><div className="font-bold text-slate-800 text-sm uppercase">{order.equipmentName || '—'}</div></div>
+              <div className="col-span-1"><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Modelo</label><div className="font-medium text-slate-700 text-sm uppercase">{order.equipmentModel || '—'}</div></div>
+              <div className="col-span-1"><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nº Sér / ID</label><div className="font-mono font-bold text-[#1c2d4f] text-sm uppercase ">{order.equipmentSerial || '—'}</div></div>
             </div>
           </div>
         )}
@@ -1421,10 +1447,10 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
               return (
                 // print-section: a visita toda pode fluir, mas o cabeçalho não fica órfão
-                <div key={v.id} className="border border-slate-300 rounded-lg overflow-hidden print-section">
-                  <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700 flex justify-between print-section-header">
+                <div key={v.id} className="border border-slate-200 rounded-lg overflow-hidden print-section mt-4 shadow-sm">
+                  <div className="bg-sky-50 text-sky-900 px-3 py-2 border-b border-sky-100 font-bold text-sm uppercase tracking-wider flex justify-between print-section-header">
                     <span>Visita #{i + 1} — {safeFormatDate(v.scheduled_date || v.created_at)}</span>
-                    <span className="text-[9px] text-slate-500 font-normal">
+                    <span className="text-[10px] text-slate-500 font-bold">
                       {(() => {
                         const effArr = v.arrival_time || vFd?.checkinLocation?.timestamp || (i === 0 ? order.startDate : null);
                         const effDep = v.departure_time || vFd?.checkoutLocation?.timestamp || (i === 0 ? order.endDate : null);
@@ -1439,21 +1465,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   </div>
                   
                   <div className="p-3 bg-white space-y-3">
-                    {/* Relato do Técnico */}
-                    {(vFd.technical_report || vFd.technicalReport || v.notes) && (
-                      <div className="text-[9px] text-slate-700 leading-tight">
-                        <span className="font-bold uppercase text-slate-400 block mb-0.5">Relatório do Técnico:</span> 
-                        {vFd.technical_report || vFd.technicalReport || v.notes}
-                      </div>
-                    )}
-
-                    {/* Peças da Visita */}
-                    {(vFd.parts_used || vFd.partsUsed) && (
-                      <div className="text-[9px] text-slate-700 leading-tight border border-slate-200 bg-slate-50 p-2 rounded">
-                        <span className="font-bold uppercase text-slate-500 block mb-0.5">Peças Utilizadas (Relato):</span> 
-                        {vFd.parts_used || vFd.partsUsed}
-                      </div>
-                    )}
+                    {/* O relatório de técnico e as peças foram removidos daqui e movidos para o final (abaixo dos formulários) */}
 
                     {/* Formulários (Checklists) */}
                     {Object.keys(grps).length > 0 && (
@@ -1465,12 +1477,12 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                           });
                           return (
                             <div key={gName} className="border border-slate-200 rounded">
-                              <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 flex justify-between items-center">
-                                <span className="font-bold text-[9px] uppercase tracking-wider text-slate-600">
-                                  {eq ? (eq.equipment_name || eq.equipmentName) : gName}
+                              <div className="bg-slate-50 border-b border-slate-200 px-3 py-1.5 flex flex-col items-center justify-center text-center">
+                                <span className="font-bold text-xs uppercase tracking-wider text-slate-700">
+                                  Equipamento: {eq ? (eq.equipment_name || eq.equipmentName) : gName}
                                 </span>
                                 {eq && (eq.equipment_serial || eq.equipmentSerial) && (
-                                  <span className="text-[8px] text-slate-400">S/N: {eq.equipment_serial || eq.equipmentSerial}</span>
+                                  <span className="text-[9px] font-medium text-slate-500 mt-0.5">S/N: {eq.equipment_serial || eq.equipmentSerial}</span>
                                 )}
                               </div>
                               <div className="flex flex-col gap-1.5 p-2 bg-white">
@@ -1500,11 +1512,11 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                     <div key={idx} className="print-checklist-row border border-slate-200 rounded overflow-hidden bg-white">
                                       <div className="grid grid-cols-2 divide-x divide-slate-200">
                                         <div className="p-1.5 bg-slate-50/50 flex items-center">
-                                          <div className="text-[8px] font-bold uppercase tracking-tight text-slate-500">{resolvePublicLabel(key)}</div>
+                                          <div className="text-[8px] font-semibold uppercase tracking-tight text-slate-800">{resolvePublicLabel(key)}</div>
                                         </div>
                                         <div className="p-1.5 flex flex-col justify-center">
                                           {text && (
-                                            <div className={`text-[9px] font-bold uppercase leading-tight ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-800'}`}>
+                                            <div className={`text-[9px] font-medium uppercase leading-tight ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok' ? 'text-emerald-600' : 'text-slate-500'}`}>
                                               {formatPublicValue(text)}
                                             </div>
                                           )}
@@ -1513,15 +1525,17 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                               {photos.map((p, pIdx) => (
                                                 <div key={pIdx} className="w-[140px] h-[140px] border border-slate-200 rounded overflow-hidden flex items-center justify-center bg-white shadow-sm">
                                                   {isVideoUrl(p) ? (
-                                                    <div className="w-full h-full relative flex items-center justify-center bg-black">
+                                                    <a href={p} target="_blank" rel="noopener noreferrer" className="w-full h-full relative flex items-center justify-center bg-black cursor-pointer">
                                                       <video src={`${p}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
                                                       <div className="absolute inset-0 flex items-center justify-center">
                                                         <Play size={10} className="text-white opacity-80" />
                                                       </div>
                                                       <span className="absolute bottom-1 bg-black/60 text-white text-[6px] font-bold px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
-                                                    </div>
+                                                    </a>
                                                   ) : (
-                                                    <img src={p} className="w-full h-full object-contain" />
+                                                    <a href={p} target="_blank" rel="noopener noreferrer" className="w-full h-full block cursor-pointer">
+                                                      <img src={p} className="w-full h-full object-contain" />
+                                                    </a>
                                                   )}
                                                 </div>
                                               ))}
@@ -1588,35 +1602,65 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                       </div>
                     )}
 
-                    {/* Fotos */}
-                    {(visitPhotos.length > 0 || vFd.videoUrl || vFd.video_url) && (
-                      <div className="mt-2">
-                        <span className="font-bold uppercase text-[9px] text-slate-400 block mb-1">Evidências e Anexos</span>
-                        <div className="flex flex-wrap gap-2">
-                          {(vFd.videoUrl || vFd.video_url) && (
-                            <div className="border border-slate-200 rounded-lg p-1 w-[180px] h-[135px] overflow-hidden flex items-center justify-center bg-black relative">
-                              <video src={`${vFd.videoUrl || vFd.video_url}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <Play size={10} className="text-white opacity-80" />
-                              </div>
-                              <span className="absolute bottom-1 bg-black/60 text-white text-[7px] font-bold px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
+                    {/* Relatório de Atendimento e Evidências (Movido para baixo dos formulários) */}
+                    {(vFd.technical_report || vFd.technicalReport || v.notes || vFd.parts_used || vFd.partsUsed || visitPhotos.length > 0 || vFd.videoUrl || vFd.video_url) && (
+                      <div className="mt-4 border border-slate-200 rounded-lg bg-slate-50 overflow-hidden print-no-break shadow-sm">
+                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-200 font-bold text-[10px] uppercase tracking-wider text-slate-700">
+                          Relatório de Atendimento da Visita
+                        </div>
+                        <div className="p-3 bg-white flex flex-col gap-3">
+                          {/* Relato do Técnico */}
+                          {(vFd.technical_report || vFd.technicalReport || v.notes) && (
+                            <div className="text-[10px] text-slate-800 leading-tight whitespace-pre-wrap">
+                              <span className="font-bold uppercase text-slate-400 block mb-0.5 text-[9px]">Relato do Técnico:</span> 
+                              {vFd.technical_report || vFd.technicalReport || v.notes}
                             </div>
                           )}
-                          {visitPhotos.map((url: string, pIdx: number) => (
-                            <div key={pIdx} className="border border-slate-200 rounded-lg p-1 w-[180px] h-[135px] overflow-hidden flex items-center justify-center bg-slate-50 shadow-sm">
-                              {isVideoUrl(url) ? (
-                                <div className="w-full h-full relative flex items-center justify-center bg-black">
-                                  <video src={`${url}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
-                                  <div className="absolute inset-0 flex items-center justify-center">
-                                    <Play size={10} className="text-white opacity-80" />
-                                  </div>
-                                  <span className="absolute bottom-1 bg-black/60 text-white text-[7px] font-bold px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
-                                </div>
-                              ) : (
-                                <img src={url} className="w-full h-full object-contain" alt={`Foto ${pIdx + 1}`} />
-                              )}
+
+                          {/* Peças da Visita */}
+                          {(vFd.parts_used || vFd.partsUsed) && (
+                            <div className="text-[9px] text-slate-700 leading-tight">
+                              <span className="font-bold uppercase text-slate-400 block mb-0.5 text-[9px]">Peças Utilizadas (Relato):</span> 
+                              {vFd.parts_used || vFd.partsUsed}
                             </div>
-                          ))}
+                          )}
+
+                          {/* Fotos */}
+                          {(visitPhotos.length > 0 || vFd.videoUrl || vFd.video_url) && (
+                            <div className={`mt-1 ${vFd.technical_report || vFd.technicalReport || v.notes || vFd.parts_used || vFd.partsUsed ? 'border-t border-slate-100 pt-2' : ''}`}>
+                              <span className="font-bold uppercase text-[9px] text-slate-400 block mb-1.5">Evidências e Anexos:</span>
+                              <div className="flex flex-wrap gap-2">
+                                {(vFd.videoUrl || vFd.video_url) && (
+                                  <div className="border border-slate-200 rounded p-1 w-[140px] h-[105px] overflow-hidden flex items-center justify-center bg-black relative shadow-sm">
+                                    <a href={vFd.videoUrl || vFd.video_url} target="_blank" rel="noopener noreferrer" className="w-full h-full relative flex items-center justify-center cursor-pointer">
+                                      <video src={`${vFd.videoUrl || vFd.video_url}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                                      <div className="absolute inset-0 flex items-center justify-center">
+                                        <Play size={10} className="text-white opacity-80" />
+                                      </div>
+                                      <span className="absolute bottom-1 bg-black/60 text-white text-[7px] font-bold px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
+                                    </a>
+                                  </div>
+                                )}
+                                {visitPhotos.map((url: string, pIdx: number) => (
+                                  <div key={pIdx} className="border border-slate-200 rounded p-1 w-[140px] h-[105px] overflow-hidden flex items-center justify-center bg-slate-50 shadow-sm">
+                                    {isVideoUrl(url) ? (
+                                      <a href={url} target="_blank" rel="noopener noreferrer" className="w-full h-full relative flex items-center justify-center bg-black cursor-pointer">
+                                        <video src={`${url}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                          <Play size={10} className="text-white opacity-80" />
+                                        </div>
+                                        <span className="absolute bottom-1 bg-black/60 text-white text-[7px] font-bold px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
+                                      </a>
+                                    ) : (
+                                      <a href={url} target="_blank" rel="noopener noreferrer" className="w-full h-full block cursor-pointer">
+                                        <img src={url} className="w-full h-full object-contain" alt={`Foto ${pIdx + 1}`} />
+                                      </a>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -1747,7 +1791,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         }
         @media print {
           @page {
-            margin: 10mm 12mm 10mm 12mm;
+            margin: 10mm 4mm 10mm 4mm;
             size: A4 portrait;
           }
           html, body {
@@ -1808,7 +1852,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
           @media print {
             @page {
-              margin: 10mm 12mm 10mm 12mm;
+              margin: 10mm 4mm 10mm 4mm;
               size: A4 portrait;
             }
             html, body {
@@ -1885,14 +1929,15 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             <button
               onClick={() => {
                 const originalTitle = document.title;
-                document.title = `OS-${order.displayId || order.id.slice(0, 8).toUpperCase()}`;
+                const cleanCustomer = (order.customerName || 'Cliente').substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, "").trim();
+                document.title = `OS_${order.displayId || order.serviceOrderNumber || order.id.slice(0, 8)}_${cleanCustomer}`;
                 window.print();
                 document.title = originalTitle;
               }}
               className="flex items-center justify-center h-10 w-10 sm:w-auto sm:px-4 sm:py-2.5 bg-[#1c2d4f] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0"
             >
               <Printer size={16} />
-              <span className="hidden sm:inline ml-2">Imprimir PDF</span>
+              <span className="hidden sm:inline ml-2">Imprimir</span>
             </button>
           </div>
         </header>
