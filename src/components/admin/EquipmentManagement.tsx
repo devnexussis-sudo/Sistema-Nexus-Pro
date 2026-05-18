@@ -10,6 +10,7 @@ import {
   Layers, Settings2, MapPin, Filter, Calendar, ChevronLeft
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
+import { usePermissions } from '../../hooks/usePermissions';
 import { supabase } from '../../lib/supabase';
 import { getCurrentTenantId } from '../../lib/tenantContext';
 
@@ -31,7 +32,8 @@ interface EquipmentManagementProps {
 export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
   equipments, customers, onUpdateEquipments, initialParams
 }) => {
-    const { t } = useI18n();
+  const { t } = useI18n();
+  const { canCreate, canEdit } = usePermissions();
 
   const [activeTab, setActiveTab] = useState<'list' | 'families'>('list');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -274,12 +276,15 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
               </select>
             </div>
 
-            <Button
-              onClick={() => setIsModalOpen(true)}
-              className="h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl font-bold whitespace-nowrap text-white"
-            >
-              <Plus size={16} /> {activeTab === 'list' ? 'Novo' : 'Nova Categoria'}
-            </Button>
+              <Button
+                onClick={(e) => {
+                  if (!canCreate('equipments')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para esta ação.'); return; }
+                  setIsModalOpen(true);
+                }}
+                className={`h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl font-bold whitespace-nowrap text-white ${!canCreate('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+              >
+                <Plus size={16} /> {activeTab === 'list' ? 'Novo' : 'Nova Categoria'}
+              </Button>
           </div>
         </div>
       </div>
@@ -329,10 +334,18 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                     </td>
                     <td className="px-4 py-1.5 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
                       <div className="flex items-center justify-end gap-1.5">
-                        <button onClick={(evt) => { evt.stopPropagation(); toggleEquipmentStatus(e); }} className={`p-2.5 rounded-lg shadow-sm border border-transparent transition-all active:scale-95 ${e.active ? 'bg-slate-50 text-amber-500 hover:bg-white hover:border-amber-100 hover:text-amber-600' : 'bg-slate-50 text-emerald-500 hover:bg-white hover:border-emerald-100 hover:text-emerald-600'}`}>
-                          {e.active ? <PowerOff size={16} /> : <Power size={16} />}
-                        </button>
-                        <button onClick={(evt) => { evt.stopPropagation(); setEqFormData(e); setEditingId(e.id); setIsModalOpen(true); }} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95" title="Editar"><Edit2 size={16} /></button>
+                          <>
+                            <button onClick={(evt) => {
+                              if (!canEdit('equipments')) { evt.preventDefault(); evt.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                              evt.stopPropagation(); toggleEquipmentStatus(e);
+                            }} className={`p-2.5 rounded-lg shadow-sm border border-transparent transition-all active:scale-95 ${e.active ? 'bg-slate-50 text-amber-500 hover:bg-white hover:border-amber-100 hover:text-amber-600' : 'bg-slate-50 text-emerald-500 hover:bg-white hover:border-emerald-100 hover:text-emerald-600'} ${!canEdit('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`}>
+                              {e.active ? <PowerOff size={16} /> : <Power size={16} />}
+                            </button>
+                            <button onClick={(evt) => {
+                              if (!canEdit('equipments')) { evt.preventDefault(); evt.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                              evt.stopPropagation(); setEqFormData(e); setEditingId(e.id); setIsModalOpen(true);
+                            }} className={`p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95 ${!canEdit('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar"><Edit2 size={16} /></button>
+                          </>
                       </div>
                     </td>
                   </tr>
@@ -368,10 +381,18 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                     </td>
                     <td className="px-4 py-1.5 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
                       <div className="flex items-center justify-end gap-1.5">
-                        <button onClick={() => setFamilies(families.map(item => item.id === f.id ? { ...item, active: !item.active } : item))} className={`p-2.5 rounded-lg shadow-sm border border-transparent transition-all active:scale-95 ${f.active ? 'bg-slate-50 text-amber-500 hover:bg-amber-50' : 'bg-slate-50 text-emerald-500 hover:bg-emerald-50'}`}>
-                          {f.active ? <PowerOff size={16} /> : <Power size={16} />}
-                        </button>
-                        <button onClick={() => { setFamilyFormData(f); setEditingId(f.id); setIsModalOpen(true); }} className="p-2.5 bg-slate-50 text-slate-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95"><Edit2 size={16} /></button>
+                          <>
+                            <button onClick={(evt) => {
+                              if (!canEdit('equipments')) { evt.preventDefault(); evt.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                              setFamilies(families.map(item => item.id === f.id ? { ...item, active: !item.active } : item));
+                            }} className={`p-2.5 rounded-lg shadow-sm border border-transparent transition-all active:scale-95 ${f.active ? 'bg-slate-50 text-amber-500 hover:bg-amber-50' : 'bg-slate-50 text-emerald-500 hover:bg-emerald-50'} ${!canEdit('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`}>
+                              {f.active ? <PowerOff size={16} /> : <Power size={16} />}
+                            </button>
+                            <button onClick={(evt) => {
+                              if (!canEdit('equipments')) { evt.preventDefault(); evt.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                              setFamilyFormData(f); setEditingId(f.id); setIsModalOpen(true);
+                            }} className={`p-2.5 bg-slate-50 text-slate-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95 ${!canEdit('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`}><Edit2 size={16} /></button>
+                          </>
                       </div>
                     </td>
                   </tr>

@@ -85,7 +85,7 @@ export const usePermissions = (): PermissionUtils => {
   const isMasterAdminGroup = user?.groupName?.toLowerCase() === 'administradores';
 
   // Admin irrestrito = em auditoria ou faz parte do grupo mestre "Administradores"
-  const isAdmin = !user || impersonating || isMasterAdminGroup;
+  const isAdmin = (user && isMasterAdminGroup) || impersonating;
 
   const permissions: UserPermissions | null = user?.permissions ?? null;
 

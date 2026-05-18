@@ -47,6 +47,7 @@ import { useDialog } from '../../contexts/DialogContext';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePagedOrders } from '../../hooks/nexusHooks';
+import { usePermissions } from '../../hooks/usePermissions';
 import { useOrderExport } from '../../hooks/useOrderExport';
 import { supabase } from '../../lib/supabase';
 import { DataService } from '../../services/dataService';
@@ -113,6 +114,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 }) => {
     const { t } = useI18n();
   const { showAlert, showConfirm } = useDialog();
+  const { canCreate, canEdit, canDelete } = usePermissions();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [orderToEdit, setOrderToEdit] = useState<ServiceOrder | null>(null);
@@ -1044,8 +1046,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
             <Button
               variant="primary"
-              className="h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl whitespace-nowrap"
-              onClick={() => { setOrderToEdit(null); setIsCreateModalOpen(true); }}
+              className={`h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl whitespace-nowrap ${!canCreate('orders') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+              onClick={(e) => {
+                if (!canCreate('orders')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para criar ordens.'); return; }
+                setOrderToEdit(null); setIsCreateModalOpen(true);
+              }}
             >
               <Plus size={16} /> Nova OS
             </Button>
@@ -1391,8 +1396,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={handleStartEdit}
-                        className="h-9 px-2 sm:px-4 gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50"
+                        onClick={(e) => {
+                          if (!canEdit('orders')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                          handleStartEdit();
+                        }}
+                        className={`h-9 px-2 sm:px-4 gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50 ${!canEdit('orders') ? 'opacity-50 !cursor-not-allowed' : ''}`}
                       >
                         <Edit3 size={14} /> <span className="hidden sm:inline">Editar OS</span>
                       </Button>
@@ -1435,8 +1443,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={(e) => handleCancelOrder(selectedOrder, e)}
-                        className="h-9 px-2 sm:px-4 gap-1.5 border-rose-200 text-rose-700 hover:bg-rose-50"
+                        onClick={(e) => {
+                          if (!canDelete('orders')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir/cancelar.'); return; }
+                          handleCancelOrder(selectedOrder, e);
+                        }}
+                        className={`h-9 px-2 sm:px-4 gap-1.5 border-rose-200 text-rose-700 hover:bg-rose-50 ${!canDelete('orders') ? 'opacity-50 !cursor-not-allowed' : ''}`}
                       >
                         <Ban size={14} /> <span className="hidden sm:inline">Cancelar OS</span>
                       </Button>
@@ -2647,7 +2658,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <Button
                         variant="primary"
                         size="sm"
-                        onClick={() => setShowNewVisitForm(v => !v)}
+                        onClick={(e) => {
+                          if (!canEdit('orders')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                          setShowNewVisitForm(v => !v);
+                        }}
                         disabled={!(
                           visits.length === 0 ||
                           visits[visits.length - 1]?.status === VisitStatusEnum.PAUSED ||
@@ -2658,7 +2672,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           ? 'A OS ou última visita devem estar pausadas ou impedidas.'
                           : 'Agendar nova visita'
                         }
-                        className="h-9 px-5 gap-2 bg-primary-600 hover:bg-primary-700 shadow-md shadow-primary-500/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                        className={`h-9 px-5 gap-2 bg-primary-600 hover:bg-primary-700 shadow-md shadow-primary-500/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none ${!canEdit('orders') ? 'opacity-50 !cursor-not-allowed' : ''}`}
                       >
                         <Plus size={15} /> Nova Visita
                       </Button>
@@ -2765,7 +2779,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           return rawStatus;
                         })();
 
-                        const canEdit = effectiveStatus === 'pending' && !visit.isLocked;
+                        const canEditVisit = canEdit('orders') && effectiveStatus === 'pending' && !visit.isLocked;
                         const isEditingThis = editingVisitId === visit.id;
                         const statusColors: Record<string, string> = {
                           pending: 'bg-slate-100 text-slate-600 border-slate-200',
@@ -2808,9 +2822,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 </p>
                               </div>
 
-                              {canEdit && !isEditingThis && (
+                              {!isEditingThis && (
                                 <button
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    if (!canEditVisit) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
                                     setEditingVisitId(visit.id);
                                     setVisitScheduleDraft({
                                       scheduledDate: visit.scheduledDate || '',
@@ -2818,7 +2833,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                       technicianId: visit.technicianId || '',
                                     });
                                   }}
-                                  className="p-2 text-amber-500 hover:bg-blue-50 rounded-lg border border-blue-200 transition-all shrink-0"
+                                  className={`p-2 text-amber-500 hover:bg-blue-50 rounded-lg border border-blue-200 transition-all shrink-0 ${!canEditVisit ? 'opacity-50 !cursor-not-allowed' : ''}`}
                                   title="Editar agendamento"
                                 >
                                   <Edit3 size={14} />

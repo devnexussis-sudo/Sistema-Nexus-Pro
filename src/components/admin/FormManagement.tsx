@@ -9,6 +9,7 @@ import { Input } from '../ui/Input';
 import { FormTemplate, FormField, FormFieldType } from '../../types';
 import { DataService } from '../../services/dataService';
 import { useForms, useServiceTypes, useActivationRules, useTenant, NexusQueryClient } from '../../hooks/nexusHooks';
+import { usePermissions } from '../../hooks/usePermissions';
 
 // Famílias vindas do EquipmentManagement para consistência
 export const EQUIPMENT_FAMILIES = [
@@ -34,6 +35,7 @@ interface ActivationRule {
 
 export const FormManagement: React.FC = () => {
     const { t } = useI18n();
+    const { canCreate, canEdit, canDelete } = usePermissions();
 
   const [activeTab, setActiveTab] = useState<'types' | 'templates' | 'rules'>('templates');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -343,15 +345,18 @@ export const FormManagement: React.FC = () => {
 
 
 
-            <Button
-              onClick={() => {
+            <Button 
+              variant="primary" 
+              className={`h-10 px-5 gap-2 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl font-bold transition-all ${!canCreate('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+              onClick={(e) => {
+                if (!canCreate('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para esta ação.'); return; }
                 if (activeTab === 'types') { setEditingType({ name: '' }); setIsTypeModalOpen(true); }
-                if (activeTab === 'templates') { setEditingForm({ title: '', fields: [], active: true }); setIsModalOpen(true); }
-                if (activeTab === 'rules') { setEditingRule({ serviceTypeId: '', equipmentFamily: '', formId: '' }); setIsRuleModalOpen(true); }
+                else if (activeTab === 'templates') { setEditingForm({ title: '', fields: [], active: true }); setIsModalOpen(true); }
+                else if (activeTab === 'rules') { setEditingRule({ serviceTypeId: '', equipmentFamily: '', formId: '' }); setIsRuleModalOpen(true); }
               }}
-              className="h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl font-bold whitespace-nowrap text-white"
             >
-              <Plus size={16} /> {activeTab === 'types' ? 'Novo Tipo' : activeTab === 'templates' ? 'Novo Modelo' : 'Nova Regra'}
+              <Plus size={16} /> 
+              {activeTab === 'types' ? 'Novo Tipo' : activeTab === 'templates' ? 'Novo Modelo' : 'Nova Regra'}
             </Button>
           </div>
         </div>
@@ -422,8 +427,14 @@ export const FormManagement: React.FC = () => {
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
-                              <button onClick={() => { setEditingType(type); setIsTypeModalOpen(true); }} className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all" title="Editar"><Edit2 size={16} /></button>
-                              <button onClick={(e) => handleDeleteType(type.id, e)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all" title="Excluir"><Trash2 size={16} /></button>
+                              <button onClick={(e) => {
+                                if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                                setEditingType(type); setIsTypeModalOpen(true);
+                              }} className={`p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar"><Edit2 size={16} /></button>
+                              <button onClick={(e) => {
+                                if (!canDelete('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
+                                handleDeleteType(type.id, e);
+                              }} className={`p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Excluir"><Trash2 size={16} /></button>
                             </div>
                           </td>
                         </tr>
@@ -461,8 +472,14 @@ export const FormManagement: React.FC = () => {
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
-                              <button onClick={() => { setEditingForm(form); setIsModalOpen(true); }} className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all" title="Editar"><Edit2 size={16} /></button>
-                              <button onClick={(e) => handleDeleteForm(form.id, e)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all" title="Excluir"><Trash2 size={16} /></button>
+                              <button onClick={(e) => {
+                                if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                                setEditingForm(form); setIsModalOpen(true);
+                              }} className={`p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar"><Edit2 size={16} /></button>
+                              <button onClick={(e) => {
+                                if (!canDelete('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
+                                handleDeleteForm(form.id, e);
+                              }} className={`p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Excluir"><Trash2 size={16} /></button>
                             </div>
                           </td>
                         </tr>
@@ -512,8 +529,14 @@ export const FormManagement: React.FC = () => {
                           </td>
                           <td className="px-4 py-3 text-right">
                              <div className="flex justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
-                               <button onClick={() => { setEditingRule({ id: rule.id, serviceTypeId: rule.serviceTypeId, equipmentFamily: rule.equipmentFamily, formId: rule.formId }); setIsRuleModalOpen(true); }} className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all" title="Editar Regra"><Edit2 size={16} /></button>
-                               <button onClick={(e) => handleDeleteRule(rule.id, e)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all" title="Excluir"><Trash2 size={16} /></button>
+                               <button onClick={(e) => {
+                                 if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                                 setEditingRule({ id: rule.id, serviceTypeId: rule.serviceTypeId, equipmentFamily: rule.equipmentFamily, formId: rule.formId }); setIsRuleModalOpen(true);
+                               }} className={`p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar Regra"><Edit2 size={16} /></button>
+                               <button onClick={(e) => {
+                                 if (!canDelete('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
+                                 handleDeleteRule(rule.id, e);
+                               }} className={`p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Excluir"><Trash2 size={16} /></button>
                              </div>
                           </td>
                         </tr>

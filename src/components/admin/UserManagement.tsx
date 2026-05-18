@@ -41,6 +41,37 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Pagination } from '../ui/Pagination';
 
+const IamCheckbox = ({ checked, onChange, disabled }: { checked: boolean, onChange: () => void, disabled?: boolean }) => (
+  <button
+    type="button"
+    disabled={disabled}
+    onClick={onChange}
+    className={`group relative flex items-center justify-center w-[20px] h-[20px] rounded-[5px] border transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-600 ${
+      checked 
+        ? 'bg-blue-600 border-blue-600 text-white shadow-sm' 
+        : 'bg-white border-slate-300 text-transparent hover:border-slate-400 hover:bg-slate-50'
+    } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} mx-auto`}
+  >
+    <Check size={14} strokeWidth={3} className={`transition-all duration-150 ${checked ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`} />
+  </button>
+);
+
+const IamSwitch = ({ checked, onChange, disabled, activeLabel = 'Liberado', inactiveLabel = 'Bloqueado' }: { checked: boolean, onChange: () => void, disabled?: boolean, activeLabel?: string, inactiveLabel?: string }) => (
+  <button
+    type="button"
+    disabled={disabled}
+    onClick={onChange}
+    className={`flex items-center justify-center gap-1.5 min-w-[95px] h-[28px] px-3 rounded-md border text-[10px] font-bold uppercase tracking-wider transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-600 ${
+      checked 
+        ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' 
+        : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100 hover:border-slate-300'
+    } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+  >
+    <div className={`w-1.5 h-1.5 rounded-full transition-colors ${checked ? 'bg-blue-600 shadow-[0_0_6px_rgba(37,99,235,0.4)]' : 'bg-slate-300'}`} />
+    {checked ? activeLabel : inactiveLabel}
+  </button>
+);
+
 const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, onSave, title, subtitle, onBack, disabled = false, linkedUsers }: { perms: UserPermissions, onUpdate: (p: UserPermissions) => void, onSave?: () => Promise<void> | void, title: string, subtitle: string, onBack: () => void, disabled?: boolean, linkedUsers?: User[] }) => {
 
   const [activeTab, setActiveTab] = React.useState<'permissions' | 'users'>('permissions');
@@ -55,19 +86,30 @@ const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, onSave, title
       setIsSaving(false);
     }
   };
-  const modules = [
-    { id: 'orders', label: 'Ordens de Serviço (O.S.)', icon: ClipboardList },
-    { id: 'customers', label: 'Cadastro de Clientes', icon: Building2 },
-    { id: 'equipments', label: 'Inventário de Ativos', icon: Box },
-    { id: 'technicians', label: 'Equipe Técnica', icon: UserCheck },
-    { id: 'quotes', label: 'Orçamentos e Vendas', icon: FileText },
-    { id: 'contracts', label: 'Contratos e PMOC', icon: CalendarClock },
-    { id: 'stock', label: 'Estoque de Peças', icon: Package },
-    { id: 'forms', label: 'Processos e Checklists', icon: Workflow },
+  const unifiedMatrix = [
+    // ── Dashboards & Visões (Apenas Menu) ──
+    { id: 'dashboard', isMenuOnly: true, label: 'Dashboard Central', icon: LayoutDashboard, menuKey: 'dashboard' },
+    { id: 'calendar', isMenuOnly: true, label: 'Agenda de Serviços', icon: Calendar, menuKey: 'calendar' },
+    { id: 'map', isMenuOnly: true, label: 'Visão de Campo (Mapa)', icon: Navigation, menuKey: 'map' },
+    
+    // ── Módulos Operacionais (Menu + CRUD) ──
+    { id: 'orders', label: 'Ordens de Serviço (O.S.)', icon: ClipboardList, menuKey: 'orders' },
+    { id: 'customers', label: 'Cadastro de Clientes', icon: Building2, menuKey: 'customers' },
+    { id: 'equipments', label: 'Inventário de Ativos', icon: Box, menuKey: 'equipments' },
+    { id: 'technicians', label: 'Equipe Técnica', icon: UserCheck, menuKey: 'technicians' },
+    { id: 'quotes', label: 'Orçamentos e Vendas', icon: FileText, menuKey: 'quotes' },
+    { id: 'contracts', label: 'Contratos e PMOC', icon: CalendarClock, menuKey: 'contracts' },
+    { id: 'stock', label: 'Estoque de Peças', icon: Package, menuKey: 'stock' },
+    { id: 'forms', label: 'Processos e Checklists', icon: Workflow, menuKey: 'forms' },
+
+    // ── Menus Administrativos (Menu; Ações em Cards Separados) ──
+    { id: 'financial', isMenuOnly: true, label: 'Módulo Financeiro', icon: Building2, menuKey: 'financial', extraInfo: 'Permissões abaixo' },
+    { id: 'users', isMenuOnly: true, label: 'Usuários e Grupos', icon: ShieldAlert, menuKey: 'users', extraInfo: 'Permissões abaixo' },
+    { id: 'settings', isMenuOnly: true, label: 'Configurações Globais', icon: Settings, menuKey: 'settings', extraInfo: 'Abas configuradas abaixo' },
   ];
 
   return (
-    <div className="p-8 space-y-8 animate-fade-in flex flex-col h-full bg-slate-50/30 overflow-hidden">
+    <div className="p-8 space-y-8 animate-fade-in flex flex-col h-full bg-slate-50/30 overflow-hidden font-poppins">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-6">
           <button onClick={onBack} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-400 hover:text-[#1c2d4f] transition-all shadow-sm">
@@ -117,12 +159,13 @@ const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, onSave, title
       <div className="flex-1 overflow-auto custom-scrollbar pr-2">
         {activeTab === 'permissions' ? (
           <>
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden mb-6">
-              <div className="overflow-x-auto">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden mb-6 flex flex-col max-h-[60vh] lg:max-h-[70vh]">
+              <div className="overflow-auto custom-scrollbar relative">
                 <table className="w-full border-collapse">
-                  <thead className="bg-slate-50">
-                    <tr className="text-[9px] font-bold text-slate-400 tracking-[0.2em] uppercase text-center border-b border-slate-200">
-                      <th className="px-6 py-4 text-left">Módulo do Sistema</th>
+                  <thead className="bg-slate-50/95 backdrop-blur-md sticky top-0 z-20 shadow-sm shadow-slate-200/50">
+                    <tr className="text-[10px] font-poppins font-bold text-slate-500 tracking-wider uppercase text-center border-b border-slate-200">
+                      <th className="px-6 py-4 text-left">Recurso / Módulo do Sistema</th>
+                      <th className="px-4 py-4 w-28 bg-blue-50/30">Menu Visível</th>
                       <th className="px-4 py-4 w-24">Consultar</th>
                       <th className="px-4 py-4 w-24">Criar Novo</th>
                       <th className="px-4 py-4 w-24">Editar</th>
@@ -130,37 +173,61 @@ const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, onSave, title
                     </tr>
                   </thead>
                   <tbody>
-                    {modules.map((mod) => (
-                      <tr key={mod.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0 group">
+                    {unifiedMatrix.map((mod) => (
+                      <tr key={mod.id} className={`transition-colors border-b border-slate-100 last:border-0 group ${mod.isMenuOnly ? 'bg-slate-50/30 hover:bg-slate-50/80' : 'hover:bg-slate-50/50'}`}>
                         <td className="px-6 py-3">
                           <div className="flex items-center gap-3">
                             <div className="p-2.5 bg-slate-100 rounded-xl text-slate-500 group-hover:bg-[#1c2d4f] group-hover:text-white transition-colors">
                               <mod.icon size={16} />
                             </div>
-                            <span className="text-[12px] font-bold text-slate-700">{mod.label}</span>
+                            <div>
+                              <span className="text-[12px] font-bold text-slate-700 block">{mod.label}</span>
+                              {mod.extraInfo && <span className="text-[9px] text-slate-400 uppercase tracking-wider font-semibold">{mod.extraInfo}</span>}
+                            </div>
                           </div>
                         </td>
+                        
+                        {/* ── MENU ACCESS ── */}
+                        <td className="px-4 py-3 text-center bg-blue-50/10 border-l border-r border-slate-50">
+                          <IamCheckbox
+                            disabled={disabled}
+                            checked={((perms.menuAccess as any) || {})[mod.menuKey] === true}
+                            onChange={() => {
+                              if (disabled) return;
+                              const newMenuAccess = { ...(perms.menuAccess || {}), [mod.menuKey]: !((perms.menuAccess as any) || {})[mod.menuKey] };
+                              onUpdate({ ...perms, menuAccess: newMenuAccess as any });
+                            }}
+                          />
+                        </td>
+
+                        {/* ── CRUD ACCESS ── */}
                         {[
                           { key: 'read' },
                           { key: 'create' },
                           { key: 'update' },
                           { key: 'delete' },
                         ].map(action => {
+                          if (mod.isMenuOnly) {
+                            return (
+                              <td key={action.key} className="px-4 py-3 text-center">
+                                <span className="text-slate-200">-</span>
+                              </td>
+                            );
+                          }
                           const isChecked = (perms as any)[mod.id]?.[action.key] || false;
                           return (
                             <td key={action.key} className="px-4 py-3 text-center">
-                              <button
-                                onClick={() => {
+                              <IamCheckbox
+                                disabled={disabled}
+                                checked={isChecked}
+                                onChange={() => {
                                   if (disabled) return;
                                   const newPerms = { ...perms };
                                   const modulePerms = (newPerms as any)[mod.id] || { create: false, read: false, update: false, delete: false };
                                   (newPerms as any)[mod.id] = { ...modulePerms, [action.key]: !modulePerms[action.key] };
                                   onUpdate(newPerms);
                                 }}
-                                className={`w-11 h-6 rounded-full relative transition-all mx-auto block focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#10b981] ${isChecked ? 'bg-[#10b981]' : 'bg-slate-200'} ${disabled ? 'opacity-70 cursor-not-allowed' : ''}`}
-                              >
-                                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${isChecked ? 'left-[26px]' : 'left-1'}`} />
-                              </button>
+                              />
                             </td>
                           );
                         })}
@@ -188,18 +255,17 @@ const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, onSave, title
                     return (
                       <div key={action.key} className="flex items-center justify-between p-3 px-4 hover:bg-slate-50 rounded-2xl transition-colors">
                         <span className="text-[12px] font-bold text-slate-600">{action.label}</span>
-                        <button
-                          onClick={() => {
+                        <IamSwitch
+                          disabled={disabled}
+                          checked={isChecked}
+                          onChange={() => {
                             if (disabled) return;
                             const newPerms = { ...perms };
                             if (!newPerms.financial) newPerms.financial = { read: false, update: false, invoice: false, discounts: false };
                             newPerms.financial = { ...newPerms.financial, [action.key]: !newPerms.financial[action.key as keyof typeof perms.financial] };
                             onUpdate(newPerms);
                           }}
-                          className={`w-11 h-6 rounded-full relative transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-emerald-500 ${isChecked ? 'bg-emerald-500' : 'bg-slate-200'} ${disabled ? 'opacity-70 cursor-not-allowed' : ''}`}
-                        >
-                          <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${isChecked ? 'left-[26px]' : 'left-1'}`} />
-                        </button>
+                        />
                       </div>
                     );
                   })}
@@ -224,16 +290,15 @@ const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, onSave, title
                           <item.icon size={16} className="text-slate-400" />
                           <span className="text-[12px] font-bold text-slate-600">{item.label}</span>
                         </div>
-                        <button
-                          onClick={() => {
+                        <IamSwitch
+                          disabled={disabled}
+                          checked={isChecked}
+                          onChange={() => {
                             if (disabled) return;
                             const newPerms = { ...perms, [item.key]: !isChecked };
                             onUpdate(newPerms);
                           }}
-                          className={`w-11 h-6 rounded-full relative transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-amber-500 ${isChecked ? 'bg-amber-500' : 'bg-slate-200'} ${disabled ? 'opacity-70 cursor-not-allowed' : ''}`}
-                        >
-                          <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${isChecked ? 'left-[26px]' : 'left-1'}`} />
-                        </button>
+                        />
                       </div>
                     );
                   })}
@@ -266,83 +331,28 @@ const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, onSave, title
                           <span className="text-[12px] font-bold text-slate-600 block">{tab.label}</span>
                           <span className="text-[9px] text-slate-400 font-medium">{tab.desc}</span>
                         </div>
-                        <button
-                          onClick={() => {
+                        <IamSwitch
+                          disabled={disabled}
+                          checked={isChecked}
+                          onChange={() => {
                             if (disabled) return;
                             const newTabs = { ...(perms.settingsTabs || { company: false, system: false, app: false, dashboard: false }), [tab.key]: !isChecked };
                             onUpdate({ ...perms, settingsTabs: newTabs });
                           }}
-                          className={`w-11 h-6 rounded-full relative transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-violet-500 ${isChecked ? 'bg-violet-500' : 'bg-slate-200'} ${disabled ? 'opacity-70 cursor-not-allowed' : ''}`}
-                        >
-                          <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${isChecked ? 'left-[26px]' : 'left-1'}`} />
-                        </button>
+                        />
                       </div>
                     );
                   })}
                 </div>
               </div>
             )}
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden mb-6">
-              <div className="p-5 border-b border-slate-100 bg-[#1c2d4f]/5 flex items-center gap-4">
-                <div className="p-2.5 bg-[#1c2d4f]/10 rounded-xl text-[#1c2d4f]"><Key size={16} /></div>
-                <div>
-                  <h3 className="font-bold text-slate-800 text-[13px]">Acesso aos Menus e Páginas</h3>
-                  <p className="text-[10px] text-slate-400 mt-0.5">Controla quais páginas este grupo pode visualizar e acessar. Páginas desativadas ficam ocultas e bloqueadas.</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-0 divide-x divide-y divide-slate-100">
-                {[
-                  { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-                  { key: 'orders', label: 'Ordens de Serviço', icon: ClipboardList },
-                  { key: 'calendar', label: 'Agenda', icon: Calendar },
-                  { key: 'map', label: 'Visão de Campo', icon: Navigation },
-                  { key: 'financial', label: 'Financeiro', icon: Building2 },
-                  { key: 'quotes', label: 'Orçamentos', icon: FileText },
-                  { key: 'stock', label: 'Estoque', icon: Package },
-                  { key: 'contracts', label: 'Contratos / PMOC', icon: CalendarClock },
-                  { key: 'customers', label: 'Clientes', icon: Users },
-                  { key: 'equipments', label: 'Ativos', icon: Box },
-                  { key: 'forms', label: 'Formulários', icon: Workflow },
-                  { key: 'technicians', label: 'Técnicos', icon: UserCheck },
-                  { key: 'users', label: 'Usuários e Grupos', icon: ShieldAlert },
-                  { key: 'settings', label: 'Configurações', icon: Settings },
-                ].map((menu) => {
-                  const currentAccess = perms.menuAccess || {};
-                  const isChecked = (currentAccess as any)[menu.key] === true;
-                  return (
-                    <div key={menu.key} className={`flex items-center justify-between p-4 transition-colors hover:bg-slate-50/80 ${isChecked ? '' : 'bg-rose-50/30'}`}>
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg transition-all ${isChecked ? 'bg-slate-100 text-slate-500' : 'bg-rose-100 text-rose-400'}`}>
-                          <menu.icon size={14} />
-                        </div>
-                        <div>
-                          <span className="text-[11px] font-bold text-slate-700 block">{menu.label}</span>
-                          <span className={`text-[9px] font-bold uppercase tracking-wider ${isChecked ? 'text-emerald-500' : 'text-rose-400'}`}>
-                            {isChecked ? 'Liberado' : 'Bloqueado'}
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          if (disabled) return;
-                          const newMenuAccess = { ...(perms.menuAccess || {}), [menu.key]: !isChecked };
-                          onUpdate({ ...perms, menuAccess: newMenuAccess as any });
-                        }}
-                        className={`w-11 h-6 rounded-full relative transition-all shrink-0 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#1c2d4f] ${isChecked ? 'bg-[#1c2d4f]' : 'bg-rose-300'} ${disabled ? 'opacity-70 cursor-not-allowed' : ''}`}
-                      >
-                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${isChecked ? 'left-[26px]' : 'left-1'}`} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+
           </>
         ) : (
           <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden h-full">
             <table className="w-full border-collapse">
               <thead className="sticky top-0 bg-slate-50 z-10">
-                <tr className="text-[9px] font-bold text-slate-400 tracking-[0.3em] uppercase text-center border-b border-slate-200">
+                <tr className="text-[10px] font-poppins font-bold text-slate-500 tracking-wider uppercase text-center border-b border-slate-200">
                   <th className="px-6 py-4 text-left">Administrador / Identidade</th>
                   <th className="px-4 py-4 text-center">Status</th>
                 </tr>

@@ -11,6 +11,7 @@ import {
   ChevronDown, ChevronUp, Laptop, Hash, Filter, Calendar, ChevronLeft
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
+import { usePermissions } from '../../hooks/usePermissions';
 
 import { Customer, Equipment } from '../../types';
 import { DataService } from '../../services/dataService';
@@ -39,6 +40,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
 }) => {
     const { t } = useI18n();
   const { showAlert, showConfirm } = useDialog();
+  const { canCreate, canEdit, canDelete } = usePermissions();
 
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -385,12 +387,15 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
           </div>
 
           <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
-             <Button
-                onClick={() => setIsModalOpen(true)}
-                className="h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl font-bold whitespace-nowrap"
-              >
-                <Plus size={16} /> Novo Cliente
-             </Button>
+               <Button
+                  onClick={(e) => {
+                    if (!canCreate('customers')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para esta ação.'); return; }
+                    setIsModalOpen(true);
+                  }}
+                  className={`h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl font-bold whitespace-nowrap ${!canCreate('customers') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                >
+                  <Plus size={16} /> Novo Cliente
+               </Button>
           </div>
         </div>
 
@@ -477,15 +482,26 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                       <td className="px-4 py-1.5 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
 
                         <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
-                          <button onClick={(e) => toggleStatus(c.id, e)} title={c.active ? "Suspender" : "Liberar"} className="p-2.5 bg-slate-50 text-slate-400 hover:text-amber-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-amber-100 transition-all active:scale-90">
-                            {c.active ? <PowerOff size={16} /> : <Power size={16} />}
-                          </button>
-                          <button onClick={(e) => handleEdit(c, e)} title="Editar" className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90">
-                            <Edit2 size={16} />
-                          </button>
-                          <button onClick={(e) => handleDelete(c.id, e)} title="Excluir" className="p-2.5 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-90">
-                            <Trash2 size={16} />
-                          </button>
+                            <>
+                              <button onClick={(e) => {
+                                if (!canEdit('customers')) { e.preventDefault(); e.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                                toggleStatus(c.id, e);
+                              }} title={c.active ? "Suspender" : "Liberar"} className={`p-2.5 bg-slate-50 text-slate-400 hover:text-amber-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-amber-100 transition-all active:scale-90 ${!canEdit('customers') ? 'opacity-50 !cursor-not-allowed' : ''}`}>
+                                {c.active ? <PowerOff size={16} /> : <Power size={16} />}
+                              </button>
+                              <button onClick={(e) => {
+                                if (!canEdit('customers')) { e.preventDefault(); e.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                                handleEdit(c, e);
+                              }} title="Editar" className={`p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90 ${!canEdit('customers') ? 'opacity-50 !cursor-not-allowed' : ''}`}>
+                                <Edit2 size={16} />
+                              </button>
+                            </>
+                            <button onClick={(e) => {
+                              if (!canDelete('customers')) { e.preventDefault(); e.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
+                              handleDelete(c.id, e);
+                            }} title="Excluir" className={`p-2.5 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-90 ${!canDelete('customers') ? 'opacity-50 !cursor-not-allowed' : ''}`}>
+                              <Trash2 size={16} />
+                            </button>
                         </div>
 
                       </td>

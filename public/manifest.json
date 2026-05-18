@@ -1,6 +1,6 @@
 {
-  "name": "DUNO Nexus - Painel Administrativo",
-  "short_name": "DUNO Admin",
+  "name": "Duno Nexus - Painel Administrativo",
+  "short_name": "Duno Admin",
   "description": "Sistema de gestão de ordens de serviço, técnicos, clientes e equipamentos.",
   "start_url": "/#/admin",
   "display": "standalone",

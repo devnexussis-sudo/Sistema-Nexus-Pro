@@ -10,11 +10,12 @@ import { Category, StockItem } from '../../types';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Pagination } from '../ui/Pagination';
+import { usePermissions } from '../../hooks/usePermissions';
 
 export const StockManagement: React.FC = () => {
-  const { t } = useI18n();
-
+    const { t } = useI18n();
     const { isAuthLoading, session } = useAuth();
+    const { canCreate, canEdit, canDelete } = usePermissions();
 
     // Application State
     const [activeTab, setActiveTab] = useState<'items' | 'categories' | 'techs' | 'movements' | 'balance'>('items');
@@ -1069,8 +1070,11 @@ export const StockManagement: React.FC = () => {
 
                         {(activeTab === 'items' || activeTab === 'categories') && (
                             <Button
-                                onClick={() => activeTab === 'items' ? handleOpenModal() : handleOpenCategoryModal()}
-                                className="h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl"
+                                onClick={(e) => {
+                                    if (!canCreate('stock')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para esta ação.'); return; }
+                                    activeTab === 'items' ? handleOpenModal() : handleOpenCategoryModal()
+                                }}
+                                className={`h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl ${!canCreate('stock') ? 'opacity-50 !cursor-not-allowed' : ''}`}
                             >
                                 <Plus size={14} /> {activeTab === 'items' ? 'Novo Cadastro' : 'Nova Categoria'}
                             </Button>
@@ -1237,24 +1241,30 @@ export const StockManagement: React.FC = () => {
                                                         </td>
                                                         <td className="px-3 py-3 text-right pr-6">
                                                             <div className="flex items-center justify-end gap-1 transition-all">
-                                                                <Button 
-                                                                    onClick={(e) => { e.stopPropagation(); handleOpenModal(item); }} 
-                                                                    variant="secondary"
-                                                                    size="sm"
-                                                                    className="p-2 text-primary-600 bg-primary-50 hover:bg-primary-600 hover:text-white rounded-lg border border-primary-200 transition-all" 
-                                                                    title="Ver Detalhes"
-                                                                >
-                                                                    <Package size={14} />
-                                                                </Button>
-                                                                <Button 
-                                                                    onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} 
-                                                                    variant="danger"
-                                                                    size="sm"
-                                                                    className="p-2 text-rose-400 bg-rose-50 hover:bg-rose-600 hover:text-white rounded-lg border border-transparent hover:border-rose-200 transition-all" 
-                                                                    title="Excluir"
-                                                                >
-                                                                    <Trash2 size={14} />
-                                                                </Button>
+                                                                    <Button 
+                                                                        onClick={(e) => {
+                                                                            if (!canEdit('stock')) { e.preventDefault(); e.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                                                                            e.stopPropagation(); handleOpenModal(item);
+                                                                        }} 
+                                                                        variant="secondary"
+                                                                        size="sm"
+                                                                        className={`p-2 text-primary-600 bg-primary-50 hover:bg-primary-600 hover:text-white rounded-lg border border-primary-200 transition-all ${!canEdit('stock') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
+                                                                        title="Ver Detalhes"
+                                                                    >
+                                                                        <Package size={14} />
+                                                                    </Button>
+                                                                    <Button 
+                                                                        onClick={(e) => {
+                                                                            if (!canDelete('stock')) { e.preventDefault(); e.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
+                                                                            e.stopPropagation(); handleDelete(item.id);
+                                                                        }} 
+                                                                        variant="danger"
+                                                                        size="sm"
+                                                                        className={`p-2 text-rose-400 bg-rose-50 hover:bg-rose-600 hover:text-white rounded-lg border border-transparent hover:border-rose-200 transition-all ${!canDelete('stock') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
+                                                                        title="Excluir"
+                                                                    >
+                                                                        <Trash2 size={14} />
+                                                                    </Button>
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -1300,12 +1310,18 @@ export const StockManagement: React.FC = () => {
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-2 transition-opacity">
-                                                    <button onClick={() => handleOpenCategoryModal(cat)} className="p-3 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95" title="Editar">
-                                                        <Edit3 size={16} />
-                                                    </button>
-                                                    <button onClick={() => handleDeleteCategory(cat.id)} className="p-3 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-95" title="Excluir">
-                                                        <Trash2 size={16} />
-                                                    </button>
+                                                        <button onClick={(e) => {
+                                                            if (!canEdit('stock')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                                                            handleOpenCategoryModal(cat);
+                                                        }} className={`p-3 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95 ${!canEdit('stock') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar">
+                                                            <Edit3 size={16} />
+                                                        </button>
+                                                        <button onClick={(e) => {
+                                                            if (!canDelete('stock')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
+                                                            handleDeleteCategory(cat.id);
+                                                        }} className={`p-3 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-95 ${!canDelete('stock') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Excluir">
+                                                            <Trash2 size={16} />
+                                                        </button>
                                                 </div>
                                             </div>
                                         ))}

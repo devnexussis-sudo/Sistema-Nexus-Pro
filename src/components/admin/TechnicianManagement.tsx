@@ -13,9 +13,11 @@ import { DataService } from '../../services/dataService';
 import { TechnicianService, formatTechCode } from '../../services/technicianService';
 import { User as UserType, UserRole, OrderStatus } from '../../types';
 import { StatusBadge } from '../ui/StatusBadge';
+import { usePermissions } from '../../hooks/usePermissions';
 
 export const TechnicianManagement: React.FC = () => {
   const { t } = useI18n();
+  const { canCreate, canEdit } = usePermissions();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -152,12 +154,15 @@ export const TechnicianManagement: React.FC = () => {
               </select>
             </div>
 
-            <Button
-              onClick={() => setIsModalOpen(true)}
-              className="h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl whitespace-nowrap text-white"
-            >
-              <Plus size={16} /> Novo Técnico
-            </Button>
+              <Button
+                onClick={(e) => {
+                  if (!canCreate('technicians')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para esta ação.'); return; }
+                  setIsModalOpen(true);
+                }}
+                className={`h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl whitespace-nowrap text-white ${!canCreate('technicians') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+              >
+                <Plus size={16} /> Novo Técnico
+              </Button>
           </div>
         </div>
       </div>
@@ -198,7 +203,10 @@ export const TechnicianManagement: React.FC = () => {
                     <StatusBadge status={t.active ? OrderStatus.COMPLETED : OrderStatus.CANCELED} />
                   </td>
                   <td className="px-4 py-1.5 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
-                    <button onClick={() => { setFormData(t); setEditingId(t.id); setIsModalOpen(true); }} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Editar Técnico"><Edit2 size={16} /></button>
+                      <button onClick={(e) => {
+                        if (!canEdit('technicians')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                        setFormData(t); setEditingId(t.id); setIsModalOpen(true);
+                      }} className={`p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90 ${!canEdit('technicians') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar Técnico"><Edit2 size={16} /></button>
                   </td>
                 </tr>
               ))}

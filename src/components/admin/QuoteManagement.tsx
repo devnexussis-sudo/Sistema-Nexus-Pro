@@ -31,6 +31,7 @@ import { useI18n } from '../../i18n';
 import { useDialog } from '../../contexts/DialogContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePagedQuotes, useTenant } from '../../hooks/nexusHooks';
+import { usePermissions } from '../../hooks/usePermissions';
 import { Customer, OrderPriority, OrderStatus, Quote, QuoteItem, ServiceOrder, StockItem } from '../../types';
 import { NexusBranding } from '../ui/NexusBranding';
 import { Pagination } from '../ui/Pagination';
@@ -52,6 +53,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 }) => {
     const { t } = useI18n();
     const { showAlert, showConfirm } = useDialog();
+    const { canCreate, canEdit, canDelete } = usePermissions();
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -550,12 +552,15 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                 )}
                             </div>
                         </button>
-                        <button
-                            onClick={() => { resetForm(); setIsModalOpen(true); }}
-                            className="h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl"
-                        >
-                            <Plus size={14} /> Novo Orçamento
-                        </button>
+                            <button
+                                onClick={(e) => {
+                                    if (!canCreate('quotes')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para esta ação.'); return; }
+                                    resetForm(); setIsModalOpen(true);
+                                }}
+                                className={`h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl ${!canCreate('quotes') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                            >
+                                <Plus size={14} /> Novo Orçamento
+                            </button>
                     </div>
                 </div>
 
@@ -1167,8 +1172,9 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     const isLocked = viewQuote.status === 'APROVADO' || viewQuote.status === 'CONVERTIDO' || viewQuote.billingStatus === 'PAID';
                                     return (
                                         <button
-                                            onClick={() => {
-                                                if (isLocked) return;
+                                            onClick={(e) => {
+                                                if (!canEdit('quotes')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                                                if (isLocked) { e.preventDefault(); showAlert('Propostas aprovadas ou faturadas não podem ser editadas.'); return; }
                                                 const quote = viewQuote;
                                                 setSelectedQuote(quote);
                                                 setCustomerName(quote.customerName);
@@ -1182,11 +1188,10 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 setIsViewModalOpen(false);
                                                 setIsModalOpen(true);
                                             }}
-                                            disabled={isLocked}
                                             className={`h-9 px-4 gap-2 border rounded-lg text-xs font-medium transition-all flex items-center ${isLocked
                                                     ? 'bg-slate-50 border-slate-100 text-slate-400 cursor-not-allowed opacity-60'
                                                     : 'border-blue-200 text-blue-700 hover:bg-blue-50 active:scale-95 shadow-sm'
-                                                }`}
+                                                } ${!canEdit('quotes') ? 'opacity-50 !cursor-not-allowed' : ''}`}
                                             title={isLocked ? "Propostas aprovadas ou faturadas não podem ser editadas" : "Editar proposta"}
                                         >
                                             {isLocked ? <Lock size={14} /> : <Edit3 size={14} />}
@@ -1210,13 +1215,18 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     <Printer size={14} /> Imprimir PDF
                                 </button>
                                 <button
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                        if (!canDelete('quotes')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
+                                        if (viewQuote.status === 'APROVADO' || viewQuote.status === 'CONVERTIDO' || viewQuote.billingStatus === 'PAID') { e.preventDefault(); showAlert('Propostas aprovadas ou faturadas não podem ser excluídas.'); return; }
                                         showConfirm('Tem certeza que deseja excluir esta proposta?', async () => {
                                             await onDeleteQuote(viewQuote.id);
                                             setIsViewModalOpen(false);
                                         }, 'Excluir Proposta', 'Excluir', true);
                                     }}
-                                    className="h-9 px-4 gap-2 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-medium transition-all flex items-center"
+                                    className={`h-9 px-4 gap-2 border rounded-lg text-xs font-medium transition-all flex items-center ${(viewQuote.status === 'APROVADO' || viewQuote.status === 'CONVERTIDO' || viewQuote.billingStatus === 'PAID')
+                                            ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
+                                            : 'bg-white hover:bg-rose-50 border-rose-200 text-rose-600 hover:text-rose-600 hover:border-rose-200'
+                                        } ${!canDelete('quotes') ? 'opacity-50 !cursor-not-allowed' : ''}`}
                                 >
                                     <Trash2 size={14} /> Excluir
                                 </button>
