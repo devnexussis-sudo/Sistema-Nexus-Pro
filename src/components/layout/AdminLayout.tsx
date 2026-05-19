@@ -3,7 +3,7 @@ import {
     Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Calendar,
     Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck,
     Settings, LogOut, Bell, Package, ArrowRight, FileText,
-    AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff, X, Phone, Menu
+    AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff, X, Phone, Menu, Bot
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { NexusBranding } from '../ui/NexusBranding';
@@ -70,6 +70,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
     const menuItems = [
         { path: '/admin', id: 'dashboard', label: t.nav.dashboard, icon: LayoutDashboard, visible: menuVisible('dashboard'), enabled: isModuleEnabled('dashboard') },
+        { path: '/admin/ai', id: 'ai', label: 'Duno IA', icon: Bot, visible: true, enabled: true },
         { path: '/admin/orders', id: 'orders', label: t.nav.orders, icon: ClipboardList, visible: menuVisible('orders'), enabled: isModuleEnabled('orders') },
         { path: '/admin/calendar', id: 'calendar', label: t.nav.calendar, icon: Calendar, visible: menuVisible('calendar'), enabled: isModuleEnabled('orders') },
         { path: '/admin/map', id: 'map', label: t.nav.map, icon: Navigation, visible: menuVisible('map'), enabled: isModuleEnabled('map') },

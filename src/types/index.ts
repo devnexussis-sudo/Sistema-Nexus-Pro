@@ -502,6 +502,8 @@ export interface Equipment {
   customerName: string;
   active: boolean;
   createdAt: string;
+  manufactureDate?: string;
+  warrantyMonths?: number;
 }
 
 export interface Contract {

@@ -19,7 +19,15 @@ import { StatusBadge } from '../ui/StatusBadge';
 import { DataService } from '../../services/dataService';
 import { EquipmentService, formatAssetCode } from '../../services/equipmentService';
 
-
+const checkWarrantyStatus = (manufactureDate?: string, warrantyMonths?: number) => {
+  if (!manufactureDate || !warrantyMonths) return null;
+  const mDate = new Date(manufactureDate);
+  // Using UTC or local? Simple date is fine, let's just add months
+  const expiryDate = new Date(mDate);
+  expiryDate.setMonth(expiryDate.getMonth() + warrantyMonths);
+  const now = new Date();
+  return expiryDate >= now; // true = Green, false = Red
+};
 
 
 interface EquipmentManagementProps {
@@ -301,6 +309,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                   <th className="px-4 py-2 text-center">código</th>
                   <th className="px-4 py-2 text-center whitespace-nowrap">nº de série</th>
                   <th className="px-4 py-2">proprietário</th>
+                  <th className="px-4 py-2 text-center">garantia</th>
                   <th className="px-4 py-2 text-center">status</th>
                   <th className="px-4 py-3 text-right pr-6">{t.common.actions}</th>
                 </tr>
@@ -327,6 +336,18 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                     <td className="px-4 py-1.5 border-y border-slate-100 text-center font-mono text-[12px] text-slate-500 tracking-tighter whitespace-nowrap">#{e.serialNumber}</td>
                     <td className="px-4 py-1.5 border-y border-slate-100 text-[12px] text-slate-600 tracking-tight truncate max-w-[150px]">
                       {customers.find(c => c.id === e.customerId)?.name || e.customerName || 'Não vinculado'}
+                    </td>
+
+                    <td className="px-4 py-1.5 border-y border-slate-100 text-center">
+                      {e.manufactureDate && e.warrantyMonths ? (
+                        <div className={`text-[9px] font-bold px-2.5 py-1 rounded-full w-max mx-auto border ${checkWarrantyStatus(e.manufactureDate, e.warrantyMonths) ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-rose-50 text-rose-600 border-rose-200'}`}>
+                          {checkWarrantyStatus(e.manufactureDate, e.warrantyMonths) ? 'Em Garantia' : 'Fora de Garantia'}
+                        </div>
+                      ) : (
+                        <div className="text-[9px] font-bold px-2.5 py-1 rounded-full w-max mx-auto border bg-slate-50 text-slate-400 border-slate-200">
+                          Sem Info.
+                        </div>
+                      )}
                     </td>
 
                     <td className="px-4 py-1.5 border-y border-slate-100 text-center">
@@ -489,6 +510,18 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                         </div>
                         <Input label="Modelo" required icon={<Laptop size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={eqFormData.model || ''} onChange={e => setEqFormData({ ...eqFormData, model: e.target.value })} />
                         <Input label="Número de Série (Serial)" required icon={<Hash size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={eqFormData.serialNumber || ''} onChange={e => setEqFormData({ ...eqFormData, serialNumber: e.target.value })} />
+                        
+                        <Input type="date" label="Data de Fabricação" icon={<Calendar size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={eqFormData.manufactureDate || ''} onChange={e => setEqFormData({ ...eqFormData, manufactureDate: e.target.value })} />
+                        <Input type="number" label="Garantia (Meses)" icon={<Calendar size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={eqFormData.warrantyMonths || ''} onChange={e => setEqFormData({ ...eqFormData, warrantyMonths: e.target.value ? parseInt(e.target.value) : undefined })} />
+
+                        {eqFormData.manufactureDate && eqFormData.warrantyMonths ? (
+                          <div className="md:col-span-2">
+                             <div className={`p-3 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold shadow-sm ${checkWarrantyStatus(eqFormData.manufactureDate, eqFormData.warrantyMonths) ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
+                               <Info size={16} />
+                               {checkWarrantyStatus(eqFormData.manufactureDate, eqFormData.warrantyMonths) ? 'Equipamento em Garantia' : 'Equipamento Fora de Garantia'}
+                             </div>
+                          </div>
+                        ) : null}
 
                         {/* Código do Ativo — somente leitura */}
                         <div className="w-full">

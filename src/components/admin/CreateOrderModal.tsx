@@ -15,6 +15,15 @@ import { OrderTimeline } from '../shared/OrderTimeline';
 import { VisitHistoryTab } from './VisitHistoryTab';
 import { VisitService } from '../../services/visitService';
 
+const checkWarrantyStatus = (manufactureDate?: string, warrantyMonths?: number) => {
+  if (!manufactureDate || !warrantyMonths) return null;
+  const mDate = new Date(manufactureDate);
+  const expiryDate = new Date(mDate);
+  expiryDate.setMonth(expiryDate.getMonth() + warrantyMonths);
+  const now = new Date();
+  return expiryDate >= now; // true = Em Garantia, false = Fora de Garantia
+};
+
 interface CreateOrderModalProps {
   onClose: () => void;
   onSubmit: (order: Partial<ServiceOrder>) => Promise<any>;
@@ -601,7 +610,12 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                         </div>
                         <div className="flex-1">
                           <p className="text-xs font-bold text-slate-800">{eq.model}</p>
-                          <p className="text-[10px] text-slate-400 font-medium mt-0.5">#{eq.serialNumber}</p>
+                          <p className="text-[10px] text-slate-400 font-medium mt-0.5 mb-1">#{eq.serialNumber}</p>
+                          {eq.manufactureDate && eq.warrantyMonths && (
+                            <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded border ${checkWarrantyStatus(eq.manufactureDate, eq.warrantyMonths) ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-rose-50 text-rose-600 border-rose-200'}`}>
+                              {checkWarrantyStatus(eq.manufactureDate, eq.warrantyMonths) ? 'Em Garantia' : 'Fora de Garantia'}
+                            </span>
+                          )}
                         </div>
                         {selectedEquipIds.includes(eq.id) && (
                           <div className="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-sm">

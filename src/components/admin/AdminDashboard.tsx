@@ -81,6 +81,15 @@ interface AdminDashboardProps {
   onCreateOrder: (order: Partial<ServiceOrder>) => Promise<any>;
 }
 
+const checkWarrantyStatus = (manufactureDate?: string, warrantyMonths?: number) => {
+  if (!manufactureDate || !warrantyMonths) return null;
+  const mDate = new Date(manufactureDate);
+  const expiryDate = new Date(mDate);
+  expiryDate.setMonth(expiryDate.getMonth() + warrantyMonths);
+  const now = new Date();
+  return expiryDate >= now;
+};
+
 const isVideoUrl = (url: string | null) => {
   if (!url) return false;
   const videoExtensions = ['.mp4', '.mov', '.avi', '.wmv', '.flv', '.webm', '.mkv', '.3gp'];
@@ -1400,7 +1409,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           if (!canEdit('orders')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
                           handleStartEdit();
                         }}
-                        className={`h-9 px-2 sm:px-4 gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50 ${!canEdit('orders') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                        className={`h-9 px-2 sm:px-4 gap-1.5 !bg-slate-50 border-blue-200 text-blue-700 hover:!bg-blue-50 ${!canEdit('orders') ? 'opacity-50 !cursor-not-allowed' : ''}`}
                       >
                         <Edit3 size={14} /> <span className="hidden sm:inline">Editar OS</span>
                       </Button>
@@ -1409,7 +1418,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       variant="secondary"
                       size="sm"
                       onClick={(e) => handleOpenPublicView(selectedOrder, e)}
-                      className="h-9 px-2 sm:px-4 gap-1.5 border-primary-200 text-primary-700 hover:bg-primary-50"
+                      className="h-9 px-2 sm:px-4 gap-1.5 !bg-slate-50 border-primary-200 text-primary-700 hover:!bg-primary-50"
                     >
                       <Share2 size={14} /> <span className="hidden sm:inline">Visualizar</span>
                     </Button>
@@ -1427,7 +1436,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           showAlert('WhatsApp do cliente não cadastrado no sistema.');
                         }
                       }}
-                      className="h-9 px-2 sm:px-4 gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                      className="h-9 px-2 sm:px-4 gap-1.5 !bg-slate-50 border-emerald-200 text-emerald-700 hover:!bg-emerald-50"
                     >
                       <MessageCircle size={14} /> <span className="hidden sm:inline">WhatsApp</span>
                     </Button>
@@ -1435,7 +1444,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       variant="secondary"
                       size="sm"
                       onClick={() => handlePrintOrder(selectedOrder.id)}
-                      className="h-9 px-2 sm:px-4 gap-1.5 hidden sm:flex"
+                      className="h-9 px-2 sm:px-4 gap-1.5 hidden sm:flex !bg-slate-50 border-slate-200 text-slate-700 hover:!bg-slate-100"
                     >
                       <Printer size={14} /> <span className="hidden md:inline">Gerar PDF</span>
                     </Button>
@@ -1447,7 +1456,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           if (!canDelete('orders')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir/cancelar.'); return; }
                           handleCancelOrder(selectedOrder, e);
                         }}
-                        className={`h-9 px-2 sm:px-4 gap-1.5 border-rose-200 text-rose-700 hover:bg-rose-50 ${!canDelete('orders') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                        className={`h-9 px-2 sm:px-4 gap-1.5 !bg-slate-50 border-rose-200 text-rose-700 hover:!bg-rose-50 ${!canDelete('orders') ? 'opacity-50 !cursor-not-allowed' : ''}`}
                       >
                         <Ban size={14} /> <span className="hidden sm:inline">Cancelar OS</span>
                       </Button>
@@ -1937,6 +1946,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <th className="px-5 py-3 font-semibold text-center">Ativo / Equipamento</th>
                                 <th className="px-5 py-3 font-semibold">Família</th>
                                 <th className="px-5 py-3 font-semibold">Série / Patrimônio</th>
+                                <th className="px-5 py-3 font-semibold text-center">Garantia</th>
                                 <th className="px-5 py-3 font-semibold text-center">Formulário</th>
                                 <th className="px-5 py-3 font-semibold text-center">{t.common.status}</th>
                                 {isEditing && <th className="px-5 py-3 font-semibold text-center">{t.common.actions}</th>}
@@ -1970,12 +1980,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                       <span className="text-xs font-medium text-slate-700 font-mono">{eq.equipmentSerial && eq.equipmentSerial !== '-' ? eq.equipmentSerial : '—'}</span>
                                     </td>
                                     <td className="px-5 py-3.5 text-center">
-                                      <span className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase px-2 py-0.5 rounded-md border ${hasFormData ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-500 border-amber-100'}`}>
+                                      {(() => {
+                                        const fullEq = allEquipmentsCatalog.find((e: any) => e.id === eq.equipmentId) || eq;
+                                        if (fullEq.manufactureDate && fullEq.warrantyMonths) {
+                                          const isWarranty = checkWarrantyStatus(fullEq.manufactureDate, fullEq.warrantyMonths);
+                                          return (
+                                            <span className={`inline-flex items-center justify-center gap-1 text-[9px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-md border ${isWarranty ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-rose-50 text-rose-600 border-rose-200'}`}>
+                                              {isWarranty ? 'Em Garantia' : 'Fora de Garantia'}
+                                            </span>
+                                          );
+                                        }
+                                        return (
+                                          <span className="inline-flex items-center justify-center gap-1 text-[9px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-md border bg-slate-50 text-slate-400 border-slate-200">
+                                            Sem Info.
+                                          </span>
+                                        );
+                                      })()}
+                                    </td>
+                                    <td className="px-5 py-3.5 text-center">
+                                      <span className={`inline-flex items-center justify-center gap-1 text-[9px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-md border ${hasFormData ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-500 border-amber-100'}`}>
                                         {hasFormData ? '✓ Sim' : '○ Pendente'}
                                       </span>
                                     </td>
                                     <td className="px-5 py-3.5 text-center">
-                                      <span className={`inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-md border ${isActive ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                                      <span className={`inline-flex items-center justify-center gap-1 text-[9px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-md border ${isActive ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
                                         {isActive ? 'Ativo' : 'Concluído'}
                                       </span>
                                     </td>

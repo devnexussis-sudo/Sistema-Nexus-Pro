@@ -56,7 +56,9 @@ export const EquipmentService = {
             customerId: data.customer_id,
             customerName: data.customer_name,
             active: data.active,
-            createdAt: data.created_at
+            createdAt: data.created_at,
+            manufactureDate: (data as any).manufacture_date,
+            warrantyMonths: (data as any).warranty_months
         };
     },
 
@@ -112,6 +114,8 @@ export const EquipmentService = {
                 customer_name: equipment.customerName,
                 active: equipment.active,
                 tenant_id: tid,
+                manufacture_date: equipment.manufactureDate || null,
+                warranty_months: equipment.warrantyMonths || null,
                 updated_at: new Date().toISOString()
             };
 
@@ -139,6 +143,8 @@ export const EquipmentService = {
                 customer_id: equipment.customerId,
                 customer_name: equipment.customerName,
                 active: equipment.active,
+                manufacture_date: equipment.manufactureDate || null,
+                warranty_months: equipment.warrantyMonths || null,
                 updated_at: new Date().toISOString()
             };
 
