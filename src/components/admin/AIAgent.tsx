@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Bot, Send, User, Sparkles, RefreshCw, BookOpen } from 'lucide-react';
+import { Bot, Send, User, Sparkles, RefreshCw, BookOpen, Loader2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { findBestMatch, KnowledgeEntry, KNOWLEDGE_BASE } from '../../data/dunoKnowledge';
 import { detectDataIntent, executeDataQuery } from '../../services/dunoQueryService';
@@ -115,6 +115,9 @@ export const AIAgent: React.FC = () => {
     let response: string;
 
     try {
+      // Simula tempo de busca/processamento de 2 segundos (spinner)
+      await new Promise(r => setTimeout(r, 2000));
+
       // 1️⃣ Perguntas pessoais / conversacionais
       const personal = detectPersonal(userMsg.content, fullName, firstName);
       if (personal) {
@@ -236,10 +239,9 @@ export const AIAgent: React.FC = () => {
                   : 'bg-white border border-slate-200 text-slate-700 rounded-tl-sm shadow-sm'
               }`}>
                 {msg.isTyping ? (
-                  <div className="flex items-center gap-1.5 h-4 px-1">
-                    <div className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <div className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <div className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <div className="flex items-center gap-2 px-1">
+                    <Loader2 className="w-3.5 h-3.5 text-slate-400 animate-spin" />
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider animate-pulse">Pensando...</span>
                   </div>
                 ) : (
                   <div>{renderMarkdown(msg.content)}</div>

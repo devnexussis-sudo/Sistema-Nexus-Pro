@@ -624,4 +624,3 @@ function detectModule(query: string): CopilotModule | null {
   }
   return null;
 }
-}
