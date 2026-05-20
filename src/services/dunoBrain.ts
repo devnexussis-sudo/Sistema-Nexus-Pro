@@ -1,290 +1,241 @@
 // ============================================================
 // src/services/dunoBrain.ts
-// 🧠 Duno IA Core Brain — Motor NLP e Grafo de Conhecimento Interno
-// Mapeia todas as entidades, rotas, ações e atributos do Nexus OS
+// 🧠 Duno IA Core Brain — Sistema de Consciência do Nexus OS
+// Motor de Busca Ponderada e Base Integrada de Procedimentos do Sistema
 // ============================================================
 
 export type ActionType = 'create' | 'read' | 'update' | 'delete' | 'report' | 'explain';
 
-export interface SystemEntity {
-  id: string;
-  name: string;
-  synonyms: string[];
-  menuPath: string;
+export interface KnowledgeNode {
+  title: string;
+  category: 'workflow' | 'engineering' | 'security' | 'design';
+  keywords: string[];
   description: string;
-  attributes: string[];
-  actions: {
-    [key in ActionType]?: string;
-  };
+  steps: string[];
+  technicalDetails: string;
+  relatedFiles: string[];
 }
 
-// ── Grafo do Sistema Nexus OS ──
-export const SYSTEM_GRAPH: SystemEntity[] = [
+// ══════════════════════════════════════════════════════════════
+// 🧠 BASE DE CONSCIÊNCIA GLOBAL E DETALHADA DO NEXUS OS
+// Mapeia fluxos funcionais completos, arquivos do projeto e lógica técnica.
+// ══════════════════════════════════════════════════════════════
+export const CONSCIOUSNESS_BASE: KnowledgeNode[] = [
   {
-    id: 'app_tecnico',
-    name: 'App do Técnico (Mobile PWA)',
-    synonyms: ['app', 'aplicativo', 'celular', 'pwa', 'app mobile', 'app do tecnico'],
-    menuPath: 'Menu Principal > Configurações > Aba "APP do Técnico"',
-    description: 'Aplicativo PWA utilizado pelos técnicos em campo para gerenciar as ordens de serviço (OS) diretamente do celular.',
-    attributes: [
-      'Iniciar Atendimento (com captura de GPS)',
-      'Câmera nativa para Fotos e Vídeos',
-      'Formulários e Checklists dinâmicos',
-      'Leitor de QR Code para peças',
-      'Bloqueio de OS (Impedimentos)',
-      'Assinatura Digital do cliente',
-      'Rastreio de Deslocamento (Km e Tempo)',
-      'Sincronização Offline'
+    title: "Abertura e Criação de Ordens de Serviço (OS)",
+    category: "workflow",
+    keywords: [
+      'abrir os', 'criar os', 'nova os', 'abrir chamado', 'criar chamado', 'nova atividade', 
+      'criar atividade', 'gerar os', 'cadastrar os', 'ordem de servico', 'atividades', 'atividade'
     ],
-    actions: {
-      read: 'As configurações e permissões do App ficam centralizadas na tela de Configurações do sistema.',
-      update: 'Para alterar o que o técnico pode ver no App (como preços, botão de WhatsApp ou limite de OS simultâneas), altere os toggles na aba APP do Técnico.',
-      explain: 'Ele não requer download nas lojas de app; basta o técnico acessar a URL pelo celular e adicionar à tela inicial.'
-    }
+    description: "Fluxo passo a passo para abertura de Ordens de Serviço (OS) pelo painel administrativo.",
+    steps: [
+      "Acesse o menu 'Atividade' na barra lateral esquerda do painel.",
+      "Clique no botão '+ Nova OS' localizado no canto superior direito.",
+      "Etapa 1 (Cliente): Digite o nome ou selecione o cliente desejado no campo de busca.",
+      "Etapa 2 (Tipo de Serviço): Escolha o tipo de intervenção (Corretiva, Preventiva, Instalação, etc.).",
+      "Etapa 3 (Detalhes): Preencha o Título descritivo do problema, a Descrição detalhada e selecione a Prioridade (Baixa, Média, Alta ou Crítica).",
+      "Etapa 4 (Técnico): Escolha o técnico responsável pela execução e defina a data agendada para o serviço.",
+      "Etapa 5 (Revisão): Confira os dados na tela de revisão e clique em 'Confirmar' para gerar a OS."
+    ],
+    technicalDetails: "• **Frontend:** Gerenciado pelo componente `CreateOrderModal.tsx`, que implementa um formulário dinâmico em 5 etapas controlado pelo estado do React.\n• **Banco de Dados:** Insere um registro na tabela `public.orders` com status inicial 'PENDENTE'.\n• **Eventos:** Cria o primeiro registro de evento na timeline da OS e gera o link público de acompanhamento do cliente.",
+    relatedFiles: [
+      "src/components/admin/CreateOrderModal.tsx",
+      "src/components/admin/AdminOverview.tsx",
+      "src/services/orderService.ts"
+    ]
   },
   {
-    id: 'os',
-    name: 'Atividades (Ordem de Serviço)',
-    synonyms: ['os', 'ordem de servico', 'ordens', 'atividade', 'atividades', 'chamado', 'ticket'],
-    menuPath: 'Menu Principal > Atividade',
-    description: 'Módulo central do sistema para abertura, acompanhamento e execução de serviços.',
-    attributes: [
-      'Cliente e Equipamento Vinculado',
-      'Tipo de Serviço (Preventiva, Corretiva, etc)',
-      'Prioridade (Baixa, Média, Alta, Crítica)',
-      'Técnico Atribuído',
-      'Data Agendada',
-      'Status de SLA',
-      'Timeline (Histórico Completo)'
+    title: "Execução de Ordens de Serviço no App do Técnico (Mobile PWA)",
+    category: "workflow",
+    keywords: [
+      'app do tecnico', 'mobile', 'celular', 'pwa', 'executar os', 'iniciar atendimento', 
+      'concluir os', 'impedimento', 'app', 'aplicativo', 'foto os', 'camera', 'gps tecnico', 
+      'visita tecnica', 'assinar os', 'assinatura cliente'
     ],
-    actions: {
-      create: 'Clique no botão "+ Nova OS" no canto superior direito da tela de Atividades. Preencha os dados do cliente e a descrição do problema.',
-      read: 'Você pode visualizar todas as OS em formato de lista ou Kanban. Use a barra de busca para encontrar por número ou cliente.',
-      update: 'Clique na OS desejada e use o botão "Editar OS" para mudar técnico, prioridade ou status.',
-      delete: 'OS podem ser Canceladas usando o botão "Cancelar OS" no cabeçalho interno da atividade.',
-      report: 'Dentro da OS, clique em "Gerar PDF" para exportar o relatório técnico de fechamento.'
-    }
+    description: "Procedimento completo de atendimento em campo realizado pelo técnico através do aplicativo celular.",
+    steps: [
+      "O técnico acessa a URL do sistema no celular, adiciona o app à tela inicial (PWA) e faz login.",
+      "Na tela inicial, acessa o menu lateral e entra na seção 'Minhas OS'.",
+      "Ao chegar no cliente, seleciona a OS correspondente e clica em 'Iniciar Atendimento'. O status passa a 'Em Andamento' e registra o início com captura GPS.",
+      "O técnico executa as tarefas e pode capturar Fotos/Vídeos diretamente da aba 'Mídias' usando a câmera nativa do celular.",
+      "Se houver checklists vinculados, ele deve preenchê-los na aba 'Formulários'.",
+      "Para adicionar peças utilizadas, clica em 'Adicionar Peça', escolhe a opção 'QR Code' para abrir a câmera e escanear a etiqueta do material físico, ou adiciona manualmente.",
+      "Caso o serviço não possa ser finalizado (ex: falta de peças), clica em 'Registrar Impedimento', altera o status para 'Impedido' e digita a justificativa.",
+      "Para finalizar, colhe a Assinatura Digital do cliente desenhada na tela do celular e clica em 'Concluir OS'."
+    ],
+    technicalDetails: "• **PWA Mobile:** Desenvolvido no shell de aplicativo `TechAppShell.tsx` utilizando React e TailwindCSS otimizado para dispositivos móveis.\n• **Upload de Mídias:** Fotos e vídeos são enviados diretamente para o bucket do Supabase Storage via `supabaseClient`.\n• **Assinatura:** Capturada via componente Canvas 2D HTML5 e armazenada em base64/URL no banco de dados.\n• **Rastreamento:** Utiliza a API de Geolocalização do navegador para registrar latitude e longitude em cada início de deslocamento e início de visita.",
+    relatedFiles: [
+      "src/apps/tech/TechAppShell.tsx",
+      "src/apps/tech/v2/context/TechContext.tsx",
+      "src/tech-pwa/OrderDetailsModal.tsx"
+    ]
   },
   {
-    id: 'cliente',
-    name: 'Clientes',
-    synonyms: ['cliente', 'clientes', 'empresa cliente', 'contratante', 'consumidor'],
-    menuPath: 'Menu Principal > Cliente',
-    description: 'Cadastro de pessoas físicas ou jurídicas que solicitam os serviços.',
-    attributes: [
-      'Razão Social / Nome Completo',
-      'CNPJ / CPF',
-      'E-mail e Telefones',
-      'WhatsApp',
-      'Endereço Completo (com latitude/longitude para o mapa)',
-      'Equipamentos (Ativos) vinculados'
+    title: "Manutenção Planejada (PMOC) e Contratos Recorrentes",
+    category: "workflow",
+    keywords: [
+      'pmoc', 'contrato', 'preventiva', 'manutencao planejada', 'recorrente', 
+      'periodicidade', 'lei pmoc', 'manutencao programada', 'contratos', 'novo contrato'
     ],
-    actions: {
-      create: 'Acesse o módulo Cliente e clique em "+ Novo Cliente". Digite o CNPJ para preenchimento automático (se aplicável).',
-      read: 'A lista de clientes pode ser pesquisada por documento ou nome.',
-      update: 'Ao abrir um cliente, você pode editar seus dados ou adicionar novos endereços.'
-    }
+    description: "Criação e agendamento de inspeções de manutenção preventiva periódicas conforme as exigências da lei do PMOC.",
+    steps: [
+      "No painel administrativo, acesse o menu 'Contratos' na barra lateral esquerda.",
+      "Clique no botão '+ Novo Contrato' no canto superior direito da página.",
+      "Selecione o Cliente parceiro e o valor recorrente cobrado mensalmente.",
+      "Adicione os Equipamentos (Ativos) que farão parte da cobertura do contrato de manutenção.",
+      "Defina a Periodicidade do ciclo de visitas preventivas (Mensal, Bimestral, Trimestral, Semestral ou Anual).",
+      "Preencha as datas de início da vigência do contrato e de vencimento do plano.",
+      "Salve o cadastro. O sistema passará a gerar automaticamente as Ordens de Serviço preventivas na agenda técnica no início de cada ciclo programado."
+    ],
+    technicalDetails: "• **Módulo:** Controlado pelo componente `PlannedMaintenance.tsx`.\n• **Agendamento:** A tabela `contracts` armazena os metadados do plano, enquanto a tabela `contract_assets` vincula as máquinas. O gerador automático de OS preventivas cria chamados diretamente na tabela `orders` associando o checklist de PMOC obrigatório.",
+    relatedFiles: [
+      "src/components/admin/PlannedMaintenance.tsx",
+      "src/services/contractService.ts"
+    ]
   },
   {
-    id: 'tecnico',
-    name: 'Técnicos',
-    synonyms: ['tecnico', 'tecnicos', 'equipe', 'funcionario de campo', 'instalador'],
-    menuPath: 'Menu Principal > Técnicos',
-    description: 'Gerenciamento da equipe de campo que utiliza o App Mobile.',
-    attributes: [
-      'Nome e Contato',
-      'Especialidade técnica',
-      'Cor de identificação no calendário',
-      'Status atual (Disponível, Em Atendimento, Ausente)',
-      'Histórico de Atendimentos'
+    title: "Gerenciamento de Estoque de Peças e Etiquetas QR Code",
+    category: "workflow",
+    keywords: [
+      'estoque', 'peca', 'pecas', 'cadastrar peca', 'qr code', 'etiqueta', 'imprimir etiquetas', 
+      'termica', 'folha a4', 'entrada estoque', 'saida estoque', 'materiais', 'inventario'
     ],
-    actions: {
-      create: 'Vá no módulo Técnicos e clique em "+ Novo Técnico" para cadastrá-lo e gerar seu acesso ao App.',
-      read: 'A localização dos técnicos pode ser vista em tempo real no módulo "Visão de Campo".'
-    }
+    description: "Fluxo de cadastro de peças, controle de movimentações e impressão de etiquetas de código QR para identificação física e escaner em campo.",
+    steps: [
+      "Acesse o menu 'Estoque' na barra lateral esquerda do painel.",
+      "Para adicionar uma peça: Clique em '+ Novo Item', digite o Nome, SKU/Código, Categoria, Quantidade Inicial e Valor Unitário, depois clique em Salvar.",
+      "Para movimentar manualmente: Clique sobre o item na listagem, selecione 'Ajustar Estoque', insira a quantidade e defina se é uma Entrada ou Saída.",
+      "Para gerar etiquetas: Na listagem de itens do estoque, marque a caixa de seleção ao lado de cada peça que deseja etiquetar.",
+      "Clique no botão 'Imprimir Etiquetas' localizado no topo da tabela.",
+      "No popup de opções, escolha entre: 'Folha A4' (para impressoras normais jato de tinta/laser, gerando uma folha com múltiplos QR Codes) ou 'Impressora Térmica' (otimizado para fitas de etiquetas térmicas portáteis).",
+      "Confirme e o navegador abrirá a tela de impressão do sistema."
+    ],
+    technicalDetails: "• **Componente:** `StockManagement.tsx` contendo tabelas de listagem, modais de ajuste de saldo e motor de renderização de etiquetas.\n• **Impressão:** Utiliza regras CSS de impressão em `src/styles/index.css` via media query `@media print`, escondendo o cabeçalho e a barra lateral do painel admin e exibindo apenas os contêineres de código de barras/QR Code configurados para quebra de página (`page-break-after: always`).",
+    relatedFiles: [
+      "src/components/admin/StockManagement.tsx",
+      "src/styles/index.css"
+    ]
   },
   {
-    id: 'estoque',
-    name: 'Estoque de Peças',
-    synonyms: ['estoque', 'peca', 'pecas', 'produto', 'produtos', 'material', 'insumo'],
-    menuPath: 'Menu Principal > Estoque',
-    description: 'Controle de entrada e saída de peças utilizadas nas manutenções.',
-    attributes: [
-      'Código SK U e Código de Barras',
-      'Nome e Descrição',
-      'Categoria',
-      'Quantidade disponível',
-      'Valor Unitário',
-      'Geração de QR Code'
+    title: "Emissão de Orçamentos e fluxo de Aprovação Externa",
+    category: "workflow",
+    keywords: [
+      'orcamento', 'proposta', 'aprovar orcamento', 'recusar orcamento', 'link publico', 
+      'link de proposta', 'cotação', 'pdf orcamento', 'novo orcamento', 'enviar proposta'
     ],
-    actions: {
-      create: 'Na tela de Estoque, clique em "+ Novo Item". Defina as quantidades e valores.',
-      update: 'Para dar entrada ou saída manual, clique sobre o item e faça o ajuste de quantidade.',
-      report: 'Selecione os itens desejados e clique em "Imprimir Etiquetas" para gerar os QR Codes (A4 ou Térmica).'
-    }
+    description: "Criação de propostas comerciais de manutenção ou instalação com geração de link externo para aprovação online e assinatura pelo cliente final.",
+    steps: [
+      "Acesse o menu 'Orçamentos' na barra lateral esquerda.",
+      "Clique no botão '+ Novo Orçamento' no canto superior direito.",
+      "Selecione o Cliente de destino e vincule a Ordem de Serviço de origem (se aplicável).",
+      "Adicione as Peças do Estoque (o valor é puxado automaticamente) e inclua os Serviços de Mão de Obra definindo os valores.",
+      "Defina condições de pagamento, validade da proposta e clique em Salvar.",
+      "No cabeçalho do orçamento salvo, clique em 'Link Público'.",
+      "Copie a URL gerada e envie ao cliente por WhatsApp ou E-mail.",
+      "O cliente acessa a página pública, confere os valores, assina na tela do celular ou computador e clica em 'Aprovar Orçamento' ou 'Recusar Orçamento' (fornecendo o motivo)."
+    ],
+    technicalDetails: "• **Frontend Admin:** Gerido em `QuoteManagement.tsx` com cálculos matemáticos em tempo real.\n• **Frontend Público:** Exibido em `src/components/public/PublicQuoteView.tsx`.\n• **Banco de Dados:** Tabela `public.quotes` atualiza seu campo `status` para 'approved' ou 'rejected'. Quando aprovado, os itens de estoque vinculados geram movimentações automáticas de saída.",
+    relatedFiles: [
+      "src/components/admin/QuoteManagement.tsx",
+      "src/components/public/PublicQuoteView.tsx",
+      "src/services/dunoQueryService.ts"
+    ]
   },
   {
-    id: 'ativo',
-    name: 'Ativos (Equipamentos)',
-    synonyms: ['ativo', 'ativos', 'equipamento', 'equipamentos', 'maquina', 'aparelho', 'ar condicionado'],
-    menuPath: 'Menu Principal > Ativos',
-    description: 'Gestão dos equipamentos que pertencem aos clientes e recebem manutenção.',
-    attributes: [
-      'Nome e Modelo',
-      'Família (Ex: Split, Chiller, VRF)',
-      'Número de Série e Patrimônio',
-      'Data de Fabricação',
-      'Garantia (em meses)',
-      'Cliente Vinculado'
+    title: "Configuração de Integrações (Chaves de API e Webhooks)",
+    category: "workflow",
+    keywords: [
+      'integracoes', 'api key', 'chave api', 'webhook', 'url webhook', 'documentacao api', 
+      'docs', 'fern', 'api.dunoup.com.br', 'segredo webhook', 'eventos webhook', 'gerar chave api'
     ],
-    actions: {
-      create: 'Você pode cadastrar um equipamento diretamente na tela "Ativos" ou dentro do perfil do Cliente na aba Equipamentos.',
-      read: 'O sistema calcula automaticamente o status de Garantia (Verde/Vermelho) baseado na data de fabricação.'
-    }
+    description: "Geração de chaves de acesso REST e configuração de disparos HTTP (Webhooks) para sincronização com sistemas de terceiros.",
+    steps: [
+      "Acesse o menu 'Integrações' na barra lateral esquerda.",
+      "Aba Chaves de API: Clique em '+ Criar Nova Chave', digite um Nome identificador e salve. Copie a chave (`nx_live_...`) exibida imediatamente na tela. Por segurança, ela nunca mais será mostrada na íntegra.",
+      "Aba Webhooks: Clique em '+ Novo Webhook', insira um nome descritivo e digite a URL HTTP do servidor de destino que receberá os dados.",
+      "Escolha ou use o segredo (`whsec_...`) gerado para assinatura das requisições POST.",
+      "Marque os eventos desejados: `os_created` (OS Aberta), `os_updated` (OS Atualizada), `quote_approved` (Orçamento Aprovado) ou `stock_updated` (Estoque Atualizado).",
+      "Clique em Salvar para ativar o webhook.",
+      "Para consultar os formatos de dados da API, clique no botão 'Documentação da API' no topo direito da tela para abrir o portal Fern."
+    ],
+    technicalDetails: "• **Frontend:** Tela controlada por `IntegrationsPage.tsx` com sistema de tabs.\n• **Segurança da API:** Tokens baseados no prefixo `nx_live_...`. Apenas o hash SHA-256 do token é salvo no banco (`api_keys.key_hash`). As chamadas à API são filtradas pelo Tenant ID descriptografado do hash do Bearer token.\n• **Assinatura de Webhooks:** Os payloads enviados geram uma assinatura SHA-256 codificada com o segredo do webhook (`whsec_...`) enviada no header `X-Nexus-Signature` para o destino validar a origem.",
+    relatedFiles: [
+      "src/components/admin/IntegrationsPage.tsx",
+      "supabase/migrations/20260520_create_integrations.sql",
+      "supabase/functions/api_v1/index.ts"
+    ]
   },
   {
-    id: 'orcamento',
-    name: 'Orçamentos',
-    synonyms: ['orcamento', 'orcamentos', 'proposta', 'cotacao', 'propostas'],
-    menuPath: 'Menu Principal > Orçamentos',
-    description: 'Geração de propostas comerciais para os clientes com integração ao estoque.',
-    attributes: [
-      'Cliente e OS de origem',
-      'Itens (Serviços e Peças)',
-      'Descontos e Acréscimos',
-      'Condições de Pagamento',
-      'Validade',
-      'Status (Pendente, Aprovado, Recusado)'
+    title: "Gestão de Usuários, Cargos e Controle RLS (Segurança)",
+    category: "security",
+    keywords: [
+      'usuarios', 'permissao', 'grupo de permissao', 'bloquear acesso', 'senha administrador', 
+      'senha convite', 'get_user_tenant_id', 'rls', 'seguranca', 'tenant', 'multi-tenant'
     ],
-    actions: {
-      create: 'Vá em Orçamentos > "+ Novo Orçamento". Adicione os itens e o sistema calcula os totais.',
-      read: 'Você pode compartilhar o Orçamento via "Link Público" para o cliente aprovar digitalmente.',
-      report: 'Gere o PDF do orçamento para enviar por e-mail ou WhatsApp.'
-    }
+    description: "Administração de acessos do painel administrativo, grupos de permissão para restrição de ações de CRUD e políticas de isolamento de banco de dados.",
+    steps: [
+      "Acesse o menu 'Usuários' na barra lateral esquerda.",
+      "Para criar um acesso: Clique em '+ Novo Usuário', insira Nome, E-mail e selecione a quais Grupos de Permissões o usuário pertence.",
+      "Clique em enviar. O sistema enviará um link por e-mail para o usuário criar a sua própria senha por questões de conformidade com a LGPD (o admin não cria senhas).",
+      "Para configurar permissões dos grupos: Acesse 'Configurações' > aba 'Grupos'. Ative ou desative as chaves de CRUD (Criar, Editar, Excluir, Visualizar) para cada módulo do sistema.",
+      "Caso um usuário tente interagir com um botão para o qual seu grupo não possui permissão, o botão aparecerá esmaecido (dimmed) e ao clicar será mostrado o alerta de 'Acesso Negado'."
+    ],
+    technicalDetails: "• **Frontend:** Controlado por `UserManagement.tsx` e modal integrado em `GroupFormModal.tsx`.\n• **Segurança Multi-Tenant (RLS):** Toda query no Supabase é protegida no banco de dados por políticas RLS. As tabelas filtram automaticamente registros pela expressão `USING (tenant_id = public.get_user_tenant_id())`, que identifica a empresa ativa da sessão autenticada de forma inviolável no PostgreSQL.",
+    relatedFiles: [
+      "src/components/admin/UserManagement.tsx",
+      "src/components/layout/AdminLayout.tsx",
+      "supabase/migrations/20260520_fix_integrations_rls.sql"
+    ]
   },
   {
-    id: 'contrato',
-    name: 'Contratos / PMOC',
-    synonyms: ['contrato', 'contratos', 'pmoc', 'manutencao preventiva', 'recorrencia', 'plano'],
-    menuPath: 'Menu Principal > Contratos',
-    description: 'Gerenciador de manutenções periódicas (PMOC) com geração automática de OS.',
-    attributes: [
-      'Periodicidade (Mensal, Trimestral, Anual, etc)',
-      'Data de Início e Vencimento',
-      'Valor do Contrato',
-      'Equipamentos Cobertos',
-      'Checklists Obrigatórios'
+    title: "Padrão Visual das Letras e Tipografia do Sistema (Poppins)",
+    category: "design",
+    keywords: [
+      'negrito global', 'fonte', 'tamanho de letra', 'index.css', 'poppins', 'suavizar negrito', 
+      'letras padrao', 'padrao visual', 'estilo de letras', 'visual clean', 'retirar negrito'
     ],
-    actions: {
-      create: 'Cadastre o contrato, vincule os ativos do cliente e defina a recorrência. O sistema vai abrir as OS automaticamente nas datas certas.',
-      update: 'Contratos podem ser pausados ou ter a periodicidade ajustada a qualquer momento.'
-    }
+    description: "Normalização estética de fontes e pesos para garantir um design de alta qualidade, leveza e consistência tipográfica em todas as páginas do sistema.",
+    steps: [
+      "O sistema utiliza a fonte 'Poppins' como fonte padrão global.",
+      "Para garantir que a tipografia se mantenha elegante e sem letras excessivamente grossas e pretas (negrito pesado), a espessura das fontes é controlada.",
+      "Títulos (`h1` a `h6`), cabeçalhos de tabelas (`th`), textos destacados (`strong`, `b`) e as classes de negrito (`.font-bold`, `.font-semibold`) são interceptados e normalizados para o peso `500` (Medium).",
+      "O peso `500` da fonte Poppins serve como um negrito suave e altamente legível, unificando todo o sistema com a estética da página de integrações."
+    ],
+    technicalDetails: "• **Implementação de Design:** Regras injetadas em `src/styles/index.css` utilizando a diretiva CSS `!important`. Isso força a substituição de pesos de fonte nativos do navegador e das classes padrão do TailwindCSS (como `font-bold` que aplica 700 ou `font-semibold` que aplica 600) para o padrão uniforme de `500`.",
+    relatedFiles: [
+      "src/styles/index.css"
+    ]
   },
   {
-    id: 'usuario',
-    name: 'Usuários e Permissões',
-    synonyms: ['usuario', 'usuarios', 'acesso', 'login', 'senha', 'permissao', 'permissoes', 'grupo', 'cargo'],
-    menuPath: 'Menu Principal > Configurações > Usuários / Grupos',
-    description: 'Controle de quem pode acessar o painel administrativo do Nexus OS.',
-    attributes: [
-      'Nome e E-mail',
-      'Grupos de Permissão (Roles)',
-      'Status (Ativo/Bloqueado)',
-      'Regras de Acesso (LGPD)'
+    title: "Visão de Campo (Mapa GPS) e Agenda de Serviços",
+    category: "workflow",
+    keywords: [
+      'mapa', 'visao de campo', 'gps', 'localizacao', 'rota', 'rastreamento', 'calendario', 
+      'agenda', 'agendamento', 'programacao', 'datas', 'sla', 'sla 24h', 'sla 48h'
     ],
-    actions: {
-      create: 'Vá em Configurações > Usuários para enviar um convite de acesso. A senha é definida pelo próprio usuário (LGPD).',
-      update: 'Para alterar o que um usuário pode ver/fazer, modifique o "Grupo" dele na tela de Grupos.',
-      delete: 'Por segurança, você não exclui, mas "Bloqueia" o acesso de um usuário para manter o histórico.'
-    }
-  },
-  {
-    id: 'financeiro',
-    name: 'Financeiro',
-    synonyms: ['financeiro', 'faturamento', 'receita', 'contas', 'pagamento', 'faturar'],
-    menuPath: 'Menu Principal > Financeiro',
-    description: 'Dashboard financeiro que exibe o faturamento das OS e controle de caixa.',
-    attributes: [
-      'Filtro por Período de Faturamento',
-      'Filtro por Técnico e Cliente',
-      'Gráfico de Receita Mensal',
-      'Exportação de Relatório (A4)',
-      'Listagem de Atividades Faturadas'
+    description: "Visualização interativa da agenda de Ordens de Serviço por período e rastreamento em tempo real da geolocalização dos técnicos em campo.",
+    steps: [
+      "Visão de Campo (Mapa): Acesse o menu 'Visão de Campo' na barra lateral. O mapa exibirá Pins de Técnicos e Clientes. Ao clicar no pin do técnico, você vê o status atual, contato e OS ativa.",
+      "Agenda (Calendário): Acesse o menu 'Agenda' na barra lateral. Navegue pelas visões de Mês, Semana ou Dia. A cor dos cards na agenda reflete o status atual da OS.",
+      "Métricas de SLA: No painel do Dashboard inicial, as métricas de conformidade com SLA (metas de atendimento em até 24 horas ou 48 horas) são exibidas nos gráficos operacionais."
     ],
-    actions: {
-      read: 'O faturamento é gerado automaticamente a partir das OS concluídas e aprovadas.',
-      report: 'No canto superior da tela do Financeiro, há um botão de Exportar Relatório em PDF.'
-    }
-  },
-  {
-    id: 'visao_campo',
-    name: 'Visão de Campo (Mapa)',
-    synonyms: ['mapa', 'visao de campo', 'gps', 'localizacao', 'rota', 'rastreamento'],
-    menuPath: 'Menu Principal > Visão de Campo',
-    description: 'Visualização geográfica em tempo real da equipe e das OS abertas.',
-    attributes: [
-      'Pins de Técnicos em Tempo Real',
-      'Status de Disponibilidade no Mapa',
-      'Localização de Clientes com OS Pendentes'
-    ],
-    actions: {
-      read: 'Acesse "Visão de Campo" na barra lateral para abrir o mapa interativo. Clique nos pins para ver mais detalhes.',
-      explain: 'Ele utiliza a localização GPS enviada pelo App do Técnico durante os atendimentos.'
-    }
-  },
-  {
-    id: 'agenda',
-    name: 'Agenda (Calendário)',
-    synonyms: ['agenda', 'calendario', 'agendamento', 'programacao', 'datas'],
-    menuPath: 'Menu Principal > Agenda',
-    description: 'Calendário visual para planejamento e acompanhamento dos agendamentos técnicos.',
-    attributes: [
-      'Visão Mensal, Semanal e Diária',
-      'Filtro por Técnico',
-      'Cores baseadas no Status da OS',
-      'Acesso Rápido aos detalhes da OS'
-    ],
-    actions: {
-      read: 'Navegue pelo mês e clique sobre os blocos coloridos para abrir um resumo da Ordem de Serviço.'
-    }
-  },
-  {
-    id: 'dashboard',
-    name: 'Dashboard Inicial',
-    synonyms: ['dashboard', 'painel', 'resumo', 'indicadores', 'kpi', 'tela inicial', 'home'],
-    menuPath: 'Menu Principal > Dashboard',
-    description: 'Tela de entrada do sistema com os principais indicadores de operação.',
-    attributes: [
-      'Contagem de OS por Status',
-      'Gráficos de Atendimentos',
-      'Métricas de SLA',
-      'Resumo de Clientes e Técnicos Ativos'
-    ],
-    actions: {
-      read: 'O Dashboard é a primeira tela ao fazer login. Você pode filtrar todos os gráficos selecionando um período específico no topo da tela.'
-    }
-  },
-  {
-    id: 'formularios',
-    name: 'Formulários Customizados',
-    synonyms: ['formulario', 'formularios', 'checklist', 'checklists', 'campos personalizados', 'template'],
-    menuPath: 'Menu Principal > Formulários',
-    description: 'Criador de formulários dinâmicos (checklists) que os técnicos preenchem no App Mobile.',
-    attributes: [
-      'Campos de Texto, Número e Seleção',
-      'Exigência de Foto e Assinatura',
-      'Regras de Exibição (Por Serviço ou Família)',
-      'Obrigatoriedade por Campo'
-    ],
-    actions: {
-      create: 'Para criar um novo checklist, clique em "+ Novo Formulário", adicione os campos e defina em quais tipos de OS ele deve aparecer.',
-      read: 'Os técnicos veem os formulários automaticamente na aba correspondente dentro do App Mobile durante a execução da OS.'
-    }
+    technicalDetails: "• **Visão de Campo:** Componente `TechnicianMap.tsx` que utiliza mapas do Google Maps ou OpenStreetMap integrados. Consome coordenadas de latitude e longitude salvas nos cadastros e enviadas pelo App Mobile do técnico.\n• **Calendário:** Componente `OrderCalendar.tsx` integrado com bibliotecas de grid temporal.",
+    relatedFiles: [
+      "src/components/admin/OrderCalendar.tsx",
+      "src/components/admin/TechnicianMap.tsx",
+      "src/components/admin/AdminDashboard.tsx"
+    ]
   }
 ];
 
-// ── Motor Fuzzy (Tolerância a Erros de Digitação) ──
+// ── Motor Fuzzy e Normalização NLP ──
 
+function removeAccents(str: string): string {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+// Algoritmo Levenshtein para medir distância entre strings
 function levenshtein(a: string, b: string): number {
   const matrix = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
   for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
@@ -303,222 +254,133 @@ function levenshtein(a: string, b: string): number {
   return matrix[a.length][b.length];
 }
 
-function fuzzyContains(query: string, synonym: string): boolean {
-  const qWords = query.split(/[\s,]+/);
-  const sWords = synonym.split(/[\s,]+/);
-
-  for (const sWord of sWords) {
-    let found = false;
-    for (const qWord of qWords) {
-      if (sWord.length <= 3) {
-         if (qWord === sWord) { found = true; break; }
-      } else {
-         if (Math.abs(qWord.length - sWord.length) > 2) continue;
-         const dist = levenshtein(qWord, sWord);
-         const allowed = sWord.length > 6 ? 2 : 1;
-         if (dist <= allowed) { found = true; break; }
-      }
-    }
-    // Ignora conectivos curtos (de, do, da) se a frase principal casou
-    if (!found) {
-       if (sWord.length <= 2 && sWords.length > 1) continue;
-       return false;
-    }
-  }
-  return true;
-}
-
-// ── NLP Simplificado ──
-
-function removeAccents(str: string) {
-  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-}
-
-export interface CodebaseResource {
-  id: string;
-  name: string;
-  type: 'file' | 'table' | 'api' | 'config';
-  path: string;
-  keywords: string[];
-  description: string;
-  details: string;
-}
-
-// Mapas detalhados de engenharia do sistema para o varredor dinâmico da Duno IA
-export const CODEBASE_MAP: CodebaseResource[] = [
-  {
-    id: 'api_keys_table',
-    name: 'Tabela public.api_keys (Banco de Dados)',
-    type: 'table',
-    path: 'supabase/migrations/20260520_create_integrations.sql',
-    keywords: ['tabela api_keys', 'api_keys', 'api keys banco', 'banco de dados api', 'chave api sql', 'campo api_keys', 'tabela de chaves', 'tabela de chaves de api'],
-    description: 'Armazena com segurança as chaves de API geradas pelos tenants do sistema.',
-    details: '• **Estrutura:** Possui os campos `id` (UUID), `tenant_id` (UUID), `name` (Texto), `key_hash` (Texto criptografado SHA-256 da chave), `status` (Texto: active/revoked), `created_at` e `last_used_at`.\n• **Segurança (RLS):** Protegida pela política `api_keys_isolation_policy` que isola as chaves usando `tenant_id = public.get_user_tenant_id()`. Evita consultas diretas à tabela `public.users` para prevenir recursividade.'
-  },
-  {
-    id: 'webhooks_table',
-    name: 'Tabela public.webhooks (Banco de Dados)',
-    type: 'table',
-    path: 'supabase/migrations/20260520_create_integrations.sql',
-    keywords: ['tabela webhooks', 'webhook sql', 'banco webhooks', 'campos webhooks', 'webhooks db', 'tabela de webhooks'],
-    description: 'Armazena os endpoints de destino dos webhooks configurados pelos clientes.',
-    details: '• **Estrutura:** Contém `id` (UUID), `tenant_id` (UUID), `name` (Texto), `url` (Texto), `secret` (Texto, padrão `whsec_...` para assinatura), `events` (Array de Texto: os_created, os_updated, etc), `is_active` (Booleano) e timestamps.\n• **Segurança (RLS):** Protegida por `webhooks_isolation_policy` com isolamento por `tenant_id = public.get_user_tenant_id()`.'
-  },
-  {
-    id: 'edge_function_api',
-    name: 'Edge Function de Integração (API v1)',
-    type: 'api',
-    path: 'supabase/functions/api_v1/index.ts',
-    keywords: ['edge function api', 'api_v1', 'funcao api', 'endpoint api', 'codigo api', 'backend api', 'orders api', 'customers api', 'equipments api', 'quotes api', 'api endpoints', 'api v1'],
-    description: 'O servidor REST Deno que responde pelas consultas de integrações externas.',
-    details: '• **Endpoints Suportados:** `GET /orders`, `GET /customers`, `GET /equipments` e `GET /quotes`.\n• **Segurança e Autenticação:** Recebe o token `Bearer nx_live_...` no header, gera o hash SHA-256 em tempo real e valida contra a tabela `api_keys`.\n• **Isolamento de Dados:** Utiliza cliente administrativo (service role) para ler ignorando RLS, mas aplica obrigatoriamente `.eq(\'tenant_id\', tenantId)` em todas as queries para isolamento absoluto de dados.'
-  },
-  {
-    id: 'rate_limiting',
-    name: 'Controle de Rate Limiting da API',
-    type: 'config',
-    path: 'supabase/functions/api_v1/index.ts',
-    keywords: ['rate limit', 'limite de requisicoes', 'limite api', 'trava de seguranca', 'sobrecarga', 'bloqueio requisicoes', '429 too many', 'limite de chamadas', 'trava de seguranca da api'],
-    description: 'Sistema em memória para evitar que requisições excessivas sobrecarreguem o banco de dados.',
-    details: '• **Funcionamento:** Implementado na memória do Deno Isolates. Cada `tenant_id` é limitado a no máximo **100 requisições por minuto**.\n• **Resposta:** Ao estourar o limite, retorna o status HTTP `429 Too Many Requests` com cabeçalhos padrão de controle (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` e `Retry-After`).'
-  },
-  {
-    id: 'integrations_page',
-    name: 'Tela de Integrações (Frontend)',
-    type: 'file',
-    path: 'src/components/admin/IntegrationsPage.tsx',
-    keywords: ['tela de integracoes', 'pagina de integracao', 'integrationspage', 'componente integracao', 'onde gera chave', 'gerar chave api', 'copiar url api', 'botoes de integracoes', 'modal de confirmacao', 'confirmacao de exclusao'],
-    description: 'Componente React que gerencia as chaves de API, webhooks e acesso à documentação do usuário administrador.',
-    details: '• **Interface:** Contém tabs para "Chaves de API" e "Webhooks". Possui o botão "Documentação da API" que aponta para o domínio do Fern (`api-duno.docs.buildwithfern.com`).\n• **Confirmação Personalizada:** Substitui o `window.confirm` padrão por modais do Design System com backdrop blur e animações de entrada suaves.\n• **Design:** Botões padronizados (altura e bordas), botão de cópia rápido de token de API e chaves exibidas no formato oculto após criação.'
-  },
-  {
-    id: 'fern_docs',
-    name: 'Configuração da Documentação Fern',
-    type: 'config',
-    path: 'fern/docs.yml e fern/openapi.yml',
-    keywords: ['fern docs', 'fern', 'documentacao api url', 'docs buildwithfern', 'api.dunoup.com.br', 'buildwithfern', 'docs.yml', 'openapi.yml', 'documentacao da api'],
-    description: 'Estrutura que compila a especificação OpenAPI 3.1.0 e publica a documentação na nuvem.',
-    details: '• **Domínios:** Customizado no Umbler para `api.dunoup.com.br` e apontando no Fern para `api-duno.docs.buildwithfern.com`.\n• **Configuração:** O arquivo `docs.yml` mapeia a instância de hospedagem da Equipe do Alex (`alex-s-team-473229`).'
-  },
-  {
-    id: 'global_typography',
-    name: 'Normalização e Ajuste Global de Fontes (Poppins)',
-    type: 'config',
-    path: 'src/styles/index.css',
-    keywords: ['fonte poppins', 'negrito global', 'index.css', 'tamanho de letra', 'padrao de letra', 'retirar negrito', 'suavizar negrito', 'negrito de qualquer parte', 'sistema padrao de letra'],
-    description: 'Estilo tipográfico do Nexus OS para um visual SaaS limpo e premium.',
-    details: '• **Poppins:** Forçada globalmente em todos os elementos da interface.\n• **Suavização de Negritos:** Regra de normalização que limita o peso máximo das fontes (`font-bold`, `h1-h6`, `th`, `strong`, `.font-semibold`) para `500` (Medium), eliminando negritos exagerados (700/800) e deixando a interface leve e elegante.'
-  },
-  {
-    id: 'user_management_page',
-    name: 'Tela de Gestão de Usuários (Frontend)',
-    type: 'file',
-    path: 'src/components/admin/UserManagement.tsx',
-    keywords: ['tela de usuarios', 'cadastro de usuario', 'usermanagement', 'grupos de usuario', 'senha administrador', 'senha convite', 'modal de usuario'],
-    description: 'Interface administrativa de cadastro de equipe e cargos.',
-    details: '• **Modais:** O modal de edição é alinhado à visualização de Ordens de Serviço (2/3 de informações principais + 1/3 de ações rápidas).\n• **LGPD:** A senha não é definida pelo administrador; o usuário recebe um convite e define sua própria senha de acesso.'
-  }
-];
-
-function scanCodebaseMap(query: string): string | null {
-  let bestMatch: CodebaseResource | null = null;
-  let maxScore = 0;
-
-  for (const resource of CODEBASE_MAP) {
-    let score = 0;
-    for (const kw of resource.keywords) {
-      const nKw = removeAccents(kw.toLowerCase());
-      if (new RegExp(`(^|\\b|\\s)${nKw}`).test(query)) {
-        score += nKw.length;
-      }
-    }
-    if (score > maxScore) {
-      maxScore = score;
-      bestMatch = resource;
-    }
-  }
-
-  if (bestMatch && maxScore >= 3) {
-    return `🔍 **Varredura Dinâmica de Engenharia:**\n` +
-           `Encontrei o recurso solicitado na estrutura interna do Nexus OS:\n\n` +
-           `📁 **Recurso:** ${bestMatch.name}\n` +
-           `📍 **Caminho Físico:** \`${bestMatch.path}\`\n` +
-           `💡 **Função:** ${bestMatch.description}\n\n` +
-           `🛠️ **Detalhes Técnicos de Implementação:**\n${bestMatch.details}\n\n` +
-           `*Esta análise foi feita varrendo o grafo de engenharia do sistema.*`;
-  }
-
-  return null;
-}
-
-function detectAction(input: string): ActionType {
-  const verbs = removeAccents(input.toLowerCase());
-  if (/(criar|criacao|novo|nova|cadastr|adicion|abrir|gerar)/.test(verbs)) return 'create';
-  if (/(edit|alter|modific|muda|atualiz)/.test(verbs)) return 'update';
-  if (/(delet|exclui|remov|apaga|cancel)/.test(verbs)) return 'delete';
-  if (/(imprim|pdf|relatori|baixa|export)/.test(verbs)) return 'report';
-  if (/(onde fica|lista|acha|busca|pesquis|ver|qual|quais)/.test(verbs)) return 'read';
-  return 'explain'; // Padrão
-}
-
-function detectAttributesRequest(input: string): boolean {
-  const q = removeAccents(input.toLowerCase());
-  return /(atributo|campo|funcionalidade|funcoe|funcao|o que tem|o que faz|como funciona)/.test(q);
-}
-
-// ── O Cérebro da Análise ──
-
+// ══════════════════════════════════════════════════════════════
+// ⚙️ MOTOR DE BUSCA SEMÂNTICA E ANALISADOR DE CONSCIÊNCIA
+// Varre a base de engenharia e fluxos ponderando relevância das palavras
+// ══════════════════════════════════════════════════════════════
 export function analyzeAndDiscover(input: string): string | null {
   const query = removeAccents(input.toLowerCase());
 
-  // 1. Tentar varredura física do codebase primeiro
-  const codebaseResponse = scanCodebaseMap(query);
-  if (codebaseResponse) return codebaseResponse;
+  // Tokeniza e limpa a query de conectivos
+  const stopwords = new Set([
+    'de', 'do', 'da', 'em', 'para', 'com', 'um', 'uma', 'os', 'as', 'o', 'a', 
+    'como', 'fazer', 'onde', 'qual', 'quais', 'sistema', 'tela', 'modulo', 
+    'botao', 'que', 'se', 'na', 'no', 'eu', 'quero', 'detalhes', 'executar',
+    'tarefa', 'dentro', 'como', 'consigo', 'posso', 'faco', 'passo', 'a', 'passo'
+  ]);
+  
+  const tokens = query.split(/[\s,.\-?/\\_]+/).filter(t => t.length > 2 && !stopwords.has(t));
 
-  // 2. Encontrar a entidade alvo na frase usando Tolerância a Erros
-  let bestEntity: SystemEntity | null = null;
+  if (tokens.length === 0) return null;
+
+  let bestNode: KnowledgeNode | null = null;
   let maxScore = 0;
 
-  for (const entity of SYSTEM_GRAPH) {
+  for (const node of CONSCIOUSNESS_BASE) {
     let score = 0;
-    for (const syn of entity.synonyms) {
-      const nSyn = removeAccents(syn);
-      if (fuzzyContains(query, nSyn)) {
-        score += nSyn.length;
+
+    // Regra 1: Casamento direto com keywords do nó (peso 20 por palavra-chave completa correspondida na query)
+    for (const kw of node.keywords) {
+      const nKw = removeAccents(kw.toLowerCase());
+      if (query.includes(nKw)) {
+        score += 25;
       }
     }
+
+    // Regra 2: Presença de tokens da pergunta no título do fluxo (peso 15 por token)
+    const titleNormalized = removeAccents(node.title.toLowerCase());
+    for (const token of tokens) {
+      if (titleNormalized.includes(token)) {
+        score += 15;
+      }
+    }
+
+    // Regra 3: Casamento aproximado por Levenshtein de tokens nas keywords (tolerância a erros)
+    for (const kw of node.keywords) {
+      const nKw = removeAccents(kw.toLowerCase());
+      const kwWords = nKw.split(/\s+/);
+      for (const kwWord of kwWords) {
+        for (const token of tokens) {
+          if (kwWord === token) {
+            score += 10;
+          } else if (token.length > 4 && kwWord.length > 4) {
+            const dist = levenshtein(token, kwWord);
+            if (dist <= 1) {
+              score += 6; // quase igual
+            }
+          }
+        }
+      }
+    }
+
+    // Regra 4: Casamento de tokens nos caminhos dos arquivos do projeto (peso 8 por token)
+    for (const file of node.relatedFiles) {
+      const nFile = file.toLowerCase();
+      for (const token of tokens) {
+        if (nFile.includes(token)) {
+          score += 8;
+        }
+      }
+    }
+
     if (score > maxScore) {
       maxScore = score;
-      bestEntity = entity;
+      bestNode = node;
     }
   }
 
-  // Se não encontrou nenhuma entidade confiável
-  if (!bestEntity || maxScore < 2) return null;
+  // Retorna resposta estruturada se o score for confiável (mínimo 15 pontos)
+  if (bestNode && maxScore >= 15) {
+    let response = `🧠 **Consciência de Engenharia Nexus OS**\n\n`;
+    response += `📌 **Módulo/Fluxo:** ${bestNode.title}\n`;
+    response += `📖 **Descrição Operacional:** ${bestNode.description}\n\n`;
 
-  // 3. Extrair Intenções
-  const action = detectAction(query);
-  const wantsAttributes = detectAttributesRequest(query);
+    if (bestNode.steps.length > 0) {
+      response += `🛠️ **Como executar esta tarefa (Passo a Passo):**\n`;
+      bestNode.steps.forEach((step, idx) => {
+        response += `  ${idx + 1}. ${step}\n`;
+      });
+      response += `\n`;
+    }
 
-  // 4. Montar Resposta Inteligente Dinâmica
-  let response = `Fiz uma varredura na estrutura do sistema sobre **${bestEntity.name}**. 🧠\n\n`;
-  
-  response += `📍 **Localização no Sistema:** ${bestEntity.menuPath}\n\n`;
+    response += `💻 **Detalhes Técnicos de Desenvolvimento:**\n`;
+    response += `${bestNode.technicalDetails}\n\n`;
 
-  // Se perguntou por atributos ou como funciona
-  if (wantsAttributes || action === 'explain') {
-    response += `💡 **Descrição:** ${bestEntity.description}\n\n`;
-    response += `📋 **Atributos e Funcionalidades que mapeei:**\n`;
-    bestEntity.attributes.forEach(attr => {
-      response += `• ${attr}\n`;
-    });
-  } else {
-    // Se pediu para executar uma ação específica (criar, deletar, etc)
-    const actionHelp = bestEntity.actions[action] || bestEntity.actions.explain;
-    response += `💡 **Instrução de Procedimento:** ${actionHelp}\n`;
+    if (bestNode.relatedFiles.length > 0) {
+      response += `📁 **Arquivos Relacionados no Projeto:**\n`;
+      bestNode.relatedFiles.forEach(file => {
+        response += `  • [${file.split('/').pop()}](file:///${file})\n`;
+      });
+    }
+
+    return response;
   }
 
-  response += `\n*Ficou claro? Se precisar de ajuda em outra tela, é só pedir!*`;
+  // Fallback Inteligente e Proativo (se não bater um score alto, sugere os 3 melhores combinados)
+  const sortedMatches = CONSCIOUSNESS_BASE
+    .map(node => {
+      let score = 0;
+      for (const kw of node.keywords) {
+        const nKw = removeAccents(kw.toLowerCase());
+        if (query.includes(nKw)) score += 15;
+      }
+      for (const token of tokens) {
+        if (removeAccents(node.title.toLowerCase()).includes(token)) score += 8;
+      }
+      return { node, score };
+    })
+    .filter(item => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
 
-  return response;
+  if (sortedMatches.length > 0) {
+    let response = `Ainda estou aprendendo a responder a essa pergunta exata, mas fiz uma busca na arquitetura do Nexus OS e encontrei fluxos relacionados:\n\n`;
+    sortedMatches.forEach((match) => {
+      response += `• **${match.node.title}**\n  _${match.node.description}_\n\n`;
+    });
+    response += `*Pode refazer a pergunta usando termos como "como criar", "etiqueta", "PMOC", "api" ou "estoque" para eu te dar o passo a passo exato!*`;
+    return response;
+  }
+
+  return null;
 }
