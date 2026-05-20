@@ -114,10 +114,52 @@ serve(async (req) => {
       });
     }
 
+    // Endpoint: GET /equipments
+    if (path === '/equipments') {
+      const { data: equipments, error: eqError } = await supabaseAdmin
+        .from('equipments')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('name', { ascending: true })
+        .limit(50);
+
+      if (eqError) throw eqError;
+
+      return new Response(JSON.stringify({
+        success: true,
+        count: equipments.length,
+        data: equipments
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Endpoint: GET /quotes
+    if (path === '/quotes') {
+      const { data: quotes, error: qError } = await supabaseAdmin
+        .from('quotes')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (qError) throw qError;
+
+      return new Response(JSON.stringify({
+        success: true,
+        count: quotes.length,
+        data: quotes
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     // Fallback: Endpoint não existe
     return new Response(JSON.stringify({ 
       error: 'Endpoint não encontrado.',
-      available_endpoints: ['/orders', '/customers']
+      available_endpoints: ['/orders', '/customers', '/equipments', '/quotes']
     }), {
       status: 404,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
