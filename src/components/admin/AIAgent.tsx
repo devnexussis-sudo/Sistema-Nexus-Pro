@@ -288,8 +288,8 @@ export const AIAgent: React.FC = () => {
             <Send size={14} />
           </button>
         </div>
-        <p className="text-center text-[9px] font-semibold text-slate-300 mt-2 uppercase tracking-widest">
-          Duno IA • Consulta dados em tempo real • Base de conhecimento local
+        <p className="text-center text-[9px] font-bold text-slate-400 mt-2.5 uppercase tracking-wider">
+          A Duno IA está sendo desenvolvida e suas informações podem conter imprecisões.
         </p>
       </div>
     </div>
