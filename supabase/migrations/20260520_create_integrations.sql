@@ -20,25 +20,9 @@ CREATE TABLE IF NOT EXISTS public.api_keys (
 ALTER TABLE public.api_keys ENABLE ROW LEVEL SECURITY;
 
 -- Políticas (Adaptadas para seu sistema de tenant)
-CREATE POLICY "Users can view tenant API keys" ON public.api_keys
-    FOR SELECT USING (
-        tenant_id = (SELECT tenant_id FROM public.users WHERE id = auth.uid() LIMIT 1)
-    );
-
-CREATE POLICY "Users can insert API keys" ON public.api_keys
-    FOR INSERT WITH CHECK (
-        tenant_id = (SELECT tenant_id FROM public.users WHERE id = auth.uid() LIMIT 1)
-    );
-
-CREATE POLICY "Users can update API keys" ON public.api_keys
-    FOR UPDATE USING (
-        tenant_id = (SELECT tenant_id FROM public.users WHERE id = auth.uid() LIMIT 1)
-    );
-
-CREATE POLICY "Users can delete API keys" ON public.api_keys
-    FOR DELETE USING (
-        tenant_id = (SELECT tenant_id FROM public.users WHERE id = auth.uid() LIMIT 1)
-    );
+CREATE POLICY "api_keys_isolation_policy" ON public.api_keys FOR ALL TO authenticated
+USING (tenant_id = public.get_user_tenant_id())
+WITH CHECK (tenant_id = public.get_user_tenant_id());
 
 -- 2. TABELA DE WEBHOOKS
 CREATE TABLE IF NOT EXISTS public.webhooks (
@@ -57,22 +41,6 @@ CREATE TABLE IF NOT EXISTS public.webhooks (
 -- Habilitar RLS
 ALTER TABLE public.webhooks ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view tenant webhooks" ON public.webhooks
-    FOR SELECT USING (
-        tenant_id = (SELECT tenant_id FROM public.users WHERE id = auth.uid() LIMIT 1)
-    );
-
-CREATE POLICY "Users can insert webhooks" ON public.webhooks
-    FOR INSERT WITH CHECK (
-        tenant_id = (SELECT tenant_id FROM public.users WHERE id = auth.uid() LIMIT 1)
-    );
-
-CREATE POLICY "Users can update webhooks" ON public.webhooks
-    FOR UPDATE USING (
-        tenant_id = (SELECT tenant_id FROM public.users WHERE id = auth.uid() LIMIT 1)
-    );
-
-CREATE POLICY "Users can delete webhooks" ON public.webhooks
-    FOR DELETE USING (
-        tenant_id = (SELECT tenant_id FROM public.users WHERE id = auth.uid() LIMIT 1)
-    );
+CREATE POLICY "webhooks_isolation_policy" ON public.webhooks FOR ALL TO authenticated
+USING (tenant_id = public.get_user_tenant_id())
+WITH CHECK (tenant_id = public.get_user_tenant_id());
