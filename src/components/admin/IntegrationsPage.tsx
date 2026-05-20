@@ -5,7 +5,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { 
   Key, Webhook, Plus, Copy, Trash2, Eye, EyeOff, 
-  CheckCircle2, ShieldAlert, Code2, ArrowRight, X
+  CheckCircle2, ShieldAlert, Code2, ArrowRight, X, ExternalLink
 } from 'lucide-react';
 import { DataService } from '../../services/dataService';
 
@@ -182,6 +182,14 @@ export const IntegrationsPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <p className="text-sm text-slate-600">Gerencie tokens de acesso para autenticação em consultas via API (Acesso Somente Leitura sugerido).</p>
             <div className="flex items-center gap-3">
+              <Button 
+                variant="secondary" 
+                onClick={() => window.open('https://docs.dunoup.com.br', '_blank')}
+                className="rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 whitespace-nowrap shadow-sm"
+              >
+                <ExternalLink size={16} className="mr-2 text-slate-400"/>
+                Documentação da API
+              </Button>
               <Button 
                 variant="secondary" 
                 onClick={() => handleCopy(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/api_v1`, 'api_url')}
