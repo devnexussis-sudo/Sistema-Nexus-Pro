@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=https://schema.buildwithfern.dev/docs-yml.json
+
+instances:
+  - url: duno.docs.buildwithfern.com
+    custom-domain: docs.dunoup.com.br
+
+title: Nexus OS API
+navigation:
+  - section: API Reference
+    contents:
+      - api: API Reference
