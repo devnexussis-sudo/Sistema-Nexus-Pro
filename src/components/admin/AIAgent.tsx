@@ -183,42 +183,54 @@ export const AIAgent: React.FC = () => {
   ];
 
   return (
-    <div className="h-full flex flex-col bg-slate-50/30">
+    <div className="h-full flex flex-col bg-slate-50/50 relative overflow-hidden">
+      {/* ── Background Grid Pattern ── */}
+      <div 
+        className="absolute inset-0 pointer-events-none opacity-[0.25] mix-blend-multiply" 
+        style={{
+          backgroundImage: 'radial-gradient(#94a3b8 1.5px, transparent 1.5px)',
+          backgroundSize: '20px 20px'
+        }}
+      />
+
       {/* ── Header ── */}
-      <div className="bg-white border-b border-slate-100 px-5 py-2.5 flex items-center justify-between shrink-0 z-10">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#1c2d4f] to-[#2a4a7f] flex items-center justify-center text-white shadow-sm">
-            <Sparkles size={15} />
+      <div className="bg-white/80 backdrop-blur-md border-b border-slate-100 px-5 py-3 flex items-center justify-between shrink-0 z-10">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-[#1c2d4f] rounded-lg blur opacity-30 animate-pulse" />
+            <div className="relative w-8 h-8 rounded-lg bg-gradient-to-br from-[#1c2d4f] to-[#2a4a7f] flex items-center justify-center text-white shadow-sm">
+              <Sparkles size={15} />
+            </div>
           </div>
           <div>
             <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
               Duno IA
-              <span className="px-1.5 py-px bg-slate-100 text-slate-500 border border-slate-200 text-[8px] uppercase tracking-widest rounded font-bold">Beta</span>
+              <span className="px-1.5 py-px bg-blue-50 text-blue-600 border border-blue-100 text-[8px] uppercase tracking-widest rounded font-bold">Copilot</span>
             </h2>
             <p className="text-[10px] font-medium text-slate-400 -mt-0.5">Assistente inteligente do sistema Duno</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {learnedCount > 0 && (
-            <span className="hidden sm:flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded text-[9px] font-bold">
+            <span className="hidden sm:flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-lg text-[9px] font-bold shadow-sm">
               <BookOpen size={10} /> {learnedCount}
             </span>
           )}
-          <button onClick={() => setMessages([messages[0]])} className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold text-slate-400 hover:text-slate-700 hover:bg-slate-50 rounded-md transition-all border border-slate-200">
+          <button onClick={() => setMessages([messages[0]])} className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-lg transition-all border border-slate-200 bg-white shadow-sm">
             <RefreshCw size={11} /> Limpar
           </button>
         </div>
       </div>
 
       {/* ── Chat Area ── */}
-      <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5 custom-scrollbar scroll-smooth">
-        <div className="max-w-2xl mx-auto space-y-5">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar scroll-smooth relative z-0">
+        <div className="max-w-2xl mx-auto space-y-6">
 
           {/* Suggestion Chips */}
           {messages.length <= 1 && (
-            <div className="flex flex-wrap gap-1.5 justify-center py-3">
+            <div className="flex flex-wrap gap-2 justify-center py-4">
               {suggestions.map(s => (
-                <button key={s} onClick={() => { setInput(s); }} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-500 hover:bg-[#1c2d4f]/5 hover:border-[#1c2d4f]/20 hover:text-[#1c2d4f] transition-all">
+                <button key={s} onClick={() => { setInput(s); }} className="px-3.5 py-2 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-xl text-[11px] font-bold text-slate-500 hover:bg-[#1c2d4f] hover:border-[#1c2d4f] hover:text-white shadow-sm hover:shadow transition-all duration-200">
                   {s}
                 </button>
               ))}
@@ -227,16 +239,20 @@ export const AIAgent: React.FC = () => {
 
           {/* Messages */}
           {messages.map(msg => (
-            <div key={msg.id} className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div key={msg.id} className={`flex gap-3.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {msg.role === 'assistant' && (
-                <div className="w-7 h-7 rounded-md bg-gradient-to-br from-[#1c2d4f] to-[#2a4a7f] flex items-center justify-center text-white shrink-0 mt-0.5 shadow-sm">
-                  <Bot size={14} />
+                <div className="relative shrink-0 mt-0.5">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-[#1c2d4f] rounded-xl blur opacity-30" />
+                  <div className="relative w-8 h-8 rounded-xl bg-gradient-to-br from-[#0f172a] via-[#1c2d4f] to-[#2563eb] flex items-center justify-center text-white shadow-md border border-blue-500/20">
+                    <Sparkles size={8} className="text-blue-400 animate-pulse absolute -top-0.5 -right-0.5 bg-[#0f172a] rounded-full p-px border border-blue-400/30" />
+                    <Bot size={15} />
+                  </div>
                 </div>
               )}
-              <div className={`max-w-[82%] rounded-xl px-4 py-3 text-[12.5px] font-medium leading-relaxed ${
+              <div className={`max-w-[82%] rounded-2xl px-4 py-3 text-[12.5px] font-medium leading-relaxed ${
                 msg.role === 'user'
-                  ? 'bg-[#1c2d4f] text-white rounded-tr-sm shadow-sm'
-                  : 'bg-white border border-slate-200 text-slate-700 rounded-tl-sm shadow-sm'
+                  ? 'bg-gradient-to-br from-[#1c2d4f] to-[#253d6b] text-white rounded-tr-sm shadow-md border border-[#2b4c80]/20'
+                  : 'bg-white border border-slate-200/80 text-slate-700 rounded-tl-sm shadow-sm hover:shadow transition-shadow duration-200'
               }`}>
                 {msg.isTyping ? (
                   <div className="flex items-center gap-2 px-1">
@@ -248,8 +264,10 @@ export const AIAgent: React.FC = () => {
                 )}
               </div>
               {msg.role === 'user' && (
-                <div className="w-7 h-7 rounded-md bg-slate-200 flex items-center justify-center text-slate-500 shrink-0 mt-0.5">
-                  <User size={14} />
+                <div className="relative shrink-0 mt-0.5">
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-slate-600 shadow-sm border border-slate-300/40">
+                    <User size={15} />
+                  </div>
                 </div>
               )}
             </div>
@@ -259,14 +277,14 @@ export const AIAgent: React.FC = () => {
       </div>
 
       {/* ── Input ── */}
-      <div className="bg-white border-t border-slate-100 px-4 py-3 sm:px-6 shrink-0 z-10">
+      <div className="bg-white/80 backdrop-blur-md border-t border-slate-100 px-4 py-4 sm:px-6 shrink-0 z-10">
         <div className="max-w-2xl mx-auto relative">
           <textarea ref={taRef} value={input} onChange={handleInput} onKeyDown={handleKeyDown}
             placeholder={`Pergunte algo, ${firstName}...`}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-12 py-3 text-[13px] font-medium text-slate-700 outline-none focus:bg-white focus:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/5 transition-all resize-none"
+            className="w-full bg-slate-50/50 border border-slate-200 rounded-xl pl-4 pr-12 py-3.5 text-[13px] font-medium text-slate-700 outline-none focus:bg-white focus:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/5 transition-all resize-none shadow-inner"
             rows={1} style={{ minHeight: '52px', maxHeight: '120px' }} />
           <button onClick={handleSend} disabled={!input.trim() || isLoading}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 bg-[#1c2d4f] hover:bg-[#253a66] disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-lg flex items-center justify-center transition-all shadow-sm disabled:shadow-none">
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8.5 h-8.5 bg-[#1c2d4f] hover:bg-[#253a66] disabled:bg-slate-100 disabled:text-slate-400 text-white rounded-lg flex items-center justify-center transition-all shadow-md disabled:shadow-none">
             <Send size={14} />
           </button>
         </div>
