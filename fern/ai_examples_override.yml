@@ -1,0 +1,45 @@
+paths:
+  /quotes:
+    get:
+      x-fern-examples:
+        - response:
+            body:
+              success: true
+              count: 1
+              data:
+                - id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                  value: 2450.75
+  /customers:
+    get:
+      x-fern-examples:
+        - response:
+            body:
+              success: true
+              count: 2
+              data:
+                - id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                  name: Tech Solutions SA
+                - id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                  name: Innovatech Serviços Ltda
+  /orders:
+    get:
+      x-fern-examples:
+        - response:
+            body:
+              success: true
+              count: 1
+              data:
+                - id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                  tenant_id: 9b2d7f4e-8c3a-4f1a-9d2e-1a2b3c4d5e6f
+                  status: em_aberto
+                  description: Manutenção ar-condicionado
+  /equipments:
+    get:
+      x-fern-examples:
+        - response:
+            body:
+              success: true
+              count: 1
+              data:
+                - id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                  name: Compressor de Ar 20HP
