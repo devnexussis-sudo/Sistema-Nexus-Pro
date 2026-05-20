@@ -185,9 +185,9 @@ export const IntegrationsPage: React.FC = () => {
               <Button 
                 variant="secondary" 
                 onClick={() => handleCopy(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/api_v1`, 'api_url')}
-                className="rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                className="rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100/80 whitespace-nowrap"
               >
-                {copied === 'api_url' ? <CheckCircle2 size={16} className="mr-2 text-emerald-500"/> : <Copy size={16} className="mr-2 text-slate-400"/>}
+                {copied === 'api_url' ? <CheckCircle2 size={16} className="mr-2 text-emerald-600"/> : <Copy size={16} className="mr-2 text-emerald-600"/>}
                 {copied === 'api_url' ? 'Copiado!' : 'Copiar URL da API'}
               </Button>
               <Button onClick={() => setShowNewKeyModal(true)} className="bg-[#1c2d4f] text-white rounded-lg shadow-sm">
