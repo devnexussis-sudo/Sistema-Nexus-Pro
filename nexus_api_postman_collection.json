@@ -1,0 +1,124 @@
+{
+	"info": {
+		"_postman_id": "8b9e6f3b-e065-4f4d-86cf-d7d8e87498c1",
+		"name": "Nexus OS API - Integrações B2B",
+		"description": "Coleção de endpoints da API de Integração do Nexus OS para consumo de parceiros e sistemas externos (ERPs, PowerBI, etc.).",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Ordens de Serviço",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/orders",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"orders"
+					]
+				},
+				"description": "Retorna a lista das últimas 50 Ordens de Serviço (OS) vinculadas ao seu tenant."
+			},
+			"response": []
+		},
+		{
+			"name": "Clientes",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/customers",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"customers"
+					]
+				},
+				"description": "Retorna a lista dos primeiros 50 clientes da base de dados do tenant."
+			},
+			"response": []
+		},
+		{
+			"name": "Equipamentos",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/equipments",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"equipments"
+					]
+				},
+				"description": "Retorna a lista de até 50 equipamentos cadastrados no tenant."
+			},
+			"response": []
+		},
+		{
+			"name": "Orçamentos e Propostas",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/quotes",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"quotes"
+					]
+				},
+				"description": "Retorna a lista dos últimos 50 orçamentos/propostas gerados no tenant."
+			},
+			"response": []
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{apiKey}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "https://esrwwaoirlhcptbxtlsu.supabase.co/functions/v1/api_v1",
+			"type": "string"
+		},
+		{
+			"key": "apiKey",
+			"value": "nx_live_SUA_CHAVE_AQUI",
+			"type": "string"
+		}
+	]
+}
