@@ -46,25 +46,25 @@ export const CONSCIOUSNESS_BASE: KnowledgeNode[] = [
     ]
   },
   {
-    title: "Execução de Ordens de Serviço no App do Técnico (Mobile PWA)",
+    title: "Execução de Ordens de Serviço no App Duno (Aplicativo Nativo do Técnico)",
     category: "workflow",
     keywords: [
-      'app do tecnico', 'mobile', 'celular', 'pwa', 'executar os', 'iniciar atendimento', 
+      'app duno', 'app do tecnico', 'mobile', 'celular', 'executar os', 'iniciar atendimento', 
       'concluir os', 'impedimento', 'app', 'aplicativo', 'foto os', 'camera', 'gps tecnico', 
       'visita tecnica', 'assinar os', 'assinatura cliente'
     ],
-    description: "Procedimento completo de atendimento em campo realizado pelo técnico através do aplicativo celular.",
+    description: "Procedimento completo de atendimento em campo realizado pelo técnico através do aplicativo celular nativo.",
     steps: [
-      "O técnico acessa a URL do sistema no celular, adiciona o app à tela inicial (PWA) e faz login.",
-      "Na tela inicial, acessa o menu lateral e entra na seção 'Minhas OS'.",
-      "Ao chegar no cliente, seleciona a OS correspondente e clica em 'Iniciar Atendimento'. O status passa a 'Em Andamento' e registra o início com captura GPS.",
-      "O técnico executa as tarefas e pode capturar Fotos/Vídeos diretamente da aba 'Mídias' usando a câmera nativa do celular.",
-      "Se houver checklists vinculados, ele deve preenchê-los na aba 'Formulários'.",
-      "Para adicionar peças utilizadas, clica em 'Adicionar Peça', escolhe a opção 'QR Code' para abrir a câmera e escanear a etiqueta do material físico, ou adiciona manualmente.",
-      "Caso o serviço não possa ser finalizado (ex: falta de peças), clica em 'Registrar Impedimento', altera o status para 'Impedido' e digita a justificativa.",
-      "Para finalizar, colhe a Assinatura Digital do cliente desenhada na tela do celular e clica em 'Concluir OS'."
+      "O técnico abre o aplicativo nativo App Duno em seu dispositivo móvel (Android ou iOS) e faz o login seguro.",
+      "Na tela principal do app, acessa a lista de OS agendadas para o dia e seleciona o chamado que irá atender.",
+      "Ao chegar no local de atendimento, clica em 'Iniciar Atendimento'. O status passa a 'Em Andamento' e a localização de início é gravada no banco de dados.",
+      "Na aba 'Mídias', o técnico tira fotos e faz vídeos das condições do equipamento e do local usando a câmera do celular.",
+      "Na aba 'Formulários', responde os checklists obrigatórios vinculados ao tipo de serviço e ao equipamento.",
+      "Se precisar utilizar peças, clica em 'Adicionar Peça', escolhe a opção de câmera para ler o QR Code físico fixado na peça/embalagem (ou busca manualmente pelo SKU) e define a quantidade consumida.",
+      "Caso encontre problemas para concluir, clica em 'Registrar Impedimento', escolhe o motivo (falta de acesso, falta de peça, etc.) e o chamado passa ao status 'Impedido'.",
+      "Ao concluir os trabalhos, colhe a assinatura digital na tela sensível ao toque do celular e finaliza o atendimento."
     ],
-    technicalDetails: "• **PWA Mobile:** Desenvolvido no shell de aplicativo `TechAppShell.tsx` utilizando React e TailwindCSS otimizado para dispositivos móveis.\n• **Upload de Mídias:** Fotos e vídeos são enviados diretamente para o bucket do Supabase Storage via `supabaseClient`.\n• **Assinatura:** Capturada via componente Canvas 2D HTML5 e armazenada em base64/URL no banco de dados.\n• **Rastreamento:** Utiliza a API de Geolocalização do navegador para registrar latitude e longitude em cada início de deslocamento e início de visita.",
+    technicalDetails: "• **Mobile App:** Aplicativo nativo construído com componentes móveis de alta performance.\n• **Upload de Fotos/Vídeos:** Os arquivos de imagem e vídeo são enviados em tempo real para os Buckets do Supabase Storage.\n• **Integração de Estoque:** Ao consumir peças via QR Code no App, o estoque é atualizado de imediato com a baixa no banco de dados.\n• **Geolocalização:** Captura coordenadas de GPS no momento em que o técnico altera o status para 'Em Deslocamento', 'Em Andamento' ou 'Concluída'.",
     relatedFiles: [
       "src/apps/tech/TechAppShell.tsx",
       "src/apps/tech/v2/context/TechContext.tsx",
@@ -225,6 +225,109 @@ export const CONSCIOUSNESS_BASE: KnowledgeNode[] = [
       "src/components/admin/OrderCalendar.tsx",
       "src/components/admin/TechnicianMap.tsx",
       "src/components/admin/AdminDashboard.tsx"
+    ]
+  },
+  {
+    title: "Gestão Detalhada de Clientes e Geolocalização (Cadastro & Detalhes)",
+    category: "workflow",
+    keywords: [
+      'detalhes cliente', 'localizacao cliente', 'cadastrar cliente', 'editar cliente', 
+      'excluir cliente', 'coordenadas', 'mapa cliente', 'cnpj cliente', 'cep cliente'
+    ],
+    description: "Cadastro de clientes com geolocalização por endereço, CEP autocomplete e histórico operacional.",
+    steps: [
+      "Acesse 'Cliente' na barra lateral esquerda.",
+      "Para cadastrar: Clique em '+ Novo Cliente'. Insira o CNPJ/CPF (com validação automática de formato), Razão Social, E-mail, Telefone, CEP (o preenchimento do CEP busca automaticamente Rua, Bairro, Cidade e Estado via API externa) e salve.",
+      "Para geolocalização: O sistema converte o endereço do cliente em coordenadas de Latitude e Longitude automaticamente. Essas coordenadas posicionam o cliente no mapa do módulo 'Visão de Campo'.",
+      "Para visualizar histórico: Clique sobre o cliente na listagem. Uma aba lateral se abre mostrando dados de cadastro e a lista de todas as Ordens de Serviço (OS) históricas daquela empresa."
+    ],
+    technicalDetails: "• **Componente:** `CustomerManagement.tsx` com painéis laterais deslizantes para detalhes e edição.\n• **Banco de Dados:** Tabela `public.customers` armazena os metadados cadastrais e o ponto de geolocalização (`latitude`, `longitude`).",
+    relatedFiles: [
+      "src/components/admin/CustomerManagement.tsx",
+      "src/services/customerService.ts"
+    ]
+  },
+  {
+    title: "Gestão de Ativos, Equipamentos e Cálculo de Garantia",
+    category: "workflow",
+    keywords: [
+      'cadastrar ativo', 'editar ativo', 'calcular garantia', 'garantia vencida', 
+      'garantia ativo', 'marca equipamento', 'modelo equipamento', 'historico ativo'
+    ],
+    description: "Cadastro de equipamentos com cálculo em tempo real do período de garantia e histórico de manutenção preventiva/corretiva.",
+    steps: [
+      "Acesse 'Ativos' na barra lateral esquerda.",
+      "Para cadastrar: Clique em '+ Novo Ativo'. Vincule a um Cliente cadastrado, selecione a Família do Equipamento (Split, Chiller, VRF, etc.), digite a Marca, Modelo, Número de Série e Patrimônio.",
+      "Configuração de Garantia: Preencha opcionalmente a 'Data de Fabricação' e o período de 'Garantia (em meses)'.",
+      "Cálculo Automático: O sistema calcula a data de término somando a garantia em meses à data de fabricação. Se a data atual for anterior ao término, exibe o selo verde 'Em Garantia'. Se for posterior, exibe o selo vermelho 'Fora de Garantia'.",
+      "Histórico de Manutenções: Ao clicar em um ativo na tabela, abra a aba 'Histórico' no painel lateral para ver todas as OS vinculadas àquele equipamento."
+    ],
+    technicalDetails: "• **Componente:** `EquipmentManagement.tsx` contendo a tabela de inventário de ativos e os formulários de cadastro.\n• **Cálculo:** Lógica Javascript em tempo real baseada em `date-fns` ou manipulação nativa de datas do browser.",
+    relatedFiles: [
+      "src/components/admin/EquipmentManagement.tsx",
+      "src/services/equipmentService.ts"
+    ]
+  },
+  {
+    title: "Módulo Financeiro, Relatórios de Receitas e Faturamento",
+    category: "workflow",
+    keywords: [
+      'faturamento', 'relatorio financeiro', 'graficos financeiro', 'receitas', 
+      'valores os', 'valor peca', 'lucro', 'pdf financeiro', 'imprimir financeiro'
+    ],
+    description: "Gestão consolidada de receitas oriundas de Ordens de Serviço concluídas e orçamentos aprovados com exportação de relatórios.",
+    steps: [
+      "Acesse 'Financeiro' na barra lateral esquerda.",
+      "Filtros de Período: Use o seletor de data inicial e final no topo esquerdo para segmentar o faturamento.",
+      "Análise de Performance: Visualize os cards de receita total consolidada no período, faturamento por tipo de serviço e faturamento por técnico.",
+      "Listagem de Transações: A tabela central mostra cada OS finalizada e orçamento aprovado, com seus respectivos valores unitários e somatórios.",
+      "Impressão: Clique no botão 'Exportar Relatório' no topo direito para gerar um documento PDF formatado no tamanho A4 contendo tabelas financeiras limpas e gráficos consolidados."
+    ],
+    technicalDetails: "• **Componente:** `FinancialDashboard.tsx` integrado com bibliotecas de plotagem de gráficos responsivos.\n• **Layout A4:** O CSS de impressão restringe a largura máxima e redimensiona fontes para evitar overflow de tabelas financeiras no papel.",
+    relatedFiles: [
+      "src/components/admin/FinancialDashboard.tsx",
+      "src/services/financeService.ts"
+    ]
+  },
+  {
+    title: "Formulários Customizados e Regras de Ativação no App do Técnico",
+    category: "workflow",
+    keywords: [
+      'criar checklist', 'criar formulario', 'regras de ativacao', 'perguntas formulario', 
+      'tipo de campo', 'checklist obrigatorio', 'formulario tecnico'
+    ],
+    description: "Criação de checklists flexíveis com condições de exibição inteligente para o técnico responder em campo.",
+    steps: [
+      "Acesse 'Formulários' na barra lateral esquerda.",
+      "Para criar: Clique em '+ Novo Formulário'. Defina o título do checklist.",
+      "Adicionar Questões: Clique em 'Adicionar Campo' e escolha o tipo de resposta: Texto, Número, Checkbox (Sim/Não), Seleção Múltipla, Foto obrigatória ou Assinatura.",
+      "Regras de Ativação Dinâmicas: Configure para que o formulário apareça no app apenas quando a OS for de um tipo específico (ex: 'Preventiva') ou se o Equipamento for de uma determinada Família (ex: 'Chiller').",
+      "No App Duno: Quando o técnico inicia o atendimento de uma OS que atende aos critérios configurados, o formulário é carregado na aba 'Formulários' do app celular e o preenchimento deve ser concluído para fechar a OS."
+    ],
+    technicalDetails: "• **Componentes:** `FormManagement.tsx` (construtor do formulário no painel admin) e componentes móveis no App do Técnico para preenchimento dinâmico.\n• **Estrutura de Dados:** Salvo em formato JSON no banco de dados para flexibilidade máxima dos campos customizados.",
+    relatedFiles: [
+      "src/components/admin/FormManagement.tsx",
+      "src/apps/tech/components/DynamicFormRenderer.tsx"
+    ]
+  },
+  {
+    title: "Configurações Globais da Organização, SLA e Parâmetros do App",
+    category: "workflow",
+    keywords: [
+      'configurar sla', 'mudar logo', 'configurar organizacao', 'parametros app', 
+      'meta de atendimento', 'configuracoes do sistema', 'dados organizacao'
+    ],
+    description: "Configuração do perfil da empresa, limites de tempo de atendimento (SLA) e permissões de visibilidade do App do Técnico.",
+    steps: [
+      "Acesse 'Configurações' na barra lateral esquerda.",
+      "Aba Organização: Cadastre os dados oficiais da sua empresa (Nome Fantasia, CNPJ, Telefone de contato corporativo e faça o upload da Logo da empresa que sairá nos relatórios PDF).",
+      "Aba APP do Técnico: Ative ou desative parâmetros do aplicativo móvel, tais como: 'Exibir preços das peças', 'Permitir OS simultâneas', 'Mostrar telefone do cliente' e 'Exibir histórico de visitas anteriores'.",
+      "Aba Parâmetros de SLA: Defina as metas de tempo de atendimento para chamados. O padrão do sistema alerta visualmente OS que ultrapassam 24 horas (Alerta normal) ou 48 horas (Alerta crítico) sem finalização."
+    ],
+    technicalDetails: "• **Componente:** `SystemSettings.tsx` dividido em seções tabulares para organização e facilidade de navegação.",
+    relatedFiles: [
+      "src/components/admin/SystemSettings.tsx",
+      "src/components/layout/AdminLayout.tsx"
     ]
   }
 ];
