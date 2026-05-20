@@ -28,6 +28,23 @@ export const IntegrationsPage: React.FC = () => {
 
   const [copied, setCopied] = useState<string | null>(null);
 
+  // Modal de Confirmação customizado state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    confirmText?: string;
+    isDanger?: boolean;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    confirmText: 'Confirmar',
+    isDanger: false
+  });
+
   useEffect(() => {
     if (tenant?.id) {
       fetchApiKeys();
@@ -111,10 +128,17 @@ export const IntegrationsPage: React.FC = () => {
   };
 
   const revokeApiKey = async (id: string) => {
-    if (!window.confirm('Tem certeza que deseja revogar esta chave? Qualquer integração usando-a irá parar de funcionar imediatamente.')) return;
-    
-    await supabase.from('api_keys').update({ status: 'revoked' }).eq('id', id);
-    fetchApiKeys();
+    setConfirmModal({
+      isOpen: true,
+      title: 'Revogar Chave de API',
+      message: 'Tem certeza que deseja revogar esta chave? Qualquer integração usando-a irá parar de funcionar imediatamente.',
+      confirmText: 'Revogar',
+      isDanger: true,
+      onConfirm: async () => {
+        await supabase.from('api_keys').update({ status: 'revoked' }).eq('id', id);
+        fetchApiKeys();
+      }
+    });
   };
 
   const createWebhook = async () => {
@@ -147,9 +171,17 @@ export const IntegrationsPage: React.FC = () => {
   };
 
   const deleteWebhook = async (id: string) => {
-    if (!window.confirm('Excluir este webhook permanentemente?')) return;
-    await supabase.from('webhooks').delete().eq('id', id);
-    fetchWebhooks();
+    setConfirmModal({
+      isOpen: true,
+      title: 'Excluir Webhook',
+      message: 'Tem certeza que deseja excluir este webhook permanentemente? Você não receberá mais os eventos configurados.',
+      confirmText: 'Excluir',
+      isDanger: true,
+      onConfirm: async () => {
+        await supabase.from('webhooks').delete().eq('id', id);
+        fetchWebhooks();
+      }
+    });
   };
 
   return (
@@ -394,6 +426,37 @@ export const IntegrationsPage: React.FC = () => {
             <div className="flex justify-end gap-3">
               <Button variant="secondary" onClick={() => setShowNewHookModal(false)}>Cancelar</Button>
               <Button onClick={createWebhook} disabled={!newHook.name.trim() || !newHook.url.trim() || newHook.events.length===0} className="bg-[#1c2d4f]">Criar Webhook</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação customizado */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-fade-in border border-slate-100">
+            <div className="flex items-center gap-3 mb-3 text-red-600">
+              <ShieldAlert size={28} />
+              <h3 className="text-lg font-semibold text-slate-800">{confirmModal.title}</h3>
+            </div>
+            <p className="text-sm text-slate-600 mb-6 leading-relaxed">{confirmModal.message}</p>
+            <div className="flex justify-end gap-3">
+              <Button 
+                variant="secondary" 
+                onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                className="rounded-lg text-slate-500 border-slate-200"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={() => {
+                  confirmModal.onConfirm();
+                  setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                }} 
+                className={`rounded-lg text-white shadow-sm ${confirmModal.isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-[#1c2d4f] hover:bg-[#1c2d4f]/90'}`}
+              >
+                {confirmModal.confirmText || 'Confirmar'}
+              </Button>
             </div>
           </div>
         </div>
