@@ -190,7 +190,10 @@ export const IntegrationsPage: React.FC = () => {
                 {copied === 'api_url' ? <CheckCircle2 size={16} className="mr-2 text-emerald-600"/> : <Copy size={16} className="mr-2 text-emerald-600"/>}
                 {copied === 'api_url' ? 'Copiado!' : 'Copiar URL da API'}
               </Button>
-              <Button onClick={() => setShowNewKeyModal(true)} className="bg-[#1c2d4f] text-white rounded-lg shadow-sm">
+              <Button 
+                onClick={() => setShowNewKeyModal(true)} 
+                className="rounded-lg bg-[#1c2d4f] text-white hover:bg-[#1c2d4f]/90 whitespace-nowrap shadow-sm"
+              >
                 <Plus size={16} className="mr-2" /> Gerar Nova Chave
               </Button>
             </div>
