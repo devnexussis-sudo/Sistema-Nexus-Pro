@@ -356,6 +356,53 @@ export function analyzeAndDiscover(input: string): string | null {
     return response;
   }
 
+  // ============================================================
+  // 🤖 MOTOR GERATIVO HEURÍSTICO DO DUNO COPILOT
+  // Intercepta e monta guias customizados de CRUD para qualquer tela/banco
+  // ============================================================
+  const verbKey = detectVerb(query);
+  const matchedModule = detectModule(query);
+
+  if (matchedModule) {
+    const verbLabels = {
+      create: 'Criar / Cadastrar',
+      update: 'Editar / Alterar',
+      delete: 'Excluir / Deletar / Cancelar',
+      read: 'Visualizar / Consultar',
+      report: 'Gerar Relatório / Imprimir'
+    };
+
+    let response = `🤖 **Duno Copilot — Assistente de Procedimento**\n\n`;
+    
+    if (verbKey) {
+      response += `Identifiquei sua intenção de **${verbLabels[verbKey]}** no módulo de **${matchedModule.name}**.\n\n`;
+      response += `📍 **Onde executar no sistema:**\n`;
+      response += `Acesse o caminho: \`${matchedModule.menuPath}\`\n\n`;
+      response += `🛠️ **Como fazer (Passo a Passo):**\n`;
+      response += `1. ${matchedModule.steps[verbKey]}\n`;
+      response += `2. Certifique-se de estar autenticado com as permissões corretas para este módulo.\n`;
+      response += `3. Qualquer ação crítica de exclusão ou alteração de dados abrirá o modal de confirmação do Design System.\n\n`;
+    } else {
+      response += `Identifiquei que você está buscando informações sobre o módulo de **${matchedModule.name}**.\n\n`;
+      response += `📍 **Onde encontrar:** \`${matchedModule.menuPath}\`\n\n`;
+      response += `🛠️ **Ações comuns mapeadas pelo Copilot:**\n`;
+      response += `• **Criar:** ${matchedModule.steps.create}\n`;
+      response += `• **Editar:** ${matchedModule.steps.update}\n`;
+      response += `• **Excluir:** ${matchedModule.steps.delete}\n`;
+      response += `• **Visualizar:** ${matchedModule.steps.read}\n`;
+      if (matchedModule.steps.report) {
+        response += `• **Imprimir:** ${matchedModule.steps.report}\n`;
+      }
+      response += `\n`;
+    }
+
+    response += `💻 **Especificações de Engenharia (Copilot Intel):**\n`;
+    response += `• **Componente Frontend:** \`${matchedModule.filePath}\`\n`;
+    response += `• **Tabela Banco de Dados:** \`public.${matchedModule.dbTable}\` (Supabase / Postgres)\n\n`;
+    response += `*Espero ter ajudado! Se tiver outra dúvida técnica ou de fluxo, pode mandar.*`;
+    return response;
+  }
+
   // Fallback Inteligente e Proativo (se não bater um score alto, sugere os 3 melhores combinados)
   const sortedMatches = CONSCIOUSNESS_BASE
     .map(node => {
@@ -382,5 +429,199 @@ export function analyzeAndDiscover(input: string): string | null {
     return response;
   }
 
+  // Fallback Geral do Copilot (NUNCA mais dá resposta vazia ou de desculpa)
+  let response = `🤖 **Duno Copilot — Central de Navegação**\n\n`;
+  response += `Não consegui identificar o fluxo ou a ação específica na sua pergunta. Como seu Copilot, posso te guiar em qualquer módulo do Nexus OS!\n\n`;
+  response += `👉 **Diga o que você precisa fazer utilizando verbos e termos claros. Exemplos:**\n`;
+  response += `• *"como criar um cliente"* ou *"onde edito o estoque?"*\n`;
+  response += `• *"como funciona o rate limit da api?"* ou *"configurar webhook"* \n`;
+  response += `• *"como imprimir etiquetas"* ou *"onde fica o pmoc?"*\n\n`;
+  response += `🛠️ **Módulos que tenho mapeados para você operar:**\n`;
+  COPILOT_MODULES.forEach(mod => {
+    response += `• **${mod.name}** (Tabela: \`public.${mod.dbTable.split(' ')[0]}\`)\n`;
+  });
+  response += `\n*Qual tarefa deseja executar agora? Escreva abaixo!*`;
+  return response;
+}
+
+export interface CopilotModule {
+  name: string;
+  nouns: string[];
+  menuPath: string;
+  filePath: string;
+  dbTable: string;
+  steps: {
+    create: string;
+    update: string;
+    delete: string;
+    read: string;
+    report: string;
+  };
+}
+
+export const COPILOT_MODULES: CopilotModule[] = [
+  {
+    name: "Ordens de Serviço (Atividades)",
+    nouns: ['os', 'ordem', 'ordens', 'servico', 'servicos', 'atividade', 'atividades', 'chamado', 'chamados', 'visita', 'visitas'],
+    menuPath: "Menu Principal > Atividade",
+    filePath: "src/components/admin/AdminDashboard.tsx",
+    dbTable: "orders",
+    steps: {
+      create: "Clique em '+ Nova OS' no topo direito e complete o assistente em 5 etapas (Cliente, Tipo, Detalhes, Técnico e Revisão).",
+      update: "Clique na OS desejada na listagem e depois no botão 'Editar OS' no cabeçalho.",
+      delete: "Abra a OS na tela e clique no botão 'Cancelar OS' no topo direito. Confirme no modal.",
+      read: "Veja a listagem de chamados na aba Atividade. Utilize a barra de busca no topo por número ou cliente.",
+      report: "Clique no botão 'Gerar PDF' no cabeçalho interno da OS para exportar o relatório técnico."
+    }
+  },
+  {
+    name: "Clientes",
+    nouns: ['cliente', 'clientes', 'empresa', 'cnpj', 'cpf', 'dados de cliente'],
+    menuPath: "Menu Principal > Cliente",
+    filePath: "src/components/admin/CustomerManagement.tsx",
+    dbTable: "customers",
+    steps: {
+      create: "Clique em '+ Novo Cliente' no topo direito da tela e preencha CNPJ, Razão Social, contatos e endereço.",
+      update: "Clique no cliente na listagem para abrir o painel de detalhes e edite os campos.",
+      delete: "Clique no botão de lixeira no final da linha do cliente correspondente na tabela.",
+      read: "Visualize e filtre a lista completa de clientes cadastrados no painel central.",
+      report: "Os dados de faturamento por cliente podem ser exportados em PDF no módulo Financeiro."
+    }
+  },
+  {
+    name: "Equipamentos (Ativos)",
+    nouns: ['equipamento', 'equipamentos', 'ativo', 'ativos', 'maquina', 'aparelho', 'ar condicionado', 'garantia'],
+    menuPath: "Menu Principal > Ativos",
+    filePath: "src/components/admin/EquipmentManagement.tsx",
+    dbTable: "equipments",
+    steps: {
+      create: "Clique em '+ Novo Ativo' no topo direito, defina marca, modelo, série, patrimônio e garantia.",
+      update: "Abra os detalhes do ativo na tabela e faça as modificações necessárias.",
+      delete: "Clique no ícone de lixeira na linha correspondente ao ativo na listagem.",
+      read: "Confira a lista de ativos e visualize o status da garantia (badge verde para Em Garantia ou vermelho para Vencido).",
+      report: "Abra a aba 'Histórico' de um ativo para visualizar e exportar todas as OS vinculadas a ele."
+    }
+  },
+  {
+    name: "Técnicos",
+    nouns: ['tecnico', 'tecnicos', 'equipe', 'campo', 'funcionario', 'especialidade'],
+    menuPath: "Menu Principal > Técnicos",
+    filePath: "src/components/admin/TechnicianManagement.tsx",
+    dbTable: "technicians",
+    steps: {
+      create: "Clique em '+ Novo Técnico' no topo direito da tela para preencher nome, contato e cor de identificação.",
+      update: "Abra o perfil do técnico correspondente e edite sua especialidade ou status de disponibilidade.",
+      delete: "Clique no botão de lixeira ao lado do nome do técnico para revogar o acesso dele.",
+      read: "Veja a equipe listada ou acesse 'Visão de Campo' para visualizar o mapa com técnicos em tempo real.",
+      report: "O relatório financeiro de atendimentos por técnico pode ser exportado na tela de Financeiro."
+    }
+  },
+  {
+    name: "Estoque de Peças",
+    nouns: ['estoque', 'peca', 'pecas', 'material', 'materiais', 'produto', 'produtos', 'item', 'itens', 'sku'],
+    menuPath: "Menu Principal > Estoque",
+    filePath: "src/components/admin/StockManagement.tsx",
+    dbTable: "stock_items",
+    steps: {
+      create: "Clique em '+ Novo Item' na tela de Estoque, insira o nome, SKU, quantidade e valor unitário.",
+      update: "Selecione o item e insira movimentação de Entrada ou Saída para ajustar a quantidade disponível.",
+      delete: "Clique no botão de lixeira correspondente ao item que deseja excluir da tabela.",
+      read: "Visualize as peças cadastradas organizadas em categorias, com barra de busca por SKU no topo.",
+      report: "Selecione múltiplos itens e clique em 'Imprimir Etiquetas' no topo para gerar etiquetas A4 ou Térmicas."
+    }
+  },
+  {
+    name: "Orçamentos e Propostas",
+    nouns: ['orcamento', 'orcamentos', 'proposta', 'propostas', 'cotacao', 'cotacoes'],
+    menuPath: "Menu Principal > Orçamentos",
+    filePath: "src/components/admin/QuoteManagement.tsx",
+    dbTable: "quotes",
+    steps: {
+      create: "Clique em '+ Novo Orçamento', selecione o cliente, adicione peças/serviços e clique em Salvar.",
+      update: "Clique no orçamento pendente da lista para editar os itens ou valores da cotação.",
+      delete: "Abra a proposta e selecione 'Excluir Orçamento' ou mude seu status para 'Recusado'.",
+      read: "Veja e gerencie a lista de orçamentos categorizados por status (Pendentes, Aprovados, Recusados).",
+      report: "Abra o orçamento e clique no botão 'Visualizar PDF' para gerar o relatório impresso."
+    }
+  },
+  {
+    name: "Contratos (PMOC)",
+    nouns: ['contrato', 'contratos', 'pmoc', 'preventiva', 'manutencao planejada', 'recorrencia'],
+    menuPath: "Menu Principal > Contratos",
+    filePath: "src/components/admin/PlannedMaintenance.tsx",
+    dbTable: "contracts",
+    steps: {
+      create: "Clique em '+ Novo Contrato', escolha o cliente, vincule os ativos e defina a periodicidade do ciclo.",
+      update: "Abra os detalhes do contrato para pausá-lo, prorrogar a vigência ou mudar as datas de inspeção.",
+      delete: "Clique em 'Encerrar Recorrência' ou 'Excluir Plano' nas opções internas do contrato.",
+      read: "Acesse a listagem para acompanhar todos os contratos de preventivas recorrentes ativos.",
+      report: "As ordens de serviço preventivas geradas pelo PMOC são agendadas e listadas na tela de Atividades."
+    }
+  },
+  {
+    name: "Integrações (API & Webhooks)",
+    nouns: ['integracao', 'integracoes', 'api', 'api key', 'chave api', 'token api', 'webhook', 'webhooks'],
+    menuPath: "Menu Principal > Integrações",
+    filePath: "src/components/admin/IntegrationsPage.tsx",
+    dbTable: "api_keys / webhooks",
+    steps: {
+      create: "Chaves de API: clique em '+ Criar Nova Chave' na aba Chaves de API. Webhooks: clique em '+ Novo Webhook' na aba de Webhooks.",
+      update: "Chaves de API são imutáveis (devem ser recriadas). Webhooks podem ser editados clicando sobre eles.",
+      delete: "Para revogar tokens ou remover Webhooks, clique no botão de lixeira ao lado de cada item listado.",
+      read: "Veja as chaves ativas mascaradas na listagem e gerencie seus endpoints de webhook cadastrados.",
+      report: "Clique em 'Documentação da API' no topo para acessar a especificação técnica interativa da API."
+    }
+  },
+  {
+    name: "Usuários e Permissões",
+    nouns: ['usuario', 'usuarios', 'acesso', 'senha', 'permissao', 'permissoes', 'grupo', 'grupos'],
+    menuPath: "Menu Principal > Usuários",
+    filePath: "src/components/admin/UserManagement.tsx",
+    dbTable: "users",
+    steps: {
+      create: "Clique em '+ Novo Usuário', defina nome, e-mail e adicione aos grupos. Ele definirá a senha via e-mail (LGPD).",
+      update: "Selecione o perfil do usuário e altere seus grupos de permissão ou dados básicos.",
+      delete: "Clique em 'Bloquear Acesso' na linha correspondente para suspender a conta dele por segurança.",
+      read: "Monitore a lista de usuários autorizados e configure os níveis de permissão em Configurações > Grupos.",
+      report: "Visualização completa de ações permitidas e bloqueadas nas abas de regras de privilégios."
+    }
+  },
+  {
+    name: "Formulários Customizados",
+    nouns: ['formulario', 'formularios', 'checklist', 'checklists', 'template', 'templates'],
+    menuPath: "Menu Principal > Formulários",
+    filePath: "src/components/admin/FormManagement.tsx",
+    dbTable: "forms",
+    steps: {
+      create: "Clique em '+ Novo Formulário', adicione as questões e defina as condições de exibição no App do Técnico.",
+      update: "Selecione o checklist na listagem e clique em 'Editar Estrutura' para ajustar perguntas.",
+      delete: "Clique na lixeira ao lado do formulário na tabela correspondente para apagá-lo.",
+      read: "Veja a listagem de formulários ativos e vinculados a tipos de serviço específicos.",
+      report: "As respostas coletadas pelos técnicos em campo ficam anexadas na OS correspondente (aba Formulários)."
+    }
+  }
+];
+
+function detectVerb(query: string): 'create' | 'update' | 'delete' | 'read' | 'report' | null {
+  const q = removeAccents(query);
+  if (/(criar|criacao|novo|nova|cadastr|adicion|abrir|gerar|inserir|adicionar)/.test(q)) return 'create';
+  if (/(edit|alter|modific|muda|atualiz|salvar|alterar)/.test(q)) return 'update';
+  if (/(delet|exclui|remov|apaga|cancel|revoga|exclusao)/.test(q)) return 'delete';
+  if (/(imprim|pdf|relatori|baixa|export|etiqueta|impressao)/.test(q)) return 'report';
+  if (/(onde fica|lista|acha|busca|pesquis|ver|qual|quais|consultar|onde)/.test(q)) return 'read';
   return null;
+}
+
+function detectModule(query: string): CopilotModule | null {
+  const q = removeAccents(query);
+  for (const mod of COPILOT_MODULES) {
+    for (const noun of mod.nouns) {
+      const nNoun = removeAccents(noun);
+      if (new RegExp(`(^|\\b|\\s)${nNoun}`).test(q)) {
+        return mod;
+      }
+    }
+  }
+  return null;
+}
 }

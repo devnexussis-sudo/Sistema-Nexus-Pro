@@ -138,17 +138,17 @@ export const AIAgent: React.FC = () => {
         if (dataIntent) {
           response = await executeDataQuery(dataIntent, firstName);
         } else {
-          // 4️⃣ Tenta descobrir procedimento avançado no Grafo do Sistema (Motor NLP Interno)
-          const proc = analyzeAndDiscover(userMsg.content);
-          if (proc) {
-            response = proc;
+          // 4️⃣ Base de Conhecimento Secundária (Respostas aprendidas ou estáticas)
+          const kbResponse = searchAll(userMsg.content);
+          if (kbResponse) {
+            response = kbResponse.includes(firstName) ? kbResponse : `${firstName}, ${kbResponse.charAt(0).toLowerCase()}${kbResponse.slice(1)}`;
           } else {
-            // 5️⃣ Base de Conhecimento Secundária (Respostas aprendidas ou estáticas)
-            const kbResponse = searchAll(userMsg.content);
-            if (kbResponse) {
-              response = kbResponse.includes(firstName) ? kbResponse : `${firstName}, ${kbResponse.charAt(0).toLowerCase()}${kbResponse.slice(1)}`;
+            // 5️⃣ Tenta descobrir procedimento avançado no Grafo do Sistema (Duno Copilot Engine)
+            const proc = analyzeAndDiscover(userMsg.content);
+            if (proc) {
+              response = proc;
             } else {
-              // 6️⃣ Fallback / Chutes informativos (findBestMatch)
+              // 6️⃣ Fallback de segurança (findBestMatch)
               const fallback = findBestMatch(userMsg.content);
               response = fallback.includes(firstName) ? fallback : `${firstName}, ${fallback.charAt(0).toLowerCase()}${fallback.slice(1)}`;
             }
