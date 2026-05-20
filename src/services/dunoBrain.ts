@@ -418,7 +418,7 @@ export function analyzeAndDiscover(input: string): string | null {
 
   // Fallback Geral do Copilot (NUNCA mais dá resposta vazia ou de desculpa)
   let response = `🤖 **Duno Copilot — Central de Navegação**\n\n`;
-  response += `Não consegui identificar o fluxo ou a ação específica na sua pergunta. Como seu Copilot, posso te guiar em qualquer módulo do Nexus OS!\n\n`;
+  response += `Não consegui identificar o fluxo ou a ação específica na sua pergunta. Como seu Copilot, posso te guiar em qualquer módulo do sistema Duno!\n\n`;
   response += `👉 **Diga o que você precisa fazer utilizando verbos e termos claros. Exemplos:**\n`;
   response += `• *"como criar um cliente"* ou *"onde edito o estoque?"*\n`;
   response += `• *"como funciona o rate limit da api?"* ou *"configurar webhook"* \n`;

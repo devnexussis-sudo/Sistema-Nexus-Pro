@@ -71,7 +71,7 @@ const detectPersonal = (text: string, fullName: string, firstName: string): stri
   }
   // Quem é a IA
   if (/(quem\s+(e|é)\s+voc[eê]|seu\s+nome|o\s+que\s+voc[eê]\s+faz|sobre\s+voc[eê])/i.test(l)) {
-    return `Eu sou a **Duno IA**, ${firstName}! 🤖\n\nSou a inteligência artificial integrada ao **Nexus OS**. Posso:\n\n• 📊 **Consultar dados reais** — quantidade de OS, clientes, técnicos, garantias, etc.\n• 📖 **Explicar funcionalidades** — como criar OS, usar PMOC, configurar formulários...\n• 🧠 **Aprender** — me ensine algo novo com "Saiba que..." e eu memorizo!\n\nPergunte qualquer coisa!`;
+    return `Eu sou a **Duno IA**, ${firstName}! 🤖\n\nSou a inteligência artificial integrada ao sistema **Duno**. Posso:\n\n• 📊 **Consultar dados reais** — quantidade de OS, clientes, técnicos, garantias, etc.\n• 📖 **Explicar funcionalidades** — como criar OS, usar PMOC, configurar formulários...\n• 🧠 **Aprender** — me ensine algo novo com "Saiba que..." e eu memorizo!\n\nPergunte qualquer coisa!`;
   }
   return null;
 };
@@ -93,7 +93,7 @@ export const AIAgent: React.FC = () => {
 
   const [messages, setMessages] = useState<Message[]>([
     { id: 'welcome', role: 'assistant',
-      content: `Olá, **${firstName}**! 👋 Sou a **Duno IA**, sua assistente inteligente do Nexus OS.\n\nPosso **consultar dados reais** do sistema e te ajudar com qualquer dúvida. Experimente:\n\n• "Quantas OS tenho?"\n• "Quantos clientes cadastrados?"\n• "Status de garantia dos equipamentos"\n• "Resumo geral do sistema"\n• "Como criar uma OS?"\n\nComo posso te ajudar, ${firstName}?` }
+      content: `Olá, **${firstName}**! 👋 Sou a **Duno IA**, sua assistente inteligente do sistema Duno.\n\nPosso **consultar dados reais** do sistema e te ajudar com qualquer dúvida. Experimente:\n\n• "Quantas OS tenho?"\n• "Quantos clientes cadastrados?"\n• "Status de garantia dos equipamentos"\n• "Resumo geral do sistema"\n• "Como criar uma OS?"\n\nComo posso te ajudar, ${firstName}?` }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -195,7 +195,7 @@ export const AIAgent: React.FC = () => {
               Duno IA
               <span className="px-1.5 py-px bg-slate-100 text-slate-500 border border-slate-200 text-[8px] uppercase tracking-widest rounded font-bold">Beta</span>
             </h2>
-            <p className="text-[10px] font-medium text-slate-400 -mt-0.5">Assistente inteligente do Nexus OS</p>
+            <p className="text-[10px] font-medium text-slate-400 -mt-0.5">Assistente inteligente do sistema Duno</p>
           </div>
         </div>
         <div className="flex items-center gap-2">

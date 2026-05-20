@@ -85,7 +85,7 @@ export const KNOWLEDGE_BASE: KnowledgeEntry[] = [
 
   // ── INTEGRAÇÕES, CHAVES DE API E WEBHOOKS ──
   { keywords: ['integração', 'integracoes', 'api key', 'chave de api', 'token api', 'criar chave api', 'webhooks', 'webhook', 'segredo webhook', 'documentação da api', 'documentacao', 'api.dunoup.com.br'],
-    response: `O módulo **"Integrações"** gerencia conexões externas ao Nexus OS.\n\n**O que você encontra:**\n• **Chaves de API** — Geração de tokens de acesso seguro que iniciam com o prefixo \`nx_live_\`. A chave inteira é exibida apenas uma vez ao criar por segurança (depois disso ela é salva em hash SHA-256 e fica mascarada).\n• **Webhooks** — Envio de notificações automáticas para outras plataformas nos eventos: \`os_created\`, \`os_updated\`, \`quote_approved\` e \`stock_updated\`.\n• **Documentação da API** — Botão para acessar a documentação online hospedada no Fern.\n• **Segurança:** Todas as requisições à API têm controle de **Rate Limiting** (máximo de 100 requisições por minuto por tenant) para evitar sobrecarga no banco de dados.` },
+    response: `O módulo **"Integrações"** gerencia conexões externas ao sistema Duno.\n\n**O que você encontra:**\n• **Chaves de API** — Geração de tokens de acesso seguro que iniciam com o prefixo \`nx_live_\`. A chave inteira é exibida apenas uma vez ao criar por segurança (depois disso ela é salva em hash SHA-256 e fica mascarada).\n• **Webhooks** — Envio de notificações automáticas para outras plataformas nos eventos: \`os_created\`, \`os_updated\`, \`quote_approved\` e \`stock_updated\`.\n• **Documentação da API** — Botão para acessar a documentação online hospedada no Fern.\n• **Segurança:** Todas as requisições à API têm controle de **Rate Limiting** (máximo de 100 requisições por minuto por tenant) para evitar sobrecarga no banco de dados.` },
 
   // ── CONFIGURAÇÕES ──
   { keywords: ['configuração','setting','personalização','empresa','logo','tenant'],
@@ -121,12 +121,12 @@ export const KNOWLEDGE_BASE: KnowledgeEntry[] = [
 
   // ── SAUDAÇÕES ──
   { keywords: ['olá','oi','hey','bom dia','boa tarde','boa noite','tudo bem','hello','e aí'],
-    response: `Olá! 👋 Estou aqui para te ajudar com qualquer dúvida sobre o Nexus OS.\n\nPosso explicar sobre:\n• **Atividade** — Criar, editar e filtrar OS\n• **Contratos** — PMOC e manutenção preventiva\n• **Ativos** — Equipamentos e garantias\n• **Estoque** — Peças e QR Code\n• **Orçamentos** — Propostas comerciais\n• **App Mobile** — Funcionalidades do técnico\n• **Usuários** — Permissões e grupos\n• **Agenda / Visão de Campo / Financeiro**\n• **Formulários** e muito mais!\n\nÉ só perguntar!` },
+    response: `Olá! 👋 Estou aqui para te ajudar com qualquer dúvida sobre o sistema Duno.\n\nPosso explicar sobre:\n• **Atividade** — Criar, editar e filtrar OS\n• **Contratos** — PMOC e manutenção preventiva\n• **Ativos** — Equipamentos e garantias\n• **Estoque** — Peças e QR Code\n• **Orçamentos** — Propostas comerciais\n• **App Mobile** — Funcionalidades do técnico\n• **Usuários** — Permissões e grupos\n• **Agenda / Visão de Campo / Financeiro**\n• **Formulários** e muito mais!\\n\\nÉ só perguntar!` },
 
   { keywords: ['obrigado','valeu','thanks','agradeço','tmj'], response: `De nada! 😊 Fico feliz em ajudar. Se surgir mais alguma dúvida, é só perguntar!` },
 
   { keywords: ['quem é você','o que você faz','qual seu nome','sobre você'],
-    response: `Eu sou a **Duno IA**, a inteligência artificial integrada ao **Nexus OS**.\n\n**Minha função:**\n• Responder dúvidas sobre todas as funcionalidades.\n• Explicar como usar cada módulo passo a passo.\n• Aprender novas informações que você me ensinar.\n\n**Limitações:**\n• Não acesso dados sensíveis (clientes, OS, financeiro).\n• Não executo ações — apenas oriento.\n• Conhecimento sobre funcionalidades, não dados operacionais.` },
+    response: `Eu sou a **Duno IA**, a inteligência artificial integrada ao sistema **Duno**.\n\n**Minha função:**\n• Responder dúvidas sobre todas as funcionalidades.\\n• Explicar como usar cada módulo passo a passo.\\n• Aprender novas informações que você me ensinar.\\n\\n**Limitações:**\\n• Não acesso dados sensíveis (clientes, OS, financeiro).\\n• Não executo ações — apenas oriento.\\n• Conhecimento sobre funcionalidades, não dados operacionais.` },
 ];
 
 export const findBestMatch = (input: string): string => {
@@ -157,12 +157,12 @@ export const findBestMatch = (input: string): string => {
     'Orçamentos': ['aprovar', 'recusar', 'enviar proposta', 'proposta', 'email cliente'],
     'App do Técnico': ['celular', 'aplicativo', 'app', 'offline', 'sincronizar', 'bateria', 'gps técnico']
   };
-
+ 
   for (const [module, keywords] of Object.entries(moduleHints)) {
     if (keywords.some(k => new RegExp(`(^|\\b|\\s)${k.normalize('NFD').replace(/[\u0300-\u036f]/g, '')}(\\b|\\s|$)`).test(lower))) {
       const intros = [
         `Dei uma varrida no sistema e, analisando o que você pediu, vi que isso geralmente é feito no módulo **${module}**. 🔍\n\nTente dar uma olhada lá! Se não encontrar, me dê mais detalhes para eu ajudar.`,
-        `Hmm, fiz uma análise rápida nas telas do Nexus OS... Você deve encontrar opções para isso acessando **${module}** no menu lateral. 🚀`,
+        `Hmm, fiz uma análise rápida nas telas do sistema Duno... Você deve encontrar opções para isso acessando **${module}** no menu lateral. 🚀`,
         `Olha só, eu vasculhei as permissões e telas do sistema aqui. Acredito que o caminho certo para resolver isso seja indo em **${module}**. 😉`
       ];
       return intros[Math.floor(Math.random() * intros.length)];
