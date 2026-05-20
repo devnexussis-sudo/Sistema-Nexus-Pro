@@ -1,0 +1,145 @@
+openapi: 3.1.0
+info:
+  title: Nexus OS API - Integrações B2B
+  version: 1.0.0
+  description: API de integração para parceiros do Nexus OS. Permite a consulta de Ordens de Serviço, Clientes, Equipamentos e Orçamentos de forma segura e isolada por tenant.
+servers:
+  - url: https://esrwwaoirlhcptbxtlsu.supabase.co/functions/v1/api_v1
+    description: Servidor de Produção
+paths:
+  /orders:
+    get:
+      summary: Listar Ordens de Serviço
+      description: Retorna uma lista com as últimas 50 Ordens de Serviço (OS) do seu tenant.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  count:
+                    type: integer
+                    example: 1
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        tenant_id:
+                          type: string
+                          format: uuid
+                        status:
+                          type: string
+                          example: em_aberto
+                        description:
+                          type: string
+                          example: Manutenção ar-condicionado
+  /customers:
+    get:
+      summary: Listar Clientes
+      description: Retorna uma lista de até 50 clientes cadastrados no seu tenant.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  count:
+                    type: integer
+                    example: 1
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        name:
+                          type: string
+                          example: Cliente Exemplo Ltda
+  /equipments:
+    get:
+      summary: Listar Equipamentos
+      description: Retorna uma lista de até 50 equipamentos ativos vinculados ao seu tenant.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  count:
+                    type: integer
+                    example: 1
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        name:
+                          type: string
+                          example: Compressor de Ar 20HP
+  /quotes:
+    get:
+      summary: Listar Orçamentos
+      description: Retorna uma lista com os últimos 50 orçamentos/propostas gerados no seu tenant.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  count:
+                    type: integer
+                    example: 1
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        value:
+                          type: number
+                          example: 1500.00
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Use sua chave de API gerada no formato `nx_live_...`
