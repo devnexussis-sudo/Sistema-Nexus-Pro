@@ -15,6 +15,30 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Configuração de Rate Limiting na memória (Segurança contra sobrecarga)
+// Limite: 100 requisições por minuto por tenant
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const MAX_REQUESTS_PER_WINDOW = 100;
+const rateLimitCache = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(tenantId: string): { allowed: boolean; remaining: number; reset: number } {
+  const now = Date.now();
+  const record = rateLimitCache.get(tenantId);
+
+  if (!record || now > record.resetAt) {
+    const resetAt = now + RATE_LIMIT_WINDOW_MS;
+    rateLimitCache.set(tenantId, { count: 1, resetAt });
+    return { allowed: true, remaining: MAX_REQUESTS_PER_WINDOW - 1, reset: resetAt };
+  }
+
+  if (record.count >= MAX_REQUESTS_PER_WINDOW) {
+    return { allowed: false, remaining: 0, reset: record.resetAt };
+  }
+
+  record.count += 1;
+  return { allowed: true, remaining: MAX_REQUESTS_PER_WINDOW - record.count, reset: record.resetAt };
+}
+
 serve(async (req) => {
   // Tratamento de requisições OPTIONS (CORS) para chamadas vindas de navegadores
   if (req.method === 'OPTIONS') {
@@ -64,13 +88,47 @@ serve(async (req) => {
 
     const tenantId = keyData.tenant_id;
 
+    // =============== CONTROLE DE RATE LIMITING ===============
+    const now = Date.now();
+    const rateLimit = checkRateLimit(tenantId);
+    const rateLimitHeaders = {
+      'X-RateLimit-Limit': String(MAX_REQUESTS_PER_WINDOW),
+      'X-RateLimit-Remaining': String(rateLimit.remaining),
+      'X-RateLimit-Reset': String(Math.ceil((rateLimit.reset - now) / 1000))
+    };
+
+    if (!rateLimit.allowed) {
+      return new Response(JSON.stringify({ 
+        error: 'Muitas requisições. Limite de 100 requisições por minuto excedido.' 
+      }), {
+        status: 429,
+        headers: { 
+          ...corsHeaders, 
+          ...rateLimitHeaders,
+          'Content-Type': 'application/json',
+          'Retry-After': String(Math.ceil((rateLimit.reset - now) / 1000))
+        }
+      });
+    }
+
+    // Helper para gerar respostas padronizadas com cabeçalhos de rate limit
+    const apiResponse = (body: any, status = 200) => {
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { 
+          ...corsHeaders, 
+          ...rateLimitHeaders, 
+          'Content-Type': 'application/json' 
+        }
+      });
+    };
+
     // Atualiza a data de 'último uso' (sem usar await para não bloquear e atrasar a resposta da API)
     supabaseAdmin.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', keyData.id).then();
 
     // =============== ROTEAMENTO DA API ===============
-    // Pega o caminho da URL após o nome da função. 
     const url = new URL(req.url);
-    const path = url.pathname.split('/api_v1')[1] || '/'; // Ex: se a URL for .../api_v1/orders, o path é /orders
+    const path = url.pathname.split('/api_v1')[1] || '/'; 
 
     // Endpoint: GET /orders (Pega as últimas 50 ordens do Tenant)
     if (path === '/orders') {
@@ -83,17 +141,14 @@ serve(async (req) => {
 
       if (ordersError) throw ordersError;
 
-      return new Response(JSON.stringify({
+      return apiResponse({
         success: true,
         count: orders.length,
         data: orders
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    // Endpoint: GET /customers
+    // Endpoint: GET /customers (Pega as primeiras 50 empresas/clientes do Tenant)
     if (path === '/customers') {
       const { data: customers, error: custError } = await supabaseAdmin
         .from('customers')
@@ -104,17 +159,14 @@ serve(async (req) => {
 
       if (custError) throw custError;
 
-      return new Response(JSON.stringify({
+      return apiResponse({
         success: true,
         count: customers.length,
         data: customers
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    // Endpoint: GET /equipments
+    // Endpoint: GET /equipments (Pega as primeiras 50 máquinas/equipamentos do Tenant)
     if (path === '/equipments') {
       const { data: equipments, error: eqError } = await supabaseAdmin
         .from('equipments')
@@ -125,17 +177,14 @@ serve(async (req) => {
 
       if (eqError) throw eqError;
 
-      return new Response(JSON.stringify({
+      return apiResponse({
         success: true,
         count: equipments.length,
         data: equipments
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    // Endpoint: GET /quotes
+    // Endpoint: GET /quotes (Pega os últimos 50 orçamentos do Tenant)
     if (path === '/quotes') {
       const { data: quotes, error: qError } = await supabaseAdmin
         .from('quotes')
@@ -146,24 +195,18 @@ serve(async (req) => {
 
       if (qError) throw qError;
 
-      return new Response(JSON.stringify({
+      return apiResponse({
         success: true,
         count: quotes.length,
         data: quotes
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
     // Fallback: Endpoint não existe
-    return new Response(JSON.stringify({ 
+    return apiResponse({ 
       error: 'Endpoint não encontrado.',
       available_endpoints: ['/orders', '/customers', '/equipments', '/quotes']
-    }), {
-      status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    }, 404);
 
   } catch (error: any) {
     console.error('API Error:', error.message);
