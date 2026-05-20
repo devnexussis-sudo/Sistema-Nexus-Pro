@@ -331,7 +331,7 @@ export function analyzeAndDiscover(input: string): string | null {
 
   // Retorna resposta estruturada se o score for confiável (mínimo 15 pontos)
   if (bestNode && maxScore >= 15) {
-    let response = `🧠 **Consciência de Engenharia Nexus OS**\n\n`;
+    let response = `🤖 **Duno Copilot — Guia do Sistema**\n\n`;
     response += `📌 **Módulo/Fluxo:** ${bestNode.title}\n`;
     response += `📖 **Descrição Operacional:** ${bestNode.description}\n\n`;
 
@@ -343,22 +343,12 @@ export function analyzeAndDiscover(input: string): string | null {
       response += `\n`;
     }
 
-    response += `💻 **Detalhes Técnicos de Desenvolvimento:**\n`;
-    response += `${bestNode.technicalDetails}\n\n`;
-
-    if (bestNode.relatedFiles.length > 0) {
-      response += `📁 **Arquivos Relacionados no Projeto:**\n`;
-      bestNode.relatedFiles.forEach(file => {
-        response += `  • [${file.split('/').pop()}](file:///${file})\n`;
-      });
-    }
-
     return response;
   }
 
   // ============================================================
   // 🤖 MOTOR GERATIVO HEURÍSTICO DO DUNO COPILOT
-  // Intercepta e monta guias customizados de CRUD para qualquer tela/banco
+  // Intercepta e monta guias customizados de CRUD para qualquer tela
   // ============================================================
   const verbKey = detectVerb(query);
   const matchedModule = detectModule(query);
@@ -396,10 +386,7 @@ export function analyzeAndDiscover(input: string): string | null {
       response += `\n`;
     }
 
-    response += `💻 **Especificações de Engenharia (Copilot Intel):**\n`;
-    response += `• **Componente Frontend:** \`${matchedModule.filePath}\`\n`;
-    response += `• **Tabela Banco de Dados:** \`public.${matchedModule.dbTable}\` (Supabase / Postgres)\n\n`;
-    response += `*Espero ter ajudado! Se tiver outra dúvida técnica ou de fluxo, pode mandar.*`;
+    response += `*Espero ter ajudado! Se tiver outra dúvida de fluxo, pode mandar.*`;
     return response;
   }
 
@@ -421,7 +408,7 @@ export function analyzeAndDiscover(input: string): string | null {
     .slice(0, 3);
 
   if (sortedMatches.length > 0) {
-    let response = `Ainda estou aprendendo a responder a essa pergunta exata, mas fiz uma busca na arquitetura do Nexus OS e encontrei fluxos relacionados:\n\n`;
+    let response = `Ainda estou aprendendo a responder a essa pergunta exata, mas encontrei fluxos relacionados:\n\n`;
     sortedMatches.forEach((match) => {
       response += `• **${match.node.title}**\n  _${match.node.description}_\n\n`;
     });
@@ -438,7 +425,7 @@ export function analyzeAndDiscover(input: string): string | null {
   response += `• *"como imprimir etiquetas"* ou *"onde fica o pmoc?"*\n\n`;
   response += `🛠️ **Módulos que tenho mapeados para você operar:**\n`;
   COPILOT_MODULES.forEach(mod => {
-    response += `• **${mod.name}** (Tabela: \`public.${mod.dbTable.split(' ')[0]}\`)\n`;
+    response += `• **${mod.name}**\n`;
   });
   response += `\n*Qual tarefa deseja executar agora? Escreva abaixo!*`;
   return response;
