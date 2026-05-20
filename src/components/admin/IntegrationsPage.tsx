@@ -184,7 +184,7 @@ export const IntegrationsPage: React.FC = () => {
             <div className="flex items-center gap-3">
               <Button 
                 variant="secondary" 
-                onClick={() => window.open('https://api.dunoup.com.br', '_blank')}
+                onClick={() => window.open('https://api-duno.docs.buildwithfern.com', '_blank')}
                 className="rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 whitespace-nowrap shadow-sm"
               >
                 <ExternalLink size={16} className="mr-2 text-slate-400"/>
