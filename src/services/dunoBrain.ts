@@ -334,6 +334,123 @@ function removeAccents(str: string) {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+export interface CodebaseResource {
+  id: string;
+  name: string;
+  type: 'file' | 'table' | 'api' | 'config';
+  path: string;
+  keywords: string[];
+  description: string;
+  details: string;
+}
+
+// Mapas detalhados de engenharia do sistema para o varredor dinâmico da Duno IA
+export const CODEBASE_MAP: CodebaseResource[] = [
+  {
+    id: 'api_keys_table',
+    name: 'Tabela public.api_keys (Banco de Dados)',
+    type: 'table',
+    path: 'supabase/migrations/20260520_create_integrations.sql',
+    keywords: ['tabela api_keys', 'api_keys', 'api keys banco', 'banco de dados api', 'chave api sql', 'campo api_keys', 'tabela de chaves', 'tabela de chaves de api'],
+    description: 'Armazena com segurança as chaves de API geradas pelos tenants do sistema.',
+    details: '• **Estrutura:** Possui os campos `id` (UUID), `tenant_id` (UUID), `name` (Texto), `key_hash` (Texto criptografado SHA-256 da chave), `status` (Texto: active/revoked), `created_at` e `last_used_at`.\n• **Segurança (RLS):** Protegida pela política `api_keys_isolation_policy` que isola as chaves usando `tenant_id = public.get_user_tenant_id()`. Evita consultas diretas à tabela `public.users` para prevenir recursividade.'
+  },
+  {
+    id: 'webhooks_table',
+    name: 'Tabela public.webhooks (Banco de Dados)',
+    type: 'table',
+    path: 'supabase/migrations/20260520_create_integrations.sql',
+    keywords: ['tabela webhooks', 'webhook sql', 'banco webhooks', 'campos webhooks', 'webhooks db', 'tabela de webhooks'],
+    description: 'Armazena os endpoints de destino dos webhooks configurados pelos clientes.',
+    details: '• **Estrutura:** Contém `id` (UUID), `tenant_id` (UUID), `name` (Texto), `url` (Texto), `secret` (Texto, padrão `whsec_...` para assinatura), `events` (Array de Texto: os_created, os_updated, etc), `is_active` (Booleano) e timestamps.\n• **Segurança (RLS):** Protegida por `webhooks_isolation_policy` com isolamento por `tenant_id = public.get_user_tenant_id()`.'
+  },
+  {
+    id: 'edge_function_api',
+    name: 'Edge Function de Integração (API v1)',
+    type: 'api',
+    path: 'supabase/functions/api_v1/index.ts',
+    keywords: ['edge function api', 'api_v1', 'funcao api', 'endpoint api', 'codigo api', 'backend api', 'orders api', 'customers api', 'equipments api', 'quotes api', 'api endpoints', 'api v1'],
+    description: 'O servidor REST Deno que responde pelas consultas de integrações externas.',
+    details: '• **Endpoints Suportados:** `GET /orders`, `GET /customers`, `GET /equipments` e `GET /quotes`.\n• **Segurança e Autenticação:** Recebe o token `Bearer nx_live_...` no header, gera o hash SHA-256 em tempo real e valida contra a tabela `api_keys`.\n• **Isolamento de Dados:** Utiliza cliente administrativo (service role) para ler ignorando RLS, mas aplica obrigatoriamente `.eq(\'tenant_id\', tenantId)` em todas as queries para isolamento absoluto de dados.'
+  },
+  {
+    id: 'rate_limiting',
+    name: 'Controle de Rate Limiting da API',
+    type: 'config',
+    path: 'supabase/functions/api_v1/index.ts',
+    keywords: ['rate limit', 'limite de requisicoes', 'limite api', 'trava de seguranca', 'sobrecarga', 'bloqueio requisicoes', '429 too many', 'limite de chamadas', 'trava de seguranca da api'],
+    description: 'Sistema em memória para evitar que requisições excessivas sobrecarreguem o banco de dados.',
+    details: '• **Funcionamento:** Implementado na memória do Deno Isolates. Cada `tenant_id` é limitado a no máximo **100 requisições por minuto**.\n• **Resposta:** Ao estourar o limite, retorna o status HTTP `429 Too Many Requests` com cabeçalhos padrão de controle (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` e `Retry-After`).'
+  },
+  {
+    id: 'integrations_page',
+    name: 'Tela de Integrações (Frontend)',
+    type: 'file',
+    path: 'src/components/admin/IntegrationsPage.tsx',
+    keywords: ['tela de integracoes', 'pagina de integracao', 'integrationspage', 'componente integracao', 'onde gera chave', 'gerar chave api', 'copiar url api', 'botoes de integracoes', 'modal de confirmacao', 'confirmacao de exclusao'],
+    description: 'Componente React que gerencia as chaves de API, webhooks e acesso à documentação do usuário administrador.',
+    details: '• **Interface:** Contém tabs para "Chaves de API" e "Webhooks". Possui o botão "Documentação da API" que aponta para o domínio do Fern (`api-duno.docs.buildwithfern.com`).\n• **Confirmação Personalizada:** Substitui o `window.confirm` padrão por modais do Design System com backdrop blur e animações de entrada suaves.\n• **Design:** Botões padronizados (altura e bordas), botão de cópia rápido de token de API e chaves exibidas no formato oculto após criação.'
+  },
+  {
+    id: 'fern_docs',
+    name: 'Configuração da Documentação Fern',
+    type: 'config',
+    path: 'fern/docs.yml e fern/openapi.yml',
+    keywords: ['fern docs', 'fern', 'documentacao api url', 'docs buildwithfern', 'api.dunoup.com.br', 'buildwithfern', 'docs.yml', 'openapi.yml', 'documentacao da api'],
+    description: 'Estrutura que compila a especificação OpenAPI 3.1.0 e publica a documentação na nuvem.',
+    details: '• **Domínios:** Customizado no Umbler para `api.dunoup.com.br` e apontando no Fern para `api-duno.docs.buildwithfern.com`.\n• **Configuração:** O arquivo `docs.yml` mapeia a instância de hospedagem da Equipe do Alex (`alex-s-team-473229`).'
+  },
+  {
+    id: 'global_typography',
+    name: 'Normalização e Ajuste Global de Fontes (Poppins)',
+    type: 'config',
+    path: 'src/styles/index.css',
+    keywords: ['fonte poppins', 'negrito global', 'index.css', 'tamanho de letra', 'padrao de letra', 'retirar negrito', 'suavizar negrito', 'negrito de qualquer parte', 'sistema padrao de letra'],
+    description: 'Estilo tipográfico do Nexus OS para um visual SaaS limpo e premium.',
+    details: '• **Poppins:** Forçada globalmente em todos os elementos da interface.\n• **Suavização de Negritos:** Regra de normalização que limita o peso máximo das fontes (`font-bold`, `h1-h6`, `th`, `strong`, `.font-semibold`) para `500` (Medium), eliminando negritos exagerados (700/800) e deixando a interface leve e elegante.'
+  },
+  {
+    id: 'user_management_page',
+    name: 'Tela de Gestão de Usuários (Frontend)',
+    type: 'file',
+    path: 'src/components/admin/UserManagement.tsx',
+    keywords: ['tela de usuarios', 'cadastro de usuario', 'usermanagement', 'grupos de usuario', 'senha administrador', 'senha convite', 'modal de usuario'],
+    description: 'Interface administrativa de cadastro de equipe e cargos.',
+    details: '• **Modais:** O modal de edição é alinhado à visualização de Ordens de Serviço (2/3 de informações principais + 1/3 de ações rápidas).\n• **LGPD:** A senha não é definida pelo administrador; o usuário recebe um convite e define sua própria senha de acesso.'
+  }
+];
+
+function scanCodebaseMap(query: string): string | null {
+  let bestMatch: CodebaseResource | null = null;
+  let maxScore = 0;
+
+  for (const resource of CODEBASE_MAP) {
+    let score = 0;
+    for (const kw of resource.keywords) {
+      const nKw = removeAccents(kw.toLowerCase());
+      if (new RegExp(`(^|\\b|\\s)${nKw}`).test(query)) {
+        score += nKw.length;
+      }
+    }
+    if (score > maxScore) {
+      maxScore = score;
+      bestMatch = resource;
+    }
+  }
+
+  if (bestMatch && maxScore >= 3) {
+    return `🔍 **Varredura Dinâmica de Engenharia:**\n` +
+           `Encontrei o recurso solicitado na estrutura interna do Nexus OS:\n\n` +
+           `📁 **Recurso:** ${bestMatch.name}\n` +
+           `📍 **Caminho Físico:** \`${bestMatch.path}\`\n` +
+           `💡 **Função:** ${bestMatch.description}\n\n` +
+           `🛠️ **Detalhes Técnicos de Implementação:**\n${bestMatch.details}\n\n` +
+           `*Esta análise foi feita varrendo o grafo de engenharia do sistema.*`;
+  }
+
+  return null;
+}
+
 function detectAction(input: string): ActionType {
   const verbs = removeAccents(input.toLowerCase());
   if (/(criar|criacao|novo|nova|cadastr|adicion|abrir|gerar)/.test(verbs)) return 'create';
@@ -354,7 +471,11 @@ function detectAttributesRequest(input: string): boolean {
 export function analyzeAndDiscover(input: string): string | null {
   const query = removeAccents(input.toLowerCase());
 
-  // 1. Encontrar a entidade alvo na frase usando Tolerância a Erros
+  // 1. Tentar varredura física do codebase primeiro
+  const codebaseResponse = scanCodebaseMap(query);
+  if (codebaseResponse) return codebaseResponse;
+
+  // 2. Encontrar a entidade alvo na frase usando Tolerância a Erros
   let bestEntity: SystemEntity | null = null;
   let maxScore = 0;
 
@@ -375,11 +496,11 @@ export function analyzeAndDiscover(input: string): string | null {
   // Se não encontrou nenhuma entidade confiável
   if (!bestEntity || maxScore < 2) return null;
 
-  // 2. Extrair Intenções
+  // 3. Extrair Intenções
   const action = detectAction(query);
   const wantsAttributes = detectAttributesRequest(query);
 
-  // 3. Montar Resposta Inteligente Dinâmica
+  // 4. Montar Resposta Inteligente Dinâmica
   let response = `Fiz uma varredura na estrutura do sistema sobre **${bestEntity.name}**. 🧠\n\n`;
   
   response += `📍 **Localização no Sistema:** ${bestEntity.menuPath}\n\n`;

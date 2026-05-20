@@ -83,6 +83,10 @@ export const KNOWLEDGE_BASE: KnowledgeEntry[] = [
   { keywords: ['calendário','agenda','calendar','agendamento','agendar'],
     response: `O módulo **"Agenda"** na barra lateral mostra a visão temporal das OS.\n\n**Visualizações:** Mensal, Semanal e Diária.\n\n**Funcionalidades:**\n• Cores por status da OS.\n• Filtros por técnico e cliente.\n• Clique na OS para abrir detalhes.\n• Navegação entre períodos.` },
 
+  // ── INTEGRAÇÕES, CHAVES DE API E WEBHOOKS ──
+  { keywords: ['integração', 'integracoes', 'api key', 'chave de api', 'token api', 'criar chave api', 'webhooks', 'webhook', 'segredo webhook', 'documentação da api', 'documentacao', 'api.dunoup.com.br'],
+    response: `O módulo **"Integrações"** gerencia conexões externas ao Nexus OS.\n\n**O que você encontra:**\n• **Chaves de API** — Geração de tokens de acesso seguro que iniciam com o prefixo \`nx_live_\`. A chave inteira é exibida apenas uma vez ao criar por segurança (depois disso ela é salva em hash SHA-256 e fica mascarada).\n• **Webhooks** — Envio de notificações automáticas para outras plataformas nos eventos: \`os_created\`, \`os_updated\`, \`quote_approved\` e \`stock_updated\`.\n• **Documentação da API** — Botão para acessar a documentação online hospedada no Fern.\n• **Segurança:** Todas as requisições à API têm controle de **Rate Limiting** (máximo de 100 requisições por minuto por tenant) para evitar sobrecarga no banco de dados.` },
+
   // ── CONFIGURAÇÕES ──
   { keywords: ['configuração','setting','personalização','empresa','logo','tenant'],
     response: `O módulo **"Configurações"** na barra lateral personaliza o sistema.\n\n**Abas disponíveis:**\n• **Organização** — Dados da empresa (nome, CNPJ, logo, endereço). Campos protegidos por LGPD (alteração via Master Admin).\n• **Sistema** — Idioma, fuso horário, GPS em tempo real, notificações automáticas.\n• **APP do Técnico** — Controle de visibilidade: preços, compartilhamento, OS simultâneas, contato do cliente, histórico de peças, impedimentos, histórico de visitas.\n• **Parâmetros de Dashboard** — Metas de SLA (24h e 48h).` },
