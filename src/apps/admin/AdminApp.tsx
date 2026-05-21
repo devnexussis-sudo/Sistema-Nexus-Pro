@@ -18,6 +18,7 @@ import { OrderCalendar } from '../../components/admin/OrderCalendar';
 import { PlannedMaintenance } from '../../components/admin/PlannedMaintenance';
 import { QuoteManagement } from '../../components/admin/QuoteManagement';
 import { AIAgent } from '../../components/admin/AIAgent';
+import { DocsPage } from '../../components/admin/DocsPage';
 import { IntegrationsPage } from '../../components/admin/IntegrationsPage';
 import { DataService } from '../../services/dataService';
 import SessionStorage from '../../lib/sessionStorage';
@@ -400,6 +401,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                 } />
 
                 <Route path="/ai" element={<AIAgent />} />
+                <Route path="/docs" element={<DocsPage />} />
                 <Route path="/integrations" element={<PermissionGuard requiredMenu="settings"><IntegrationsPage /></PermissionGuard>} />
 
                 {/* Fallback */}

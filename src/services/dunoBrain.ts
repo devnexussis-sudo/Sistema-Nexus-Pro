@@ -4,6 +4,8 @@
 // Motor de Busca Ponderada e Base Integrada de Procedimentos do Sistema
 // ============================================================
 
+import { searchProjectFiles } from '../utils/fileSearch';
+
 export type ActionType = 'create' | 'read' | 'update' | 'delete' | 'report' | 'explain';
 
 export interface KnowledgeNode {
@@ -269,6 +271,27 @@ export const CONSCIOUSNESS_BASE: KnowledgeNode[] = [
     ]
   },
   {
+    title: "Cadastro, Edição e Gestão de Técnicos",
+    category: "workflow",
+    keywords: [
+      'cadastrar tecnico', 'editar tecnico', 'excluir tecnico', 'inativar tecnico', 
+      'bloquear tecnico', 'desativar tecnico', 'equipe de campo', 'novo tecnico', 'adicionar tecnico'
+    ],
+    description: "Fluxo completo para adicionar, modificar, inativar ou excluir técnicos do sistema.",
+    steps: [
+      "Acesse 'Técnicos' na barra lateral esquerda.",
+      "Para cadastrar: Clique em '+ Novo Técnico' no topo direito. Preencha nome, contato (telefone/WhatsApp), cor de identificação e especialidade.",
+      "Para editar ou inativar: Clique no técnico correspondente na listagem. Altere os dados necessários ou mude o status de disponibilidade para inativá-lo temporariamente.",
+      "Para excluir: Clique no botão com ícone de lixeira ao lado do nome do técnico na listagem para removê-lo em definitivo.",
+      "Nota: Técnicos não acessam o painel web administrativo, eles apenas usam o App Duno mobile."
+    ],
+    technicalDetails: "• **Componente:** `TechnicianManagement.tsx` contendo formulários de criação e atualização da equipe de campo.\n• **Banco de Dados:** Tabela `public.technicians` armazenando metadados.",
+    relatedFiles: [
+      "src/components/admin/TechnicianManagement.tsx",
+      "src/services/technicianService.ts"
+    ]
+  },
+  {
     title: "Módulo Financeiro, Relatórios de Receitas e Faturamento",
     category: "workflow",
     keywords: [
@@ -361,7 +384,7 @@ function levenshtein(a: string, b: string): number {
 // ⚙️ MOTOR DE BUSCA SEMÂNTICA E ANALISADOR DE CONSCIÊNCIA
 // Varre a base de engenharia e fluxos ponderando relevância das palavras
 // ══════════════════════════════════════════════════════════════
-export function analyzeAndDiscover(input: string): string | null {
+export async function analyzeAndDiscover(input: string): Promise<string | null> {
   const query = removeAccents(input.toLowerCase());
 
   // Tokeniza e limpa a query de conectivos
@@ -493,6 +516,24 @@ export function analyzeAndDiscover(input: string): string | null {
     return response;
   }
 
+  // ============================================================
+  // 🔍 MOTOR DE VARREDURA PROFUNDA (SISTEMA SCAN)
+  // Quando não sabe a resposta, varre o código fonte do sistema!
+  // ============================================================
+  try {
+    const scanResults = await searchProjectFiles(input, 3);
+    
+    if (scanResults && scanResults !== 'Nenhum termo de busca válido.' && scanResults !== 'Nenhum conteúdo relevante encontrado no código-fonte.') {
+      let response = `🤖 **Duno Copilot — Scan de Código Realizado** 🔍\n\n`;
+      response += `Eu não possuo um guia pré-programado para essa pergunta, mas **acabei de escanear o código-fonte** e encontrei a possível implementação:\n\n`;
+      response += `\`\`\`tsx\n${scanResults}\n\`\`\`\n\n`;
+      response += `Com base nestes trechos do código-fonte, você pode deduzir o fluxo interno. Se tiver dúvidas sobre a lógica, estou à disposição!`;
+      return response;
+    }
+  } catch (err) {
+    console.error('Erro no scanner do sistema:', err);
+  }
+
   // Fallback Inteligente e Proativo (se não bater um score alto, sugere os 3 melhores combinados)
   const sortedMatches = CONSCIOUSNESS_BASE
     .map(node => {
@@ -511,17 +552,17 @@ export function analyzeAndDiscover(input: string): string | null {
     .slice(0, 3);
 
   if (sortedMatches.length > 0) {
-    let response = `Ainda estou aprendendo a responder a essa pergunta exata, mas encontrei fluxos relacionados:\n\n`;
+    let response = `Fiz uma varredura completa no código-fonte mas não encontrei menções exatas. Porém, encontrei fluxos relacionados:\n\n`;
     sortedMatches.forEach((match) => {
       response += `• **${match.node.title}**\n  _${match.node.description}_\n\n`;
     });
-    response += `*Pode refazer a pergunta usando termos como "como criar", "etiqueta", "PMOC", "api" ou "estoque" para eu te dar o passo a passo exato!*`;
+    response += `*Pode refazer a pergunta usando termos mais específicos?*`;
     return response;
   }
 
-  // Fallback Geral do Copilot (NUNCA mais dá resposta vazia ou de desculpa)
+  // Fallback Geral (quando a varredura também falha)
   let response = `🤖 **Duno Copilot — Central de Navegação**\n\n`;
-  response += `Não consegui identificar o fluxo ou a ação específica na sua pergunta. Como seu Copilot, posso te guiar em qualquer módulo do sistema Duno!\n\n`;
+  response += `Fiz uma varredura profunda no sistema, mas não consegui identificar o fluxo ou a ação específica.\n\n`;
   response += `👉 **Diga o que você precisa fazer utilizando verbos e termos claros. Exemplos:**\n`;
   response += `• *"como criar um cliente"* ou *"onde edito o estoque?"*\n`;
   response += `• *"como funciona o rate limit da api?"* ou *"configurar webhook"* \n`;
@@ -695,7 +736,7 @@ export const COPILOT_MODULES: CopilotModule[] = [
 function detectVerb(query: string): 'create' | 'update' | 'delete' | 'read' | 'report' | null {
   const q = removeAccents(query);
   if (/(criar|criacao|novo|nova|cadastr|adicion|abrir|gerar|inserir|adicionar)/.test(q)) return 'create';
-  if (/(edit|alter|modific|muda|atualiz|salvar|alterar)/.test(q)) return 'update';
+  if (/(edit|alter|modific|muda|atualiz|salvar|alterar|inativ|desativ|bloque)/.test(q)) return 'update';
   if (/(delet|exclui|remov|apaga|cancel|revoga|exclusao)/.test(q)) return 'delete';
   if (/(imprim|pdf|relatori|baixa|export|etiqueta|impressao)/.test(q)) return 'report';
   if (/(onde fica|lista|acha|busca|pesquis|ver|qual|quais|consultar|onde)/.test(q)) return 'read';
