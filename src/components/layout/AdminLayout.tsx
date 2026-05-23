@@ -34,6 +34,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     const location = useLocation();
     const [showInbox, setShowInbox] = useState(false);
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+    // IDs de notificações dispensadas apenas nesta sessão (sem marcar no banco)
+    const [sessionDismissed, setSessionDismissed] = useState<string[]>([]);
+    // Estado do checkbox "não mostrar mais" por notificação
+    const [dismissForever, setDismissForever] = useState<Record<string, boolean>>({});
 
     // Fecha sidebar mobile ao navegar
     useEffect(() => {
@@ -168,13 +172,21 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     </button>
 
                     {/* Desktop: Logo area */}
-                    <div className={`hidden lg:flex ${isSidebarCollapsed ? 'w-16 justify-center' : 'w-52 justify-start pl-6'} transition-all duration-300 ease-in-out items-center overflow-hidden`}>
-                        <NexusBranding
-                            variant="dark"
-                            size="lg"
-                            className="h-12"
-                        />
+                    <div className={`hidden lg:flex ${isSidebarCollapsed ? 'w-16 justify-center' : 'w-52 justify-start pl-6'} transition-all duration-300 ease-in-out items-center overflow-hidden shrink-0`}>
+                        {isSidebarCollapsed ? (
+                            // Monograma "D" — identidade compacta da marca Duno
+                            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#1c2d4f] shadow-md select-none">
+                                <span className="text-white font-black text-lg tracking-tighter leading-none" style={{ fontFamily: 'inherit', letterSpacing: '-0.04em' }}>D</span>
+                            </div>
+                        ) : (
+                            <NexusBranding
+                                variant="dark"
+                                size="lg"
+                                className="h-12"
+                            />
+                        )}
                     </div>
+
 
                     {/* Mobile: Compact branding */}
                     <div className="lg:hidden flex items-center">
@@ -207,32 +219,86 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                         
                         {/* INBOX POPOVER */}
                         {showInbox && (
-                            <div className="absolute top-full right-0 mt-2 w-80 bg-white rounded-xl shadow-2xl border border-slate-100 overflow-hidden z-[200] max-h-[400px] flex flex-col">
-                                <div className="p-3 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-tight">{t.layout.inbox}</h3>
-                                    <span className="text-[10px] text-slate-400">{systemNotifications.length} {t.layout.notices}</span>
+                            <div className="absolute top-full right-0 mt-2 w-96 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-[200] max-h-[480px] flex flex-col">
+                                {/* Header com contador */}
+                                <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/60 flex justify-between items-center">
+                                    <div className="flex items-center gap-2">
+                                        <Bell size={14} className="text-slate-500" />
+                                        <h3 className="text-xs font-bold text-slate-800 uppercase tracking-tight">{t.layout.inbox}</h3>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {systemNotifications.filter(n => !n.isRead).length > 0 && (
+                                            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                                                {systemNotifications.filter(n => !n.isRead).length} não lida{systemNotifications.filter(n => !n.isRead).length > 1 ? 's' : ''}
+                                            </span>
+                                        )}
+                                        <span className="text-[10px] text-slate-400">{systemNotifications.length} total</span>
+                                    </div>
                                 </div>
-                                <div className="overflow-y-auto flex-1 p-2 space-y-2 custom-scrollbar">
+
+                                {/* Lista de notificações */}
+                                <div className="overflow-y-auto flex-1 divide-y divide-slate-50 custom-scrollbar">
                                     {systemNotifications.length === 0 ? (
-                                        <div className="p-4 text-center text-slate-400 text-xs">{t.layout.noMessages}</div>
+                                        <div className="p-8 text-center text-slate-400 text-xs flex flex-col items-center gap-2">
+                                            <Bell size={24} className="text-slate-200" />
+                                            {t.layout.noMessages}
+                                        </div>
                                     ) : (
                                         systemNotifications.map(notif => (
-                                            <div key={notif.id} className={`p-3 rounded-lg border text-left ${notif.isRead ? 'bg-white border-slate-100 opacity-75' : 'bg-blue-50/50 border-blue-100'}`}>
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    {notif.priority === 'urgent' && <AlertTriangle size={12} className="text-rose-500 shrink-0" />}
-                                                    {notif.priority === 'warning' && <ShieldAlert size={12} className="text-amber-500 shrink-0" />}
-                                                    {notif.priority === 'info' && <Bell size={12} className="text-blue-500 shrink-0" />}
-                                                    <h4 className="text-[11px] font-bold text-slate-800 uppercase leading-tight line-clamp-1">{notif.title}</h4>
+                                            <div
+                                                key={notif.id}
+                                                className={`px-4 py-3 flex gap-3 transition-colors ${
+                                                    notif.isRead
+                                                        ? 'bg-white hover:bg-slate-50/50'
+                                                        : 'bg-blue-50/30 hover:bg-blue-50/60'
+                                                }`}
+                                            >
+                                                {/* Dot de status não lida */}
+                                                <div className="flex flex-col items-center pt-1 shrink-0">
+                                                    {notif.isRead ? (
+                                                        <div className="w-2 h-2 rounded-full bg-slate-200" title="Lida" />
+                                                    ) : (
+                                                        <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" title="Não lida" />
+                                                    )}
                                                 </div>
-                                                <p className="text-[10px] text-slate-600 line-clamp-2 leading-relaxed">{notif.content}</p>
-                                                {!notif.isRead && (
-                                                    <button 
-                                                        onClick={() => onMarkNotificationRead && onMarkNotificationRead(notif.id)}
-                                                        className="mt-2 text-[9px] font-bold text-blue-600 hover:text-blue-700 uppercase"
-                                                    >
-                                                        {t.layout.markAsRead}
-                                                    </button>
-                                                )}
+
+                                                {/* Conteúdo */}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-start justify-between gap-2 mb-0.5">
+                                                        <div className="flex items-center gap-1.5">
+                                                            {notif.priority === 'urgent' && <AlertTriangle size={11} className="text-rose-500 shrink-0" />}
+                                                            {notif.priority === 'warning' && <ShieldAlert size={11} className="text-amber-500 shrink-0" />}
+                                                            {notif.priority === 'info' && <Bell size={11} className="text-blue-500 shrink-0" />}
+                                                            <h4 className={`text-[11px] font-bold uppercase leading-tight line-clamp-1 ${notif.isRead ? 'text-slate-500' : 'text-slate-800'}`}>
+                                                                {notif.title}
+                                                            </h4>
+                                                        </div>
+                                                        {/* Badge "Lida" */}
+                                                        {notif.isRead ? (
+                                                            <span className="shrink-0 text-[9px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                                                                ✓ Lida
+                                                            </span>
+                                                        ) : (
+                                                            <span className="shrink-0 text-[9px] font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full">
+                                                                Nova
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    <p className={`text-[10px] line-clamp-2 leading-relaxed ${notif.isRead ? 'text-slate-400' : 'text-slate-600'}`}>
+                                                        {notif.content}
+                                                    </p>
+
+                                                    {/* Ação "Marcar como lida" inline */}
+                                                    {!notif.isRead && (
+                                                        <button
+                                                            onClick={() => onMarkNotificationRead && onMarkNotificationRead(notif.id)}
+                                                            className="mt-1.5 text-[9px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-wide transition-colors"
+                                                        >
+                                                            {t.layout.markAsRead} →
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
                                         ))
                                     )}
@@ -244,9 +310,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             </header>
 
             {/* UNREAD NOTIFICATION POPUP (MODAL) */}
-            {systemNotifications.filter(n => !n.isRead).slice(0, 1).map(activeNotif => (
+            {systemNotifications
+                .filter(n => !n.isRead && !sessionDismissed.includes(n.id))
+                .slice(0, 1)
+                .map(activeNotif => (
                 <div key={activeNotif.id} className="fixed inset-0 z-[999] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in print:hidden">
                     <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up">
+                        {/* Header colorido por prioridade */}
                         <div className={`p-6 border-b ${
                             activeNotif.priority === 'urgent' ? 'bg-rose-50 border-rose-100' :
                             activeNotif.priority === 'warning' ? 'bg-amber-50 border-amber-100' :
@@ -270,17 +340,48 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                                 </div>
                             </div>
                         </div>
+
+                        {/* Corpo da mensagem */}
                         <div className="p-6">
                             <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{activeNotif.content}</p>
                         </div>
-                        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+
+                        {/* Rodapé: checkbox + botão */}
+                        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col gap-3">
+                            {/* Checkbox "não mostrar mais" */}
+                            <label className="flex items-center gap-2.5 cursor-pointer group select-none">
+                                <div className="relative flex items-center justify-center">
+                                    <input
+                                        type="checkbox"
+                                        checked={!!dismissForever[activeNotif.id]}
+                                        onChange={(e) =>
+                                            setDismissForever(prev => ({
+                                                ...prev,
+                                                [activeNotif.id]: e.target.checked
+                                            }))
+                                        }
+                                        className="w-4 h-4 rounded border-slate-300 text-[#1c2d4f] accent-[#1c2d4f] cursor-pointer"
+                                    />
+                                </div>
+                                <span className="text-[11px] text-slate-500 group-hover:text-slate-700 transition-colors leading-tight">
+                                    Estou ciente — não mostrar esta mensagem novamente
+                                </span>
+                            </label>
+
+                            {/* Botão de confirmação */}
                             <button
                                 onClick={() => {
-                                    if (onMarkNotificationRead) onMarkNotificationRead(activeNotif.id);
+                                    if (dismissForever[activeNotif.id]) {
+                                        // Marca como lido no banco (não aparece mais nunca)
+                                        if (onMarkNotificationRead) onMarkNotificationRead(activeNotif.id);
+                                    } else {
+                                        // Dispensa apenas nesta sessão (volta ao recarregar)
+                                        setSessionDismissed(prev => [...prev, activeNotif.id]);
+                                    }
                                 }}
-                                className="bg-[#1c2d4f] hover:bg-[#253a66] text-white px-6 py-2.5 rounded-xl text-xs font-bold uppercase transition-all shadow-lg shadow-[#1c2d4f]/20"
+                                className="w-full bg-[#1c2d4f] hover:bg-[#253a66] text-white px-6 py-2.5 rounded-xl text-xs font-bold uppercase transition-all shadow-lg shadow-[#1c2d4f]/20"
                             >
-                                Ciente, Confirmar Leitura
+                                {dismissForever[activeNotif.id] ? 'Confirmar e Não Mostrar Mais' : 'Entendido, Fechar'}
                             </button>
                         </div>
                     </div>
