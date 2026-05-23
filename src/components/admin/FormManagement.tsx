@@ -31,6 +31,7 @@ interface ActivationRule {
   serviceTypeId: string;
   equipmentFamily: string;
   formId: string;
+  financialFormId?: string;
 }
 
 export const FormManagement: React.FC = () => {
@@ -351,8 +352,8 @@ export const FormManagement: React.FC = () => {
               onClick={(e) => {
                 if (!canCreate('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para esta ação.'); return; }
                 if (activeTab === 'types') { setEditingType({ name: '' }); setIsTypeModalOpen(true); }
-                else if (activeTab === 'templates') { setEditingForm({ title: '', fields: [], active: true }); setIsModalOpen(true); }
-                else if (activeTab === 'rules') { setEditingRule({ serviceTypeId: '', equipmentFamily: '', formId: '' }); setIsRuleModalOpen(true); }
+                else if (activeTab === 'templates') { setEditingForm({ title: '', fields: [], active: true, category: 'TECHNICAL' }); setIsModalOpen(true); }
+                else if (activeTab === 'rules') { setEditingRule({ serviceTypeId: '', equipmentFamily: '', formId: '', financialFormId: '' }); setIsRuleModalOpen(true); }
               }}
             >
               <Plus size={16} /> 
@@ -454,6 +455,7 @@ export const FormManagement: React.FC = () => {
                     <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
                       <tr className="text-[11px] font-bold text-slate-500 text-center">
                         <th className="px-4 py-3">nome do modelo</th>
+                        <th className="px-4 py-3">tipo</th>
                         <th className="px-4 py-3">qtd. questões</th>
                         <th className="px-4 py-3 text-right">ações</th>
                       </tr>
@@ -466,6 +468,11 @@ export const FormManagement: React.FC = () => {
                               <FileText size={16} className="text-primary-600" />
                               <span className="text-slate-700 text-[13px] font-medium">{form.title}</span>
                             </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wide ${form.category === 'FINANCIAL' ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-indigo-50 text-indigo-600 border border-indigo-200'}`}>
+                              {form.category === 'FINANCIAL' ? 'Financeiro' : 'Técnico'}
+                            </span>
                           </td>
                           <td className="px-4 py-3">
                             <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md">{form.fields.length} Questões</span>
@@ -503,7 +510,8 @@ export const FormManagement: React.FC = () => {
                       <tr className="text-[11px] font-bold text-slate-500 text-center">
                         <th className="px-4 py-3">tipo de atendimento</th>
                         <th className="px-4 py-3">família equipamento</th>
-                        <th className="px-4 py-3"><Workflow size={14} className="inline mr-1" /> checklist vinculado</th>
+                        <th className="px-4 py-3"><Workflow size={14} className="inline mr-1" /> técnico</th>
+                        <th className="px-4 py-3"><Workflow size={14} className="inline mr-1" /> financeiro</th>
                         <th className="px-4 py-3 text-right">ação</th>
                       </tr>
                     </thead>
@@ -523,15 +531,20 @@ export const FormManagement: React.FC = () => {
                              </div>
                           </td>
                           <td className="px-4 py-3 text-[11px] font-bold text-primary-700">
-                             <span className="bg-primary-50 py-1 px-3 border border-primary-100 rounded-md text-[12px] font-medium">
-                               {forms.find(f => f.id === rule.formId || f.id === (rule as any).form_id)?.title || 'Excluído'}
+                             <span className="bg-primary-50 py-1 px-3 border border-primary-100 rounded-md text-[12px] font-medium block text-center truncate max-w-[150px]" title={forms.find(f => f.id === rule.formId || f.id === (rule as any).form_id)?.title || 'Não vinculado'}>
+                               {forms.find(f => f.id === rule.formId || f.id === (rule as any).form_id)?.title || 'Não vinculado'}
+                             </span>
+                          </td>
+                          <td className="px-4 py-3 text-[11px] font-bold text-amber-700">
+                             <span className="bg-amber-50 py-1 px-3 border border-amber-100 rounded-md text-[12px] font-medium block text-center truncate max-w-[150px]" title={forms.find(f => f.id === (rule as any).financialFormId)?.title || 'Não vinculado'}>
+                               {forms.find(f => f.id === (rule as any).financialFormId)?.title || 'Não vinculado'}
                              </span>
                           </td>
                           <td className="px-4 py-3 text-right">
                              <div className="flex justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
                                <button onClick={(e) => {
                                  if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
-                                 setEditingRule({ id: rule.id, serviceTypeId: rule.serviceTypeId, equipmentFamily: rule.equipmentFamily, formId: rule.formId }); setIsRuleModalOpen(true);
+                                 setEditingRule({ id: rule.id, serviceTypeId: rule.serviceTypeId, equipmentFamily: rule.equipmentFamily, formId: rule.formId, financialFormId: (rule as any).financialFormId }); setIsRuleModalOpen(true);
                                }} className={`p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar Regra"><Edit2 size={16} /></button>
                                <button onClick={(e) => {
                                  if (!canDelete('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
@@ -638,16 +651,30 @@ export const FormManagement: React.FC = () => {
               <div className="flex-1 overflow-y-auto bg-slate-50/50 custom-scrollbar py-5">
                 <div className="max-w-3xl mx-auto px-4 sm:px-6 space-y-4 pb-12">
                   
-                  {/* Nome do Modelo */}
-                  <div className="bg-white border-t-4 border-t-[#1c2d4f] shadow-sm rounded-xl p-4 sm:p-5 relative">
-                    <input
-                      type="text"
-                      value={editingForm.title}
-                      onChange={e => setEditingForm({ ...editingForm, title: e.target.value })}
-                      placeholder="Título do Formulário"
-                      className="w-full bg-transparent border-b-2 border-transparent focus:border-slate-300 pb-1 text-base sm:text-lg font-semibold text-slate-900 outline-none transition-all placeholder:text-slate-300"
-                    />
-                    <p className="text-[10px] text-slate-400 mt-1.5 ml-0.5">Personalize os campos de coleta de dados abaixo.</p>
+                  <div className="bg-white border-t-4 border-t-[#1c2d4f] shadow-sm rounded-xl p-4 sm:p-5 relative space-y-4">
+                    <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                      <div className="flex-1 w-full">
+                        <input
+                          type="text"
+                          value={editingForm.title}
+                          onChange={e => setEditingForm({ ...editingForm, title: e.target.value })}
+                          placeholder="Título do Formulário"
+                          className="w-full bg-transparent border-b-2 border-transparent focus:border-slate-300 pb-1 text-base sm:text-lg font-semibold text-slate-900 outline-none transition-all placeholder:text-slate-300"
+                        />
+                        <p className="text-[10px] text-slate-400 mt-1.5 ml-0.5">Personalize os campos de coleta de dados abaixo.</p>
+                      </div>
+                      <div className="w-full sm:w-48 shrink-0">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Categoria do Formulário</label>
+                        <select
+                          value={editingForm.category || 'TECHNICAL'}
+                          onChange={e => setEditingForm({ ...editingForm, category: e.target.value as any })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f]"
+                        >
+                          <option value="TECHNICAL">Técnico Operacional</option>
+                          <option value="FINANCIAL">Financeiro / Custos</option>
+                        </select>
+                      </div>
+                    </div>
                   </div>
 
                   {/* LISTA DE PERGUNTAS */}
@@ -967,17 +994,42 @@ export const FormManagement: React.FC = () => {
 
                   {/* Checklist Vinculado */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-medium text-slate-400 ml-1 block">Checklist Vinculado</label>
+                    <label className="text-[10px] font-medium text-slate-400 ml-1 block">Checklist Técnico Vinculado</label>
                     <div className="relative">
                       <button type="button" onClick={() => setRuleDropdown(ruleDropdown === 'form' ? null : 'form')} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium text-left flex items-center justify-between transition-all hover:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] outline-none">
-                        <span className={editingRule.formId ? 'text-slate-700' : 'text-slate-400'}>{forms.find(f => f.id === editingRule.formId)?.title || 'Selecione um Checklist...'}</span>
+                        <span className={editingRule.formId ? 'text-slate-700' : 'text-slate-400'}>{forms.find(f => f.id === editingRule.formId)?.title || 'Selecione um Checklist Técnico...'}</span>
                         <ChevronDown size={14} className={`text-slate-400 transition-transform ${ruleDropdown === 'form' ? 'rotate-180' : ''}`} />
                       </button>
                       {ruleDropdown === 'form' && (
                         <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto custom-scrollbar animate-fade-in">
-                          {forms.map(f => (
+                          {forms.filter(f => f.category !== 'FINANCIAL').map(f => (
                             <button key={f.id} type="button" onClick={() => { setEditingRule({ ...editingRule, formId: f.id }); setRuleDropdown(null); }} className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors flex items-center gap-2 ${editingRule.formId === f.id ? 'bg-[#1c2d4f]/5 text-[#1c2d4f]' : 'text-slate-600 hover:bg-slate-50'}`}>
                               {editingRule.formId === f.id && <CheckCircle2 size={14} className="text-[#1c2d4f] shrink-0" />}
+                              <span>{f.title}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Checklist Financeiro Vinculado */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-medium text-slate-400 ml-1 block">Checklist Financeiro/Custos Vinculado (Opcional)</label>
+                    <div className="relative">
+                      <button type="button" onClick={() => setRuleDropdown(ruleDropdown === 'finForm' ? null : 'finForm')} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium text-left flex items-center justify-between transition-all hover:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] outline-none">
+                        <span className={(editingRule as any).financialFormId ? 'text-slate-700' : 'text-slate-400'}>{forms.find(f => f.id === (editingRule as any).financialFormId)?.title || 'Nenhum Checklist Financeiro...'}</span>
+                        <ChevronDown size={14} className={`text-slate-400 transition-transform ${ruleDropdown === 'finForm' ? 'rotate-180' : ''}`} />
+                      </button>
+                      {ruleDropdown === 'finForm' && (
+                        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto custom-scrollbar animate-fade-in">
+                          <button type="button" onClick={() => { setEditingRule({ ...editingRule, financialFormId: null } as any); setRuleDropdown(null); }} className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors flex items-center gap-2 ${!(editingRule as any).financialFormId ? 'bg-rose-50 text-rose-600' : 'text-slate-500 hover:bg-slate-50'}`}>
+                            <X size={14} className="shrink-0" />
+                            <span>Nenhum / Remover Vínculo</span>
+                          </button>
+                          {forms.filter(f => f.category === 'FINANCIAL').map(f => (
+                            <button key={f.id} type="button" onClick={() => { setEditingRule({ ...editingRule, financialFormId: f.id } as any); setRuleDropdown(null); }} className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors flex items-center gap-2 ${(editingRule as any).financialFormId === f.id ? 'bg-[#1c2d4f]/5 text-[#1c2d4f]' : 'text-slate-600 hover:bg-slate-50'}`}>
+                              {(editingRule as any).financialFormId === f.id && <CheckCircle2 size={14} className="text-[#1c2d4f] shrink-0" />}
                               <span>{f.title}</span>
                             </button>
                           ))}

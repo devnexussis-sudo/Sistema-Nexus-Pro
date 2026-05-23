@@ -249,13 +249,20 @@ const VisitCard: React.FC<{
                 return gn.includes(eName) || eName.includes(gn);
               });
 
+              let displayTitle = eq ? (eq.equipment_name || eq.equipmentName) : groupName;
+              if (groupName.toLowerCase().includes('- financeiro')) {
+                  displayTitle += ' - Financeiro';
+              } else if (groupName.toLowerCase().includes('- técnico')) {
+                  displayTitle += ' - Técnico';
+              }
+
               return (
                 <div key={groupName} className="mt-4 first:mt-0">
                   <CollapsibleFormSection
                     formData={groupData}
                     order={{ ...order, templateFields: formTemplates[eq?.form_id || visit.form_id || order.formId] || [] } as any}
                     onImageClick={onImageClick}
-                    title={eq ? (eq.equipment_name || eq.equipmentName) : groupName}
+                    title={displayTitle}
                     subtitle={eq ? `S/N: ${eq.equipment_serial || eq.equipmentSerial}` : `Registros da Visita #${idx + 1}`}
                     icon={<Package size={16} />}
                     showPrices={showPrices}

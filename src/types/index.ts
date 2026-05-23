@@ -191,6 +191,7 @@ export interface FormTemplate {
   serviceTypes?: string[];
   fields: FormField[];
   active: boolean;
+  category?: 'TECHNICAL' | 'FINANCIAL';
 }
 
 

@@ -121,6 +121,7 @@ export const FormService = {
                     ...f,
                     title: f.title || (f as any).name,
                     active: f.is_active ?? true,
+                    category: (f.schema as any)?.category || 'TECHNICAL',
                     serviceTypes: (f.schema as any)?.serviceTypes || [],
                     targetFamily: (f.schema as any)?.targetFamily || 'Todos',
                     fields: (f.schema as any)?.fields || []
@@ -190,6 +191,7 @@ export const FormService = {
                     title: template.title,
                     tenant_id: tid,
                     schema: {
+                        category: template.category || 'TECHNICAL',
                         fields: template.fields || [],
                         serviceTypes: template.serviceTypes || [],
                         targetFamily: template.targetFamily || 'Todos'
@@ -215,6 +217,7 @@ export const FormService = {
                             ...retry.data,
                             title: retry.data.title,
                             active: retry.data.is_active ?? true,
+                            category: (retry.data.schema as any)?.category || 'TECHNICAL',
                             serviceTypes: (retry.data.schema as any)?.serviceTypes || [],
                             targetFamily: (retry.data.schema as any)?.targetFamily || 'Todos',
                             fields: (retry.data.schema as any)?.fields || []
@@ -228,6 +231,7 @@ export const FormService = {
                     ...data,
                     title: data.title,
                     active: data.is_active ?? true,
+                    category: (data.schema as any)?.category || 'TECHNICAL',
                     serviceTypes: (data.schema as any)?.serviceTypes || [],
                     targetFamily: (data.schema as any)?.targetFamily || 'Todos',
                     fields: (data.schema as any)?.fields || []
@@ -304,6 +308,7 @@ export const FormService = {
                     id: r.id,
                     serviceTypeId: r.service_type_id,
                     formId: r.form_template_id,
+                    financialFormId: (r.conditions as any)?.financial_form_id || null,
                     equipmentFamily: (r.conditions as any)?.equipment_family || 'Todos'
                 }));
             } catch (e) {
@@ -323,7 +328,8 @@ export const FormService = {
                     service_type_id: rule.serviceTypeId || rule.serviceType,
                     form_template_id: rule.formId || rule.formTemplateId,
                     conditions: {
-                        equipment_family: rule.equipmentFamily || 'Todos'
+                        equipment_family: rule.equipmentFamily || 'Todos',
+                        financial_form_id: rule.financialFormId || null
                     }
                 };
 
@@ -342,6 +348,7 @@ export const FormService = {
                             id: retry.data.id,
                             serviceTypeId: retry.data.service_type_id,
                             formId: retry.data.form_template_id,
+                            financialFormId: (retry.data.conditions as any)?.financial_form_id || null,
                             equipmentFamily: (retry.data.conditions as any)?.equipment_family || 'Todos'
                         };
                     }
@@ -352,6 +359,7 @@ export const FormService = {
                     id: data.id,
                     serviceTypeId: data.service_type_id,
                     formId: data.form_template_id,
+                    financialFormId: (data.conditions as any)?.financial_form_id || null,
                     equipmentFamily: (data.conditions as any)?.equipment_family || 'Todos'
                 };
             } catch (err) {
