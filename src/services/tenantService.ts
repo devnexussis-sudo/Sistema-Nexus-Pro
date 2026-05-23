@@ -667,7 +667,7 @@ export const TenantService = {
 
     markSystemNotificationAsRead: async (userId: string, notificationId: string) => {
         if (isCloudEnabled) {
-            await supabase.from('system_notification_reads').upsert([{
+            await supabase.from('system_notification_reads').insert([{
                 user_id: userId,
                 notification_id: notificationId,
                 read_at: new Date().toISOString()
