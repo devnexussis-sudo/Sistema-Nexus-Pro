@@ -57,6 +57,7 @@ interface SystemParams {
   sla48hTargetPercentage: number;
   // Controles do Link Público
   showVisitHistoryInPublicLink: boolean;
+  enableGeofencing: boolean;
 }
 
 export const SettingsPage: React.FC = () => {
@@ -122,6 +123,7 @@ export const SettingsPage: React.FC = () => {
     slaTargetPercentage: 85,
     sla48hTargetPercentage: 90,
     showVisitHistoryInPublicLink: true,
+    enableGeofencing: false,
   });
 
   const [dbInfo, setDbInfo] = useState<{ slug: string, id: string } | null>(null);
@@ -173,6 +175,7 @@ export const SettingsPage: React.FC = () => {
         slaTargetPercentage: data.metadata?.slaTargetPercentage ?? 85,
         sla48hTargetPercentage: data.metadata?.sla48hTargetPercentage ?? 90,
         showVisitHistoryInPublicLink: data.metadata?.showVisitHistoryInPublicLink ?? true,
+        enableGeofencing: data.metadata?.enableGeofencing ?? false,
       }));
 
       // Sincronizar I18nContext com dados do banco
@@ -326,6 +329,7 @@ export const SettingsPage: React.FC = () => {
           slaTargetPercentage: params.slaTargetPercentage,
           sla48hTargetPercentage: params.sla48hTargetPercentage,
           showVisitHistoryInPublicLink: params.showVisitHistoryInPublicLink,
+          enableGeofencing: params.enableGeofencing,
         }
       };
 
@@ -781,6 +785,28 @@ export const SettingsPage: React.FC = () => {
                         </div>
                         <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
                           Quando ativado, o cliente visualiza todas as visitas realizadas na OS. Quando desativado, apenas a visita de conclusão é exibida no link público.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Toggle: Gestão de Regiões (Geofencing) */}
+                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl mt-4">
+                      <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.enableGeofencing ? 'bg-[#1c2d4f] text-white' : 'bg-gray-200 text-gray-400'}`}>
+                        <MapPin size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">Gestão de Regiões (Geofencing)</h4>
+                          <button
+                            type="button"
+                            onClick={() => setParams({ ...params, enableGeofencing: !params.enableGeofencing })}
+                            className={`w-10 h-5 rounded-full relative transition-colors ${params.enableGeofencing ? 'bg-[#1c2d4f]' : 'bg-gray-300'}`}
+                          >
+                            <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: params.enableGeofencing ? '22px' : '2px' }}></div>
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
+                          Quando ativado, limita a abertura de ordens de serviço (OS) a técnicos associados à área demarcada do cliente no mapa. Se o cliente estiver em área livre, exibe todos os técnicos.
                         </p>
                       </div>
                     </div>

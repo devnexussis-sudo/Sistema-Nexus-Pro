@@ -30,7 +30,8 @@ const SYSTEM_KEYS = new Set([
   'reason', 'block_reason', 'photo', 'photo_url', 'photoUrl', 'attachment', 'attachments',
   'block_date', 'blockDate', 'block_time', 'blockTime', 'impedimentDate', 'impedimentTime',
   'data_hora_impedimento', 'data_impedimento', 'hora_impedimento', 'blocked_date', 'blockedDate',
-  'blockPhotoUrls', 'block_photo_urls', 'impedimentResponsible', 'impediment_responsible'
+  'blockPhotoUrls', 'block_photo_urls', 'impedimentResponsible', 'impediment_responsible',
+  'internalNotes', '_internalNotes'
 ]);
 const isSignatureKey = (k: string) =>
   k.toLowerCase().includes('assinatura') || k.toLowerCase().includes('signature') ||
@@ -44,6 +45,13 @@ const fmtDT = (d?: string) => {
   try {
     return new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   } catch { return d; }
+};
+
+const safeText = (val: any) => {
+  if (val == null) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object') return JSON.stringify(val);
+  return String(val);
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; border: string; icon: any }> = {
@@ -390,7 +398,7 @@ const VisitContainer: React.FC<{
             {techReport && (
               <div className="px-5 py-4">
                 <p className="text-[10px] font-semibold text-indigo-400 uppercase tracking-widest mb-2">Relatório Técnico</p>
-                <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-indigo-50/50 p-3 rounded-md border border-indigo-100">{techReport}</p>
+                <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-indigo-50/50 p-3 rounded-md border border-indigo-100">{safeText(techReport)}</p>
               </div>
             )}
 
@@ -398,7 +406,7 @@ const VisitContainer: React.FC<{
             {partsUsed && (
               <div className="px-5 py-4">
                 <p className="text-[10px] font-semibold text-indigo-400 uppercase tracking-widest mb-2">Peças Utilizadas</p>
-                <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-indigo-50/50 p-3 rounded-md border border-indigo-100">{partsUsed}</p>
+                <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-indigo-50/50 p-3 rounded-md border border-indigo-100">{safeText(partsUsed)}</p>
               </div>
             )}
 
@@ -406,7 +414,9 @@ const VisitContainer: React.FC<{
             {notes && (
               <div className="px-5 py-4">
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-2">Observações do Técnico</p>
-                <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-slate-50 p-3 rounded-md border border-slate-100">{notes}</p>
+                <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-slate-50 p-3 rounded-md border border-slate-100">
+                  {typeof notes === 'string' ? notes : typeof notes === 'object' ? JSON.stringify(notes) : String(notes)}
+                </p>
               </div>
             )}
           </>
@@ -429,13 +439,13 @@ const VisitContainer: React.FC<{
             {impType && (
               <div className="flex items-center gap-3">
                 <span className="text-[10px] font-semibold text-rose-400 uppercase tracking-widest min-w-[100px]">Tipo de Impedimento</span>
-                <span className="text-sm font-medium text-slate-800">{impType}</span>
+                <span className="text-sm font-medium text-slate-800">{safeText(impType)}</span>
               </div>
             )}
             {impReason && (
               <div>
                 <span className="text-[10px] font-semibold text-rose-400 uppercase tracking-widest">Motivo</span>
-                <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-white p-3 rounded-md border border-rose-100 mt-1">{impReason}</p>
+                <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-white p-3 rounded-md border border-rose-100 mt-1">{safeText(impReason)}</p>
               </div>
             )}
             {!impReason && !impType && (
@@ -447,15 +457,15 @@ const VisitContainer: React.FC<{
                 <div className="bg-white p-3 rounded-md border border-rose-100 grid grid-cols-3 gap-3 mt-1">
                   <div>
                     <p className="text-[9px] font-medium text-slate-400 uppercase">{t.common.name}</p>
-                    <p className="text-sm font-medium text-slate-800">{impParts.nome}</p>
+                    <p className="text-sm font-medium text-slate-800">{safeText(impParts.nome)}</p>
                   </div>
                   <div>
                     <p className="text-[9px] font-medium text-slate-400 uppercase">Modelo</p>
-                    <p className="text-sm font-medium text-slate-800">{impParts.modelo || '—'}</p>
+                    <p className="text-sm font-medium text-slate-800">{safeText(impParts.modelo || '—')}</p>
                   </div>
                   <div>
                     <p className="text-[9px] font-medium text-slate-400 uppercase">Código</p>
-                    <p className="text-sm font-medium text-slate-800">{impParts.codigo || '—'}</p>
+                    <p className="text-sm font-medium text-slate-800">{safeText(impParts.codigo || '—')}</p>
                   </div>
                 </div>
               </div>
@@ -498,13 +508,13 @@ const VisitContainer: React.FC<{
                 {clientName && (
                   <div>
                     <p className="text-[9px] font-semibold text-indigo-400 uppercase tracking-widest">Responsável</p>
-                    <p className="text-sm font-medium text-slate-800 mt-0.5">{clientName}</p>
+                    <p className="text-sm font-medium text-slate-800 mt-0.5">{safeText(clientName)}</p>
                   </div>
                 )}
                 {clientDoc && (
                   <div>
                     <p className="text-[9px] font-semibold text-indigo-400 uppercase tracking-widest">Documento</p>
-                    <p className="text-sm font-medium text-slate-800 mt-0.5 font-mono">{clientDoc}</p>
+                    <p className="text-sm font-medium text-slate-800 mt-0.5 font-mono">{safeText(clientDoc)}</p>
                   </div>
                 )}
               </div>
@@ -682,8 +692,8 @@ const EquipmentGroup: React.FC<{
                   </div>
                 ) : isMultiArr ? (
                   <div className="flex flex-wrap gap-2 mt-1">
-                    {(val as string[]).map((opt: string, oi: number) => (
-                      <span key={oi} className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[11px] font-semibold">✓ {opt}</span>
+                    {(val as any[]).map((opt: any, oi: number) => (
+                      <span key={oi} className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[11px] font-semibold">✓ {typeof opt === 'string' ? opt : typeof opt === 'object' ? JSON.stringify(opt) : String(opt)}</span>
                     ))}
                   </div>
                 ) : (
@@ -691,7 +701,7 @@ const EquipmentGroup: React.FC<{
                     isPositive ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                     isNegative ? 'bg-rose-50 text-rose-700 border-rose-200' :
                     'bg-slate-50 text-slate-700 border-slate-200'
-                  }`}>{String(val)}</div>
+                  }`}>{typeof val === 'string' ? val : typeof val === 'object' ? JSON.stringify(val) : String(val)}</div>
                 )}
               </div>
             );

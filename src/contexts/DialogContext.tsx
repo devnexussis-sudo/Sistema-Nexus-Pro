@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, CheckCircle2, Info, X } from 'lucide-react';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -85,8 +86,8 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       {children}
 
       {/* ── Alert Modal ───────────────────────────────────────────────────── */}
-      {alertState && (
-        <div className="fixed inset-0 z-[9999] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+      {alertState && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden">
             <div className="p-6">
               <div className="flex gap-4 items-start">
@@ -111,12 +112,13 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── Confirm Modal ────────────────────────────────────────────────── */}
-      {confirmState && (
-        <div className="fixed inset-0 z-[9999] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+      {confirmState && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
             <div className="p-6">
               <div className="flex gap-4 items-start">
@@ -144,7 +146,8 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </DialogContext.Provider>
   );

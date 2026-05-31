@@ -14,6 +14,7 @@ import { UserManagement } from '../../components/admin/UserManagement';
 import { StockManagement } from '../../components/admin/StockManagement';
 import { FinancialDashboard } from '../../components/admin/FinancialDashboard';
 import { TechnicianMap } from '../../components/admin/TechnicianMap';
+import { RegionManagement } from '../../components/admin/RegionManagement';
 import { OrderCalendar } from '../../components/admin/OrderCalendar';
 import { PlannedMaintenance } from '../../components/admin/PlannedMaintenance';
 import { QuoteManagement } from '../../components/admin/QuoteManagement';
@@ -382,6 +383,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                 <Route path="/stock" element={<PermissionGuard requiredMenu="stock"><StockManagement /></PermissionGuard>} />
                 <Route path="/technicians" element={<PermissionGuard requiredMenu="technicians"><TechnicianManagement /></PermissionGuard>} />
                 <Route path="/map" element={<PermissionGuard requiredMenu="map"><TechnicianMap /></PermissionGuard>} />
+                <Route path="/regions" element={<PermissionGuard requiredMenu="regions"><RegionManagement /></PermissionGuard>} />
                 <Route path="/forms" element={<PermissionGuard requiredMenu="forms"><FormManagement /></PermissionGuard>} />
                 <Route path="/users" element={<PermissionGuard requiredMenu="users"><UserManagement /></PermissionGuard>} />
                 <Route path="/settings" element={<PermissionGuard requiredMenu="settings"><SettingsPage /></PermissionGuard>} />

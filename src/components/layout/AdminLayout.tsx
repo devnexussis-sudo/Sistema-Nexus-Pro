@@ -3,7 +3,7 @@ import {
     Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Calendar,
     Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck,
     Settings, LogOut, Bell, Package, ArrowRight, FileText,
-    AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff, X, Phone, Menu, Bot, Code2, BookOpen
+    AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff, X, Phone, Menu, Bot, Code2, BookOpen, MapPin
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { NexusBranding } from '../ui/NexusBranding';
@@ -34,10 +34,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     const location = useLocation();
     const [showInbox, setShowInbox] = useState(false);
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-    // IDs de notificações dispensadas apenas nesta sessão (sem marcar no banco)
-    const [sessionDismissed, setSessionDismissed] = useState<string[]>([]);
-    // Estado do checkbox "não mostrar mais" por notificação
-    const [dismissForever, setDismissForever] = useState<Record<string, boolean>>({});
+    // IDs de notificações já dispensadas neste ciclo de vida (evita flash durante gravação)
+    const [locallyDismissed, setLocallyDismissed] = useState<string[]>([]);
 
     // Fecha sidebar mobile ao navegar
     useEffect(() => {
@@ -87,6 +85,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         { path: '/admin/equipments', id: 'equip', label: t.nav.equipments, icon: Box, visible: menuVisible('equipments'), enabled: isModuleEnabled('equip') },
         { path: '/admin/forms', id: 'forms', label: t.nav.forms, icon: Workflow, visible: menuVisible('forms'), enabled: isModuleEnabled('forms') },
         { path: '/admin/technicians', id: 'techs', label: t.nav.technicians, icon: Wrench, visible: menuVisible('technicians'), enabled: isModuleEnabled('techs') },
+        { path: '/admin/regions', id: 'regions', label: 'Gestão de Regiões', icon: MapPin, visible: menuVisible('regions'), enabled: isModuleEnabled('regions') },
         { path: '/admin/users', id: 'users', label: t.nav.users, icon: ShieldAlert, visible: menuVisible('users'), enabled: isModuleEnabled('users') },
         { path: '/admin/settings', id: 'settings', label: t.nav.settings, icon: Settings, visible: menuVisible('settings'), enabled: isModuleEnabled('settings') },
         { path: '/admin/integrations', id: 'integrations', label: 'Integrações', icon: Code2, visible: menuVisible('settings'), enabled: isModuleEnabled('settings') },
@@ -238,28 +237,20 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
                                 {/* Lista de notificações */}
                                 <div className="overflow-y-auto flex-1 divide-y divide-slate-50 custom-scrollbar">
-                                    {systemNotifications.length === 0 ? (
+                                    {systemNotifications.filter(n => !n.isRead).length === 0 ? (
                                         <div className="p-8 text-center text-slate-400 text-xs flex flex-col items-center gap-2">
                                             <Bell size={24} className="text-slate-200" />
                                             {t.layout.noMessages}
                                         </div>
                                     ) : (
-                                        systemNotifications.map(notif => (
+                                        systemNotifications.filter(n => !n.isRead).map(notif => (
                                             <div
                                                 key={notif.id}
-                                                className={`px-4 py-3 flex gap-3 transition-colors ${
-                                                    notif.isRead
-                                                        ? 'bg-white hover:bg-slate-50/50'
-                                                        : 'bg-blue-50/30 hover:bg-blue-50/60'
-                                                }`}
+                                                className="px-4 py-3 flex gap-3 transition-colors bg-blue-50/30 hover:bg-blue-50/60"
                                             >
                                                 {/* Dot de status não lida */}
                                                 <div className="flex flex-col items-center pt-1 shrink-0">
-                                                    {notif.isRead ? (
-                                                        <div className="w-2 h-2 rounded-full bg-slate-200" title="Lida" />
-                                                    ) : (
-                                                        <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" title="Não lida" />
-                                                    )}
+                                                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" title="Não lida" />
                                                 </div>
 
                                                 {/* Conteúdo */}
@@ -269,35 +260,27 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                                                             {notif.priority === 'urgent' && <AlertTriangle size={11} className="text-rose-500 shrink-0" />}
                                                             {notif.priority === 'warning' && <ShieldAlert size={11} className="text-amber-500 shrink-0" />}
                                                             {notif.priority === 'info' && <Bell size={11} className="text-blue-500 shrink-0" />}
-                                                            <h4 className={`text-[11px] font-bold uppercase leading-tight line-clamp-1 ${notif.isRead ? 'text-slate-500' : 'text-slate-800'}`}>
+                                                            <h4 className={`text-[11px] font-bold uppercase line-clamp-1 ${notif.isRead ? 'text-slate-500' : 'text-slate-800'}`}>
                                                                 {notif.title}
                                                             </h4>
                                                         </div>
-                                                        {/* Badge "Lida" */}
-                                                        {notif.isRead ? (
-                                                            <span className="shrink-0 text-[9px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
-                                                                ✓ Lida
-                                                            </span>
-                                                        ) : (
-                                                            <span className="shrink-0 text-[9px] font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full">
-                                                                Nova
-                                                            </span>
-                                                        )}
+                                                        {/* Badge "Nova" */}
+                                                        <span className="shrink-0 text-[9px] font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full">
+                                                            Nova
+                                                        </span>
                                                     </div>
 
-                                                    <p className={`text-[10px] line-clamp-2 leading-relaxed ${notif.isRead ? 'text-slate-400' : 'text-slate-600'}`}>
+                                                    <p className="text-[10px] line-clamp-2 leading-relaxed text-slate-600">
                                                         {notif.content}
                                                     </p>
 
                                                     {/* Ação "Marcar como lida" inline */}
-                                                    {!notif.isRead && (
-                                                        <button
-                                                            onClick={() => onMarkNotificationRead && onMarkNotificationRead(notif.id)}
-                                                            className="mt-1.5 text-[9px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-wide transition-colors"
-                                                        >
-                                                            {t.layout.markAsRead} →
-                                                        </button>
-                                                    )}
+                                                    <button
+                                                        onClick={() => onMarkNotificationRead && onMarkNotificationRead(notif.id)}
+                                                        className="mt-1.5 text-[9px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-wide transition-colors"
+                                                    >
+                                                        {t.layout.markAsRead} →
+                                                    </button>
                                                 </div>
                                             </div>
                                         ))
@@ -311,7 +294,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
             {/* UNREAD NOTIFICATION POPUP (MODAL) */}
             {systemNotifications
-                .filter(n => !n.isRead && !sessionDismissed.includes(n.id))
+                .filter(n => !n.isRead && !locallyDismissed.includes(n.id))
                 .slice(0, 1)
                 .map(activeNotif => (
                 <div key={activeNotif.id} className="fixed inset-0 z-[999] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in print:hidden">
@@ -346,42 +329,21 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                             <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{activeNotif.content}</p>
                         </div>
 
-                        {/* Rodapé: checkbox + botão */}
+                        {/* Rodapé: botão de confirmação */}
                         <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col gap-3">
-                            {/* Checkbox "não mostrar mais" */}
-                            <label className="flex items-center gap-2.5 cursor-pointer group select-none">
-                                <div className="relative flex items-center justify-center">
-                                    <input
-                                        type="checkbox"
-                                        checked={!!dismissForever[activeNotif.id]}
-                                        onChange={(e) =>
-                                            setDismissForever(prev => ({
-                                                ...prev,
-                                                [activeNotif.id]: e.target.checked
-                                            }))
-                                        }
-                                        className="w-4 h-4 rounded border-slate-300 text-[#1c2d4f] accent-[#1c2d4f] cursor-pointer"
-                                    />
-                                </div>
-                                <span className="text-[11px] text-slate-500 group-hover:text-slate-700 transition-colors leading-tight">
-                                    Estou ciente — não mostrar esta mensagem novamente
-                                </span>
-                            </label>
-
-                            {/* Botão de confirmação */}
+                            <p className="text-[10px] text-slate-400 font-medium text-center">
+                                ✓ Ao confirmar, esta mensagem não será exibida novamente.
+                            </p>
                             <button
                                 onClick={() => {
-                                    if (dismissForever[activeNotif.id]) {
-                                        // Marca como lido no banco (não aparece mais nunca)
-                                        if (onMarkNotificationRead) onMarkNotificationRead(activeNotif.id);
-                                    } else {
-                                        // Dispensa apenas nesta sessão (volta ao recarregar)
-                                        setSessionDismissed(prev => [...prev, activeNotif.id]);
-                                    }
+                                    // Marca como lido localmente imediatamente (UX sem flickering)
+                                    setLocallyDismissed(prev => [...prev, activeNotif.id]);
+                                    // Sempre persiste no banco — gravação permanente
+                                    if (onMarkNotificationRead) onMarkNotificationRead(activeNotif.id);
                                 }}
                                 className="w-full bg-[#1c2d4f] hover:bg-[#253a66] text-white px-6 py-2.5 rounded-xl text-xs font-bold uppercase transition-all shadow-lg shadow-[#1c2d4f]/20"
                             >
-                                {dismissForever[activeNotif.id] ? 'Confirmar e Não Mostrar Mais' : 'Entendido, Fechar'}
+                                Entendido — Não mostrar mais
                             </button>
                         </div>
                     </div>

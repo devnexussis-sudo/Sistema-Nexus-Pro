@@ -125,14 +125,14 @@ export const OrderTimeline: React.FC<OrderTimelineProps> = ({ orderId }) => {
                             {event.eventType === 'VISIT_PAUSED' && event.details.pause_reason && (
                                 <div className="mt-2 text-[11px] text-amber-700 bg-amber-50 p-2 rounded-lg font-medium flex gap-2">
                                     <AlertCircle size={14} className="shrink-0" />
-                                    <span>Motivo: {event.details.pause_reason}</span>
+                                    <span>Motivo: {typeof event.details.pause_reason === 'string' ? event.details.pause_reason : typeof event.details.pause_reason === 'object' ? JSON.stringify(event.details.pause_reason) : String(event.details.pause_reason)}</span>
                                 </div>
                             )}
 
                             {event.eventType === 'STATUS_CHANGED' && (
                                 <div className="mt-2 text-[11px] text-slate-500 flex items-center gap-2">
-                                    De: <span className="font-semibold text-slate-400 line-through">{event.details.old_status}</span>
-                                    Para: <span className={`font-semibold px-2 py-0.5 rounded border ${getStatusStyle(event.details.new_status).badge}`}>{event.details.new_status}</span>
+                                    De: <span className="font-semibold text-slate-400 line-through">{typeof event.details.old_status === 'string' ? event.details.old_status : String(event.details.old_status)}</span>
+                                    Para: <span className={`font-semibold px-2 py-0.5 rounded border ${getStatusStyle(event.details.new_status).badge}`}>{typeof event.details.new_status === 'string' ? event.details.new_status : String(event.details.new_status)}</span>
                                 </div>
                             )}
 
@@ -173,7 +173,7 @@ export const OrderTimeline: React.FC<OrderTimelineProps> = ({ orderId }) => {
                                     {event.details.assigned_tech && (
                                         <div className="flex items-center gap-2">
                                             <UserCheck size={14} className="text-indigo-400 shrink-0" />
-                                            <span>Técnico: <strong className="text-[#1c2d4f]">{event.details.assigned_tech}</strong></span>
+                                            <span>Técnico: <strong className="text-[#1c2d4f]">{typeof event.details.assigned_tech === 'string' ? event.details.assigned_tech : String(event.details.assigned_tech)}</strong></span>
                                         </div>
                                     )}
                                 </div>
@@ -184,7 +184,7 @@ export const OrderTimeline: React.FC<OrderTimelineProps> = ({ orderId }) => {
                             {event.details.notes && (
                                 <div className="mt-2 text-[11px] text-slate-600 bg-slate-50 p-2 rounded-lg font-medium flex gap-2">
                                     <MessageSquare size={14} className="text-slate-400 shrink-0" />
-                                    <span>{event.details.notes}</span>
+                                    <span>{typeof event.details.notes === 'string' ? event.details.notes : typeof event.details.notes === 'object' ? JSON.stringify(event.details.notes) : String(event.details.notes)}</span>
                                 </div>
                             )}
                         </div>

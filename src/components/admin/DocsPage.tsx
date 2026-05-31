@@ -3,7 +3,8 @@ import {
     BookOpen, Search, HelpCircle, Layers, ArrowRight,
     Bot, Calendar, Settings, ShieldAlert, Users, Box, Package,
     FileText, ClipboardList, DollarSign, Workflow, Wrench,
-    Map, ChevronDown, ChevronUp, ExternalLink, Code2, Info, ShieldCheck, PlayCircle
+    Map, ChevronDown, ChevronUp, ExternalLink, Code2, Info, ShieldCheck, PlayCircle,
+    LayoutDashboard, MapPin
 } from 'lucide-react';
 
 interface ModuleDoc {
@@ -42,12 +43,13 @@ export const DocsPage: React.FC = () => {
             menuPath: "Menu Lateral > Configurações > Aba 'Organização'",
             filePath: "src/components/admin/SystemSettings.tsx",
             dbTable: "public.tenants",
-            description: "A fundação de personalização da plataforma. Define os metadados utilizados em faturamentos, relatórios PDF e controle de regras do aplicativo móvel.",
+            description: "A fundação de personalização da plataforma. Define os metadados utilizados em faturamentos, relatórios PDF, regras de SLA e controle de recursos avançados como o Geofencing.",
             steps: [
-                "Insira a Razão Social, CNPJ e telefone de contato oficial da sua empresa.",
-                "Efetue o upload do logotipo em alta resolução. Este arquivo é armazenado no Supabase Storage e injetado em todos os PDFs gerados.",
-                "Aba APP do Técnico: Defina as permissões de exibição de valores e múltiplos atendimentos no celular do técnico.",
-                "Aba SLA: Defina os tempos de atendimento normais e críticos (24h/48h) que controlam os badges do Dashboard."
+                "Insira a Razão Social, CNPJ, Inscrição Estadual e dados fiscais e telefone de contato oficial da sua empresa.",
+                "Efetue o upload do logotipo oficial da empresa em alta resolução. O arquivo é armazenado no Supabase Storage e injetado automaticamente nos relatórios de visitas e orçamentos em PDF.",
+                "Aba APP do Técnico: Gerencie permissões de exibição de valores monetários, preenchimento de checklists obrigatórios e se o técnico pode ter múltiplos atendimentos simultâneos no aplicativo móvel.",
+                "Aba Regras de Geofencing: Habilite a chave de geofencing global ('enableGeofencing' nos metadados do tenant) para impor regras de restrição geográfica no agendamento de OS e Visitas.",
+                "Aba SLA e Metas: Defina os prazos limites de atendimento normal e crítico (24h/48h) para alimentar o cálculo dinâmico de eficiência SLA exposto no Dashboard."
             ],
             technicalDetails: "Apenas usuários com o nível Master Admin (Tenant Owner) possuem privilégios de gravação nesta tabela, garantindo o isolamento da conta."
         },
@@ -60,12 +62,13 @@ export const DocsPage: React.FC = () => {
             menuPath: "Menu Lateral > Usuários",
             filePath: "src/components/admin/UserManagement.tsx",
             dbTable: "public.profiles & public.user_groups",
-            description: "Gerencia quem tem acesso ao painel e restringe ações de Criar, Editar, Visualizar ou Excluir por meio de políticas granulares de permissão.",
+            description: "Gerencia quem tem acesso ao painel e restringe ações de Criar, Editar, Visualizar ou Excluir por meio de políticas granulares de permissão vinculadas a grupos.",
             steps: [
-                "Crie os perfis (Grupos de Permissões) como Almoxarifado, Operações, Comercial e Financeiro.",
-                "Ative ou desative as chaves de CRUD para cada módulo e tela do sistema.",
-                "Cadastre o usuário vinculando-o ao grupo e disparando o e-mail automático de criação de senha (LGPD).",
-                "Monitore logins ativos e bloqueie imediatamente usuários desligados da empresa."
+                "Acesse a gestão de Grupos e crie perfis de acesso sob medida (ex: Almoxarife, Supervisor de Campo, Faturamento, Operador de Call Center).",
+                "Defina permissões granulares por módulo de sistema, habilitando/desabilitando ações de Leitura (View), Escrita (Create/Edit) e Exclusão (Delete).",
+                "Configure se o grupo de permissões tem acesso à aba sensível de 'Gestão de Regiões' e alteração de regras do Geofencing.",
+                "Cadastre novos usuários inserindo nome, e-mail e vinculando-os a um Grupo de Permissões. O convite é enviado por e-mail para que o usuário crie sua senha via fluxo seguro LGPD.",
+                "Monitore logs de último login e utilize o botão de suspensão instantânea para bloquear acessos de funcionários desligados."
             ],
             technicalDetails: "Toda consulta executa a função 'get_user_tenant_id()' na camada de banco de dados, aplicando o Row Level Security (RLS) de forma inviolável."
         },
@@ -78,14 +81,14 @@ export const DocsPage: React.FC = () => {
             menuPath: "Menu Lateral > Cliente",
             filePath: "src/components/admin/CustomerManagement.tsx",
             dbTable: "public.customers",
-            description: "Centraliza o cadastro dos tomadores de serviços, geolocalizando-os no mapa e mantendo o histórico de faturamento e OS.",
+            description: "Centraliza o cadastro dos tomadores de serviços, geolocalizando-os no mapa e mantendo o histórico de faturamento, orçamentos, ativos e chamados históricos.",
             steps: [
-                "Clique em '+ Novo Cliente' e digite o CNPJ ou CPF para validação automática de dígitos verificadores.",
-                "Informe o CEP. O sistema preencherá logradouro, bairro, cidade e estado consumindo APIs externas.",
-                "Com o endereço salvo, o geocoding do Duno cria as coordenadas de latitude/longitude usadas na Visão de Campo.",
-                "Acesse a aba lateral deslizante de detalhes para ver o histórico completo de manutenções e faturamento do cliente."
+                "Clique em '+ Novo Cliente' e digite os dados básicos. Insira CNPJ/CPF com validação nativa de integridade tributária.",
+                "Informe o CEP. O sistema preencherá automaticamente logradouro, bairro, cidade e estado a partir do banco nacional.",
+                "CRÍTICO: Preencha sempre o número da residência/estabelecimento no campo específico. As coordenadas geográficas exatas (latitude e longitude) do cliente são geradas pelo motor de geocoding com base no endereço completo contendo o número. Caso o número não seja incluído, a precisão geográfica cai drasticamente, podendo fazer o cliente cair fora do polígono de Geofencing configurado.",
+                "Abra a gaveta (drawer) de detalhes do cliente para visualizar o histórico consolidado de faturamento, orçamentos aprovados, ativos cadastrados e todas as OSs vinculadas."
             ],
-            technicalDetails: "Integração nativa com rotas de CEP brasileiras e persistência de coordenadas em pontos geográficos PostGIS."
+            technicalDetails: "Integração nativa com rotas de CEP brasileiras e persistência de coordenadas em pontos geográficos PostGIS. Validações especiais impedem coordenadas nulas em endereços válidos com número."
         },
         {
             id: 'techs',
@@ -96,12 +99,32 @@ export const DocsPage: React.FC = () => {
             menuPath: "Menu Lateral > Técnicos",
             filePath: "src/components/admin/TechnicianManagement.tsx",
             dbTable: "public.technicians",
-            description: "Gerencia os agentes que operam externamente. Técnicos não acessam este painel web, apenas o App Duno nativo.",
+            description: "Gerencia os agentes que operam externamente. Técnicos não acessam este painel web, apenas o App Duno móvel para a execução de chamados em campo.",
             steps: [
-                "Cadastre nome, telefone celular (com link direto de WhatsApp integrado) e a especialidade principal.",
-                "Selecione uma cor exclusiva para o técnico. Essa cor pintará os pins dele no mapa em tempo real e seus cards no calendário.",
-                "Caso o técnico precise ser desligado temporariamente, altere o status de disponibilidade para evitar o despacho de novas OS."
+                "Cadastre nome, e-mail de acesso ao aplicativo móvel, especialidade técnica principal e telefone celular (com DDD).",
+                "Associe uma cor personalizada para o técnico. Esta cor será utilizada para pintar a rota e o pino GPS dele no mapa em tempo real, além de colorir seus blocos no Calendário de Agendamentos.",
+                "Configure se o técnico está ativo ou indisponível (férias, licença). Técnicos indisponíveis são bloqueados no App móvel e ocultados das listas de agendamento de OS, sem quebrar o histórico de serviços passados.",
+                "O contato do técnico possui integração direta de WhatsApp no painel administrativo, permitindo que a central de despacho inicie conversas com um clique."
             ]
+        },
+        {
+            id: 'regions',
+            title: "Regiões de Atendimento e Geofencing",
+            category: 'security',
+            stepRelation: 3,
+            icon: MapPin,
+            menuPath: "Menu Lateral > Gestão de Regiões",
+            filePath: "src/components/admin/RegionManagement.tsx",
+            dbTable: "public.service_regions",
+            description: "Delimita no mapa geográfico as áreas de atuação (polígonos) de técnicos específicos. Impede que operadores escalem técnicos que não cobrem a região onde o cliente reside.",
+            steps: [
+                "Habilite a regra de Geofencing em 'Configurações > Organização' para ativar a validação territorial.",
+                "Acesse 'Gestão de Regiões', clique em '+ Nova Região', defina nome, cor e selecione quais técnicos estão autorizados a atuar ali.",
+                "Utilize o cursor para clicar nos pontos do mapa e desenhar um polígono correspondente ao limite geográfico da área de atuação. Clique em salvar.",
+                "Ao abrir uma OS ou agendar/editar uma Visita Técnica, o sistema valida por meio do Turf.js se o endereço do cliente está contido no polígono.",
+                "Se o cliente estiver em uma região demarcada, apenas os técnicos autorizados para ela estarão ativos para agendamento. Técnicos não permitidos aparecem com opacidade reduzida e um ícone de bloqueio, impedindo o salvamento e emitindo um aviso em caso de seleção incorreta."
+            ],
+            technicalDetails: "Executa cálculos espaciais de Point-in-Polygon utilizando a biblioteca Turf.js no client-side para verificar se as coordenadas geográficas do cliente intersectam os polígonos GeoJSON gravados no PostgreSQL."
         },
         {
             id: 'equip',
@@ -112,12 +135,13 @@ export const DocsPage: React.FC = () => {
             menuPath: "Menu Lateral > Ativos",
             filePath: "src/components/admin/EquipmentManagement.tsx",
             dbTable: "public.equipments",
-            description: "Inventário de máquinas de clientes. Controla o ciclo de manutenção individual e o período de garantia ativa.",
+            description: "Inventário de máquinas e equipamentos instalados nos clientes. Controla o ciclo de manutenção individual, histórico de trocas de peças e período de garantia ativa.",
             steps: [
-                "Associe a máquina a um cliente anteriormente cadastrado.",
-                "Insira dados como Número de Série, Marca, Modelo e número de patrimônio corporativo.",
-                "Preencha a data de fabricação e os meses de cobertura de garantia.",
-                "O sistema calcula e exibe um selo verde ('Em Garantia') ou vermelho ('Fora de Garantia') na tela da OS."
+                "Associe a máquina a um cliente anteriormente cadastrado no sistema.",
+                "Insira dados como Número de Série, Marca, Modelo, Tag/Identificação e número de patrimônio corporativo.",
+                "Preencha a data de fabricação/instalação e os meses de cobertura de garantia contratual.",
+                "O sistema calcula e exibe um selo verde ('Em Garantia') ou vermelho ('Fora de Garantia') na tela da OS.",
+                "Permite o upload de manual técnico e fotos do ativo para consulta do técnico no local pelo App."
             ],
             technicalDetails: "Permite o cálculo retroativo de garantia por meio de scripts Javascript e avisa o técnico no app celular antes do início do diagnóstico."
         },
@@ -130,12 +154,12 @@ export const DocsPage: React.FC = () => {
             menuPath: "Menu Lateral > Estoque",
             filePath: "src/components/admin/StockManagement.tsx",
             dbTable: "public.stock_items & public.stock_logs",
-            description: "Almoxarifado digital de peças e consumíveis. Habilita a leitura e baixa física via QR Code.",
+            description: "Almoxarifado digital de peças, ferramentas e consumíveis. Habilita a leitura e baixa física via QR Code no local do serviço.",
             steps: [
-                "Cadastre as peças, insumos ou ferramentas informando SKU/Código, categoria e o saldo em estoque.",
+                "Cadastre as peças, insumos ou ferramentas informando SKU/Código, categoria, custo médio e o saldo atual em estoque.",
                 "Selecione os itens desejados na tabela de estoque e clique no botão de impressão de etiquetas.",
                 "Imprima os QR Codes no layout de folha A4 (laser) ou fitas de impressora térmica portátil.",
-                "Coloque o adesivo no produto. O técnico fará a leitura no App usando a câmera do celular para baixa automática."
+                "Coloque o adesivo no produto. O técnico fará a leitura no App usando a câmera do celular para baixa automática do inventário ao utilizar o item em uma OS."
             ],
             technicalDetails: "Regras CSS de impressão scoped `@media print` ocultam cabeçalhos administrativos e organizam a quebra de página de forma limpa."
         },
@@ -148,11 +172,12 @@ export const DocsPage: React.FC = () => {
             menuPath: "Menu Lateral > Formulários",
             filePath: "src/components/admin/FormManagement.tsx",
             dbTable: "public.forms & public.form_questions",
-            description: "Substitui relatórios físicos por checklists digitais flexíveis e com validações condicionais no aplicativo móvel.",
+            description: "Substitui relatórios físicos por checklists digitais flexíveis e com validações condicionais no aplicativo móvel do técnico.",
             steps: [
                 "Crie o formulário e monte as perguntas (respostas em texto, fotos obrigatórias, números ou assinatura digital).",
-                "Defina as Regras de Ativação do checklist (ex: apenas quando a OS for 'Instalação' e a categoria do Ativo for 'Split').",
-                "Quando o técnico inicia a OS correspondente em campo, o formulário é carregado automaticamente."
+                "Defina as Regras de Ativação do checklist (ex: apenas quando a OS for 'Instalação' e a categoria do Ativo for 'Ar Condicionado').",
+                "Quando o técnico inicia a OS correspondente em campo, o formulário é carregado automaticamente na aba de execução.",
+                "O preenchimento completo é obrigatório caso haja perguntas marcadas com tal restrição, bloqueando a finalização da OS no App."
             ],
             technicalDetails: "As respostas são persistidas no banco em estrutura de dados JSONB para flexibilidade de relatórios futuros."
         },
@@ -169,7 +194,7 @@ export const DocsPage: React.FC = () => {
             steps: [
                 "Selecione o Cliente, vincule o valor de faturamento recorrente mensal e as máquinas cobertas pelo plano.",
                 "Escolha a periodicidade das visitas preventivas (mensal, bimestral, trimestral, etc.).",
-                "Defina a data de vigência final. O motor do Duno gerará as Ordens de Serviço preventivas na data correta automaticamente."
+                "Defina a data de vigência final. O motor do Duno gerará as Ordens de Serviço preventivas na data correta automaticamente de forma programada."
             ]
         },
         {
@@ -255,6 +280,54 @@ export const DocsPage: React.FC = () => {
                 "Valide requisições em seu servidor utilizando a assinatura HMAC presente no cabeçalho HTTP."
             ],
             technicalDetails: "As chaves de API sofrem hash criptográfico SHA-256 no momento da gravação, impedindo vazamento de tokens."
+        },
+        {
+            id: 'dashboard',
+            title: "Dashboard de Indicadores Operacionais",
+            category: 'workflow',
+            stepRelation: 6,
+            icon: LayoutDashboard,
+            menuPath: "Menu Lateral > Dashboard",
+            filePath: "src/components/admin/Dashboard.tsx",
+            dbTable: "public.orders & public.customers",
+            description: "Painel executivo com visão geral de SLA, Ordens de Serviço abertas, status de atendimento em tempo real e eficiência da equipe.",
+            steps: [
+                "Visualize o painel para ver as OS em andamento, em atraso ou finalizadas hoje.",
+                "Acompanhe a taxa de SLA em relação à meta parametrizada nas Configurações.",
+                "Monitore os indicadores de produtividade diária e mensal da sua operação."
+            ]
+        },
+        {
+            id: 'calendar',
+            title: "Calendário e Agenda de Visitas",
+            category: 'workflow',
+            stepRelation: 6,
+            icon: Calendar,
+            menuPath: "Menu Lateral > Calendário",
+            filePath: "src/components/admin/OrderCalendar.tsx",
+            dbTable: "public.orders & public.service_visits",
+            description: "Agenda interativa estilo drag-and-drop para planejar visitas, acompanhar cronogramas e distribuir serviços visualmente.",
+            steps: [
+                "Visualize os chamados agendados por dia, semana ou mês.",
+                "Clique em qualquer card de visita para abrir o painel lateral com detalhes da OS.",
+                "Filtre por técnico para entender a ocupação individual de cada profissional."
+            ]
+        },
+        {
+            id: 'ai',
+            title: "Duno IA (Copilot Inteligente)",
+            category: 'engineering',
+            stepRelation: 6,
+            icon: Bot,
+            menuPath: "Menu Lateral > Duno IA",
+            filePath: "src/components/admin/DunoBrain.tsx",
+            dbTable: "Sem tabela (Processamento LLM)",
+            description: "Assistente virtual integrado que analisa o código-fonte, dados operacionais e auxilia administradores a esclarecerem dúvidas de uso.",
+            steps: [
+                "Abra o painel da Duno IA no menu lateral.",
+                "Digite sua dúvida sobre procedimentos operacionais ou técnicos (ex: 'como criar etiquetas de estoque?').",
+                "A IA analisará a documentação interna e as tabelas para retornar uma resposta explicativa passo a passo."
+            ]
         }
     ];
 
@@ -274,6 +347,18 @@ export const DocsPage: React.FC = () => {
         {
             q: "Qual a diferença entre excluir um técnico e inativar seu cadastro?",
             a: "Ao excluir um técnico, você pode causar problemas de integridade referencial nas Ordens de Serviço históricas que ele executou. O método recomendado para profissionais afastados é a inativação: basta marcar o status como indisponível no painel. O técnico perde acesso ao App móvel e deixa de aparecer para agendamentos, mas todas as OS antigas continuam com o nome dele preservado."
+        },
+        {
+            q: "Como funciona a validação territorial de Geofencing?",
+            a: "Quando o Geofencing está ativo, o sistema valida se a latitude/longitude do cliente (calculada a partir do seu endereço e obrigatoriamente exigindo o número da residência) está contida dentro de algum polígono de região ativa cadastrada. Se o cliente estiver dentro de uma região, o operador só poderá agendar técnicos designados para aquela área específica. O sistema bloqueia visualmente outros técnicos e impede o salvamento de visitas/OS com técnicos não autorizados."
+        },
+        {
+            q: "O que acontece se o cliente não estiver dentro de nenhuma região de atendimento?",
+            a: "Caso as coordenadas do cliente não correspondam a nenhum polígono de região ativa demarcada no mapa, as regras de Geofencing não serão aplicadas. Todos os técnicos cadastrados e disponíveis na plataforma ficarão liberados para agendamento normalmente."
+        },
+        {
+            q: "De onde a Duno IA retira as informações para responder às perguntas?",
+            a: "A Duno IA lê a estrutura do código-fonte do projeto, metadados do banco de dados, dicionários de tradução e os manuais de ajuda do sistema em tempo real. Isso garante respostas ultra-precisas e atualizadas de acordo com a versão atualizada da plataforma de cada cliente."
         }
     ];
 
@@ -470,7 +555,7 @@ export const DocsPage: React.FC = () => {
                             <div className="text-slate-300 font-bold text-sm">↓</div>
 
                             {/* Fase 2 */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div className="p-3 bg-emerald-50/50 border border-emerald-150 rounded-xl shadow-xs">
                                     <div className="text-[10px] font-bold text-emerald-600 uppercase">3. Clientes</div>
                                     <div className="font-semibold text-slate-900 mt-1">Clientes e Endereços</div>
@@ -479,6 +564,10 @@ export const DocsPage: React.FC = () => {
                                     <div className="text-[10px] font-bold text-emerald-600 uppercase">4. Operacional</div>
                                     <div className="font-semibold text-slate-900 mt-1">Técnicos de Campo</div>
                                 </div>
+                                <div className="p-3 bg-emerald-50/50 border border-emerald-150 rounded-xl shadow-xs">
+                                    <div className="text-[10px] font-bold text-emerald-600 uppercase">5. Território</div>
+                                    <div className="font-semibold text-slate-900 mt-1">Regiões e Geofencing</div>
+                                </div>
                             </div>
 
                             <div className="text-slate-300 font-bold text-sm">↓</div>
@@ -486,15 +575,15 @@ export const DocsPage: React.FC = () => {
                             {/* Fase 3 */}
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div className="p-3 bg-amber-50/50 border border-amber-150 rounded-xl shadow-xs">
-                                    <div className="text-[10px] font-bold text-amber-600 uppercase">5. Inventário</div>
+                                    <div className="text-[10px] font-bold text-amber-600 uppercase">6. Inventário</div>
                                     <div className="font-semibold text-slate-900 mt-1">Ativos e Equipamentos</div>
                                 </div>
                                 <div className="p-3 bg-amber-50/50 border border-amber-150 rounded-xl shadow-xs">
-                                    <div className="text-[10px] font-bold text-amber-600 uppercase">6. Almoxarifado</div>
+                                    <div className="text-[10px] font-bold text-amber-600 uppercase">7. Almoxarifado</div>
                                     <div className="font-semibold text-slate-900 mt-1">Estoque e QR Code</div>
                                 </div>
                                 <div className="p-3 bg-amber-50/50 border border-amber-150 rounded-xl shadow-xs">
-                                    <div className="text-[10px] font-bold text-amber-600 uppercase">7. Segurança</div>
+                                    <div className="text-[10px] font-bold text-amber-600 uppercase">8. Segurança</div>
                                     <div className="font-semibold text-slate-900 mt-1">Checklists e Formulários</div>
                                 </div>
                             </div>
@@ -502,40 +591,53 @@ export const DocsPage: React.FC = () => {
                             <div className="text-slate-300 font-bold text-sm">↓</div>
 
                             {/* Fase 4 */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div className="p-3 bg-blue-50/50 border border-blue-150 rounded-xl shadow-xs">
-                                    <div className="text-[10px] font-bold text-blue-600 uppercase">8. Prevenção</div>
+                                    <div className="text-[10px] font-bold text-blue-600 uppercase">9. Prevenção</div>
                                     <div className="font-semibold text-slate-900 mt-1">Contratos e PMOC</div>
                                 </div>
                                 <div className="p-3 bg-blue-50/50 border border-blue-150 rounded-xl shadow-xs">
-                                    <div className="text-[10px] font-bold text-blue-600 uppercase">9. Comercial</div>
+                                    <div className="text-[10px] font-bold text-blue-600 uppercase">10. Comercial</div>
                                     <div className="font-semibold text-slate-900 mt-1">Orçamentos e Propostas</div>
+                                </div>
+                                <div className="p-3 bg-blue-50/50 border border-blue-150 rounded-xl shadow-xs">
+                                    <div className="text-[10px] font-bold text-blue-600 uppercase">11. Escala</div>
+                                    <div className="font-semibold text-slate-900 mt-1">Calendário e Agenda</div>
                                 </div>
                             </div>
 
                             <div className="text-slate-300 font-bold text-sm">↓</div>
 
                             {/* Fase 5 */}
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                                 <div className="p-3 bg-rose-50/50 border border-rose-150 rounded-xl shadow-xs">
-                                    <div className="text-[10px] font-bold text-rose-600 uppercase">10. Atividades</div>
+                                    <div className="text-[10px] font-bold text-rose-600 uppercase">12. Atividades</div>
                                     <div className="font-semibold text-slate-900 mt-1">Ordens de Serviço (OS)</div>
                                 </div>
                                 <div className="p-3 bg-slate-900 border border-slate-950 rounded-xl shadow-xs text-white">
-                                    <div className="text-[10px] font-bold text-blue-400 uppercase">11. Mobilidade</div>
+                                    <div className="text-[10px] font-bold text-blue-400 uppercase">13. Mobilidade</div>
                                     <div className="font-semibold mt-1">App do Técnico</div>
                                 </div>
                                 <div className="p-3 bg-emerald-50/50 border border-emerald-150 rounded-xl shadow-xs">
-                                    <div className="text-[10px] font-bold text-emerald-600 uppercase">12. Faturamento</div>
+                                    <div className="text-[10px] font-bold text-emerald-600 uppercase">14. Faturamento</div>
                                     <div className="font-semibold text-slate-900 mt-1">Financeiro & Receitas</div>
+                                </div>
+                                <div className="p-3 bg-rose-50/50 border border-rose-150 rounded-xl shadow-xs">
+                                    <div className="text-[10px] font-bold text-rose-600 uppercase">15. Performance</div>
+                                    <div className="font-semibold text-slate-900 mt-1">Dashboard de Indicadores</div>
                                 </div>
                             </div>
 
                             <div className="text-slate-300 font-bold text-sm">↓</div>
 
                             {/* Fase 6 */}
-                            <div className="w-full p-2 bg-slate-100 border border-slate-200 rounded-xl font-semibold text-slate-600 max-w-md mx-auto">
-                                🔌 13. Integrações & Webhooks de Saída (ERPs externos)
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl mx-auto w-full">
+                                <div className="p-3 bg-slate-100 border border-slate-200 rounded-xl font-semibold text-slate-600">
+                                    🔌 16. Integrações & Webhooks (ERPs)
+                                </div>
+                                <div className="p-3 bg-indigo-50 border border-indigo-150 rounded-xl font-semibold text-indigo-700">
+                                    🤖 17. Duno IA Copilot
+                                </div>
                             </div>
 
                         </div>
@@ -821,7 +923,7 @@ export const DocsPage: React.FC = () => {
                         <div className="flex flex-col gap-3">
                             <div className="flex justify-between items-center text-xs">
                                 <span className="text-slate-500">Total de Módulos</span>
-                                <span className="font-semibold text-slate-900">13</span>
+                                <span className="font-semibold text-slate-900">17</span>
                             </div>
                             <div className="flex justify-between items-center text-xs">
                                 <span className="text-slate-500">Ambiente RLS</span>

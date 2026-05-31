@@ -311,7 +311,11 @@ export const VisitHistoryTab: React.FC<VisitHistoryTabProps> = ({
                                                     </span>
                                                 )}
                                                 <p className="text-[11px] font-medium text-slate-700 leading-snug">
-                                                    {visit.impedimentReason || visit.pauseReason}
+                                                    {typeof (visit.impedimentReason || visit.pauseReason) === 'string' 
+                                                        ? (visit.impedimentReason || visit.pauseReason) 
+                                                        : typeof (visit.impedimentReason || visit.pauseReason) === 'object' 
+                                                            ? JSON.stringify(visit.impedimentReason || visit.pauseReason) 
+                                                            : String(visit.impedimentReason || visit.pauseReason)}
                                                 </p>
                                             </div>
                                         )}
@@ -320,7 +324,9 @@ export const VisitHistoryTab: React.FC<VisitHistoryTabProps> = ({
                                         {visit.notes && (
                                             <div className="p-2.5 bg-white/70 rounded-xl border border-white">
                                                 <p className="text-[9px] font-semibold text-slate-400 uppercase mb-1">Observações</p>
-                                                <p className="text-[11px] text-slate-600 leading-relaxed">{visit.notes}</p>
+                                                <p className="text-[11px] text-slate-600 leading-relaxed">
+                                                    {typeof visit.notes === 'string' ? visit.notes : typeof visit.notes === 'object' ? JSON.stringify(visit.notes) : String(visit.notes)}
+                                                </p>
                                             </div>
                                         )}
 

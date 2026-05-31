@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '../../i18n';
+import { useDialog } from '../../contexts/DialogContext';
 import {
   UserPlus, Info, ChevronLeft, AtSign, Building2, Edit3, Laptop, UserMinus, Plus, Box,
   DollarSign, Trash2, Eye, EyeOff, Package, ShoppingCart, ChevronRight, Save, X, Search, CheckCircle2, Hash, RefreshCw, Clock, FileText, Link2, Unlink
@@ -14,6 +15,10 @@ import { OrderService } from '../../services/orderService';
 import { OrderTimeline } from '../shared/OrderTimeline';
 import { VisitHistoryTab } from './VisitHistoryTab';
 import { VisitService } from '../../services/visitService';
+import * as turf from '@turf/turf';
+import { getRegions } from '../../services/regionService';
+import { Region } from '../../types/region';
+import { useTenant } from '../../hooks/nexusHooks';
 
 const checkWarrantyStatus = (manufactureDate?: string, warrantyMonths?: number) => {
   if (!manufactureDate || !warrantyMonths) return null;
@@ -39,7 +44,8 @@ export const OS_TYPES = [
 ];
 
 export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onSubmit, initialData }) => {
-    const { t } = useI18n();
+  const { t } = useI18n();
+  const { showAlert } = useDialog();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(initialData ? 2 : 1);
   const [loading, setLoading] = useState(false);
@@ -52,6 +58,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
     scheduledTime: '',
     notes: ''
   });
+  const [visitTechSearch, setVisitTechSearch] = useState('');
   const [technicians, setTechnicians] = useState<UserType[]>([]);
   const [searchMode, setSearchMode] = useState<'client' | 'serial'>('client');
   const [clientSearch, setClientSearch] = useState(initialData?.customerName || '');
@@ -76,6 +83,10 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   const [selectedEquipIds, setSelectedEquipIds] = useState<string[]>([]);
   const [formTemplates, setFormTemplates] = useState<FormTemplate[]>([]);
   const [activationRules, setActivationRules] = useState<any[]>([]);
+  const [regions, setRegions] = useState<Region[]>([]);
+  
+  const { data: tenant } = useTenant();
+  const isGeofencingEnabled = tenant?.metadata?.enableGeofencing === true;
 
   const [serviceTypes, setServiceTypes] = useState<any[]>(OS_TYPES.map(t => ({ id: t, name: t }))); // Default to hardcoded
 
@@ -116,7 +127,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
         console.warn("⚠️ Sessão pode estar expirada. Tentando buscar dados mesmo assim...");
       }
 
-      const [techs, loadedClients, loadedEquipments, loadedStock, loadedFormTemplates, loadedRules, loadedServiceTypes, loadedQuotes] = await Promise.all([
+      const [techs, loadedClients, loadedEquipments, loadedStock, loadedFormTemplates, loadedRules, loadedServiceTypes, loadedQuotes, loadedRegions] = await Promise.all([
         DataService.getAllTechnicians(),
         DataService.getCustomers(),
         DataService.getEquipments(),
@@ -124,7 +135,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
         DataService.getFormTemplates(),
         DataService.getActivationRules(),
         DataService.getServiceTypes(),
-        DataService.getQuotes()
+        DataService.getQuotes(),
+        getRegions()
       ]);
 
       setTechnicians(techs);
@@ -134,6 +146,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
       setFormTemplates(loadedFormTemplates);
       setActivationRules(loadedRules);
       setQuotes(loadedQuotes || []);
+      setRegions(loadedRegions || []);
 
       if (loadedServiceTypes && loadedServiceTypes.length > 0) {
         setServiceTypes(loadedServiceTypes);
@@ -379,9 +392,40 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
     e.serialNumber.toLowerCase().includes(serialSearch.toLowerCase())
   );
 
-  const filteredTechs = technicians.filter(t =>
-    t.name.toLowerCase().includes(techSearch.toLowerCase())
-  );
+  const allowedTechIds = React.useMemo(() => {
+    if (!isGeofencingEnabled) return null; // Bypass filter se a configuração estiver desativada
+    if (!selectedClientId) return null; // null means all allowed
+    const client = clients.find(c => c.id === selectedClientId);
+    if (!client || !client.latitude || !client.longitude) return null;
+
+    const pt = turf.point([client.longitude, client.latitude]);
+    
+    // Verifica regiões ativas com polígono
+    const activeRegions = regions.filter(r => r.is_active && r.polygon_geojson);
+    const matchingRegions = activeRegions.filter(r => {
+      try {
+        return turf.booleanPointInPolygon(pt, r.polygon_geojson as any);
+      } catch (e) {
+        return false;
+      }
+    });
+
+    if (matchingRegions.length === 0) return null; // Nenhuma região cobre, todos liberados
+
+    // Se estiver em uma ou mais regiões, libera apenas técnicos associados a elas
+    const techIds = new Set<string>();
+    matchingRegions.forEach(r => {
+      if (r.technician_ids) {
+        r.technician_ids.forEach(id => techIds.add(id));
+      }
+    });
+
+    return Array.from(techIds);
+  }, [selectedClientId, clients, regions]);
+
+  const filteredTechs = technicians.filter(t => {
+    return t.name.toLowerCase().includes(techSearch.toLowerCase());
+  });
 
   const addItem = (item: Partial<OrderItem>) => {
     const newItem: OrderItem = {
@@ -735,26 +779,49 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                         </div>
                       </button>
 
-                      {filteredTechs.map(t => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => handleSelectTechnician(t.id)}
-                          className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group ${formData.assignedTo === t.id
-                            ? 'border-[#1c2d4f] bg-[#1c2d4f05] shadow-sm'
-                            : 'border-slate-50 bg-slate-50/50 hover:border-slate-200 hover:bg-white'
-                            }`}
-                        >
-                          <div className="relative">
-                            <img src={t.avatar} className="w-9 h-9 rounded-lg object-cover border border-slate-200" alt={t.name} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[11px] font-bold text-slate-800 truncate">{t.name}</p>
-                            <p className="text-[9px] text-slate-500 font-medium truncate">{t.email}</p>
-                          </div>
-                          {formData.assignedTo === t.id && <CheckCircle2 size={14} className="text-[#1c2d4f]" />}
-                        </button>
-                      ))}
+                      {filteredTechs.map(t => {
+                        const isAllowed = allowedTechIds === null || allowedTechIds.includes(t.id);
+                        const isSelected = formData.assignedTo === t.id;
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => {
+                              if (!isAllowed) {
+                                showAlert(`O técnico ${t.name} não atende a região onde o cliente está localizado. Selecione um técnico autorizado para esta área.`, 'error');
+                                return; // Não seleciona — bloqueio total
+                              }
+                              handleSelectTechnician(t.id);
+                            }}
+                            className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
+                              !isAllowed
+                                ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-100'
+                                : isSelected
+                                ? 'border-[#1c2d4f] bg-[#1c2d4f05] shadow-sm'
+                                : 'border-slate-50 bg-slate-50/50 hover:border-slate-200 hover:bg-white'
+                              }`}
+                          >
+                            <div className="relative">
+                              <img src={t.avatar} className="w-9 h-9 rounded-lg object-cover border border-slate-200" alt={t.name} />
+                              {!isAllowed && (
+                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 rounded-full flex items-center justify-center" title="Fora da região">
+                                  <span className="text-white text-[8px] font-bold">✕</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[11px] font-bold text-slate-800 truncate">{t.name}</p>
+                              <p className="text-[9px] font-medium truncate">
+                                {!isAllowed
+                                  ? <span className="text-rose-400">Fora da área demarcada</span>
+                                  : <span className="text-slate-500">{t.email}</span>
+                                }
+                              </p>
+                            </div>
+                            {isSelected && <CheckCircle2 size={14} className="text-[#1c2d4f] shrink-0" />}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -1072,7 +1139,18 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                 className="bg-[#1c2d4f] hover:bg-[#2a3e66] text-white rounded-xl px-10 py-3 font-bold text-xs   shadow-lg shadow-[#1c2d4f20] transition-all flex items-center gap-2"
                 onClick={() => {
                   if (step === 1) goToStep2();
-                  else if (step === 2) setStep(3);
+                  else if (step === 2) {
+                    // Validação de geofencing: impede avanço se técnico selecionado não é permitido
+                    if (isGeofencingEnabled && allowedTechIds !== null && formData.assignedTo) {
+                      const isTechAllowed = allowedTechIds.includes(formData.assignedTo);
+                      if (!isTechAllowed) {
+                        const techName = technicians.find(t => t.id === formData.assignedTo)?.name || 'selecionado';
+                        showAlert(`O técnico "${techName}" não atende a região demarcada do cliente. Por favor, selecione um técnico autorizado para esta área antes de continuar.`, 'error');
+                        return;
+                      }
+                    }
+                    setStep(3);
+                  }
                   else if (step === 3) setStep(4);
                   else if (step === 4) setStep(5);
                   else if (step === 5 && initialData) setStep(6);
@@ -1119,17 +1197,78 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700  mb-1">técnico designado *</label>
-                  <select
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm font-semibold outline-none focus:border-[#1c2d4f]"
-                    value={newVisitData.assignedTo}
-                    onChange={e => setNewVisitData({ ...newVisitData, assignedTo: e.target.value })}
-                  >
-                    <option value="">Selecione um técnico...</option>
-                    {technicians.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </select>
+                  <label className="block text-xs font-bold text-slate-700 mb-2">técnico designado *</label>
+                  
+                  {/* Barra de busca */}
+                  <div className="relative mb-2">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                    <input
+                      type="text"
+                      placeholder="Buscar por nome ou e-mail..."
+                      value={visitTechSearch}
+                      onChange={e => setVisitTechSearch(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-xs font-semibold text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] transition-all"
+                    />
+                  </div>
+
+                  {/* Lista de técnicos */}
+                  <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+                    {technicians
+                      .filter(t =>
+                        t.name.toLowerCase().includes(visitTechSearch.toLowerCase()) ||
+                        t.email?.toLowerCase().includes(visitTechSearch.toLowerCase())
+                      )
+                      .map(t => {
+                        const isAllowed = allowedTechIds === null || allowedTechIds.includes(t.id);
+                        const isSelected = newVisitData.assignedTo === t.id;
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => {
+                              if (!isAllowed) {
+                                showAlert(`O técnico ${t.name} não atende a região demarcada do cliente. Selecione um técnico autorizado para esta área.`, 'error');
+                                return;
+                              }
+                              setNewVisitData({ ...newVisitData, assignedTo: t.id });
+                            }}
+                            className={`w-full flex items-center gap-3 p-2.5 rounded-xl border text-left transition-all ${
+                              !isAllowed
+                                ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-100'
+                                : isSelected
+                                ? 'border-[#1c2d4f] bg-[#1c2d4f]/5 shadow-sm'
+                                : 'border-slate-100 bg-slate-50 hover:border-slate-300 hover:bg-white'
+                            }`}
+                          >
+                            <div className="relative shrink-0">
+                              <img src={t.avatar} className="w-8 h-8 rounded-lg object-cover border border-slate-200" alt={t.name} />
+                              {!isAllowed && (
+                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 rounded-full flex items-center justify-center">
+                                  <span className="text-white text-[8px] font-bold">✕</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[11px] font-bold text-slate-800 truncate">{t.name}</p>
+                              <p className="text-[9px] font-medium truncate">
+                                {!isAllowed
+                                  ? <span className="text-rose-400">Fora da área demarcada</span>
+                                  : <span className="text-slate-400">{t.email}</span>
+                                }
+                              </p>
+                            </div>
+                            {isSelected && <CheckCircle2 size={14} className="text-[#1c2d4f] shrink-0" />}
+                          </button>
+                        );
+                      })
+                    }
+                    {technicians.filter(t =>
+                      t.name.toLowerCase().includes(visitTechSearch.toLowerCase()) ||
+                      t.email?.toLowerCase().includes(visitTechSearch.toLowerCase())
+                    ).length === 0 && (
+                      <p className="text-center text-xs text-slate-400 py-4">Nenhum técnico encontrado</p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

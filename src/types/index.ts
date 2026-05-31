@@ -318,6 +318,8 @@ export interface ServiceOrder {
     totalPausedMs?: number;   // Tempo total pausado (ms)
   };
 
+  visitCount?: number; // Contagem otimizada de visitas carregada via JOIN (Performance V2)
+
   // 📍 Geolocalização (LGPD: somente com consentimento)
   checkinLocation?: {
     lat: number;

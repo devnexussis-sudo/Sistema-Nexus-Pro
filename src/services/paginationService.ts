@@ -52,7 +52,7 @@ export const getOrdersPage = async (
 
     let query = supabase
         .from('orders')
-        .select('*', { count: 'exact' })
+        .select('*, service_visits(count)', { count: 'exact' })
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false });
 

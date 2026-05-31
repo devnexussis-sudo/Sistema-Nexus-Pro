@@ -66,6 +66,27 @@ export const OrderService = {
     // Helper para mapear ServiceOrder do DB (snake_case) para o Front (camelCase)
     _mapOrderFromDB: (data: DbOrder): ServiceOrder => {
         // Mapeamento extra-resiliente para garantir que nada se perca entre Snake e Camel
+        let visitCount = 0;
+        if ((data as any).service_visits && Array.isArray((data as any).service_visits)) {
+            // PostgREST count query returns [{count: N}], regular select returns array of objects
+            visitCount = (data as any).service_visits.length > 0 && typeof (data as any).service_visits[0].count === 'number' 
+                ? (data as any).service_visits[0].count 
+                : (data as any).service_visits.length;
+        }
+
+        // 🔄 Fallback Legacy (Nexus V1/V2): Extrai contagem de visitas das anotações em description
+        if (visitCount === 0 && typeof data.description === 'string') {
+            const matches = data.description.match(/Visita\s+(\d+)/gi);
+            if (matches && matches.length > 0) {
+                const maxVisit = Math.max(...matches.map(m => parseInt(m.replace(/\D/g, ''), 10)));
+                visitCount = maxVisit > 0 ? maxVisit : (data.scheduled_date ? 1 : 0);
+            } else {
+                visitCount = data.scheduled_date ? 1 : 0;
+            }
+        } else if (visitCount === 0) {
+            visitCount = data.scheduled_date ? 1 : 0;
+        }
+
         return {
             id: data.id,
             displayId: data.display_id,
@@ -115,6 +136,7 @@ export const OrderService = {
             signatureName: data.client_signature_name,
             signatureDoc: data.signature_doc,
             videoUrl: data.video_url,
+            visitCount: visitCount,
         };
     },
 

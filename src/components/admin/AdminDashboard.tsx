@@ -65,6 +65,10 @@ import { CreateOrderModal } from './CreateOrderModal';
 import { VisitHistoryTab } from './VisitHistoryTab';
 import { DisplacementTab } from './DisplacementTab';
 import { VisitFormsTab } from './VisitFormsTab';
+import * as turf from '@turf/turf';
+import { useTenant } from '../../hooks/nexusHooks';
+import { getRegions } from '../../services/regionService';
+import type { Region } from '../../types/region';
 
 // NOTA DE ARQUITETURA:
 // orders NÃO vem mais via prop — este componente busca seus próprios dados
@@ -96,23 +100,13 @@ const isVideoUrl = (url: string | null) => {
   return videoExtensions.some(ext => url.toLowerCase().includes(ext)) || url.toLowerCase().startsWith('data:video/');
 };
 
-const VisitCountCell = ({ orderId }: { orderId: string }) => {
-  const [count, setCount] = useState<number | null>(null);
-
-  useEffect(() => {
-    supabase
-      .from('service_visits')
-      .select('id', { count: 'exact', head: true })
-      .eq('order_id', orderId)
-      .then(({ count: c }) => setCount(c || 0));
-  }, [orderId]);
-
-  if (count === null) {
-    return <div className="animate-pulse w-4 h-4 bg-slate-200 rounded-full mx-auto" />;
-  }
-
+const VisitCountCell = ({ order }: { order: ServiceOrder }) => {
+  // Puxamos diretamente a contagem que veio nativamente do JOIN com o banco.
+  // Sem chamadas N+1 (Padrão Enterprise)
+  const count = order.visitCount !== undefined ? order.visitCount : (order.scheduledDate ? 1 : 0);
+  
   return (
-    <div className="flex justify-center text-[12px] text-slate-500 tracking-wide">
+    <div className="flex justify-center text-[12px] text-slate-500 tracking-wide font-medium">
       {count === 0 ? '---' : count}
     </div>
   );
@@ -124,6 +118,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const { t } = useI18n();
   const { showAlert, showConfirm } = useDialog();
   const { canCreate, canEdit, canDelete } = usePermissions();
+
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [orderToEdit, setOrderToEdit] = useState<ServiceOrder | null>(null);
@@ -195,6 +190,55 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isTechDropdownOpen, setIsTechDropdownOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [customerFilter, setCustomerFilter] = useState<string>('ALL');
+
+  // --- Geofencing State & Computation ---
+  const { data: tenant } = useTenant();
+  const isGeofencingEnabled = tenant?.metadata?.enableGeofencing === true;
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [newVisitTechSearch, setNewVisitTechSearch] = useState('');
+  const [editVisitTechSearch, setEditVisitTechSearch] = useState('');
+
+  useEffect(() => {
+    if (isGeofencingEnabled) {
+      getRegions()
+        .then(r => setRegions(r || []))
+        .catch(err => console.error("Erro ao carregar regiões:", err));
+    }
+  }, [isGeofencingEnabled]);
+
+  const allowedTechIds = useMemo(() => {
+    if (!isGeofencingEnabled) return null; // Bypass filter se a configuração estiver desativada
+    if (!selectedOrder) return null;
+    
+    // Encontrar o cliente da OS selecionada
+    const client = customers.find(cust => cust.id === selectedOrder.customerId || cust.name === selectedOrder.customerName);
+    if (!client || !client.latitude || !client.longitude) return null;
+
+    const pt = turf.point([client.longitude, client.latitude]);
+    
+    // Verifica regiões ativas com polígono
+    const activeRegions = regions.filter(r => r.is_active && r.polygon_geojson);
+    const matchingRegions = activeRegions.filter(r => {
+      try {
+        return turf.booleanPointInPolygon(pt, r.polygon_geojson as any);
+      } catch (e) {
+        return false;
+      }
+    });
+
+    if (matchingRegions.length === 0) return null; // Nenhuma região cobre, todos liberados
+
+    // Se estiver em uma ou mais regiões, libera apenas técnicos associados a elas
+    const techIds = new Set<string>();
+    matchingRegions.forEach(r => {
+      if (r.technician_ids) {
+        r.technician_ids.forEach(id => techIds.add(id));
+      }
+    });
+
+    return Array.from(techIds);
+  }, [isGeofencingEnabled, selectedOrder, customers, regions]);
+
 
   // Filtros memorizados para evitar re-renders desnecessários
   const serverFilters = useMemo(() => ({
@@ -569,10 +613,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (activeTab === 'visits' && selectedOrder) {
       setVisitsLoading(true);
       VisitService.getVisitsByOrderId(selectedOrder.id)
-        .then(setVisits)
+        .then(v => {
+          if (v.length === 0 && (selectedOrder.visitCount || 0) > 0) {
+            // Fallback Dinâmico para OS Legadas usando o visitCount parseado
+            const legacyVisits = Array.from({ length: selectedOrder.visitCount || 1 }).map((_, index) => {
+              const isLast = index + 1 === (selectedOrder.visitCount || 1);
+              return {
+                id: `legacy-visit-${selectedOrder.id}-${index + 1}`,
+                orderId: selectedOrder.id,
+                visitNumber: index + 1,
+                status: isLast && selectedOrder.status === 'CONCLUÍDO' ? 'completed' : 
+                        isLast && selectedOrder.status === 'IMPEDIDO' ? 'blocked' : 'completed',
+                scheduledDate: selectedOrder.scheduledDate,
+                scheduledTime: selectedOrder.scheduledTime,
+                technicianId: selectedOrder.assignedTo,
+                technicianName: techs.find(t => t.id === selectedOrder.assignedTo)?.name || selectedOrder.assignedTo || '—',
+                createdAt: selectedOrder.createdAt,
+                isLocked: true // Histórico legado é consolidado e travado
+              } as any;
+            });
+            setVisits(legacyVisits);
+          } else {
+            setVisits(v);
+          }
+        })
         .finally(() => setVisitsLoading(false));
     }
-  }, [activeTab, selectedOrder]);
+  }, [activeTab, selectedOrder, techs]);
 
   const handleStartEdit = () => {
     if (!selectedOrder) return;
@@ -787,6 +854,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       showAlert('Selecione o técnico e a data.');
       return;
     }
+    if (isGeofencingEnabled && allowedTechIds !== null && newVisitDraft.technicianId) {
+      if (!allowedTechIds.includes(newVisitDraft.technicianId)) {
+        const techName = techs.find(t => t.id === newVisitDraft.technicianId)?.name || 'selecionado';
+        showAlert(`O técnico ${techName} não atende a região demarcada do cliente. Selecione um técnico autorizado para esta área.`, 'error');
+        return;
+      }
+    }
     if (!newVisitDraft.notes || !newVisitDraft.notes.trim()) {
       showAlert('O campo "Observações para o técnico" é obrigatório. Descreva o motivo ou instruções da visita.');
       return;
@@ -846,6 +920,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       return;
     }
     if (!selectedOrder) return;
+    if (isGeofencingEnabled && allowedTechIds !== null && visitScheduleDraft.technicianId) {
+      if (!allowedTechIds.includes(visitScheduleDraft.technicianId)) {
+        const techName = techs.find(t => t.id === visitScheduleDraft.technicianId)?.name || 'selecionado';
+        showAlert(`O técnico ${techName} não atende a região demarcada do cliente. Selecione um técnico autorizado para esta área.`, 'error');
+        return;
+      }
+    }
     setSavingSchedule(true);
     try {
       // ─── 1. Atualiza a visita via RPC ──────────────────────────────
@@ -1288,7 +1369,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <td className="px-3 py-2 text-[12px] text-slate-700 whitespace-nowrap">
                       {order.endDate ? new Date(order.endDate).toLocaleDateString('pt-BR') : '---'}
                     </td>
-                    <td className="px-3 py-2 align-middle"><VisitCountCell orderId={order.id} /></td>
+                    <td className="px-3 py-2 align-middle"><VisitCountCell order={order} /></td>
                     <td className="px-3 py-2 whitespace-nowrap"><StatusBadge status={order.status} /></td>
                     <td className="px-3 py-2 text-right pr-4">
                       <div className="flex items-center justify-end gap-1.5 transition-opacity opacity-90 group-hover:opacity-100">
@@ -2712,15 +2793,79 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="bg-white border border-primary-200 rounded-xl shadow-lg shadow-slate-200/50 p-6 space-y-4 animate-in fade-in slide-in-from-top-2">
                       <h4 className="text-xs font-semibold uppercase tracking-widest text-primary-700">Agendar Nova Visita</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 md:col-span-2">
                           <label className="text-[11px] font-semibold text-slate-500 uppercase">Técnico Responsável *</label>
-                          <SearchableSelect
-                            options={techs}
-                            value={newVisitDraft.technicianId}
-                            onChange={(val) => setNewVisitDraft(d => ({ ...d, technicianId: val }))}
-                            placeholder="Selecionar técnico..."
-                            searchPlaceholder="Pesquisar técnico..."
-                          />
+                          
+                          {/* Barra de busca */}
+                          <div className="relative mb-2">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                            <input
+                              type="text"
+                              placeholder="Buscar por nome ou e-mail..."
+                              value={newVisitTechSearch}
+                              onChange={e => setNewVisitTechSearch(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs font-semibold text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] transition-all"
+                            />
+                          </div>
+
+                          {/* Lista de técnicos */}
+                          <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+                            {techs
+                              .filter(t =>
+                                t.name.toLowerCase().includes(newVisitTechSearch.toLowerCase()) ||
+                                t.email?.toLowerCase().includes(newVisitTechSearch.toLowerCase())
+                              )
+                              .map(t => {
+                                const isAllowed = allowedTechIds === null || allowedTechIds.includes(t.id);
+                                const isSelected = newVisitDraft.technicianId === t.id;
+                                return (
+                                  <button
+                                    key={t.id}
+                                    type="button"
+                                    onClick={() => {
+                                      if (!isAllowed) {
+                                        showAlert(`O técnico ${t.name} não atende a região demarcada do cliente. Selecione um técnico autorizado para esta área.`, 'error');
+                                        return;
+                                      }
+                                      setNewVisitDraft(d => ({ ...d, technicianId: t.id }));
+                                    }}
+                                    className={`w-full flex items-center gap-3 p-2 rounded-xl border text-left transition-all ${
+                                      !isAllowed
+                                        ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-100'
+                                        : isSelected
+                                        ? 'border-[#1c2d4f] bg-[#1c2d4f]/5 shadow-sm font-semibold'
+                                        : 'border-slate-100 bg-slate-50 hover:border-slate-300 hover:bg-white'
+                                    }`}
+                                  >
+                                    <div className="relative shrink-0">
+                                      <img src={t.avatar} className="w-7 h-7 rounded-lg object-cover border border-slate-200" alt={t.name} />
+                                      {!isAllowed && (
+                                        <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 rounded-full flex items-center justify-center">
+                                          <span className="text-white text-[7px] font-bold">✕</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-[11px] font-bold text-slate-800 truncate">{t.name}</p>
+                                      <p className="text-[9px] font-medium truncate">
+                                        {!isAllowed
+                                          ? <span className="text-rose-400">Fora da área demarcada</span>
+                                          : <span className="text-slate-400">{t.email}</span>
+                                        }
+                                      </p>
+                                    </div>
+                                    {isSelected && <CheckCircle2 size={12} className="text-[#1c2d4f] shrink-0" />}
+                                  </button>
+                                );
+                              })
+                            }
+                            {techs.filter(t =>
+                              t.name.toLowerCase().includes(newVisitTechSearch.toLowerCase()) ||
+                              t.email?.toLowerCase().includes(newVisitTechSearch.toLowerCase())
+                            ).length === 0 && (
+                              <p className="text-center text-xs text-slate-400 py-4">Nenhum técnico encontrado</p>
+                            )}
+                          </div>
                         </div>
                         <div className="space-y-1.5">
                           <label className="text-[11px] font-semibold text-slate-500 uppercase">Data de Agendamento *</label>
@@ -2882,30 +3027,109 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             {isEditingThis && (
                               <div className="border-t border-amber-100 bg-blue-50/40 px-5 py-4 space-y-3">
                                 <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-widest">Editar Agendamento</p>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                  <div className="space-y-1">
-                                    <label className="text-[10px] font-semibold text-slate-500 uppercase">Data</label>
-                                    <input type="date" className="w-full border border-blue-200 bg-white rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all"
-                                      value={visitScheduleDraft.scheduledDate}
-                                      onChange={e => setVisitScheduleDraft(d => ({ ...d, scheduledDate: e.target.value }))} />
-                                  </div>
-                                  <div className="space-y-1">
-                                    <label className="text-[10px] font-semibold text-slate-500 uppercase">Início</label>
-                                    <input type="time" className="w-full border border-blue-200 bg-white rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all"
-                                      value={visitScheduleDraft.scheduledTime}
-                                      onChange={e => setVisitScheduleDraft(d => ({ ...d, scheduledTime: e.target.value }))} />
-                                  </div>
-                                  <div className="space-y-1">
-
+                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-semibold text-slate-500 uppercase">Data</label>
+                                      <input type="date" className="w-full border border-blue-200 bg-white rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all"
+                                        value={visitScheduleDraft.scheduledDate}
+                                        onChange={e => setVisitScheduleDraft(d => ({ ...d, scheduledDate: e.target.value }))} />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-semibold text-slate-500 uppercase">Início</label>
+                                      <input type="time" className="w-full border border-blue-200 bg-white rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all"
+                                        value={visitScheduleDraft.scheduledTime}
+                                        onChange={e => setVisitScheduleDraft(d => ({ ...d, scheduledTime: e.target.value }))} />
+                                    </div>
                                   </div>
                                   <div className="space-y-1">
                                     <label className="text-[10px] font-semibold text-slate-500 uppercase">Técnico</label>
-                                    <select className="w-full border border-blue-200 bg-white rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all"
-                                      value={visitScheduleDraft.technicianId}
-                                      onChange={e => setVisitScheduleDraft(d => ({ ...d, technicianId: e.target.value }))}>
-                                      <option value="">Manter atual</option>
-                                      {techs.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                    </select>
+                                    
+                                    {/* Barra de busca */}
+                                    <div className="relative mb-2">
+                                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+                                      <input
+                                        type="text"
+                                        placeholder="Buscar por nome ou e-mail..."
+                                        value={editVisitTechSearch}
+                                        onChange={e => setEditVisitTechSearch(e.target.value)}
+                                        className="w-full bg-white border border-blue-200 rounded-lg pl-8 pr-3 py-1.5 text-xs font-medium text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue-300 transition-all"
+                                      />
+                                    </div>
+
+                                    {/* Lista de técnicos */}
+                                    <div className="max-h-36 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                                      <button
+                                        type="button"
+                                        onClick={() => setVisitScheduleDraft(d => ({ ...d, technicianId: '' }))}
+                                        className={`w-full flex items-center gap-2 p-1.5 rounded-lg border text-left transition-all text-xs ${
+                                          visitScheduleDraft.technicianId === ''
+                                            ? 'border-blue-500 bg-blue-50/50 shadow-sm font-semibold'
+                                            : 'border-slate-100 bg-white hover:border-slate-300 hover:bg-slate-50'
+                                        }`}
+                                      >
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-[11px] font-bold text-slate-800">Manter atual / Nenhum</p>
+                                        </div>
+                                        {visitScheduleDraft.technicianId === '' && <CheckCircle2 size={12} className="text-blue-500 shrink-0" />}
+                                      </button>
+                                      
+                                      {techs
+                                        .filter(t =>
+                                          t.name.toLowerCase().includes(editVisitTechSearch.toLowerCase()) ||
+                                          t.email?.toLowerCase().includes(editVisitTechSearch.toLowerCase())
+                                        )
+                                        .map(t => {
+                                          const isAllowed = allowedTechIds === null || allowedTechIds.includes(t.id);
+                                          const isSelected = visitScheduleDraft.technicianId === t.id;
+                                          return (
+                                            <button
+                                              key={t.id}
+                                              type="button"
+                                              onClick={() => {
+                                                if (!isAllowed) {
+                                                  showAlert(`O técnico ${t.name} não atende a região demarcada do cliente. Selecione um técnico autorizado para esta área.`, 'error');
+                                                  return;
+                                                }
+                                                setVisitScheduleDraft(d => ({ ...d, technicianId: t.id }));
+                                              }}
+                                              className={`w-full flex items-center gap-2 p-1.5 rounded-lg border text-left transition-all text-xs ${
+                                                !isAllowed
+                                                  ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-100'
+                                                  : isSelected
+                                                  ? 'border-blue-500 bg-blue-50/50 shadow-sm font-semibold'
+                                                  : 'border-slate-100 bg-white hover:border-slate-300 hover:bg-slate-50'
+                                              }`}
+                                            >
+                                              <div className="relative shrink-0">
+                                                <img src={t.avatar} className="w-6 h-6 rounded-md object-cover border border-slate-200" alt={t.name} />
+                                                {!isAllowed && (
+                                                  <div className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-rose-500 rounded-full flex items-center justify-center">
+                                                    <span className="text-white text-[6px] font-bold">✕</span>
+                                                  </div>
+                                                )}
+                                              </div>
+                                              <div className="flex-1 min-w-0">
+                                                <p className="text-[11px] font-bold text-slate-800 truncate">{t.name}</p>
+                                                <p className="text-[9px] font-medium truncate">
+                                                  {!isAllowed
+                                                    ? <span className="text-rose-400">Fora da área demarcada</span>
+                                                    : <span className="text-slate-400">{t.email}</span>
+                                                  }
+                                                </p>
+                                              </div>
+                                              {isSelected && <CheckCircle2 size={12} className="text-blue-500 shrink-0" />}
+                                            </button>
+                                          );
+                                        })
+                                      }
+                                      {techs.filter(t =>
+                                        t.name.toLowerCase().includes(editVisitTechSearch.toLowerCase()) ||
+                                        t.email?.toLowerCase().includes(editVisitTechSearch.toLowerCase())
+                                      ).length === 0 && (
+                                        <p className="text-center text-xs text-slate-400 py-2">Nenhum técnico encontrado</p>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                                 <div className="flex justify-end gap-2 pt-1">

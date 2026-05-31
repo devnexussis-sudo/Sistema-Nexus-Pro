@@ -60,6 +60,9 @@ _agent_scratchpad.md
 expo-env.d.ts
 # @end expo-cli
 # Expo
-.expo/
+# /.expo/
 android/
 ios/
+
+.expo/
+**/.expo/

@@ -12,6 +12,19 @@ import {
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { usePermissions } from '../../hooks/usePermissions';
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
+import L from 'leaflet';
+
+// Corrigir ícone padrão do Leaflet no React
+const customMarkerIcon = new L.Icon({
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
 
 import { Customer, Equipment } from '../../types';
 import { DataService } from '../../services/dataService';
@@ -33,6 +46,35 @@ interface CustomerManagementProps {
   onUpdateCustomers: (customers: Customer[]) => void;
   onSwitchView?: (view: any, params?: any) => void;
 }
+
+const LocationPickerLogic: React.FC<{ lat: number; lng: number; onChange: (lat: number, lng: number) => void }> = ({ lat, lng, onChange }) => {
+  const map = useMap();
+  
+  useEffect(() => {
+    map.flyTo([lat, lng], 15, { duration: 1.5 });
+  }, [lat, lng, map]);
+
+  useMapEvents({
+    click(e) {
+      onChange(e.latlng.lat, e.latlng.lng);
+    }
+  });
+
+  return (
+    <Marker 
+      position={[lat, lng]} 
+      draggable={true}
+      icon={customMarkerIcon}
+      eventHandlers={{
+        dragend: (e) => {
+          const marker = e.target;
+          const position = marker.getLatLng();
+          onChange(position.lat, position.lng);
+        }
+      }} 
+    />
+  );
+};
 
 
 export const CustomerManagement: React.FC<CustomerManagementProps> = ({
@@ -128,12 +170,19 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
     }
   }, [formData.document, customers, editingId]);
 
-  const fetchCoordinates = async (address: string, city: string, state: string, currentLat?: number, currentLng?: number) => {
+  const fetchCoordinates = async (address: string, number: string | undefined, city: string, state: string, currentLat?: number, currentLng?: number) => {
     if (currentLat && currentLng) return { lat: currentLat, lng: currentLng };
     if (!address || !city || !state) return null;
 
     try {
-      const query = encodeURIComponent(`${address}, ${city}, ${state}, Brasil`);
+      const queryParts = [];
+      if (address) queryParts.push(address);
+      if (number) queryParts.push(number);
+      queryParts.push(city);
+      queryParts.push(state);
+      queryParts.push('Brasil');
+
+      const query = encodeURIComponent(queryParts.join(', '));
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`, {
         headers: { 'Accept-Language': 'pt-BR' }
       });
@@ -189,7 +238,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
         }
 
         if (addressData) {
-          const coords = await fetchCoordinates(addressData.address, addressData.city, addressData.state, addressData.initialLat, addressData.initialLng);
+          const coords = await fetchCoordinates(addressData.address, formData.number, addressData.city, addressData.state, addressData.initialLat, addressData.initialLng);
 
           setFormData(prev => ({
             ...prev,
@@ -198,8 +247,8 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
             city: addressData.city || prev.city,
             address: addressData.address || prev.address,
             neighborhood: addressData.neighborhood || prev.neighborhood,
-            latitude: coords?.lat,
-            longitude: coords?.lng
+            latitude: coords?.lat || prev.latitude,
+            longitude: coords?.lng || prev.longitude
           }));
         }
 
@@ -211,6 +260,18 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
     }
   };
 
+  const handleNumberBlur = async () => {
+    if (formData.address && formData.city && formData.state && formData.number) {
+      const coords = await fetchCoordinates(formData.address, formData.number, formData.city, formData.state);
+      if (coords) {
+        setFormData(prev => ({
+          ...prev,
+          latitude: coords.lat,
+          longitude: coords.lng
+        }));
+      }
+    }
+  };
 
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -623,14 +684,36 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
                           <div className="md:col-span-2"><Input label="Logradouro" className="rounded-xl py-3 font-medium border-slate-200" value={formData.address || ''} onChange={e => setFormData({ ...formData, address: e.target.value })} /></div>
-                          <Input label="Número" required className="rounded-xl py-3 font-medium border-slate-200" value={formData.number || ''} onChange={e => setFormData({ ...formData, number: e.target.value })} />
+                          <Input label="Número" required onBlur={handleNumberBlur} className="rounded-xl py-3 font-medium border-slate-200" value={formData.number || ''} onChange={e => setFormData({ ...formData, number: e.target.value })} />
                           <Input label="Bairro" required className="rounded-xl py-3 font-medium border-slate-200" value={formData.neighborhood || ''} onChange={e => setFormData({ ...formData, neighborhood: e.target.value })} />
                         </div>
                         <Input label="Complemento / Referência" icon={<Info size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={formData.complement || ''} onChange={e => setFormData({ ...formData, complement: e.target.value })} />
                         <div className="grid grid-cols-2 gap-5 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                          <div className="col-span-full"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Geolocalização (preenchida automaticamente via CEP)</p></div>
+                          <div className="col-span-full">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Geolocalização</p>
+                            <p className="text-[10px] text-slate-500 mt-1">
+                              Preenchida automaticamente via CEP. <strong>Verifique no mapa abaixo se o pino está no local exato</strong> e arraste-o ou clique no mapa para corrigir se necessário. Isso garante que as regras de regiões funcionem perfeitamente.
+                            </p>
+                          </div>
                           <Input label="Latitude" type="number" step="any" className="rounded-xl py-3 font-medium border-slate-200" value={formData.latitude || ''} onChange={e => setFormData({ ...formData, latitude: parseFloat(e.target.value) || undefined })} />
                           <Input label="Longitude" type="number" step="any" className="rounded-xl py-3 font-medium border-slate-200" value={formData.longitude || ''} onChange={e => setFormData({ ...formData, longitude: parseFloat(e.target.value) || undefined })} />
+                          
+                          <div className="col-span-full h-64 rounded-xl overflow-hidden border border-slate-200 shadow-inner mt-2 z-0">
+                            <MapContainer 
+                              center={[formData.latitude || -23.55052, formData.longitude || -46.63331]} 
+                              zoom={15} 
+                              style={{ height: '100%', width: '100%', zIndex: 0 }}
+                            >
+                              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                              {formData.latitude && formData.longitude && (
+                                <LocationPickerLogic 
+                                  lat={formData.latitude} 
+                                  lng={formData.longitude} 
+                                  onChange={(lat, lng) => setFormData(prev => ({ ...prev, latitude: lat, longitude: lng }))}
+                                />
+                              )}
+                            </MapContainer>
+                          </div>
                         </div>
                       </div>
                     </div>

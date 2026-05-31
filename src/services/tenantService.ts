@@ -645,20 +645,25 @@ export const TenantService = {
                 const { data: readRecords } = await supabase.from('system_notification_reads').select('notification_id').eq('user_id', userId);
                 const readIds = (readRecords || []).map(r => r.notification_id);
 
+                // Build query; if there are read IDs, exclude them server‑side to avoid sending already‑read items
                 let query = supabase.from('system_notifications')
                     .select('*')
                     .order('created_at', { ascending: false })
-                    .limit(50); // Keep inbox manageable
+                    .limit(50);
+                if (readIds.length > 0) {
+                    query = query.not('id', 'in', readIds);
+                }
 
                 const { data: notifications, error } = await query;
                 if (error) throw error;
 
-                // Add isRead flag
+                // Attach isRead flag for completeness (always false here because we filtered out reads)
                 return (notifications || []).map(n => ({
                     ...n,
-                    isRead: readIds.includes(n.id)
+                    isRead: false
                 }));
             } catch (err) {
+                console.error('Failed to load system notifications:', err);
                 return [];
             }
         }
@@ -667,11 +672,18 @@ export const TenantService = {
 
     markSystemNotificationAsRead: async (userId: string, notificationId: string) => {
         if (isCloudEnabled) {
-            await supabase.from('system_notification_reads').insert([{
-                user_id: userId,
-                notification_id: notificationId,
-                read_at: new Date().toISOString()
-            }]);
+            try {
+                // Upsert usando string de colunas para onConflict (Supabase espera string)
+                await supabase.from('system_notification_reads').upsert([
+                    {
+                        user_id: userId,
+                        notification_id: notificationId,
+                        read_at: new Date().toISOString()
+                    }
+                ], { onConflict: 'user_id,notification_id', ignoreDuplicates: true });
+            } catch (err) {
+                console.error('[TenantService] Falha ao marcar notificação como lida:', err);
+            }
         }
     }
 };
