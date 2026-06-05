@@ -183,6 +183,9 @@ ${contextText}
             },
             body: JSON.stringify({
               model: model,
+              provider: {
+                allow_fallbacks: false, // BLOQUEIA O OPENROUTER DE TROCAR PRO MODELO PAGO SILENCIOSAMENTE!
+              },
               messages: [
                 { role: "system", content: currentSystemPrompt },
                 { role: "user", content: query }
@@ -198,7 +201,7 @@ ${contextText}
             continue; // Falhou, tenta o próximo modelo grátis!
           }
           
-          console.log(`[OpenRouter] ✅ Modelo ${model} funcionou perfeitamente!`);
+          console.log(`[OpenRouter] ✅ Sucesso! Modelo solicitado: ${model} | Modelo realmente usado pelo OpenRouter: ${jsonResponse.model}`);
           data = jsonResponse;
           break; // Sucesso!
         } catch (err: any) {
