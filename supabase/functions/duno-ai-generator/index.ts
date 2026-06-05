@@ -137,24 +137,42 @@ ${contextText}
       
       answer = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
     } else if (provider === "openrouter") {
-      // OPENROUTER - Tentativa Automática de Modelos Gratuitos!
-      let openRouterModel = Deno.env.get("OPENROUTER_MODEL");
-      const orModelsToTry = openRouterModel 
-        ? [openRouterModel]
-        : [
-            "google/gemini-2.0-flash-exp:free",
-            "google/gemini-1.5-flash",
-            "meta-llama/llama-3.3-70b-instruct:free",
-            "meta-llama/llama-3.1-8b-instruct:free",
-            "mistralai/mistral-7b-instruct:free",
-            "openrouter/auto"
-          ];
+      // OPENROUTER - Estratégia "Free First" (Tenta todos os grátis antes de pagar)
+      const openRouterModel = Deno.env.get("OPENROUTER_MODEL");
+      
+      // Bateria de modelos 100% gratuitos e de alta inteligência
+      const freeModels = [
+        "google/gemini-2.0-flash-thinking-exp:free", // Mais inteligente (raciocínio avançado)
+        "google/gemini-2.0-flash-exp:free",          // Rápido e contexto gigante
+        "meta-llama/llama-3.3-70b-instruct:free",    // Peso-pesado da Meta
+        "qwen/qwen-2.5-72b-instruct:free",           // Excelente modelo open-source
+        "mistralai/mistral-7b-instruct:free"         // Fallback rápido e confiável
+      ];
+      
+      // O modelo pago foi COMPLETAMENTE REMOVIDO da fila automática para garantir ZERO GASTO.
+      // Agora o sistema só usa os modelos gratuitos.
+      const orModelsToTry = [...freeModels];
           
       let lastError = null;
       let data = null;
 
       for (const model of orModelsToTry) {
         try {
+          console.log(`[OpenRouter] Tentando modelo: ${model}...`);
+          
+          let currentSystemPrompt = systemPrompt;
+          
+          // O Gemini aguenta 2 Milhões de tokens. Mas o Llama, Mistral e Qwen na versão GRATUITA do OpenRouter 
+          // são limitados a apenas 8.192 tokens (cerca de 30.000 caracteres).
+          // Se enviarmos mais que isso, eles dão erro e a IA falha.
+          // Solução: Se o modelo não for Gemini, cortamos o texto para 25.000 caracteres para ele conseguir ler de graça.
+          if (!model.includes("gemini")) {
+            if (currentSystemPrompt.length > 25000) {
+              currentSystemPrompt = currentSystemPrompt.substring(0, 25000) + "\n\n[... RESTANTE DO MANUAL CORTADO DEVIDO AO LIMITE DE MEMÓRIA DESTA IA GRATUITA ...]";
+              console.log(`[OpenRouter] ✂️ Texto cortado para 25k caracteres para o modelo ${model} suportar na versão grátis.`);
+            }
+          }
+
           const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -166,7 +184,7 @@ ${contextText}
             body: JSON.stringify({
               model: model,
               messages: [
-                { role: "system", content: systemPrompt },
+                { role: "system", content: currentSystemPrompt },
                 { role: "user", content: query }
               ],
               temperature: 0.2,
@@ -176,13 +194,16 @@ ${contextText}
           const jsonResponse = await response.json();
           if (jsonResponse.error) {
             lastError = jsonResponse.error.message;
+            console.error(`[OpenRouter] ❌ Modelo ${model} falhou:`, lastError);
             continue; // Falhou, tenta o próximo modelo grátis!
           }
           
+          console.log(`[OpenRouter] ✅ Modelo ${model} funcionou perfeitamente!`);
           data = jsonResponse;
           break; // Sucesso!
         } catch (err: any) {
           lastError = err.message;
+          console.error(`[OpenRouter] ❌ Erro na requisição do modelo ${model}:`, lastError);
         }
       }
 
