@@ -27,3 +27,4 @@ jobs:
       - name: Deploy Edge Functions
         run: |
           supabase functions deploy admin-operations --project-ref $SUPABASE_PROJECT_ID
+          supabase functions deploy duno-ai-generator --project-ref $SUPABASE_PROJECT_ID
