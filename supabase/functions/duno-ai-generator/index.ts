@@ -29,6 +29,17 @@ serve(async (req) => {
     
     // (Código antigo de auth foi removido)
 
+    // ============================================
+    // DIAGNÓSTICO DE DEPLOY (APAGAR DEPOIS)
+    // Se você não ver esse erro na tela, o Supabase NÃO atualizou o código!
+    if (req.method === "POST") {
+       return new Response(JSON.stringify({ error: "SUCESSO: O NOVO CÓDIGO CHEGOU NA NUVEM!" }), {
+         headers: { ...corsHeaders, "Content-Type": "application/json" },
+         status: 400,
+       });
+    }
+    // ============================================
+
     const { query, chunks } = await req.json();
 
     if (!query || !chunks || !Array.isArray(chunks) || chunks.length === 0) {
