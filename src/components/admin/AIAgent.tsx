@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Bot, Send, User, Sparkles, RefreshCw, BookOpen, Loader2, BrainCircuit } from 'lucide-react';
+import { Bot, Send, User, Sparkles, RefreshCw, BookOpen, Loader2, BrainCircuit, Paperclip, GraduationCap } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { KnowledgeEntry } from '../../data/dunoKnowledge';
 import { detectDataIntent, executeDataQuery } from '../../services/dunoQueryService';
-
 import { analyzeAndDiscover } from '../../services/dunoBrain';
+import { aiKnowledgeService } from '../../services/aiKnowledgeService';
+import { getCurrentTenantId } from '../../lib/tenantContext';
 
 interface Message { id: string; role: 'user' | 'assistant'; content: string; isTyping?: boolean; }
 
@@ -95,8 +96,34 @@ export const AIAgent: React.FC = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [learnedCount, setLearnedCount] = useState(getLearnedEntries().length);
+  const [mode, setMode] = useState<'assistant' | 'learn'>('assistant');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const typingId = 'typing-' + Date.now();
+    setMessages(p => [...p, 
+      { id: Date.now().toString(), role: 'user', content: `Enviando arquivo: **${file.name}**` },
+      { id: typingId, role: 'assistant', content: 'Iniciando ingestão do documento...', isTyping: true }
+    ]);
+    setIsLoading(true);
+
+    try {
+      await aiKnowledgeService.ingestDocument(file, (status) => {
+         setMessages(p => p.map(m => m.id === typingId ? { ...m, content: status } : m));
+      });
+      setMessages(p => p.map(m => m.id === typingId ? { ...m, content: `✅ **Sucesso!** O manual/documento "${file.name}" foi lido e aprendido pela inteligência. Você já pode me fazer perguntas sobre ele.`, isTyping: false } : m));
+    } catch (error: any) {
+      setMessages(p => p.map(m => m.id === typingId ? { ...m, content: `❌ **Erro:** Não foi possível ler o arquivo. Detalhe: ${error.message}`, isTyping: false } : m));
+    }
+    
+    setIsLoading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
@@ -135,14 +162,37 @@ export const AIAgent: React.FC = () => {
         if (dataIntent) {
           response = await executeDataQuery(dataIntent, firstName);
         } else {
-          // 4️⃣ Busca nos Aprendizados Persistentes
-          const learnedRes = searchLearned(userMsg.content);
-          if (learnedRes) {
-            response = learnedRes.includes(firstName) ? learnedRes : `${firstName}, me ensinaram que: ${learnedRes}`;
+          if (mode === 'learn') {
+             // 3.5️⃣ Modo Aprender: Busca EXCLUSIVA na Base RAG (PDFs)
+             const tenantId = getCurrentTenantId();
+             let kbResponse = null;
+             if (tenantId) {
+                kbResponse = await aiKnowledgeService.searchKnowledge(userMsg.content, tenantId);
+             }
+             if (kbResponse) {
+                response = kbResponse;
+             } else {
+                response = `Não encontrei informações sobre isso nos manuais e documentos que você enviou. Lembre-se que no **Modo Aprender** eu respondo estritamente com base nos anexos! 📄`;
+             }
           } else {
-            // 5️⃣ Motor Principal de NLP (Duno Copilot Engine)
-            const proc = await analyzeAndDiscover(userMsg.content);
-            response = proc || `Não consegui processar isso agora, ${firstName}. Pode tentar novamente?`;
+             // 4️⃣ Modo Assistente: Busca RAG + Fallback Copilot
+             const tenantId = getCurrentTenantId();
+             let kbResponse = null;
+             if (tenantId) {
+                kbResponse = await aiKnowledgeService.searchKnowledge(userMsg.content, tenantId);
+             }
+
+             if (kbResponse) {
+                response = kbResponse;
+             } else {
+               const learnedRes = searchLearned(userMsg.content);
+               if (learnedRes) {
+                 response = learnedRes.includes(firstName) ? learnedRes : `${firstName}, me ensinaram que: ${learnedRes}`;
+               } else {
+                 const proc = await analyzeAndDiscover(userMsg.content);
+                 response = proc || `Não consegui processar isso agora, ${firstName}. Pode tentar novamente?`;
+               }
+             }
           }
         }
       }
@@ -265,11 +315,27 @@ export const AIAgent: React.FC = () => {
 
       {/* ── Input ── */}
       <div className="bg-white/80 backdrop-blur-md border-t border-slate-100 px-4 py-4 sm:px-6 shrink-0 z-10">
+        <div className="flex justify-center mb-3">
+            <div className="bg-slate-100 p-1 rounded-lg inline-flex items-center gap-1 shadow-inner border border-slate-200/50">
+               <button onClick={() => setMode('assistant')} className={`px-4 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wide transition-all ${mode === 'assistant' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Sparkles size={12} className="inline mr-1 -mt-0.5" /> Assistente</button>
+               <button onClick={() => setMode('learn')} className={`px-4 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wide transition-all ${mode === 'learn' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><GraduationCap size={12} className="inline mr-1 -mt-0.5" /> Aprender</button>
+            </div>
+        </div>
         <div className="max-w-2xl mx-auto relative">
           <textarea ref={taRef} value={input} onChange={handleInput} onKeyDown={handleKeyDown}
-            placeholder={`Pergunte algo, ${firstName}...`}
-            className="w-full bg-slate-50/50 border border-slate-200 rounded-xl pl-4 pr-12 py-3.5 text-[13px] font-medium text-slate-700 outline-none focus:bg-white focus:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/5 transition-all resize-none shadow-inner"
+            placeholder={mode === 'learn' ? `Faça uma pergunta sobre um manual ou anexe um PDF...` : `Pergunte algo, ${firstName}...`}
+            className={`w-full bg-slate-50/50 border border-slate-200 rounded-xl ${mode === 'learn' ? 'pl-12' : 'pl-4'} pr-12 py-3.5 text-[13px] font-medium text-slate-700 outline-none focus:bg-white focus:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/5 transition-all resize-none shadow-inner`}
             rows={1} style={{ minHeight: '52px', maxHeight: '120px' }} />
+          
+          {mode === 'learn' && (
+             <>
+               <input type="file" accept="application/pdf, text/plain" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+               <button onClick={() => fileInputRef.current?.click()} className="absolute left-3 top-1/2 -translate-y-1/2 w-7 h-7 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg flex items-center justify-center transition-all">
+                 <Paperclip size={16} />
+               </button>
+             </>
+          )}
+
           <button onClick={handleSend} disabled={!input.trim() || isLoading}
             className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8.5 h-8.5 bg-[#1c2d4f] hover:bg-[#253a66] disabled:bg-slate-100 disabled:text-slate-400 text-white rounded-lg flex items-center justify-center transition-all shadow-md disabled:shadow-none">
             <Send size={14} />

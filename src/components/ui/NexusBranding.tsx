@@ -54,7 +54,7 @@ export const NexusBranding: React.FC<NexusBrandingProps> = ({
             </div>
             {showText && !imageLoaded && (
                 <div className="flex flex-col leading-none">
-                    <h1 className={`${current.text} font-bold tracking-tight ${variant === 'light' ? 'text-white' : 'text-slate-900'} `}>
+                    <h1 className={`${current.text} tracking-tight ${variant === 'light' ? 'text-white' : 'text-slate-900'} `}>
                         duno
                     </h1>
                 </div>

@@ -9,6 +9,7 @@ import { CacheManager } from '../../lib/cache';
 import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { OrderStatus } from '../../types';
+import { normalizeOrderStatus } from '../ui/StatusBadge';
 
 // Fix for default marker icons
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -62,15 +63,16 @@ const createTechIcon = (avatarUrl: string, isMoving: boolean = true, customColor
     });
 };
 
-const getStatusColorHex = (status: OrderStatus) => {
-    switch (status) {
-        case OrderStatus.PENDING: return '#3b82f6';
-        case OrderStatus.ASSIGNED: return '#1d4ed8';
-        case OrderStatus.TRAVELING: return '#f59e0b';
+const getStatusColorHex = (status: OrderStatus | string) => {
+    const normalized = normalizeOrderStatus(status as string);
+    switch (normalized) {
+        case OrderStatus.PENDING:     return '#3b82f6';
+        case OrderStatus.ASSIGNED:    return '#1d4ed8';
+        case OrderStatus.TRAVELING:   return '#f59e0b';
         case OrderStatus.IN_PROGRESS: return '#eab308';
-        case OrderStatus.COMPLETED: return '#10b981';
-        case OrderStatus.CANCELED: return '#d946ef';
-        case OrderStatus.BLOCKED: return '#ef4444';
+        case OrderStatus.COMPLETED:   return '#10b981';
+        case OrderStatus.CANCELED:    return '#d946ef';
+        case OrderStatus.BLOCKED:     return '#ef4444';
         default: return '#94a3b8';
     }
 };
@@ -714,50 +716,66 @@ export const TechnicianMap: React.FC = () => {
                         showCoverageOnHover={false}
                         maxClusterRadius={60}
                     >
-                        {mappedOrders.map(o => (
-                            <Marker
-                                key={o.id}
-                                position={[o.latitude!, o.longitude!] as any}
-                                icon={createOrderIcon(o.status, o.displayId || o.id.split('-')[0])}
-                            >
-                                <Popup>
-                                    <div 
-                                        className="p-3 w-48 cursor-pointer hover:bg-slate-50 transition-colors group"
-                                        title="Clique para abrir detalhes da OS"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            window.open(`${window.location.origin}/#/order/view/${o.publicToken || o.id}`, '_blank');
-                                        }}
-                                    >
-                                        <p className="font-black text-sm text-[#1c2d4f] truncate group-hover:text-primary-600 transition-colors">{o.title}</p>
-                                        <p className="text-[10px] text-slate-500 font-bold mb-2 break-all">{o.displayId || o.id}</p>
+                        {mappedOrders.map(o => {
+                            const assignedTech = technicians.find(t => t.id === o.assignedTo);
+                            return (
+                                <Marker
+                                    key={o.id}
+                                    position={[o.latitude!, o.longitude!] as any}
+                                    icon={createOrderIcon(o.status, o.displayId || o.id.split('-')[0])}
+                                >
+                                    <Popup>
+                                        <div 
+                                            className="p-3 w-48 cursor-pointer hover:bg-slate-50 transition-colors group"
+                                            title="Clique para abrir detalhes da OS"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                window.open(`${window.location.origin}/#/order/view/${o.publicToken || o.id}`, '_blank');
+                                            }}
+                                        >
+                                            <p className="font-black text-sm text-[#1c2d4f] truncate group-hover:text-primary-600 transition-colors">{o.title}</p>
+                                            <p className="text-[10px] text-slate-500 font-bold mb-1 break-all">{o.displayId || o.id}</p>
+                                            {o.customerName && (
+                                                <p className="text-[11px] font-bold text-slate-700 mb-2 truncate">🏢 {o.customerName}</p>
+                                            )}
 
-                                        <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 mb-2 group-hover:border-primary-100 transition-colors">
-                                            <div className="flex items-center gap-1.5 mb-1.5">
-                                                <span className="w-2 h-2 rounded-full shadow-sm" style={{ backgroundColor: getStatusColorHex(o.status) }}></span>
-                                                <span className="text-[9px] font-black uppercase text-slate-700 tracking-wider tooltip">{o.status}</span>
+                                            <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 mb-2 group-hover:border-primary-100 transition-colors">
+                                                <div className="flex items-center gap-1.5 mb-1.5">
+                                                    <span className="w-2 h-2 rounded-full shadow-sm" style={{ backgroundColor: getStatusColorHex(o.status) }}></span>
+                                                    <span className="text-[9px] font-black uppercase text-slate-700 tracking-wider">{normalizeOrderStatus(o.status as string)}</span>
+                                                </div>
+                                                <div className="flex items-start gap-1 text-[10px] text-slate-600">
+                                                    <MapPin size={12} className="shrink-0 text-slate-400 mt-0.5 group-hover:text-primary-500 transition-colors" />
+                                                    <span className="truncate">{o.customerAddress}</span>
+                                                </div>
                                             </div>
-                                            <div className="flex items-start gap-1 text-[10px] text-slate-600">
-                                                <MapPin size={12} className="shrink-0 text-slate-400 mt-0.5 group-hover:text-primary-500 transition-colors" />
-                                                <span className="truncate">{o.customerAddress}</span>
+
+                                            {assignedTech && (
+                                                <div className="flex items-center gap-2 mb-2 bg-white border border-slate-100 p-1.5 rounded-lg shadow-sm">
+                                                    <img src={assignedTech.avatar || `https://ui-avatars.com/api/?name=${assignedTech.name}&background=random`} className="w-6 h-6 rounded-full border border-slate-200" alt="" />
+                                                    <div className="overflow-hidden">
+                                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider leading-none mb-0.5">Técnico Atribuído</p>
+                                                        <p className="text-[10px] font-bold text-slate-700 truncate leading-none">{assignedTech.name}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {o.scheduledDate && (
+                                                <div className="flex items-center gap-1 text-[10px] font-bold text-slate-600 mt-2">
+                                                    <Calendar size={12} className="text-primary-500" />
+                                                    <span>Agendado: {format(new Date(o.scheduledDate), "dd/MM/yyyy")} {o.scheduledTime}</span>
+                                                </div>
+                                            )}
+
+                                            <div className="mt-3 flex justify-center items-center gap-2 text-[9px] font-black text-white uppercase bg-[#1c2d4f] hover:bg-[#111f38] py-2 rounded-lg transition-all shadow-sm">
+                                                <ExternalLink size={12} />
+                                                <span>Abrir O.S</span>
                                             </div>
                                         </div>
-
-                                        {o.scheduledDate && (
-                                            <div className="flex items-center gap-1 text-[10px] font-bold text-slate-600 mt-2">
-                                                <Calendar size={12} className="text-primary-500" />
-                                                <span>Agendado: {format(new Date(o.scheduledDate), "dd/MM/yyyy")} {o.scheduledTime}</span>
-                                            </div>
-                                        )}
-
-                                        <div className="mt-3 flex justify-center items-center gap-2 text-[9px] font-black text-primary-600 uppercase bg-primary-50 py-1.5 rounded-lg group-hover:bg-primary-600 group-hover:text-white transition-all shadow-sm">
-                                            <ExternalLink size={12} />
-                                            <span>Abrir O.S</span>
-                                        </div>
-                                    </div>
-                                </Popup>
-                            </Marker>
-                        ))}
+                                    </Popup>
+                                </Marker>
+                            );
+                        })}
                     </MarkerClusterGroup>
 
 

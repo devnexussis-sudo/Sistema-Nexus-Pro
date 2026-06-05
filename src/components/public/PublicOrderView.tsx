@@ -51,15 +51,15 @@ const SectionHeader: React.FC<{ icon: React.ReactNode; title: string; color?: st
     <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-slate-100 ${color} shadow-sm border border-slate-200/50`}>
       {icon}
     </div>
-    <h3 className={`text-sm font-bold uppercase tracking-[0.1em] ${color}`}>{title}</h3>
+    <h3 className={`text-sm uppercase tracking-[0.1em] ${color}`}>{title}</h3>
   </div>
 );
 
 const InfoPill: React.FC<{ label: string; value: string; mono?: boolean }> = ({ label, value, mono }) => (
   <div className="flex flex-col gap-1.5 font-poppins" style={{ fontFamily: "'Poppins', sans-serif" }}>
-    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide px-0.5">{label}</span>
+    <span className="text-xs text-slate-500 uppercase tracking-wide px-0.5">{label}</span>
     <div className="bg-slate-50/50 rounded-lg px-2 py-1.5 border border-slate-100/50">
-       <span className={`text-sm font-bold text-slate-800 ${mono ? '' : 'uppercase'}`}>{value || '—'}</span>
+       <span className={`text-sm text-slate-800 ${mono ? '' : 'uppercase'}`}>{value || '—'}</span>
     </div>
   </div>
 );
@@ -170,23 +170,25 @@ const VisitCard: React.FC<{
             {visit.status === 'blocked' ? <ShieldAlert size={18} /> : <Calendar size={18} />}
           </div>
           <div className="text-left">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Visita #{idx + 1}</p>
-            <p className="text-sm font-bold text-slate-900 uppercase">
+            <p className="text-xs text-slate-400 uppercase tracking-widest">Visita #{idx + 1}</p>
+            <p className="text-sm text-slate-900 uppercase">
               {safeFormatDate(visit.scheduled_date || visit.created_at)}
               {visit.scheduled_time && ` às ${visit.scheduled_time.slice(0, 5)}`}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
+          <div className={`px-3 py-1 rounded-full text-[10px] uppercase tracking-widest border ${
             visit.status === 'completed' ? 'bg-emerald-100/50 text-emerald-700 border-emerald-200' : 
-            visit.status === 'blocked' ? 'bg-rose-100/50 text-rose-700 border-rose-200' :
+            visit.status === 'blocked' ? 'bg-red-100/50 text-red-700 border-red-200' :
             visit.status === 'paused' ? 'bg-amber-100/50 text-amber-700 border-amber-200' :
+            visit.status === 'pending' ? 'bg-slate-100/50 text-slate-700 border-slate-200' :
             'bg-blue-100/50 text-blue-700 border-blue-200'
           }`}>
-            {visit.status === 'completed' ? 'Concluída' : 
-             visit.status === 'blocked' ? 'Impedida' : 
-             visit.status === 'paused' ? 'Pausada' : 
+            {visit.status === 'completed' ? 'Concluído' : 
+             visit.status === 'blocked' ? ((visit.arrival_time || visitData?.checkinLocation?.timestamp) ? 'Impedido Após Atendimento' : 'Impedido Antes do Início') : 
+             visit.status === 'paused' ? 'Pausado' : 
+             visit.status === 'pending' ? 'Agendada' :
              'Em Andamento'}
           </div>
           <div className="text-slate-400 group-hover:text-[#1c2d4f] transition-all">
@@ -242,19 +244,36 @@ const VisitCard: React.FC<{
               groups[groupName][key] = val;
             });
 
-            return Object.entries(groups).map(([groupName, groupData]) => {
+            // Sort: Financeiro sempre primeiro, Técnico segundo, Relatório de Atendimento por último
+            const groupSortPriority = (name: string): number => {
+              const n = name.toLowerCase();
+              if (n.endsWith('financeiro') || n.includes('- financeiro')) return 0;
+              if (n.endsWith('técnico') || n.includes('- técnico') || n.endsWith('tecnico') || n.includes('- tecnico')) return 1;
+              if (n === 'relatório de atendimento') return 99;
+              return 50;
+            };
+            return Object.entries(groups).sort((a, b) => {
+              const pa = groupSortPriority(a[0]);
+              const pb = groupSortPriority(b[0]);
+              if (pa !== pb) return pa - pb;
+              return a[0].localeCompare(b[0]);
+            }).map(([groupName, groupData]) => {
               const eq = linkedEquipments.find(e => {
                 const eName = (e.equipment_name || e.equipmentName || '').toLowerCase();
                 const gn = groupName.toLowerCase();
                 return gn.includes(eName) || eName.includes(gn);
               });
 
-              let displayTitle = eq ? (eq.equipment_name || eq.equipmentName) : groupName;
-              if (groupName.toLowerCase().includes('- financeiro')) {
-                  displayTitle += ' - Financeiro';
-              } else if (groupName.toLowerCase().includes('- técnico')) {
-                  displayTitle += ' - Técnico';
-              }
+              const isFinanceiro = groupName.toLowerCase().includes('financeiro');
+              const isTecnico = groupName.toLowerCase().includes('técnico') || groupName.toLowerCase().includes('tecnico');
+              const eqDisplayName = eq ? (eq.equipment_name || eq.equipmentName) : groupName.replace(/\s*-\s*(Financeiro|Técnico|Tecnico)\s*$/i, '').replace(/^.*?\]\s*-?\s*/, '');
+              let displayTitle = eqDisplayName;
+
+              const formTypeBadge = isFinanceiro
+                ? <span className="inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 ml-1.5">Financeiro</span>
+                : isTecnico
+                ? <span className="inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200 ml-1.5">Técnico</span>
+                : null;
 
               return (
                 <div key={groupName} className="mt-4 first:mt-0">
@@ -263,6 +282,7 @@ const VisitCard: React.FC<{
                     order={{ ...order, templateFields: formTemplates[eq?.form_id || visit.form_id || order.formId] || [] } as any}
                     onImageClick={onImageClick}
                     title={displayTitle}
+                    titleBadge={formTypeBadge}
                     subtitle={eq ? `S/N: ${eq.equipment_serial || eq.equipmentSerial}` : `Registros da Visita #${idx + 1}`}
                     icon={<Package size={16} />}
                     showPrices={showPrices}
@@ -272,20 +292,46 @@ const VisitCard: React.FC<{
             });
           })()}
 
+          {/* Assinatura do responsável pelo impedimento */}
+          {visit.status === 'blocked' && (visitData.impediment_responsible || visitData.impediment_signature) && (
+            <div className="mt-6 border border-red-100 bg-red-50/40 rounded-2xl overflow-hidden shadow-sm">
+              <div className="bg-red-100/60 px-4 py-3 border-b border-red-100">
+                <p className="text-xs text-red-700 uppercase tracking-widest">Cliente / Responsável por acompanhar o atendimento</p>
+              </div>
+              <div className="p-4 sm:p-5 flex flex-col items-start gap-3">
+                {visitData.impediment_responsible && (
+                  <p className="text-sm text-slate-800 uppercase">{visitData.impediment_responsible}</p>
+                )}
+                {visitData.impediment_signature && (
+                  <div
+                    className="w-full sm:w-64 h-28 bg-white rounded-xl border border-red-200 flex items-center justify-center p-2 cursor-zoom-in hover:border-red-400/40 transition-colors"
+                    onClick={() => onImageClick(visitData.impediment_signature)}
+                  >
+                    <img
+                      src={visitData.impediment_signature}
+                      className="max-h-full max-w-full object-contain mix-blend-multiply"
+                      alt="Assinatura do responsável"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Relatório Técnico, Peças e Evidências da Visita */}
           {(visitData.technical_report || visitData.technicalReport || visit.notes || visitData.parts_used || visitData.partsUsed || visitPhotos.length > 0 || visitData.videoUrl || visitData.video_url) && (
             <div className="mt-6 border border-slate-200 bg-slate-50/50 rounded-2xl overflow-hidden shadow-sm">
               <div className="bg-slate-100 px-4 py-3 border-b border-slate-200">
-                <p className="text-xs font-bold text-slate-600 uppercase tracking-widest">Relatório de Atendimento da Visita</p>
+                <p className="text-xs text-slate-600 uppercase tracking-widest">Relatório de Atendimento da Visita</p>
               </div>
               <div className="p-4 sm:p-5 space-y-5">
                 
                 {/* Relato do Técnico */}
                 {(visitData.technical_report || visitData.technicalReport || visit.notes) && (
                   <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Relato do Técnico</p>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-widest mb-1.5">Relato do Técnico</p>
                     <div className="p-3 bg-white rounded-xl border border-slate-200">
-                      <p className="text-sm font-medium text-slate-700 leading-relaxed whitespace-pre-wrap">
+                      <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
                         {visitData.technical_report || visitData.technicalReport || visit.notes}
                       </p>
                     </div>
@@ -295,9 +341,9 @@ const VisitCard: React.FC<{
                 {/* Peças Utilizadas */}
                 {(visitData.parts_used || visitData.partsUsed) && (
                   <div>
-                    <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mb-1.5">Peças e Materiais Utilizados</p>
+                    <p className="text-[10px] text-amber-600/70 uppercase tracking-widest mb-1.5">Peças e Materiais Utilizados</p>
                     <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-100">
-                      <p className="text-sm font-medium text-slate-700 leading-relaxed whitespace-pre-wrap">
+                      <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
                         {visitData.parts_used || visitData.partsUsed}
                       </p>
                     </div>
@@ -307,7 +353,7 @@ const VisitCard: React.FC<{
                 {/* Fotos e Vídeos */}
                 {(visitPhotos.length > 0 || visitData.videoUrl || visitData.video_url) && (
                   <div className={(visitData.technical_report || visitData.technicalReport || visit.notes || visitData.parts_used || visitData.partsUsed) ? "pt-2 border-t border-slate-200 mt-2" : ""}>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Anexos e Evidências</p>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-widest mb-3">Anexos e Evidências</p>
                     <div className="flex flex-wrap gap-3">
                       {(visitData.videoUrl || visitData.video_url) && (
                         <div
@@ -359,21 +405,21 @@ const VisitCard: React.FC<{
 
             return (
               <div className="pt-4 border-t border-slate-100 mt-4">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Auditoria Digital da Visita</p>
-                <div className="flex flex-col sm:flex-row items-center gap-6 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                <p className="text-[10px] text-slate-400 uppercase tracking-[0.2em] mb-3">Auditoria Digital da Visita</p>
+                <div className="flex flex-col items-center gap-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                  <div className="text-center w-full">
+                    <p className="text-xs text-slate-400 uppercase tracking-widest mb-1">Responsável pela Validação</p>
+                    <p className="text-sm text-slate-900 uppercase">{sigName || 'NOME NÃO INFORMADO'}</p>
+                    {sigDoc && <p className="text-[10px] text-slate-400 mt-1">DOC: {sigDoc}</p>}
+                  </div>
                   <div 
-                    className="w-full sm:w-48 h-24 bg-white rounded-xl border border-slate-200 flex items-center justify-center p-2 cursor-zoom-in group"
+                    className="w-full sm:w-64 h-28 bg-white rounded-xl border border-slate-200 flex items-center justify-center p-2 cursor-zoom-in group mt-1"
                     onClick={() => onImageClick(sigUrl)}
                   >
                     <img src={sigUrl} className="max-h-full max-w-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform" alt="Assinatura da Visita" />
                   </div>
-                  <div className="flex-1 text-center sm:text-left">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Responsável pela Validação</p>
-                    <p className="text-sm font-black text-slate-900 uppercase">{sigName || 'NOME NÃO INFORMADO'}</p>
-                    {sigDoc && <p className="text-[10px] font-bold text-slate-400 mt-1">DOC: {sigDoc}</p>}
-                    <div className="mt-2 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md inline-block uppercase tracking-wider">
-                      Autenticado via Nexus Mobile
-                    </div>
+                  <div className="mt-1 text-[9px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md inline-block uppercase tracking-wider">
+                    Autenticado via Nexus Mobile
                   </div>
                 </div>
               </div>
@@ -423,11 +469,12 @@ const CollapsibleFormSection: React.FC<{
   order: ServiceOrder;
   onImageClick: (url: string) => void;
   title?: string;
+  titleBadge?: React.ReactNode;
   subtitle?: string;
   icon?: React.ReactNode;
   parts?: any[];
   showPrices?: boolean;
-}> = ({ formData, order, onImageClick, title = "Formulário Técnico", subtitle, icon, parts, showPrices }) => {
+}> = ({ formData, order, onImageClick, title = "Formulário Técnico", titleBadge, subtitle, icon, parts, showPrices }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const SYSTEM_KEYS = new Set([
@@ -515,14 +562,17 @@ const CollapsibleFormSection: React.FC<{
             {icon || <ClipboardList size={16} />}
           </div>
           <div className="text-left">
-            <p className="text-sm font-bold text-slate-900 uppercase tracking-wide">{title}</p>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">
+            <div className="flex items-center gap-1">
+              <p className="text-sm text-slate-900 uppercase tracking-wide">{title}</p>
+              {titleBadge}
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
               {subtitle || `${textCount} ${textCount === 1 ? 'resposta' : 'respostas'}${photoCount > 0 ? ` · ${photoCount} foto${photoCount > 1 ? 's' : ''}` : ''}`}
               {parts && parts.length > 0 && showPrices && ` · R$ ${parts.reduce((acc, it) => acc + (it.total || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-xs font-bold text-[#1c2d4f] uppercase tracking-widest group-hover:gap-3 transition-all">
+        <div className="flex items-center gap-2 text-xs text-[#1c2d4f] uppercase tracking-widest group-hover:gap-3 transition-all">
           <span>{isOpen ? 'Fechar' : 'Ver mais'}</span>
           {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </div>
@@ -580,7 +630,7 @@ const CollapsibleFormSection: React.FC<{
                           <div className="w-6 h-6 rounded-md bg-emerald-50 flex items-center justify-center border border-emerald-100">
                             <CheckCircle2 size={12} className="text-emerald-600" />
                           </div>
-                          <h4 className="text-xs font-bold uppercase tracking-widest text-[#1c2d4f]">{group}</h4>
+                          <h4 className="text-xs uppercase tracking-widest text-[#1c2d4f]">{group}</h4>
                         </div>
                       )}
                       <div className="flex flex-col gap-3">
@@ -589,14 +639,14 @@ const CollapsibleFormSection: React.FC<{
                             <div className="grid grid-cols-2 divide-x divide-slate-200">
                               {/* Pergunta */}
                               <div className="p-4 bg-slate-50/50 flex items-center">
-                                <p className="text-xs font-semibold text-slate-800 uppercase tracking-wide">
+                                <p className="text-xs text-slate-800 uppercase tracking-wide">
                                   {resolvePublicLabel(key)}
                                 </p>
                               </div>
                               {/* Resposta */}
                               <div className="p-4 flex flex-col justify-center">
                                 {text !== null && (
-                                  <p className={`text-sm font-medium leading-snug flex items-center gap-1.5 ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok'
+                                  <p className={`text-sm leading-snug flex items-center gap-1.5 ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok'
                                     ? 'text-emerald-600'
                                     : 'text-slate-500'
                                     }`}>
@@ -605,7 +655,7 @@ const CollapsibleFormSection: React.FC<{
                                   </p>
                                 )}
                                 {text === null && photos.length > 0 && (
-                                  <p className="text-xs font-bold text-slate-400 italic">Evidência fotográfica anexada</p>
+                                  <p className="text-xs text-slate-400 italic">Evidência fotográfica anexada</p>
                                 )}
                                 {photos.length > 0 && (
                                   <div className="flex flex-wrap gap-2 mt-3">
@@ -645,17 +695,17 @@ const CollapsibleFormSection: React.FC<{
                         <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                           <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex items-center gap-2">
                             <Package size={14} className="text-slate-500" />
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-600">Peças Utilizadas neste Equipamento</span>
+                            <span className="text-[10px] uppercase tracking-widest text-slate-600">Peças Utilizadas neste Equipamento</span>
                           </div>
                           <table className="w-full text-left text-xs">
                             <tbody className="divide-y divide-slate-100">
                               {eqParts.map((pIt, pIdx) => (
                                 <tr key={pIdx} className="hover:bg-slate-50/50">
-                                  <td className="px-4 py-3 font-bold text-slate-700 uppercase">
-                                    <span className="text-blue-600 font-black mr-1">{pIt.quantity || 1}x</span> {pIt.description}
+                                  <td className="px-4 py-3 text-slate-700 uppercase">
+                                    <span className="text-blue-600 mr-1">{pIt.quantity || 1}x</span> {pIt.description}
                                   </td>
-                                  <td className="px-4 py-3 text-center font-bold text-slate-900 w-16">{pIt.quantity || 1}</td>
-                                  {showPrices && <td className="px-4 py-3 text-right font-bold text-slate-900">R$ {(pIt.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                                  <td className="px-4 py-3 text-center text-slate-900 w-16">{pIt.quantity || 1}</td>
+                                  {showPrices && <td className="px-4 py-3 text-right text-slate-900">R$ {(pIt.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
                                 </tr>
                               ))}
                             </tbody>
@@ -673,13 +723,13 @@ const CollapsibleFormSection: React.FC<{
                       <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
                         <Package size={16} />
                       </div>
-                      <h4 className="text-xs font-bold uppercase tracking-widest text-slate-700">Outras Peças & Insumos Utilizados</h4>
+                      <h4 className="text-xs uppercase tracking-widest text-slate-700">Outras Peças & Insumos Utilizados</h4>
                     </div>
                     
                     <div className="overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/30">
                       <table className="w-full text-left text-xs">
                         <thead>
-                          <tr className="bg-slate-100/50 text-slate-500 font-bold uppercase tracking-tighter">
+                          <tr className="bg-slate-100/50 text-slate-500 uppercase tracking-tighter">
                             <th className="px-4 py-3">Descrição do Item</th>
                             <th className="px-4 py-3 text-center">Qtd</th>
                             {showPrices && <th className="px-4 py-3 text-right">Unitário</th>}
@@ -689,20 +739,20 @@ const CollapsibleFormSection: React.FC<{
                         <tbody className="divide-y divide-slate-100">
                           {unlinkedParts.map((it, idx) => (
                             <tr key={it.id || idx} className="hover:bg-white/50 transition-colors">
-                              <td className="px-4 py-3 font-bold text-slate-700 uppercase">
-                                <span className="text-blue-600 font-black mr-1">{it.quantity || 1}x</span> {it.description}
+                              <td className="px-4 py-3 text-slate-700 uppercase">
+                                <span className="text-blue-600 mr-1">{it.quantity || 1}x</span> {it.description}
                               </td>
-                              <td className="px-4 py-3 text-center font-bold text-slate-900">{it.quantity}</td>
+                              <td className="px-4 py-3 text-center text-slate-900">{it.quantity}</td>
                               {showPrices && <td className="px-4 py-3 text-right text-slate-500">R$ {it.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
-                              {showPrices && <td className="px-4 py-3 text-right font-bold text-slate-900">R$ {it.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                              {showPrices && <td className="px-4 py-3 text-right text-slate-900">R$ {it.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
                             </tr>
                           ))}
                         </tbody>
                         {showPrices && (
                           <tfoot className="bg-slate-100/30 border-t border-slate-100">
                             <tr>
-                              <td colSpan={3} className="px-4 py-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest">Subtotal Peças Diversas</td>
-                              <td className="px-4 py-3 text-right font-bold text-[#1c2d4f]">
+                              <td colSpan={3} className="px-4 py-3 text-right text-[10px] text-slate-400 uppercase tracking-widest">Subtotal Peças Diversas</td>
+                              <td className="px-4 py-3 text-right text-[#1c2d4f]">
                                 R$ {unlinkedParts.reduce((acc, it) => acc + (it.total || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                               </td>
                             </tr>
@@ -881,21 +931,74 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   }, [order?.id, order?.publicToken]);
 
   // Handle auto-print when opening from Admin with ?print=true
+  // Waits for ALL images to finish loading before calling print (bigtech pattern)
+  const triggerSmartPrint = React.useCallback((closeAfter = false) => {
+    const setTitle = () => {
+      const cleanCustomer = (order?.customerName || 'Cliente').substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim();
+      document.title = `OS_${order?.displayId || order?.serviceOrderNumber || order?.id?.substring(0, 8)}_${cleanCustomer}`;
+    };
+
+    const doPrint = () => {
+      const originalTitle = document.title;
+      setTitle();
+      window.print();
+      document.title = originalTitle;
+      // Removido auto window.close() porque em browsers non-blocking (Safari/Mobile)
+      // isso fecha a janela antes de terminar o spool da impressão, gerando PDF em branco
+      // ou cancelando a ação. O usuário pode fechar a aba manualmente.
+    };
+
+    // Collect all images that are not yet complete
+    const imgs = Array.from(document.querySelectorAll('img')) as HTMLImageElement[];
+    const pending = imgs.filter(img => !img.complete || img.naturalWidth === 0);
+
+    if (pending.length === 0) {
+      doPrint();
+      return;
+    }
+
+    // Show a small loading overlay while images load
+    const overlay = document.createElement('div');
+    overlay.id = '__print-loading-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(255,255,255,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-family:system-ui,sans-serif';
+    overlay.innerHTML = `
+      <div style="width:48px;height:48px;border:3px solid #e2e8f0;border-top-color:#1c2d4f;border-radius:50%;animation:__spin 0.8s linear infinite"></div>
+      <p style="font-size:13px;color:#475569;letter-spacing:0.05em;text-transform:uppercase">Carregando imagens para impressão…</p>
+      <style>@keyframes __spin{to{transform:rotate(360deg)}}</style>
+    `;
+    document.body.appendChild(overlay);
+
+    let loaded = 0;
+    const total = pending.length;
+    const onLoad = () => {
+      loaded++;
+      if (loaded >= total) {
+        overlay.remove();
+        // Small extra delay for browser paint
+        setTimeout(doPrint, 300);
+      }
+    };
+
+    pending.forEach(img => {
+      img.addEventListener('load', onLoad, { once: true });
+      img.addEventListener('error', onLoad, { once: true }); // count errors too so we never hang
+    });
+
+    // Absolute safety timeout: 20s max regardless of load state
+    setTimeout(() => {
+      overlay.remove();
+      doPrint();
+    }, 20000);
+  }, [order]);
+
   React.useEffect(() => {
-    if (typeof window !== 'undefined' && window.location.href.includes('print=true') && order) {
-      const timer = setTimeout(() => {
-        const originalTitle = document.title;
-        const cleanCustomer = (order.customerName || 'Cliente').substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, "").trim();
-        document.title = `OS_${order.displayId || order.serviceOrderNumber || order.id.substring(0, 8)}_${cleanCustomer}`;
-        
-        window.print();
-        
-        document.title = originalTitle;
-        setTimeout(() => window.close(), 500);
-      }, 1500); // Give it time to load data, map and images
+    // Wait for all data to be fully loaded: order, visits, AND tenant (company info)
+    if (typeof window !== 'undefined' && window.location.href.includes('print=true') && order && orderVisits !== undefined && tenantProp) {
+      // Wait a bit longer (1000ms instead of 500ms) to ensure CSS/Tailwind rules are fully painted
+      const timer = setTimeout(() => triggerSmartPrint(false), 1000);
       return () => clearTimeout(timer);
     }
-  }, [order]);
+  }, [order, orderVisits, tenantProp, triggerSmartPrint]);
 
   // Busca endereço atualizado do cliente na tabela customers
   const [freshCustomerPhone, setFreshCustomerPhone] = React.useState<string | null>(null);
@@ -949,7 +1052,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
       <div className="min-h-screen bg-white flex items-center justify-center p-12">
         <div className="animate-pulse flex flex-col items-center gap-4">
           <NexusBranding size="lg" />
-          <p className="text-xs font-bold uppercase text-slate-300 tracking-widest">Carregando Detalhes da OS...</p>
+          <p className="text-xs uppercase text-slate-300 tracking-widest">Carregando Detalhes da OS...</p>
         </div>
       </div>
     </div>
@@ -1055,11 +1158,11 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             : <div className="bg-slate-900 p-1.5 rounded-lg flex items-center justify-center min-w-[50px] min-h-[50px] text-white"><Hexagon size={24} className="text-white fill-white/10" /></div>
           }
           <div className="space-y-0.5">
-            <h1 className="text-lg font-bold text-slate-900 uppercase tracking-tight">{companyName}</h1>
+            <h1 className="text-lg text-slate-900 uppercase tracking-tight">{companyName}</h1>
             <div className="text-[9px] text-slate-600 max-w-[400px]">
               {companyAddress && <div className="leading-tight">{companyAddress}</div>}
               <div className="flex gap-2 mt-0.5">
-                {companyPhone && <span className="font-semibold">Tel: {companyPhone}</span>}
+                {companyPhone && <span className="">Tel: {companyPhone}</span>}
                 {companyEmail && <span>Email: {companyEmail}</span>}
               </div>
             </div>
@@ -1067,10 +1170,10 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         </div>
         <div className="text-right">
           <div className="border-2 border-slate-800 px-3 py-1 rounded-lg bg-slate-50">
-            <div className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Ordem de Serviço</div>
-            <div className="text-xl font-bold text-slate-900 tracking-tighter">#{order.displayId || order.id.slice(0, 8).toUpperCase()}</div>
+            <div className="text-[8px] text-slate-500 uppercase tracking-wider">Ordem de Serviço</div>
+            <div className="text-xl text-slate-900 tracking-tighter">#{order.displayId || order.id.slice(0, 8).toUpperCase()}</div>
           </div>
-          <p className="text-[8px] font-bold text-slate-400 mt-1 uppercase tracking-wide">
+          <p className="text-[8px] text-slate-400 mt-1 uppercase tracking-wide">
             Emissão: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </p>
         </div>
@@ -1080,15 +1183,15 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         {/* Dados do Atendimento — print-no-break: card compacto, nunca cortar */}
         <div className="border border-slate-300 rounded-lg overflow-hidden print-no-break">
           <div className="grid grid-cols-12 divide-x divide-slate-200">
-            <div className="col-span-12 bg-slate-100 px-3 py-1 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Dados do Atendimento e Cliente</div>
+            <div className="col-span-12 bg-slate-100 px-3 py-1 border-b border-slate-300 text-[9px] uppercase tracking-wider text-slate-700">Dados do Atendimento e Cliente</div>
             <div className="col-span-7 p-2 grid grid-cols-2 gap-x-4 gap-y-2">
-              <div className="col-span-2"><label className="block text-[8px] font-bold text-slate-400 uppercase">Cliente</label><div className="font-bold text-slate-900 text-xs uppercase">{order.customerName}</div></div>
+              <div className="col-span-2"><label className="block text-[8px] text-slate-400 uppercase">Cliente</label><div className="text-slate-900 text-xs uppercase">{order.customerName}</div></div>
               <div className="col-span-2 flex flex-col gap-1">
-                <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Endereço</label><div className="font-medium text-slate-700 text-xs uppercase leading-tight">{displayAddress || 'N/A'}</div></div>
+                <div><label className="block text-[8px] text-slate-400 uppercase">Endereço</label><div className="text-slate-700 text-xs uppercase leading-tight">{displayAddress || 'N/A'}</div></div>
                 {(freshCustomerPhone || freshCustomerEmail) && (
                   <div>
-                    <label className="block text-[8px] font-bold text-slate-400 uppercase">Contato</label>
-                    <div className="font-medium text-slate-700 text-[10px] uppercase leading-tight mt-0.5">
+                    <label className="block text-[8px] text-slate-400 uppercase">Contato</label>
+                    <div className="text-slate-700 text-[10px] uppercase leading-tight mt-0.5">
                       {freshCustomerPhone && <span>{freshCustomerPhone}</span>}
                       {freshCustomerPhone && freshCustomerEmail && <span className="mx-1.5">•</span>}
                       {freshCustomerEmail && <span className="lowercase">{freshCustomerEmail}</span>}
@@ -1098,14 +1201,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               </div>
             </div>
             <div className="col-span-5 p-2 grid grid-cols-2 gap-2 bg-slate-50/50">
-              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Abertura</label><div className="font-bold">{fmt(order.createdAt)}</div></div>
-              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Tipo</label><div className="font-bold uppercase text-[9px]">{order.operationType || 'Manutenção'}</div></div>
-              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Check-In</label><div className="font-bold">{fmtDT(orderVisits.find((v: any) => v.arrival_time)?.arrival_time || order.startDate)}</div></div>
-              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Conclusão</label><div className="font-bold">{fmtDT(order.endDate || [...orderVisits].reverse().find((v: any) => v.departure_time)?.departure_time)}</div></div>
-              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Técnico</label><div className="font-bold uppercase text-[9px] truncate">{tech?.name || 'N/A'}</div></div>
+              <div><label className="block text-[8px] text-slate-400 uppercase">Abertura</label><div className="">{fmt(order.createdAt)}</div></div>
+              <div><label className="block text-[8px] text-slate-400 uppercase">Tipo</label><div className="uppercase text-[9px]">{order.operationType || 'Manutenção'}</div></div>
+              <div><label className="block text-[8px] text-slate-400 uppercase">Check-In</label><div className="">{fmtDT(orderVisits.find((v: any) => v.arrival_time)?.arrival_time || order.startDate)}</div></div>
+              <div><label className="block text-[8px] text-slate-400 uppercase">Conclusão</label><div className="">{fmtDT(order.endDate || [...orderVisits].reverse().find((v: any) => v.departure_time)?.departure_time)}</div></div>
+              <div><label className="block text-[8px] text-slate-400 uppercase">Técnico</label><div className="uppercase text-[9px] truncate">{tech?.name || 'N/A'}</div></div>
               <div className="col-span-2 flex items-center justify-between pt-1 border-t border-slate-200/50">
-                 <label className="text-[8px] font-bold text-slate-400 uppercase">Status Final</label>
-                 <div className="font-black text-[8px] border border-slate-300 px-1.5 py-0.5 rounded bg-white uppercase">{order.status}</div>
+                 <label className="text-[8px] text-slate-400 uppercase">Status Final</label>
+                 <div className="text-[8px] border border-slate-300 px-1.5 py-0.5 rounded bg-white uppercase">{order.status}</div>
               </div>
             </div>
           </div>
@@ -1114,12 +1217,12 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         {/* Equipamentos Vinculados (print) */}
         {linkedEquipments.length > 0 ? (
           <div className="border border-slate-300 rounded-lg overflow-hidden print-no-break">
-            <div className="bg-sky-50 text-sky-900 px-3 py-2 border-b border-sky-100 font-bold text-sm uppercase tracking-wider print-section-header">
+            <div className="bg-sky-50 text-sky-900 px-3 py-2 border-b border-sky-100 text-sm uppercase tracking-wider print-section-header">
               Equipamentos Vinculados ({linkedEquipments.length})
             </div>
             <div className="w-full"><table className="w-full text-left break-words table-fixed">
               <thead>
-                <tr className="bg-slate-50 text-xs font-bold text-slate-500 uppercase border-b border-slate-200">
+                <tr className="bg-slate-50 text-xs text-slate-500 uppercase border-b border-slate-200">
                   <th className="px-3 py-1.5">#</th>
                   <th className="px-3 py-1.5">Equipamento</th>
                   <th className="px-3 py-1.5">Modelo</th>
@@ -1130,11 +1233,11 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               <tbody className="divide-y divide-slate-100 bg-white">
                 {linkedEquipments.map((eq: any, i: number) => (
                   <tr key={eq.id || i}>
-                    <td className="px-3 py-1.5 text-xs font-bold text-slate-400">{i + 1}</td>
-                    <td className="px-3 py-1.5 text-xs font-bold text-slate-800 uppercase">{eq.equipment_name || eq.equipmentName || '—'}</td>
-                    <td className="px-3 py-1.5 text-xs font-medium text-slate-600 uppercase">{eq.equipment_model || eq.equipmentModel || '—'}</td>
-                    <td className="px-3 py-1.5 text-xs font-mono font-bold text-[#1c2d4f]">{eq.equipment_serial || eq.equipmentSerial || '—'}</td>
-                    <td className="px-3 py-1.5 text-xs font-medium text-slate-600 uppercase">{eq.equipment_family || eq.equipmentFamily || '—'}</td>
+                    <td className="px-3 py-1.5 text-xs text-slate-400">{i + 1}</td>
+                    <td className="px-3 py-1.5 text-xs text-slate-800 uppercase">{eq.equipment_name || eq.equipmentName || '—'}</td>
+                    <td className="px-3 py-1.5 text-xs text-slate-600 uppercase">{eq.equipment_model || eq.equipmentModel || '—'}</td>
+                    <td className="px-3 py-1.5 text-xs font-mono text-[#1c2d4f]">{eq.equipment_serial || eq.equipmentSerial || '—'}</td>
+                    <td className="px-3 py-1.5 text-xs text-slate-600 uppercase">{eq.equipment_family || eq.equipmentFamily || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1142,19 +1245,19 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
         ) : (order.equipmentName || order.equipmentModel || order.equipmentSerial) && (
           <div className="border border-slate-200 rounded-lg overflow-hidden print-no-break shadow-sm">
-            <div className="bg-sky-50 text-sky-900 px-3 py-2 border-b border-sky-100 font-bold text-sm uppercase tracking-wider">Dados do Equipamento</div>
+            <div className="bg-sky-50 text-sky-900 px-3 py-2 border-b border-sky-100 text-sm uppercase tracking-wider">Dados do Equipamento</div>
             <div className="p-3 bg-white grid grid-cols-3 gap-4">
-              <div className="col-span-1"><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Equipamento</label><div className="font-bold text-slate-800 text-sm uppercase">{order.equipmentName || '—'}</div></div>
-              <div className="col-span-1"><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Modelo</label><div className="font-medium text-slate-700 text-sm uppercase">{order.equipmentModel || '—'}</div></div>
-              <div className="col-span-1"><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nº Sér / ID</label><div className="font-mono font-bold text-[#1c2d4f] text-sm uppercase ">{order.equipmentSerial || '—'}</div></div>
+              <div className="col-span-1"><label className="block text-[10px] text-slate-400 uppercase tracking-widest">Equipamento</label><div className="text-slate-800 text-sm uppercase">{order.equipmentName || '—'}</div></div>
+              <div className="col-span-1"><label className="block text-[10px] text-slate-400 uppercase tracking-widest">Modelo</label><div className="text-slate-700 text-sm uppercase">{order.equipmentModel || '—'}</div></div>
+              <div className="col-span-1"><label className="block text-[10px] text-slate-400 uppercase tracking-widest">Nº Sér / ID</label><div className="font-mono text-[#1c2d4f] text-sm uppercase ">{order.equipmentSerial || '—'}</div></div>
             </div>
           </div>
         )}
 
         {order.description && (
           <div className="border border-slate-300 rounded-lg overflow-hidden print-section">
-            <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700 print-section-header">Relatório / Descrição do Serviço</div>
-            <div className="p-2 bg-white text-[9px] text-slate-800 font-medium whitespace-pre-wrap leading-tight">
+            <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 text-[9px] uppercase tracking-wider text-slate-700 print-section-header">Relatório / Descrição do Serviço</div>
+            <div className="p-2 bg-white text-[9px] text-slate-800 whitespace-pre-wrap leading-tight">
               {order.description}
             </div>
           </div>
@@ -1162,8 +1265,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
         {(order.status === 'IMPEDIDO' || formDataPrint.impediment_reason || (order.notes && order.notes.includes('IMPEDIMENTO'))) && (
           <div className="border border-red-300 rounded-lg overflow-hidden print-no-break shadow-sm text-red-900">
-            <div className="bg-red-100 px-3 py-1 border-b border-red-300 font-bold text-[9px] uppercase tracking-wider text-red-700 print-section-header">Aviso de Impedimento / Pendência</div>
-            <div className="p-2 bg-red-50 text-[9px] font-medium whitespace-pre-wrap italic leading-tight">
+            <div className="bg-red-100 px-3 py-1 border-b border-red-300 text-[9px] uppercase tracking-wider text-red-700 print-section-header">Aviso de Impedimento / Pendência</div>
+            <div className="p-2 bg-red-50 text-[9px] whitespace-pre-wrap italic leading-tight">
               {formDataPrint.impediment_reason || (order.notes ? order.notes.replace('IMPEDIMENTO: ', '') : 'Motivo não mapeado detalhadamente.')}
             </div>
           </div>
@@ -1262,17 +1365,39 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           const grpEntries = Object.entries(grps);
           if (grpEntries.length === 0) return null;
 
-          return grpEntries.map(([gName, items], gIdx) => {
+          // Financeiro primeiro, Técnico segundo, Relatório Geral por último
+          const grpSortPriority = (name: string): number => {
+            const n = name.toLowerCase();
+            if (n.endsWith('financeiro') || n.includes('- financeiro')) return 0;
+            if (n.endsWith('técnico') || n.includes('- técnico') || n.endsWith('tecnico') || n.includes('- tecnico')) return 1;
+            if (n === 'relatório geral' || n === 'relatorio geral') return 99;
+            return 50;
+          };
+          const sortedGrpEntries = [...grpEntries].sort((a, b) => {
+            const pa = grpSortPriority(a[0]);
+            const pb = grpSortPriority(b[0]);
+            if (pa !== pb) return pa - pb;
+            return a[0].localeCompare(b[0]);
+          });
+
+          return sortedGrpEntries.map(([gName, items], gIdx) => {
             const eq = linkedEquipments.find(e => {
               const eN = (e.equipment_name || e.equipmentName || '').toLowerCase();
               return gName.toLowerCase().includes(eN) || eN.includes(gName.toLowerCase());
             });
+            const isGrpFinanceiro = gName.toLowerCase().includes('financeiro');
+            const isGrpTecnico = gName.toLowerCase().includes('técnico') || gName.toLowerCase().includes('tecnico');
+            const grpEqName = eq ? (eq.equipment_name || eq.equipmentName) : gName.replace(/\s*-\s*(Financeiro|Técnico|Tecnico)\s*$/i, '').replace(/^.*?\]\s*-?\s*/, '');
 
             return (
               // print-section: permite que o conteúdo do grupo flua entre páginas
               <div key={gIdx} className="border border-slate-300 rounded-lg overflow-hidden mt-2 print-section">
-                <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[10px] uppercase tracking-wider text-slate-700 flex justify-between items-center print-section-header">
-                  <span>Checklist — {eq ? (eq.equipment_name || eq.equipmentName) : gName}</span>
+                <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 text-[10px] uppercase tracking-wider text-slate-700 flex justify-between items-center print-section-header">
+                  <div className="flex items-center gap-1.5">
+                    <span>Checklist — {grpEqName}</span>
+                    {isGrpFinanceiro && <span className="text-[8px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">Financeiro</span>}
+                    {isGrpTecnico && <span className="text-[8px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">Técnico</span>}
+                  </div>
                   {eq && (eq.equipment_serial || eq.equipmentSerial) && (
                     <span className="text-[9px] text-slate-500">S/N: {eq.equipment_serial || eq.equipmentSerial}</span>
                   )}
@@ -1283,13 +1408,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     <div key={iIdx} className="print-checklist-row border border-slate-200 rounded overflow-hidden">
                       <div className="grid grid-cols-2 divide-x divide-slate-200">
                         <div className="p-2 bg-slate-50/50 flex items-center">
-                           <p className="text-[9px] font-bold uppercase tracking-tight text-slate-600">
+                           <p className="text-[9px] uppercase tracking-tight text-slate-600">
                              {resolvePublicLabel(item.key)}
+
                            </p>
                         </div>
                         <div className="p-2 flex flex-col justify-center">
                            {item.text && (
-                             <p className={`text-[10px] font-bold uppercase ${item.text.toLowerCase() === 'sim' || item.text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-900'}`}>
+                             <p className={`text-[10px] uppercase ${item.text.toLowerCase() === 'sim' || item.text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-900'}`}>
                                {formatPublicValue(item.text)}
                              </p>
                            )}
@@ -1303,7 +1429,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                        <div className="absolute inset-0 flex items-center justify-center">
                                          <Play size={10} className="text-white opacity-80" />
                                        </div>
-                                       <span className="absolute bottom-1 bg-black/60 text-white text-[6px] font-bold px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
+                                       <span className="absolute bottom-1 bg-black/60 text-white text-[6px] px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
                                      </div>
                                    ) : (
                                      <img src={p} className="w-full h-full object-contain" />
@@ -1344,7 +1470,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                       <div className="bg-slate-50 rounded-md border border-slate-300 overflow-hidden">
                         <table className="w-full text-left break-words">
                           <thead>
-                            <tr className="bg-slate-200/50 text-[8px] font-bold text-slate-600 uppercase border-b border-slate-300">
+                            <tr className="bg-slate-200/50 text-[8px] text-slate-600 uppercase border-b border-slate-300">
                               <th className="px-3 py-1.5">Peças Utilizadas neste Equipamento</th>
                               <th className="px-3 py-1.5 text-center whitespace-nowrap">Qtd</th>
                               {showPrices && <th className="px-3 py-1.5 text-right whitespace-nowrap">Total</th>}
@@ -1353,11 +1479,11 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                           <tbody className="divide-y divide-slate-200">
                             {eqParts.map((pIt, pIdx) => (
                               <tr key={pIdx}>
-                                <td className="px-3 py-1.5 text-[9px] font-bold text-slate-700 uppercase break-words whitespace-normal">
-                                  <span className="text-slate-900 font-black mr-1">{pIt.quantity || 1}x</span> {pIt.description}
+                                <td className="px-3 py-1.5 text-[9px] text-slate-700 uppercase break-words whitespace-normal">
+                                  <span className="text-slate-900 mr-1">{pIt.quantity || 1}x</span> {pIt.description}
                                 </td>
-                                <td className="px-3 py-1.5 text-[9px] text-center font-bold text-slate-900 whitespace-nowrap">{pIt.quantity || 1}</td>
-                                {showPrices && <td className="px-3 py-1.5 text-[9px] text-right font-bold text-slate-900 whitespace-nowrap">R$ {(pIt.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                                <td className="px-3 py-1.5 text-[9px] text-center text-slate-900 whitespace-nowrap">{pIt.quantity || 1}</td>
+                                {showPrices && <td className="px-3 py-1.5 text-[9px] text-right text-slate-900 whitespace-nowrap">R$ {(pIt.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
                               </tr>
                             ))}
                           </tbody>
@@ -1391,7 +1517,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
           return (
             <div className="border border-slate-300 rounded-lg overflow-hidden mt-4 print-no-break">
-              <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700">Evidências Fotográficas e de Conclusão</div>
+              <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 text-xs uppercase tracking-wider text-slate-700">Evidências Fotográficas e de Conclusão</div>
               <div className="p-3 bg-white flex flex-wrap gap-3">
                 {(order.videoUrl || formDataPrint.videoUrl || formDataPrint.video_url) && (
                   <div className="border border-slate-200 rounded-lg p-1.5 w-[220px] h-[160px] overflow-hidden flex items-center justify-center bg-black break-inside-avoid shadow-inner relative">
@@ -1399,7 +1525,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     <div className="absolute inset-0 flex items-center justify-center">
                       <Play size={16} className="text-white opacity-80" />
                     </div>
-                    <span className="absolute bottom-1 bg-black/60 text-white text-[8px] font-bold px-1.5 py-0.5 rounded uppercase leading-none">Vídeo</span>
+                    <span className="absolute bottom-1 bg-black/60 text-white text-[8px] px-1.5 py-0.5 rounded uppercase leading-none">Vídeo</span>
                   </div>
                 )}
                 {allValidExtrasPrint.map((url: string, i: number) => (
@@ -1455,21 +1581,58 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               return (
                 // print-section: a visita toda pode fluir, mas o cabeçalho não fica órfão
                 <div key={v.id} className="border border-slate-200 rounded-lg overflow-hidden print-section mt-4 shadow-sm">
-                  <div className="bg-sky-50 text-sky-900 px-3 py-2 border-b border-sky-100 font-bold text-sm uppercase tracking-wider flex justify-between print-section-header">
-                    <span>Visita #{i + 1} — {safeFormatDate(v.scheduled_date || v.created_at)}</span>
-                    <span className="text-[10px] text-slate-500 font-bold">
-                      {(() => {
-                        const effArr = v.arrival_time || vFd?.checkinLocation?.timestamp || (i === 0 ? order.startDate : null);
-                        const effDep = v.departure_time || vFd?.checkoutLocation?.timestamp || (i === 0 ? order.endDate : null);
-                        return (
-                          <>
-                            {effArr ? `Entrada: ${safeFmtTime(effArr)}` : ''} 
-                            {effDep ? ` · Saída: ${safeFmtTime(effDep)}` : ''}
-                          </>
-                        );
-                      })()}
-                    </span>
-                  </div>
+                  {(() => {
+                    let statusLabel = '';
+                    let statusColor = 'bg-sky-50 text-sky-900 border-sky-100';
+                    let badgeColor = 'bg-white/60';
+                    if (v.status === 'completed') {
+                      statusLabel = '(Concluído)';
+                      statusColor = 'bg-emerald-50 text-emerald-900 border-emerald-200';
+                      badgeColor = 'bg-emerald-200/50 text-emerald-900';
+                    } else if (v.status === 'blocked') {
+                      const hasCheckin = v.arrival_time || vFd?.checkinLocation?.timestamp;
+                      statusLabel = hasCheckin ? '(Impedido Após Atendimento)' : '(Impedido Antes do Início)';
+                      statusColor = 'bg-red-50 text-red-900 border-red-200';
+                      badgeColor = 'bg-red-200/50 text-red-900';
+                    } else if (v.status === 'paused') {
+                      statusLabel = '(Pausado)';
+                      statusColor = 'bg-amber-50 text-amber-900 border-amber-200';
+                      badgeColor = 'bg-amber-200/50 text-amber-900';
+                    } else if (v.status === 'ongoing') {
+                      statusLabel = '(Em Andamento)';
+                      statusColor = 'bg-blue-50 text-blue-900 border-blue-200';
+                      badgeColor = 'bg-blue-200/50 text-blue-900';
+                    } else if (v.status === 'pending') {
+                      statusLabel = '(Agendada)';
+                      statusColor = 'bg-slate-50 text-slate-700 border-slate-200';
+                      badgeColor = 'bg-slate-200/50 text-slate-700';
+                    }
+                    
+                    return (
+                      <div className={`${statusColor} px-3 py-2 border-b text-sm uppercase tracking-wider flex justify-between items-center print-section-header`}>
+                        <div className="flex items-center gap-2">
+                          <span>Visita #{i + 1} — {safeFormatDate(v.scheduled_date || v.created_at)}</span>
+                          {statusLabel && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-md shadow-sm whitespace-nowrap ${badgeColor}`}>
+                              {statusLabel}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] opacity-80 ">
+                          {(() => {
+                            const effArr = v.arrival_time || vFd?.checkinLocation?.timestamp || (i === 0 ? order.startDate : null);
+                            const effDep = v.departure_time || vFd?.checkoutLocation?.timestamp || (i === 0 ? order.endDate : null);
+                            return (
+                              <>
+                                {effArr ? `Entrada: ${safeFmtTime(effArr)}` : ''} 
+                                {effDep ? ` · Saída: ${safeFmtTime(effDep)}` : ''}
+                              </>
+                            );
+                          })()}
+                        </span>
+                      </div>
+                    );
+                  })()}
                   
                   <div className="p-3 bg-white space-y-3">
                     {/* O relatório de técnico e as peças foram removidos daqui e movidos para o final (abaixo dos formulários) */}
@@ -1477,19 +1640,41 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     {/* Formulários (Checklists) */}
                     {Object.keys(grps).length > 0 && (
                       <div className="space-y-2 mt-2">
-                        {Object.entries(grps).map(([gName, gData]) => {
+                        {Object.entries(grps).sort((a, b) => {
+                          // Financeiro primeiro, Técnico segundo, Relatório por último
+                          const printGroupPriority = (name: string): number => {
+                            const n = name.toLowerCase();
+                            if (n.endsWith('financeiro') || n.includes('- financeiro')) return 0;
+                            if (n.endsWith('técnico') || n.includes('- técnico') || n.endsWith('tecnico') || n.includes('- tecnico')) return 1;
+                            if (n === 'relatório de atendimento') return 99;
+                            return 50;
+                          };
+                          const pa = printGroupPriority(a[0]);
+                          const pb = printGroupPriority(b[0]);
+                          if (pa !== pb) return pa - pb;
+                          return a[0].localeCompare(b[0]);
+                        }).map(([gName, gData]) => {
                           const eq = linkedEquipments.find(e => {
                             const eN = (e.equipment_name || e.equipmentName || '').toLowerCase();
                             return gName.toLowerCase().includes(eN) || eN.includes(gName.toLowerCase());
                           });
+                          const isPrintFinanceiro = gName.toLowerCase().includes('financeiro');
+                          const isPrintTecnico = gName.toLowerCase().includes('técnico') || gName.toLowerCase().includes('tecnico');
+                          const printEqDisplayName = eq ? (eq.equipment_name || eq.equipmentName) : gName.replace(/\s*-\s*(Financeiro|Técnico|Tecnico)\s*$/i, '').replace(/^.*?\]\s*-?\s*/, '');
                           return (
                             <div key={gName} className="border border-slate-200 rounded">
                               <div className="bg-slate-50 border-b border-slate-200 px-3 py-1.5 flex flex-col items-center justify-center text-center">
-                                <span className="font-bold text-xs uppercase tracking-wider text-slate-700">
-                                  Equipamento: {eq ? (eq.equipment_name || eq.equipmentName) : gName}
-                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs uppercase tracking-wider text-slate-700">
+                                    {gName === 'Relatório de Atendimento'
+                                      ? gName
+                                      : `Equipamento: ${printEqDisplayName}`}
+                                  </span>
+                                  {isPrintFinanceiro && <span className="text-[8px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">Financeiro</span>}
+                                  {isPrintTecnico && <span className="text-[8px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">Técnico</span>}
+                                </div>
                                 {eq && (eq.equipment_serial || eq.equipmentSerial) && (
-                                  <span className="text-[9px] font-medium text-slate-500 mt-0.5">S/N: {eq.equipment_serial || eq.equipmentSerial}</span>
+                                  <span className="text-[9px] text-slate-500 mt-0.5">S/N: {eq.equipment_serial || eq.equipmentSerial}</span>
                                 )}
                               </div>
                               <div className="flex flex-col gap-1.5 p-2 bg-white">
@@ -1519,11 +1704,11 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                     <div key={idx} className="print-checklist-row border border-slate-200 rounded overflow-hidden bg-white">
                                       <div className="grid grid-cols-2 divide-x divide-slate-200">
                                         <div className="p-1.5 bg-slate-50/50 flex items-center">
-                                          <div className="text-[8px] font-semibold uppercase tracking-tight text-slate-800">{resolvePublicLabel(key)}</div>
+                                          <div className="text-[8px] uppercase tracking-tight text-slate-800">{resolvePublicLabel(key)}</div>
                                         </div>
                                         <div className="p-1.5 flex flex-col justify-center">
                                           {text && (
-                                            <div className={`text-[9px] font-medium uppercase leading-tight ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok' ? 'text-emerald-600' : 'text-slate-500'}`}>
+                                            <div className={`text-[9px] uppercase leading-tight ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok' ? 'text-emerald-600' : 'text-slate-500'}`}>
                                               {formatPublicValue(text)}
                                             </div>
                                           )}
@@ -1537,7 +1722,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                                       <div className="absolute inset-0 flex items-center justify-center">
                                                         <Play size={10} className="text-white opacity-80" />
                                                       </div>
-                                                      <span className="absolute bottom-1 bg-black/60 text-white text-[6px] font-bold px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
+                                                      <span className="absolute bottom-1 bg-black/60 text-white text-[6px] px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
                                                     </a>
                                                   ) : (
                                                     <a href={p} target="_blank" rel="noopener noreferrer" className="w-full h-full block cursor-pointer">
@@ -1580,7 +1765,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                     <div className="bg-slate-50 rounded-md border border-slate-300 overflow-hidden">
                                       <table className="w-full text-left break-words">
                                         <thead>
-                                          <tr className="bg-slate-200/50 text-[8px] font-bold text-slate-600 uppercase border-b border-slate-300">
+                                          <tr className="bg-slate-200/50 text-[8px] text-slate-600 uppercase border-b border-slate-300">
                                             <th className="px-3 py-1">Peças Utilizadas neste Equipamento</th>
                                             <th className="px-3 py-1 text-center whitespace-nowrap">Qtd</th>
                                             {showPrices && <th className="px-3 py-1 text-right whitespace-nowrap">Total</th>}
@@ -1589,11 +1774,11 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                         <tbody className="divide-y divide-slate-200">
                                           {eqParts.map((pIt, pIdx) => (
                                             <tr key={pIdx}>
-                                              <td className="px-3 py-1 text-[8px] font-bold text-slate-700 uppercase break-words whitespace-normal">
-                                                <span className="text-slate-900 font-black mr-1">{pIt.quantity || 1}x</span> {pIt.description}
+                                              <td className="px-3 py-1 text-[8px] text-slate-700 uppercase break-words whitespace-normal">
+                                                <span className="text-slate-900 mr-1">{pIt.quantity || 1}x</span> {pIt.description}
                                               </td>
-                                              <td className="px-3 py-1 text-[8px] text-center font-bold text-slate-900 whitespace-nowrap">{pIt.quantity || 1}</td>
-                                              {showPrices && <td className="px-3 py-1 text-[8px] text-right font-bold text-slate-900 whitespace-nowrap">R$ {(pIt.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                                              <td className="px-3 py-1 text-[8px] text-center text-slate-900 whitespace-nowrap">{pIt.quantity || 1}</td>
+                                              {showPrices && <td className="px-3 py-1 text-[8px] text-right text-slate-900 whitespace-nowrap">R$ {(pIt.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
                                             </tr>
                                           ))}
                                         </tbody>
@@ -1612,14 +1797,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     {/* Relatório de Atendimento e Evidências (Movido para baixo dos formulários) */}
                     {(vFd.technical_report || vFd.technicalReport || v.notes || vFd.parts_used || vFd.partsUsed || visitPhotos.length > 0 || vFd.videoUrl || vFd.video_url) && (
                       <div className="mt-4 border border-slate-200 rounded-lg bg-slate-50 overflow-hidden print-no-break shadow-sm">
-                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-200 font-bold text-[10px] uppercase tracking-wider text-slate-700">
+                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-700">
                           Relatório de Atendimento da Visita
                         </div>
                         <div className="p-3 bg-white flex flex-col gap-3">
                           {/* Relato do Técnico */}
                           {(vFd.technical_report || vFd.technicalReport || v.notes) && (
                             <div className="text-[10px] text-slate-800 leading-tight whitespace-pre-wrap">
-                              <span className="font-bold uppercase text-slate-400 block mb-0.5 text-[9px]">Relato do Técnico:</span> 
+                              <span className="uppercase text-slate-400 block mb-0.5 text-[9px]">Relato do Técnico:</span> 
                               {vFd.technical_report || vFd.technicalReport || v.notes}
                             </div>
                           )}
@@ -1627,7 +1812,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                           {/* Peças da Visita */}
                           {(vFd.parts_used || vFd.partsUsed) && (
                             <div className="text-[9px] text-slate-700 leading-tight">
-                              <span className="font-bold uppercase text-slate-400 block mb-0.5 text-[9px]">Peças Utilizadas (Relato):</span> 
+                              <span className="uppercase text-slate-400 block mb-0.5 text-[9px]">Peças Utilizadas (Relato):</span> 
                               {vFd.parts_used || vFd.partsUsed}
                             </div>
                           )}
@@ -1635,7 +1820,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                           {/* Fotos */}
                           {(visitPhotos.length > 0 || vFd.videoUrl || vFd.video_url) && (
                             <div className={`mt-1 ${vFd.technical_report || vFd.technicalReport || v.notes || vFd.parts_used || vFd.partsUsed ? 'border-t border-slate-100 pt-2' : ''}`}>
-                              <span className="font-bold uppercase text-[9px] text-slate-400 block mb-1.5">Evidências e Anexos:</span>
+                              <span className="uppercase text-[9px] text-slate-400 block mb-1.5">Evidências e Anexos:</span>
                               <div className="flex flex-wrap gap-2">
                                 {(vFd.videoUrl || vFd.video_url) && (
                                   <div className="border border-slate-200 rounded p-1 w-[140px] h-[105px] overflow-hidden flex items-center justify-center bg-black relative shadow-sm">
@@ -1644,7 +1829,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                       <div className="absolute inset-0 flex items-center justify-center">
                                         <Play size={10} className="text-white opacity-80" />
                                       </div>
-                                      <span className="absolute bottom-1 bg-black/60 text-white text-[7px] font-bold px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
+                                      <span className="absolute bottom-1 bg-black/60 text-white text-[7px] px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
                                     </a>
                                   </div>
                                 )}
@@ -1656,7 +1841,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                         <div className="absolute inset-0 flex items-center justify-center">
                                           <Play size={10} className="text-white opacity-80" />
                                         </div>
-                                        <span className="absolute bottom-1 bg-black/60 text-white text-[7px] font-bold px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
+                                        <span className="absolute bottom-1 bg-black/60 text-white text-[7px] px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
                                       </a>
                                     ) : (
                                       <a href={url} target="_blank" rel="noopener noreferrer" className="w-full h-full block cursor-pointer">
@@ -1682,20 +1867,33 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                       if (!sigUrl) return null;
                       
                       return (
-                        <div className="mt-3 pt-2 border-t border-slate-200 flex items-end gap-4 break-inside-avoid">
+                        <div className="mt-3 pt-2 border-t border-slate-200 flex flex-col items-start gap-1 break-inside-avoid">
+                          <span className="uppercase text-[8px] text-slate-400 block mb-0.5">Assinatura da Visita</span>
                           <div>
-                            <span className="font-bold uppercase text-[8px] text-slate-400 block mb-0.5">Assinatura da Visita</span>
-                            <div className="h-[40px] w-[100px] border border-slate-200 rounded bg-slate-50 flex items-center justify-center p-1">
-                              <img src={sigUrl} className="max-h-full max-w-full object-contain mix-blend-multiply" />
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-[9px] font-bold uppercase text-slate-800">{vFd[sigNameKey as string] || 'Cliente'}</p>
+                            <p className="text-[9px] uppercase text-slate-800">{vFd[sigNameKey as string] || 'Cliente'}</p>
                             {sigDocKey && vFd[sigDocKey] && <p className="text-[8px] text-slate-500">{vFd[sigDocKey]}</p>}
+                          </div>
+                          <div className="h-[40px] w-[100px] border border-slate-200 rounded bg-slate-50 flex items-center justify-center p-1 mt-1">
+                            <img src={sigUrl} className="max-h-full max-w-full object-contain mix-blend-multiply" />
                           </div>
                         </div>
                       );
                     })()}
+
+                    {/* Assinatura do responsável pelo impedimento (print) */}
+                    {v.status === 'blocked' && (vFd.impediment_responsible || vFd.impediment_signature) && (
+                      <div className="mt-3 pt-2 border-t border-red-200 flex flex-col items-start gap-1 break-inside-avoid">
+                        <span className="uppercase text-[8px] text-red-500 block mb-0.5">Cliente / Responsável por acompanhar o atendimento</span>
+                        {vFd.impediment_responsible && (
+                          <p className="text-[9px] uppercase text-slate-800">{vFd.impediment_responsible}</p>
+                        )}
+                        {vFd.impediment_signature && (
+                          <div className="h-[50px] w-[130px] border border-red-200 rounded bg-white flex items-center justify-center p-1 mt-1">
+                            <img src={vFd.impediment_signature} className="max-h-full max-w-full object-contain mix-blend-multiply" alt="Assinatura responsável" />
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                   </div>
                 </div>
@@ -1708,10 +1906,10 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         {/* ── PEÇAS E MATERIAIS (sempre visível quando há itens) ── */}
         {enrichedItems.length > 0 && (
           <div className="border border-slate-300 rounded-lg overflow-hidden print-no-break mt-4">
-            <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">{showPrices ? 'Composição Financeira' : 'Peças e Materiais Aplicados'}</div>
+            <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 text-[9px] uppercase tracking-wider text-slate-700">{showPrices ? 'Composição Financeira' : 'Peças e Materiais Aplicados'}</div>
             <div className="w-full"><table className="w-full text-left break-words">
               <thead>
-                <tr className="bg-slate-50 text-[8px] font-bold text-slate-500 uppercase border-b border-slate-200">
+                <tr className="bg-slate-50 text-[8px] text-slate-500 uppercase border-b border-slate-200">
                   <th className="px-3 py-1">Item</th>
                   <th className="px-3 py-1 text-center whitespace-nowrap">Qtd</th>
                   {showPrices && <th className="px-3 py-1 text-right whitespace-nowrap">Unit.</th>}
@@ -1721,21 +1919,21 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               <tbody className="divide-y divide-slate-100 bg-white">
                 {enrichedItems.map((it: any, i: number) => (
                   <tr key={i}>
-                    <td className="px-3 py-1 text-[9px] uppercase font-bold text-slate-800 break-words whitespace-normal">
-                      <span className="text-slate-900 font-black mr-1">{it.quantity || 1}x</span> {it.description}
+                    <td className="px-3 py-1 text-[9px] uppercase text-slate-800 break-words whitespace-normal">
+                      <span className="text-slate-900 mr-1">{it.quantity || 1}x</span> {it.description}
                       {it.equipmentName && <span className="block text-[7px] text-slate-400 font-normal mt-0.5">Ref: {it.equipmentName}</span>}
                     </td>
-                    <td className="px-3 py-1 text-[9px] text-center font-bold text-slate-900 whitespace-nowrap">{it.quantity || 1}</td>
+                    <td className="px-3 py-1 text-[9px] text-center text-slate-900 whitespace-nowrap">{it.quantity || 1}</td>
                     {showPrices && <td className="px-3 py-1 text-[9px] text-right text-slate-600 whitespace-nowrap">R$ {(it.unitPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
-                    {showPrices && <td className="px-3 py-1 text-[9px] text-right font-bold text-slate-900 whitespace-nowrap">R$ {(it.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                    {showPrices && <td className="px-3 py-1 text-[9px] text-right text-slate-900 whitespace-nowrap">R$ {(it.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
                   </tr>
                 ))}
               </tbody>
             </table></div>
             {showPrices && (
               <div className="bg-slate-800 text-white px-3 py-1.5 flex justify-end gap-6 items-center border-t border-slate-800">
-                <span className="text-[8px] uppercase font-bold tracking-widest text-slate-300">Total Geral</span>
-                <span className="text-[11px] font-bold tracking-tighter">R$ {totalItems.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                <span className="text-[8px] uppercase tracking-widest text-slate-300">Total Geral</span>
+                <span className="text-[11px] tracking-tighter">R$ {totalItems.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
             )}
           </div>
@@ -1743,34 +1941,34 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
         {/* Assinatura e Validação */}
         <div className="border border-slate-300 rounded-lg overflow-hidden print-no-break mt-4">
-          <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700">Validação e Assinaturas (Auditoria Digital)</div>
+          <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 text-xs uppercase tracking-wider text-slate-700">Validação e Assinaturas (Auditoria Digital)</div>
           <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white text-center">
             <div className="p-4 flex flex-col items-center justify-center gap-3">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Responsável Técnico</p>
+              <p className="text-xs text-slate-400 uppercase tracking-widest">Responsável Técnico</p>
               <div className="h-[60px] flex items-center justify-center overflow-hidden">
                 {tech?.avatar ? (
                   <img src={tech.avatar} alt="Avatar" className="max-h-full max-w-full object-contain mix-blend-multiply rounded-md" />
                 ) : (
-                  <span className="text-slate-200 italic text-xs font-bold uppercase">Validação Eletrônica no Sistema</span>
+                  <span className="text-slate-200 italic text-xs uppercase">Validação Eletrônica no Sistema</span>
                 )}
               </div>
               <div className="w-full border-t border-slate-300 pt-2">
-                <p className="text-xs font-bold text-slate-900 uppercase">{tech?.name || 'Não Atribuído'}</p>
+                <p className="text-xs text-slate-900 uppercase">{tech?.name || 'Não Atribuído'}</p>
               </div>
             </div>
             <div className="p-4 flex flex-col items-center justify-center gap-3">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Responsável pela Conformidade (Cliente)</p>
+              <p className="text-xs text-slate-400 uppercase tracking-widest">Responsável pela Conformidade (Cliente)</p>
               <div className="h-[80px] flex items-center justify-center">
                 {clientSigPrint ? (
                   <img src={clientSigPrint} className="max-h-full max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
                 ) : (
-                  <span className="text-slate-300 italic text-xs font-bold uppercase">Sem assinatura física registrada</span>
+                  <span className="text-slate-300 italic text-xs uppercase">Sem assinatura física registrada</span>
                 )}
               </div>
               <div className="w-full border-t border-slate-300 pt-2">
-                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Assinado por:</p>
-                <p className="text-xs font-bold text-slate-900 uppercase">{clientNamePrint || 'Não Informado'}</p>
-                {clientDocPrint && <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none mt-0.5">{clientDocPrint}</p>}
+                <p className="text-[8px] text-slate-400 uppercase tracking-widest mb-0.5">Assinado por:</p>
+                <p className="text-xs text-slate-900 uppercase">{clientNamePrint || 'Não Informado'}</p>
+                {clientDocPrint && <p className="text-[9px] text-slate-500 uppercase tracking-widest leading-none mt-0.5">{clientDocPrint}</p>}
               </div>
             </div>
           </div>
@@ -1782,7 +1980,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           <NexusBranding size="lg" className="opacity-80 origin-left scale-75" />
         </div>
         <div className="text-right">
-          <p className="text-xs font-bold uppercase tracking-widest text-[#1c2d4f]">Uma solução DUNO</p>
+          <p className="text-xs uppercase tracking-widest text-[#1c2d4f]">Uma solução DUNO</p>
           <p className="text-xs uppercase tracking-tight mt-0.5">Documento emitido eletronicamente. Auditável na plataforma central.</p>
         </div>
       </div>
@@ -1906,25 +2104,25 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 )
               }
               <div className="flex-1 min-w-0">
-                <h1 className="text-sm sm:text-base font-bold text-slate-900 uppercase tracking-tight sm:truncate leading-none mb-1">{companyName}</h1>
+                <h1 className="text-sm sm:text-base text-slate-900 uppercase tracking-tight sm:truncate leading-none mb-1">{companyName}</h1>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                   {companyDoc && (
-                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap flex items-center gap-1">
+                    <span className="text-xs text-slate-500 uppercase tracking-widest whitespace-nowrap flex items-center gap-1">
                       CNPJ: {companyDoc}
                     </span>
                   )}
                   {companyPhone && (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap text-opacity-80">
+                    <span className="flex items-center gap-1 text-xs text-slate-500 uppercase tracking-widest whitespace-nowrap text-opacity-80">
                       <Phone size={9} className="text-[#3e5b99]" /> {companyPhone}
                     </span>
                   )}
                   {companyWebsite && (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap text-opacity-80">
+                    <span className="flex items-center gap-1 text-xs text-slate-500 uppercase tracking-widest whitespace-nowrap text-opacity-80">
                       <Globe size={9} className="text-[#3e5b99]" /> {companyWebsite.replace(/^https?:\/\//, '')}
                     </span>
                   )}
                   {companyAddress && (
-                    <span className="flex items-center gap-1 text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-widest leading-tight">
+                    <span className="flex items-center gap-1 text-[10px] sm:text-xs text-slate-500 uppercase tracking-widest leading-tight">
                       <MapPin size={10} className="text-[#3e5b99] shrink-0" /> <span className="flex-1">{companyAddress}</span>
                     </span>
                   )}
@@ -1934,14 +2132,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
             {/* Print button */}
             <button
-              onClick={() => {
-                const originalTitle = document.title;
-                const cleanCustomer = (order.customerName || 'Cliente').substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, "").trim();
-                document.title = `OS_${order.displayId || order.serviceOrderNumber || order.id.slice(0, 8)}_${cleanCustomer}`;
-                window.print();
-                document.title = originalTitle;
-              }}
-              className="flex items-center justify-center h-10 w-10 sm:w-auto sm:px-4 sm:py-2.5 bg-[#1c2d4f] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0"
+              onClick={() => triggerSmartPrint(false)}
+              className="flex items-center justify-center h-10 w-10 sm:w-auto sm:px-4 sm:py-2.5 bg-[#1c2d4f] text-white rounded-xl text-xs uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0"
             >
               <Printer size={16} />
               <span className="hidden sm:inline ml-2">Imprimir</span>
@@ -1958,17 +2150,17 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 <Wrench size={22} className="text-white" />
               </div>
               <div>
-                <p className="text-xs font-bold text-white/40 uppercase tracking-[0.3em] leading-none mb-1">Ordem de Serviço</p>
-                <h2 className="text-xl sm:text-2xl font-bold text-white uppercase tracking-tighter leading-none">
+                <p className="text-xs text-white/40 uppercase tracking-[0.3em] leading-none mb-1">Ordem de Serviço</p>
+                <h2 className="text-xl sm:text-2xl text-white uppercase tracking-tighter leading-none">
                   #{order.displayId || order.id.slice(0, 8).toUpperCase()}
                 </h2>
-                <p className="text-xs font-semibold text-white/50 uppercase tracking-wide mt-1">{order.title}</p>
+                <p className="text-xs text-white/50 uppercase tracking-wide mt-1">{order.title}</p>
               </div>
             </div>
 
             {/* Status + priority */}
             <div className="flex items-center gap-2.5 flex-wrap">
-              <div className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-widest border flex items-center gap-1.5 ${{
+              <div className={`px-2.5 py-1 rounded-full text-xs uppercase tracking-widest border flex items-center gap-1.5 ${{
                 'PENDENTE': 'bg-slate-500/20 text-slate-300 border-slate-500/30',
                 'ATRIBUÍDO': 'bg-sky-500/20 text-sky-300 border-sky-500/30',
                 'EM DESLOCAMENTO': 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30',
@@ -1990,10 +2182,10 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   }`} />
                 {order.status}
               </div>
-              <div className="px-2.5 py-1 bg-white/10 rounded-full text-xs font-bold text-white/70 uppercase tracking-widest border border-white/10">
+              <div className="px-2.5 py-1 bg-white/10 rounded-full text-xs text-white/70 uppercase tracking-widest border border-white/10">
                 {order.priority}
               </div>
-              <div className="px-2.5 py-1 bg-white/10 rounded-full text-xs font-bold text-white/70 uppercase tracking-widest border border-white/10 flex items-center gap-1.5">
+              <div className="px-2.5 py-1 bg-white/10 rounded-full text-xs text-white/70 uppercase tracking-widest border border-white/10 flex items-center gap-1.5">
                 <Calendar size={10} /> {fmt(order.createdAt)}
               </div>
             </div>
@@ -2012,9 +2204,9 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     <UserIcon size={18} className="text-[#3e5b99]" />
                   </div>
                   <div>
-                    <p className="text-xl font-bold text-slate-900 uppercase tracking-tight leading-none">{order.customerName}</p>
+                    <p className="text-xl text-slate-900 uppercase tracking-tight leading-none">{order.customerName}</p>
                     {order.operationType && (
-                      <span className="text-[10px] font-bold text-[#3e5b99] uppercase tracking-widest bg-[#3e5b99]/10 px-2 py-0.5 rounded-full mt-1.5 inline-block">{order.operationType}</span>
+                      <span className="text-[10px] text-[#3e5b99] uppercase tracking-widest bg-[#3e5b99]/10 px-2 py-0.5 rounded-full mt-1.5 inline-block">{order.operationType}</span>
                     )}
                   </div>
                 </div>
@@ -2025,13 +2217,13 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                       {freshCustomerPhone && (
                         <div className="flex items-center gap-2.5">
                           <Phone size={14} className="text-[#3e5b99] shrink-0" />
-                          <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">{freshCustomerPhone}</p>
+                          <p className="text-xs text-slate-700 uppercase tracking-wide">{freshCustomerPhone}</p>
                         </div>
                       )}
                       {freshCustomerEmail && (
                         <div className="flex items-center gap-2.5">
                           <Mail size={14} className="text-[#3e5b99] shrink-0" />
-                          <p className="text-xs font-medium text-slate-600 truncate max-w-[200px]">{freshCustomerEmail}</p>
+                          <p className="text-xs text-slate-600 truncate max-w-[200px]">{freshCustomerEmail}</p>
                         </div>
                       )}
                     </div>
@@ -2040,18 +2232,18 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   {displayAddress && (
                     <div className="flex items-start gap-2.5 max-w-[300px]">
                       <MapPin size={14} className="text-slate-400 mt-0.5 shrink-0" />
-                      <p className="text-xs text-slate-500 leading-snug font-medium uppercase">{displayAddress}</p>
+                      <p className="text-xs text-slate-500 leading-snug uppercase">{displayAddress}</p>
                     </div>
                   )}
 
                   <div className="flex gap-6 border-l border-slate-300/50 pl-6">
                     <div className="flex flex-col">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.1em] mb-0.5">Abertura</span>
-                      <span className="text-xs font-bold text-slate-800">{fmt(order.createdAt)}</span>
+                      <span className="text-[9px] text-slate-400 uppercase tracking-[0.1em] mb-0.5">Abertura</span>
+                      <span className="text-xs text-slate-800">{fmt(order.createdAt)}</span>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.1em] mb-0.5">Agendado</span>
-                      <span className="text-xs font-bold text-slate-800">{order.scheduledDate ? fmt(order.scheduledDate) : '—'}</span>
+                      <span className="text-[9px] text-slate-400 uppercase tracking-[0.1em] mb-0.5">Agendado</span>
+                      <span className="text-xs text-slate-800">{order.scheduledDate ? fmt(order.scheduledDate) : '—'}</span>
                     </div>
                   </div>
                 </div>
@@ -2064,7 +2256,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 <div className="rounded-xl border border-slate-100 overflow-hidden">
                   <div className="overflow-x-auto w-full"><table className="w-full text-left">
                     <thead>
-                      <tr className="bg-slate-50 text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200">
+                      <tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-widest border-b border-slate-200">
                         <th className="px-4 py-2.5">Equipamento</th>
                         <th className="px-4 py-2.5">Modelo</th>
                         <th className="px-4 py-2.5">Nº Série</th>
@@ -2074,12 +2266,12 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     <tbody className="divide-y divide-slate-50">
                       {linkedEquipments.map((eq: any, i: number) => (
                         <tr key={eq.id || i} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-4 py-2.5 text-xs font-bold text-slate-900 uppercase">{eq.equipment_name || eq.equipmentName || '—'}</td>
-                          <td className="px-4 py-2.5 text-xs font-bold text-slate-600 uppercase">{eq.equipment_model || eq.equipmentModel || '—'}</td>
-                          <td className="px-4 py-2.5 text-xs font-bold text-slate-500 ">{eq.equipment_serial || eq.equipmentSerial || '—'}</td>
+                          <td className="px-4 py-2.5 text-xs text-slate-900 uppercase">{eq.equipment_name || eq.equipmentName || '—'}</td>
+                          <td className="px-4 py-2.5 text-xs text-slate-600 uppercase">{eq.equipment_model || eq.equipmentModel || '—'}</td>
+                          <td className="px-4 py-2.5 text-xs text-slate-500 ">{eq.equipment_serial || eq.equipmentSerial || '—'}</td>
                           <td className="px-4 py-2.5">
                             {(eq.equipment_family || eq.equipmentFamily) ? (
-                              <span className="text-xs font-bold text-[#3e5b99] uppercase bg-[#3e5b99]/10 px-2 py-0.5 rounded-full">{eq.equipment_family || eq.equipmentFamily}</span>
+                              <span className="text-xs text-[#3e5b99] uppercase bg-[#3e5b99]/10 px-2 py-0.5 rounded-full">{eq.equipment_family || eq.equipmentFamily}</span>
                             ) : <span className="text-xs text-slate-300">—</span>}
                           </td>
                         </tr>
@@ -2093,14 +2285,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     <Box size={18} className="text-slate-300" />
                   </div>
                   <div className="space-y-0.5">
-                    <p className="text-sm font-bold text-slate-900 uppercase leading-snug">{order.equipmentName || '—'}</p>
-                    <p className="text-xs font-bold text-slate-500 uppercase">
+                    <p className="text-sm text-slate-900 uppercase leading-snug">{order.equipmentName || '—'}</p>
+                    <p className="text-xs text-slate-500 uppercase">
                       {[order.equipmentModel && `Modelo: ${order.equipmentModel}`, order.equipmentSerial && `Série: ${order.equipmentSerial}`].filter(Boolean).join(' · ')}
                     </p>
                   </div>
                 </div>
               ) : (
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Equipamento não especificado</p>
+                <p className="text-xs text-slate-400 uppercase tracking-widest">Equipamento não especificado</p>
               )}
             </div>
           </div>
@@ -2124,8 +2316,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   )}
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Técnico</p>
-                  <p className="text-xs font-bold text-slate-800 uppercase">{tech?.name || 'Não Atribuído'}</p>
+                  <p className="text-xs text-slate-400 uppercase tracking-widest">Técnico</p>
+                  <p className="text-xs text-slate-800 uppercase">{tech?.name || 'Não Atribuído'}</p>
                 </div>
               </div>
               <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-3">
@@ -2133,8 +2325,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   <Clock size={14} className="text-emerald-600" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Check-In</p>
-                  <p className="text-xs font-bold text-emerald-800">{fmtDT(orderVisits.find((v: any) => v.arrival_time)?.arrival_time || order.startDate)}</p>
+                  <p className="text-xs text-emerald-400 uppercase tracking-widest">Check-In</p>
+                  <p className="text-xs text-emerald-800">{fmtDT(orderVisits.find((v: any) => v.arrival_time)?.arrival_time || order.startDate)}</p>
                 </div>
               </div>
               <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-3">
@@ -2142,8 +2334,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   <CheckCircle2 size={14} className="text-emerald-600" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Concluído</p>
-                  <p className="text-xs font-bold text-emerald-800">{fmtDT(order.endDate || [...orderVisits].reverse().find((v: any) => v.departure_time)?.departure_time)}</p>
+                  <p className="text-xs text-emerald-400 uppercase tracking-widest">Concluído</p>
+                  <p className="text-xs text-emerald-800">{fmtDT(order.endDate || [...orderVisits].reverse().find((v: any) => v.departure_time)?.departure_time)}</p>
                 </div>
               </div>
             </div>
@@ -2151,8 +2343,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             {/* Service description */}
             {order.description && (
               <div className="p-5 bg-[#1c2d4f]/5 rounded-xl border border-[#1c2d4f]/10">
-                <p className="text-xs font-bold text-[#1c2d4f] uppercase tracking-widest mb-2">Descrição do Serviço Executado</p>
-                <p className="text-sm font-medium text-slate-700 leading-relaxed whitespace-pre-wrap">{order.description}</p>
+                <p className="text-xs text-[#1c2d4f] uppercase tracking-widest mb-2">Descrição do Serviço Executado</p>
+                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{order.description}</p>
               </div>
             )}
           </div>
@@ -2165,17 +2357,17 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             return (
               <div className="bg-red-50 rounded-3xl border border-red-100 shadow-md shadow-red-100/50 p-8 sm:p-10">
                 <SectionHeader icon={<ShieldAlert size={15} />} title="Aviso de Impedimento" color="text-red-600" />
-                <p className="text-sm font-bold text-red-800 italic mb-4">"{reason}"</p>
+                <p className="text-sm text-red-800 italic mb-4">"{reason}"</p>
                 {blockPhoto && (
                   (blockPhoto.startsWith('http://') || blockPhoto.startsWith('https://')) ? (
                     <a href={blockPhoto} target="_blank" rel="noreferrer" className="block">
                       <img src={blockPhoto} alt="Foto do impedimento" className="w-full max-w-sm rounded-xl border border-red-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{maxHeight: 240}} />
-                      <span className="text-xs text-red-400 font-bold uppercase tracking-widest mt-2 block">Foto do Impedimento (clique para ampliar)</span>
+                      <span className="text-xs text-red-400 uppercase tracking-widest mt-2 block">Foto do Impedimento (clique para ampliar)</span>
                     </a>
                   ) : (
                     <div className="flex items-center gap-2 p-3 bg-red-100/60 border border-red-200 rounded-xl">
                       <span className="text-red-400" style={{fontSize: 16}}>&#128247;</span>
-                      <span className="text-xs text-red-500 font-medium">Foto registrada pelo técnico (disponível apenas no app mobile)</span>
+                      <span className="text-xs text-red-500 ">Foto registrada pelo técnico (disponível apenas no app mobile)</span>
                     </div>
                   )
                 )}
@@ -2371,7 +2563,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 <div className="rounded-xl border border-slate-100 overflow-hidden">
                   <div className="overflow-x-auto w-full"><table className="w-full text-left">
                     <thead>
-                      <tr className="bg-slate-50 text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200">
+                      <tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-widest border-b border-slate-200">
                         <th className="px-5 py-3">Descrição</th>
                         <th className="px-5 py-3 text-center w-20">Qtd</th>
                         {showPrices && <th className="px-5 py-3 text-right w-28">Unitário</th>}
@@ -2382,19 +2574,19 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                       {enrichedItems.map((item, i) => (
                         <tr key={item.id || i} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-5 py-3.5">
-                            <span className="text-xs font-bold text-slate-800 uppercase">
-                              <span className="text-[#1c2d4f] font-black mr-1">{item.quantity || 1}x</span> {item.description}
+                            <span className="text-xs text-slate-800 uppercase">
+                              <span className="text-[#1c2d4f] mr-1">{item.quantity || 1}x</span> {item.description}
                             </span>
                             {item.equipmentName && (
-                              <div className="flex items-center gap-1 text-xs text-slate-400 font-bold uppercase mt-1">
+                              <div className="flex items-center gap-1 text-xs text-slate-400 uppercase mt-1">
                                 <Box size={10} className="text-slate-300" /> {item.equipmentName}
                               </div>
                             )}
-                            {item.fromStock && <span className="text-xs font-bold text-emerald-600 uppercase mt-1 block">✦ Estoque Técnico</span>}
+                            {item.fromStock && <span className="text-xs text-emerald-600 uppercase mt-1 block">✦ Estoque Técnico</span>}
                           </td>
-                          <td className="px-5 py-3.5 text-center text-xs text-slate-500 font-bold">{item.quantity}</td>
+                          <td className="px-5 py-3.5 text-center text-xs text-slate-500 ">{item.quantity}</td>
                           {showPrices && <td className="px-5 py-3.5 text-right text-xs  text-slate-500">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
-                          {showPrices && <td className="px-5 py-3.5 text-right text-xs font-bold text-slate-900 ">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                          {showPrices && <td className="px-5 py-3.5 text-right text-xs text-slate-900 ">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
                         </tr>
                       ))}
                     </tbody>
@@ -2406,9 +2598,9 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   <div className="mt-4 flex items-center justify-between bg-[#1c2d4f] text-white px-6 py-4 rounded-xl">
                     <div className="flex items-center gap-3">
                       <DollarSign size={18} className="opacity-60" />
-                      <span className="text-xs font-bold uppercase tracking-widest opacity-70">Total do Atendimento</span>
+                      <span className="text-xs uppercase tracking-widest opacity-70">Total do Atendimento</span>
                     </div>
-                    <span className="text-xl font-bold  tracking-tighter">
+                    <span className="text-xl tracking-tighter">
                       R$ {totalItems.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
@@ -2451,8 +2643,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                       )}
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Técnico Responsável</p>
-                      <p className="text-sm font-bold text-slate-900 uppercase">{tech?.name || 'Não Atribuído'}</p>
+                      <p className="text-xs text-slate-400 uppercase tracking-widest mb-1">Técnico Responsável</p>
+                      <p className="text-sm text-slate-900 uppercase">{tech?.name || 'Não Atribuído'}</p>
                       {tech?.email && <p className="text-xs text-slate-400 mt-0.5">{tech.email}</p>}
                     </div>
                     <div className="w-full border-t-2 border-dashed border-slate-200 pt-3">
@@ -2462,6 +2654,17 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
                   {/* Cliente / Responsável que assinou */}
                   <div className="flex flex-col items-center text-center p-6 bg-slate-50 rounded-xl border border-slate-100 gap-4">
+                    {/* Nome de quem assinou (digitado no app) */}
+                    <div>
+                      <p className="text-xs text-slate-400 uppercase tracking-widest mb-1">Responsável pela Assinatura</p>
+                      {clientName ? (
+                        <p className="text-sm text-slate-900 uppercase">{clientName}</p>
+                      ) : (
+                        <p className="text-xs text-slate-300 uppercase italic">Nome não informado</p>
+                      )}
+                      {clientDoc && <p className="text-xs text-slate-400  mt-0.5">Doc: {clientDoc}</p>}
+                    </div>
+
                     {/* Assinatura digital */}
                     {clientSig ? (
                       <div
@@ -2477,20 +2680,9 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     ) : (
                       <div className="w-full h-28 flex flex-col items-center justify-center bg-white rounded-xl border-2 border-dashed border-slate-200 gap-2">
                         <div className="w-8 h-8 rounded-full bg-slate-100" />
-                        <p className="text-xs font-bold text-slate-300 uppercase tracking-widest">Sem assinatura registrada</p>
+                        <p className="text-xs text-slate-300 uppercase tracking-widest">Sem assinatura registrada</p>
                       </div>
                     )}
-
-                    {/* Nome de quem assinou (digitado no app) */}
-                    <div>
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Responsável pela Assinatura</p>
-                      {clientName ? (
-                        <p className="text-sm font-bold text-slate-900 uppercase">{clientName}</p>
-                      ) : (
-                        <p className="text-xs font-bold text-slate-300 uppercase italic">Nome não informado</p>
-                      )}
-                      {clientDoc && <p className="text-xs text-slate-400  mt-0.5">Doc: {clientDoc}</p>}
-                    </div>
 
                     <div className="w-full border-t-2 border-dashed border-slate-200 pt-3">
                       <p className="text-xs text-slate-300 uppercase tracking-widest">Assinatura do Cliente</p>
@@ -2511,7 +2703,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               <NexusBranding size="lg" className="opacity-80 transform scale-[0.55] sm:scale-[0.7] origin-left" />
             </div>
             <div className="text-center sm:text-right space-y-0.5">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">Uma solução DUNO</p>
+              <p className="text-xs text-slate-400 uppercase tracking-[0.2em]">Uma solução DUNO</p>
               <p className="text-xs text-slate-300 uppercase tracking-widest">
                 Documento emitido eletronicamente · Autenticidade garantida pela plataforma
               </p>

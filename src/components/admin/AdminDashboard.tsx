@@ -39,7 +39,9 @@ import {
   Eye,
   EyeOff,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  Paperclip,
+  Image as ImageIcon
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../i18n';
@@ -54,6 +56,7 @@ import { DataService } from '../../services/dataService';
 import { EquipmentService } from '../../services/equipmentService';
 import { FormService } from '../../services/formService';
 import { VisitService } from '../../services/visitService';
+import { StorageService } from '../../services/storageService';
 import { type Customer, OrderStatus, type ServiceOrder, type ServiceVisit, type User, VisitStatusEnum, type Quote } from '../../types';
 import { PublicOrderView } from '../public/PublicOrderView';
 import { OrderTimeline } from '../shared/OrderTimeline';
@@ -137,6 +140,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [editDraft, setEditDraft] = useState<Partial<ServiceOrder>>({});
   const [editLoading, setEditLoading] = useState(false);
   const [newInternalNote, setNewInternalNote] = useState('');
+  const [internalNoteAttachments, setInternalNoteAttachments] = useState<any[]>([]);
+  const [isUploadingNote, setIsUploadingNote] = useState(false);
 
   // ── Aba Visitas ────────────────────────────────────────────────
   const [visits, setVisits] = useState<ServiceVisit[]>([]);
@@ -1269,7 +1274,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           </div>
         )}
-        <div className="flex-1 overflow-auto custom-scrollbar">
+        <div className="flex-1 overflow-auto custom-scrollbar os-table-container">
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm font-poppins">
               <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center">
@@ -1406,7 +1411,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           totalPages={totalPages}
           totalItems={totalOrders}
           itemsPerPage={PAGE_SIZE}
-          onPageChange={setCurrentPage}
+          onPageChange={(page) => {
+            setCurrentPage(page);
+            setTimeout(() => {
+              const container = document.querySelector('.os-table-container');
+              if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
+              const scrollableRoot = document.querySelector('.overflow-y-auto.custom-scrollbar'); // Try generic main scrollable
+              if (scrollableRoot) scrollableRoot.scrollTo({ top: 0, behavior: 'smooth' });
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 50);
+          }}
         />
       </div>
 
@@ -1869,36 +1883,102 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </p>
 
                     {isEditing ? (
-                      <div className="space-y-4">
-                        <textarea
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm font-medium text-slate-700 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-50 transition-all resize-y min-h-[120px]"
-                          placeholder="Digite uma nova observação interna..."
-                          value={newInternalNote}
-                          onChange={(e) => setNewInternalNote(e.target.value)}
-                        />
-                        <div className="flex justify-end">
-                          <button
-                            type="button"
-                            disabled={!newInternalNote.trim()}
-                            onClick={() => {
-                              if (!newInternalNote.trim()) return;
-                              const newNoteObj = {
-                                text: newInternalNote.trim(),
-                                user: auth?.user?.name || auth?.user?.email || 'Usuário',
-                                date: new Date().toISOString()
-                              };
-                              setEditDraft(prev => ({
-                                ...prev,
-                                internalNotes: [...(prev.internalNotes || selectedOrder.internalNotes || []), newNoteObj]
-                              }));
-                              setNewInternalNote('');
-                            }}
-                            className="bg-[#1c2d4f] text-white px-4 py-2 rounded-lg text-xs font-medium uppercase tracking-widest hover:bg-[#2a457a] disabled:opacity-50 transition-colors"
-                          >
-                            Adicionar Observação
-                          </button>
+                        <div className="space-y-4">
+                          <textarea
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm font-medium text-slate-700 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-50 transition-all resize-y min-h-[120px]"
+                            placeholder="Digite uma nova observação interna..."
+                            value={newInternalNote}
+                            onChange={(e) => setNewInternalNote(e.target.value)}
+                            disabled={isUploadingNote}
+                          />
+                          
+                          {internalNoteAttachments.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {internalNoteAttachments.map((file, i) => (
+                                <div key={i} className="flex items-center gap-1.5 bg-[#1c2d4f]/10 text-[#1c2d4f] px-3 py-1.5 rounded-full text-xs font-semibold border border-[#1c2d4f]/20">
+                                  {file.isUploading ? <Loader2 size={14} className="animate-spin text-primary-500" /> : (file.type === 'image' ? <ImageIcon size={14} /> : <FileText size={14} />)}
+                                  <span className="truncate max-w-[150px]">{file.name}</span>
+                                  <button type="button" onClick={async () => {
+                                      setInternalNoteAttachments(prev => prev.filter((_, idx) => idx !== i));
+                                      if (file.url) {
+                                          await StorageService.deleteFile(file.url);
+                                      }
+                                  }} className="hover:bg-[#1c2d4f]/20 rounded-full p-0.5 transition-colors text-rose-500 hover:text-rose-600">
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="flex justify-between items-center">
+                            <label className="cursor-pointer flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-[#1c2d4f] transition-colors">
+                              <input 
+                                type="file" 
+                                multiple
+                                className="hidden"
+                                accept="image/*,.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                onChange={async (e) => {
+                                  if (e.target.files) {
+                                    const files = Array.from(e.target.files);
+                                    const validFiles = files.filter(f => {
+                                      if (f.size > 15 * 1024 * 1024) {
+                                        alert(`O arquivo ${f.name} é muito grande (máx 15MB).`);
+                                        return false;
+                                      }
+                                      if (!f.type.startsWith('image/') && !['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(f.type)) {
+                                        alert(`Tipo de arquivo não permitido: ${f.name}`);
+                                        return false;
+                                      }
+                                      return true;
+                                    });
+                                    
+                                    const newPlaceholders = validFiles.map(f => ({ name: f.name, type: f.type.startsWith('image/') ? 'image' : 'document', size: f.size, isUploading: true, url: '' }));
+                                    setInternalNoteAttachments(prev => [...prev, ...newPlaceholders]);
+                                    
+                                    for (let i = 0; i < validFiles.length; i++) {
+                                        const file = validFiles[i];
+                                        const placeholder = newPlaceholders[i];
+                                        try {
+                                            const att = await StorageService.uploadInternalNoteAttachment(file, selectedOrder.id);
+                                            setInternalNoteAttachments(prev => prev.map(p => p.name === placeholder.name && p.isUploading ? { ...att, isUploading: false } : p));
+                                        } catch (err) {
+                                            console.error("Falha ao enviar:", err);
+                                            setInternalNoteAttachments(prev => prev.filter(p => p !== placeholder));
+                                        }
+                                    }
+                                  }
+                                  e.target.value = '';
+                                }}
+                              />
+                              <Paperclip size={18} />
+                              Anexar Arquivos
+                            </label>
+
+                            <button
+                              type="button"
+                              disabled={(!newInternalNote.trim() && internalNoteAttachments.length === 0) || internalNoteAttachments.some(a => a.isUploading)}
+                              onClick={() => {
+                                if (!newInternalNote.trim() && internalNoteAttachments.length === 0) return;
+                                const newNoteObj = {
+                                  text: newInternalNote.trim(),
+                                  user: auth?.user?.name || auth?.user?.email || 'Usuário',
+                                  date: new Date().toISOString(),
+                                  attachments: internalNoteAttachments.map(({ url, name, type, size }) => ({ url, name, type, size }))
+                                };
+                                setEditDraft(prev => ({
+                                  ...prev,
+                                  internalNotes: [...(prev.internalNotes || selectedOrder.internalNotes || []), newNoteObj]
+                                }));
+                                setNewInternalNote('');
+                                setInternalNoteAttachments([]);
+                              }}
+                              className="bg-[#1c2d4f] text-white px-4 py-2 rounded-lg text-xs font-medium uppercase tracking-widest hover:bg-[#2a457a] disabled:opacity-50 transition-colors flex items-center gap-2"
+                            >
+                              Adicionar Observação
+                            </button>
+                          </div>
                         </div>
-                      </div>
                     ) : (
                       <div className="bg-slate-50 rounded-lg p-4 text-center border border-slate-200">
                         <p className="text-xs font-medium text-slate-400 uppercase tracking-widest">Ative a edição para adicionar uma nova observação</p>
@@ -1940,12 +2020,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 onClick={() => {
                                   // Reverse logic to delete
                                   const originalIdx = notesList.length - 1 - idx;
-                                  const updatedNotes = [...notesList];
-                                  updatedNotes.splice(originalIdx, 1);
-                                  setEditDraft(prev => ({
-                                    ...prev,
-                                    internalNotes: updatedNotes
-                                  }));
+                                  const noteToDelete = notesList[originalIdx];
+                                  
+                                  const doDelete = () => {
+                                      const updatedNotes = [...notesList];
+                                      updatedNotes.splice(originalIdx, 1);
+                                      setEditDraft(prev => ({
+                                        ...prev,
+                                        internalNotes: updatedNotes
+                                      }));
+                                  };
+                                  
+                                  if (noteToDelete.attachments && noteToDelete.attachments.length > 0) {
+                                      showConfirm('Tem certeza que deseja excluir esta observação e seus anexos?', async () => {
+                                          for (const att of noteToDelete.attachments) {
+                                              await StorageService.deleteFile(att.url);
+                                          }
+                                          doDelete();
+                                      });
+                                  } else {
+                                      doDelete();
+                                  }
                                 }}
                                 className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded transition-all opacity-0 group-hover:opacity-100"
                                 title="Excluir observação"
@@ -1956,6 +2051,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </div>
                           <div className="pl-10">
                             <p className="text-sm font-medium text-slate-700 whitespace-pre-wrap">{note.text}</p>
+                            {note.attachments && note.attachments.length > 0 && (
+                              <div className="flex flex-wrap gap-2 mt-3">
+                                {note.attachments.map((att: any, idx: number) => (
+                                  <a key={idx} href={att.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 px-3 py-1.5 rounded-lg text-[11px] font-semibold hover:border-primary-300 hover:text-primary-600 hover:bg-primary-50 shadow-sm transition-all group">
+                                    {att.type === 'image' ? <ImageIcon size={14} className="text-primary-500 group-hover:scale-110 transition-transform" /> : <FileText size={14} className="text-rose-500 group-hover:scale-110 transition-transform" />}
+                                    <span className="truncate max-w-[200px]">{att.name}</span>
+                                    <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
+                                  </a>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
                       ));

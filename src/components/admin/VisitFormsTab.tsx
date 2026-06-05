@@ -350,31 +350,45 @@ const VisitContainer: React.FC<{
                 groups[groupName].push([key, val]);
               });
 
-              // Sort groups preserving template key order within each group
-              const sortedGroups = Object.entries(groups).map(([groupName, groupEntries]) => ({
-                groupName,
-                groupEntries: [...groupEntries].sort(([ka], [kb]) => {
-                  // 1. Tenta extrair a numeração explícita inserida pelo app (ex: "001#", "002#")
-                  const matchA = ka.match(/(?:-\s*|^)(\d{3})#/);
-                  const matchB = kb.match(/(?:-\s*|^)(\d{3})#/);
-                  if (matchA && matchB) {
-                    return parseInt(matchA[1], 10) - parseInt(matchB[1], 10);
-                  }
+              // Sort groups: Financeiro primeiro, Técnico segundo, Relatório de Atendimento por último
+              const adminGroupPriority = (name: string): number => {
+                const n = name.toLowerCase();
+                if (n.endsWith('financeiro') || n.includes('- financeiro')) return 0;
+                if (n.endsWith('técnico') || n.includes('- técnico') || n.endsWith('tecnico') || n.includes('- tecnico')) return 1;
+                if (n === 'relatório de atendimento') return 99;
+                return 50;
+              };
+              const sortedGroups = Object.entries(groups)
+                .sort(([nameA], [nameB]) => {
+                  const pa = adminGroupPriority(nameA);
+                  const pb = adminGroupPriority(nameB);
+                  if (pa !== pb) return pa - pb;
+                  return nameA.localeCompare(nameB);
+                })
+                .map(([groupName, groupEntries]) => ({
+                  groupName,
+                  groupEntries: [...groupEntries].sort(([ka], [kb]) => {
+                    // 1. Tenta extrair a numeração explícita inserida pelo app (ex: "001#", "002#")
+                    const matchA = ka.match(/(?:-\s*|^)(\d{3})#/);
+                    const matchB = kb.match(/(?:-\s*|^)(\d{3})#/);
+                    if (matchA && matchB) {
+                      return parseInt(matchA[1], 10) - parseInt(matchB[1], 10);
+                    }
 
-                  // 2. Fallback: ordem do template baseado no ID do campo
-                  const idA = ka.replace(/^\[.*?\]\s*-\s*/, '').replace(/^\d{3}#/, '');
-                  const idB = kb.replace(/^\[.*?\]\s*-\s*/, '').replace(/^\d{3}#/, '');
-                  const oA = templateOrder[idA] ?? templateOrder[ka] ?? 9999;
-                  const oB = templateOrder[idB] ?? templateOrder[kb] ?? 9999;
-                  
-                  if (oA !== 9999 || oB !== 9999) {
-                    return oA - oB;
-                  }
+                    // 2. Fallback: ordem do template baseado no ID do campo
+                    const idA = ka.replace(/^\[.*?\]\s*-\s*/, '').replace(/^\d{3}#/, '');
+                    const idB = kb.replace(/^\[.*?\]\s*-\s*/, '').replace(/^\d{3}#/, '');
+                    const oA = templateOrder[idA] ?? templateOrder[ka] ?? 9999;
+                    const oB = templateOrder[idB] ?? templateOrder[kb] ?? 9999;
+                    
+                    if (oA !== 9999 || oB !== 9999) {
+                      return oA - oB;
+                    }
 
-                  // 3. Fallback final: string compare
-                  return ka.localeCompare(kb);
-                }),
-              }));
+                    // 3. Fallback final: string compare
+                    return ka.localeCompare(kb);
+                  }),
+                }));
 
               return (
                 <div className="p-6 sm:p-8 bg-slate-50/80 flex flex-col gap-6 shadow-inner border-y border-slate-200/50 relative">
@@ -640,10 +654,26 @@ const EquipmentGroup: React.FC<{
             <ClipboardList size={18} />
           </div>
           <div>
-            <span className="block text-xs font-black text-slate-800 uppercase tracking-widest">{groupName}</span>
-            <span className="block text-[10px] text-slate-500 font-bold mt-1 tracking-wide uppercase">
-              {groupEntries.length} campo{groupEntries.length !== 1 ? 's' : ''} respondido{groupEntries.length !== 1 ? 's' : ''}
-            </span>
+            {(() => {
+              const isFinanceiro = groupName.toLowerCase().includes('financeiro');
+              const isTecnico = groupName.toLowerCase().includes('técnico') || groupName.toLowerCase().includes('tecnico');
+              const cleanGroupName = groupName
+                .replace(/^.*?\]\s*-?\s*/, '') // Remove prefix like "[Eq Name S/N: xxx - "
+                .replace(/\s*-\s*(Financeiro|Técnico|Tecnico)\s*$/i, ''); // Remove suffix
+              const displayName = cleanGroupName || groupName;
+              return (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="block text-xs font-black text-slate-800 uppercase tracking-widest">{displayName}</span>
+                    {isFinanceiro && <span className="text-[9px] font-semibold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">Financeiro</span>}
+                    {isTecnico && <span className="text-[9px] font-semibold uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">Técnico</span>}
+                  </div>
+                  <span className="block text-[10px] text-slate-500 font-bold mt-1 tracking-wide uppercase">
+                    {groupEntries.length} campo{groupEntries.length !== 1 ? 's' : ''} respondido{groupEntries.length !== 1 ? 's' : ''}
+                  </span>
+                </>
+              );
+            })()}
           </div>
         </div>
         <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${open ? 'rotate-180 bg-blue-100 text-blue-600 shadow-inner' : 'bg-slate-100 text-slate-500 group-hover:bg-blue-50 group-hover:text-blue-500'}`}>

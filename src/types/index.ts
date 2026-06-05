@@ -287,7 +287,12 @@ export interface ServiceOrder {
   startDate?: string;
   endDate?: string;
   notes?: string;
-  internalNotes?: Array<{ user: string, date: string, text: string }>;
+  internalNotes?: Array<{ 
+    user: string; 
+    date: string; 
+    text: string;
+    attachments?: Array<{ url: string; name: string; type: string; size?: number }>;
+  }>;
   formData?: Record<string, any>;
   items?: OrderItem[];
   showValueToClient?: boolean;

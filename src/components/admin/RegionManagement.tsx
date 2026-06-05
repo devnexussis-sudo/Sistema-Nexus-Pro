@@ -1,5 +1,5 @@
 // src/components/admin/RegionManagement.tsx
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, FeatureGroup, GeoJSON, useMap } from 'react-leaflet';
 import { EditControl } from 'react-leaflet-draw';
 import L from 'leaflet';
@@ -8,7 +8,9 @@ import { getRegions, createRegion, updateRegion, deleteRegion } from '../../serv
 import { Region } from '../../types/region';
 import { RegionModal } from './RegionModal';
 import { Button } from '../ui/Button';
-import { Check, X, Search, Loader2 } from 'lucide-react';
+import { Check, X, Search, Loader2, Filter, ChevronDown } from 'lucide-react';
+import { TechnicianService } from '../../services/technicianService';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 // Hack to fix react-leaflet-draw crash on React 18
 if (typeof window !== 'undefined' && (window as any).L && (window as any).L.Draw) {
@@ -147,11 +149,44 @@ const MapFlyToCenter: React.FC<{ center: { lat: number; lng: number } | null }> 
 };
 
 /**
+ * Inner component to programmatically pan/zoom the map to specific regions' bounds.
+ */
+const MapBoundsFitter: React.FC<{ regions: Region[] }> = ({ regions }) => {
+  const map = useMap();
+  React.useEffect(() => {
+    if (!regions || regions.length === 0) return;
+
+    try {
+      const features = regions
+        .filter(r => r.polygon_geojson)
+        .map(r => r.polygon_geojson?.type === 'Feature' ? r.polygon_geojson : { type: 'Feature', properties: {}, geometry: r.polygon_geojson });
+      
+      if (features.length === 0) return;
+
+      const fc = turf.featureCollection(features as any);
+      const bbox = turf.bbox(fc); // [minX, minY, maxX, maxY]
+
+      const leafletBounds = L.latLngBounds(
+        [bbox[1], bbox[0]], // [minY, minX]
+        [bbox[3], bbox[2]]  // [maxY, maxX]
+      );
+
+      map.flyToBounds(leafletBounds, { padding: [50, 50], maxZoom: 14, duration: 1.0 });
+    } catch (e) {
+      console.warn('Could not calculate bounds for flying', e);
+    }
+  }, [regions, map]);
+
+  return null;
+};
+
+/**
  * Admin page for managing service regions (geofencing).
  * Displays a Leaflet map with draw controls to create/edit polygons.
  */
 export const RegionManagement: React.FC = () => {
   const [regions, setRegions] = useState<Region[]>([]);
+  const [techs, setTechs] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingRegion, setEditingRegion] = useState<Region | null>(null);
   const [pendingRegion, setPendingRegion] = useState<Region | null>(null);
@@ -161,9 +196,40 @@ export const RegionManagement: React.FC = () => {
   const [isSearchingCity, setIsSearchingCity] = useState(false);
   const [mapCenter, setMapCenter] = useState<{ lat: number, lng: number } | null>(null);
 
+  const [techFilter, setTechFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [nameFilter, setNameFilter] = useState<string>('');
+
   useEffect(() => {
     fetchRegions();
+    fetchTechs();
   }, []);
+
+  const fetchTechs = async () => {
+    try {
+      const data = await TechnicianService.getAllTechnicians();
+      setTechs(data);
+    } catch (e) {
+      console.error('Failed to load techs', e);
+    }
+  };
+
+  const filteredRegions = useMemo(() => {
+    return regions.filter(r => {
+      if (statusFilter === 'ACTIVE' && !r.is_active) return false;
+      if (statusFilter === 'INACTIVE' && r.is_active) return false;
+      
+      if (techFilter !== 'ALL') {
+        if (!r.technician_ids || !r.technician_ids.includes(techFilter)) return false;
+      }
+
+      if (nameFilter) {
+        if (!r.name || !r.name.toLowerCase().includes(nameFilter.toLowerCase())) return false;
+      }
+      
+      return true;
+    });
+  }, [regions, statusFilter, techFilter, nameFilter]);
 
   const fetchRegions = async () => {
     try {
@@ -299,7 +365,7 @@ export const RegionManagement: React.FC = () => {
               placeholder="Ir para cidade..."
               value={citySearch}
               onChange={(e) => setCitySearch(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-xl pl-4 pr-10 py-2.5 text-sm font-medium text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all shadow-sm"
+              className="w-full bg-white border border-slate-200 rounded-xl pl-4 pr-10 py-2 h-10 text-sm font-medium text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all shadow-sm"
             />
             <button 
               type="submit" 
@@ -310,7 +376,7 @@ export const RegionManagement: React.FC = () => {
             </button>
           </form>
 
-          <Button onClick={() => { setEditingRegion(null); setShowModal(true); }}>
+          <Button onClick={() => { setEditingRegion(null); setShowModal(true); }} className="h-10">
             Criar Nova Região
           </Button>
         </div>
@@ -321,8 +387,53 @@ export const RegionManagement: React.FC = () => {
         : isReshapingMode ? 'border-blue-400 ring-4 ring-blue-400/20'
         : 'border-slate-200'
       }`}>
+        {/* Floating Filters Overlay (Discreet Pills) */}
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] flex flex-col sm:flex-row gap-3 pointer-events-none w-[90%] max-w-3xl justify-center items-start">
+            
+            <div className="relative pointer-events-auto bg-white/90 backdrop-blur-sm shadow-md border border-slate-200/60 rounded-xl w-full sm:w-56 h-10 transition-all hover:bg-white focus-within:bg-white focus-within:ring-2 focus-within:ring-primary-500/20">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
+                <Search size={14} className="text-slate-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Pesquisar por nome..."
+                value={nameFilter}
+                onChange={(e) => setNameFilter(e.target.value)}
+                className="w-full h-full bg-transparent border-none rounded-xl pl-9 pr-3 text-xs font-semibold text-slate-700 outline-none placeholder:text-slate-400"
+              />
+            </div>
+
+            <div className="pointer-events-auto relative z-20 w-full sm:w-64 h-10 drop-shadow-md">
+              <SearchableSelect
+                options={[
+                  { id: 'ALL', name: 'Todos os Técnicos' },
+                  ...techs.map(t => ({ id: t.id, name: t.name }))
+                ]}
+                value={techFilter}
+                onChange={setTechFilter}
+                placeholder="Filtrar por Técnico"
+              />
+            </div>
+
+            <div className="relative pointer-events-auto shadow-md rounded-xl h-10 w-full sm:w-40">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full h-full appearance-none bg-white/90 backdrop-blur-sm border border-slate-200/60 rounded-xl pl-3 pr-10 text-xs font-semibold text-slate-700 hover:bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-all cursor-pointer"
+              >
+                <option value="ALL">Todas Regiões</option>
+                <option value="ACTIVE">Ativas</option>
+                <option value="INACTIVE">Inativas</option>
+              </select>
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                <ChevronDown size={14} className="text-slate-400" />
+              </div>
+            </div>
+            
+        </div>
+
         {pendingRegion && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-white/90 backdrop-blur border border-amber-200 shadow-xl rounded-full px-4 py-2 flex items-center gap-3 animate-fade-in">
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] bg-white/90 backdrop-blur border border-amber-200 shadow-xl rounded-full px-4 py-2 flex items-center gap-3 animate-fade-in">
             <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
             <p className="text-xs font-bold text-slate-700">
               Modo Desenho: <span className="text-amber-600">{pendingRegion.name}</span>
@@ -334,7 +445,7 @@ export const RegionManagement: React.FC = () => {
         )}
 
         {isReshapingMode && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-white/90 backdrop-blur border border-blue-200 shadow-xl rounded-full px-5 py-2.5 flex items-center gap-4 animate-fade-in">
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] bg-white/90 backdrop-blur border border-blue-200 shadow-xl rounded-full px-5 py-2.5 flex items-center gap-4 animate-fade-in">
             <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
             <p className="text-xs font-bold text-slate-700">
               Remodelando: <span className="text-blue-600">{regions.find(r => r.id === reshapeRegionId)?.name}</span>
@@ -360,10 +471,11 @@ export const RegionManagement: React.FC = () => {
 
         <MapContainer center={[-23.55052, -46.63331]} zoom={12} style={{ height: '100%', width: '100%' }}>
           <MapFlyToCenter center={mapCenter} />
+          <MapBoundsFitter regions={filteredRegions} />
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
           <FeatureGroup>
-            {regions.map(r => {
+            {filteredRegions.map(r => {
               // Hide the region being reshaped (ReshapeController renders its own editable copy)
               if (r.id === reshapeRegionId) return null;
 

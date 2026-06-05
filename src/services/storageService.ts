@@ -73,7 +73,7 @@ export const StorageService = {
     /**
      * 🛡️ NASA-Grade Storage Engine (Internal Version 5 - RESILIENT)
      */
-    _uploadCore: async (blobOrFile: Blob | File, path: string, retryCount = 2, signal?: AbortSignal): Promise<string> => {
+    _uploadCore: async (blobOrFile: Blob | File, path: string, retryCount = 2, signal?: AbortSignal, options?: { contentType?: string, extension?: string }): Promise<string> => {
         const tenantId = getCurrentTenantId();
         if (!tenantId) {
             console.error("[Storage] ❌ ERRO: TenantID não encontrado. Abortando upload.");
@@ -81,7 +81,8 @@ export const StorageService = {
         }
 
         const cleanPath = path.toString().replace(/^\/+/, '').replace(/\/+$/, '');
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.webp`;
+        const ext = options?.extension || 'webp';
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
         const fullPath = `${tenantId}/${cleanPath}/${fileName}`.replace(/\/+/g, '/');
 
         console.log(`[Storage] 📤 Uploading ${fullPath} (${(blobOrFile.size / 1024).toFixed(0)}KB)...`);
@@ -93,7 +94,7 @@ export const StorageService = {
                 const uploadPromise = supabase.storage
                     .from('nexus-files')
                     .upload(fullPath, blobOrFile, {
-                        contentType: 'image/webp',
+                        contentType: options?.contentType || 'image/webp',
                         upsert: true,
                         cacheControl: '3600'
                     });
@@ -323,6 +324,34 @@ export const StorageService = {
     },
 
     /**
+     * Upload de anexo de Observação Interna (Imagens viram WebP, Docs são mantidos)
+     */
+    uploadInternalNoteAttachment: async (file: File, orderId: string, signal?: AbortSignal): Promise<{ url: string, name: string, type: string, size: number }> => {
+        if (!isCloudEnabled) {
+            return { url: URL.createObjectURL(file), name: file.name, type: file.type.includes('image') ? 'image' : 'document', size: file.size };
+        }
+        
+        try {
+            const isImage = file.type.startsWith('image/');
+            if (isImage) {
+                const compressedBlob = await StorageService.processAndCompress(file, signal);
+                const webpFile = new File([compressedBlob], `photo_${Date.now()}.webp`, { type: 'image/webp' });
+                const url = await StorageService._uploadCore(webpFile, `orders/${orderId}/internal_notes`, 2, signal, { contentType: 'image/webp', extension: 'webp' });
+                return { url, name: file.name, type: 'image', size: webpFile.size };
+            } else {
+                if (file.size > 15 * 1024 * 1024) throw new Error("O arquivo excede o limite de 15MB");
+                const extMatch = file.name.match(/\.([^.]+)$/);
+                const ext = extMatch ? extMatch[1].toLowerCase() : 'pdf';
+                const url = await StorageService._uploadCore(file, `orders/${orderId}/internal_notes`, 2, signal, { contentType: file.type, extension: ext });
+                return { url, name: file.name, type: 'document', size: file.size };
+            }
+        } catch (err: any) {
+            console.error(`[AttachmentUpload] ❌ Falha:`, err.message);
+            throw err;
+        }
+    },
+
+    /**
      * Upload de foto genérica (Compatibilidade com antigo StorageService)
      */
     uploadPhoto: async (orderId: string, fieldId: string, file: File, uploadedBy?: string): Promise<UploadedFile> => {
@@ -357,12 +386,23 @@ export const StorageService = {
     },
 
     /**
-     * Deleta um arquivo
+     * Deleta um arquivo do Storage baseado na sua URL pública
      */
     deleteFile: async (url: string): Promise<void> => {
-        // Extrai o path relativo da URL se necessário, ou aceita path direto
-        // Implementação básica
-        if (!url) return;
-        // TODO: Implementar delete real parseando a URL
+        if (!url || !isCloudEnabled) return;
+        try {
+            let path = url;
+            if (url.includes('/nexus-files/')) {
+                path = url.split('/nexus-files/')[1].split('?')[0];
+                await supabase.storage.from('nexus-files').remove([decodeURIComponent(path)]);
+                console.log(`[Storage] 🗑️ Arquivo deletado: ${path}`);
+            } else if (url.includes('/nexus-public-dropzone/')) {
+                path = url.split('/nexus-public-dropzone/')[1].split('?')[0];
+                await publicSupabase.storage.from('nexus-public-dropzone').remove([decodeURIComponent(path)]);
+                console.log(`[Storage/Dropzone] 🗑️ Arquivo deletado: ${path}`);
+            }
+        } catch (err) {
+            console.error('[StorageService] ❌ Falha ao deletar arquivo:', err);
+        }
     }
 };
