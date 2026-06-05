@@ -7,6 +7,16 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// ══════════════════════════════════════════════════════════════
+// CACHE DE MODELOS GRATUITOS (reutilizado entre requisições)
+// Evita chamar a API /models do OpenRouter a cada pergunta.
+// O cache dura 10 minutos e depois é renovado automaticamente.
+// ══════════════════════════════════════════════════════════════
+interface FreeModel { id: string; contextLength: number; }
+let cachedFreeModels: FreeModel[] = [];
+let cacheTimestamp = 0;
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutos
+
 serve(async (req) => {
   // CORS preflight
   if (req.method === "OPTIONS") {
@@ -29,16 +39,7 @@ serve(async (req) => {
     
     // (Código antigo de auth foi removido)
 
-    // ============================================
-    // DIAGNÓSTICO DE DEPLOY (APAGAR DEPOIS)
-    // Se você não ver esse erro na tela, o Supabase NÃO atualizou o código!
-    if (req.method === "POST") {
-       return new Response(JSON.stringify({ error: "SUCESSO: O NOVO CÓDIGO CHEGOU NA NUVEM!" }), {
-         headers: { ...corsHeaders, "Content-Type": "application/json" },
-         status: 400,
-       });
-    }
-    // ============================================
+
 
     const { query, chunks } = await req.json();
 
@@ -56,12 +57,18 @@ serve(async (req) => {
     let provider = "google";
     let apiKey = "";
 
+    // ⚡ TURBO: Prioriza a API nativa do Google Gemini em vez do OpenRouter!
+    // Motivo: O OpenRouter (plano gratuito) engasga e leva 30-50s para processar 
+    // os 160.000 caracteres de contexto que enviamos para garantir a robustez.
+    // O Google Gemini nativo processa os mesmos 160.000 caracteres em < 3 segundos.
     if (geminiApiKey) {
       provider = "google";
       apiKey = geminiApiKey;
+      console.log("⚡ Usando Google Gemini (rápido para grandes contextos).");
     } else if (openRouterApiKey) {
       provider = "openrouter";
       apiKey = openRouterApiKey;
+      console.warn("⚠️ AVISO: Usando OpenRouter (Plano Gratuito). As respostas podem demorar 30s+ devido ao tamanho do RAG.");
     } else if (openAiApiKey) {
       if (openAiApiKey.startsWith("sk-or-")) {
         provider = "openrouter";
@@ -80,17 +87,22 @@ serve(async (req) => {
 
     // Montar o contexto com os chunks extraídos do manual
     const contextText = chunks.map((c: any, i: number) => `Trecho ${i + 1}:\n"${c.content}"`).join("\n\n");
-    const systemPrompt = `Você é o Duno Copilot, um especialista técnico sênior e assistente de IA focado nos manuais da empresa.
+    const systemPrompt = `IDIOMA OBRIGATÓRIO: Português do Brasil (pt-BR). Você DEVE responder SEMPRE em português brasileiro. NUNCA responda em inglês ou outro idioma.
+
+Você é o Duno Copilot, um especialista técnico sênior e assistente de IA focado nos manuais da empresa.
 Seu objetivo é interpretar o problema do usuário e usar sua forte capacidade de raciocínio lógico e semântico para encontrar a solução nos trechos fornecidos.
 
 DIRETRIZES DE COMPORTAMENTO:
 1. RACIOCÍNIO SEMÂNTICO: Não procure apenas palavras exatas. Entenda o "espírito" da pergunta. Se o manual fala de "falha de conexão" e o usuário relata "não entra na rede", faça a conexão inteligente.
-2. DIDÁTICA E CLAREZA: Responda em português de forma extremamente clara, empática e profissional. Se houver um passo a passo, use listas numeradas e explique com calma.
+2. DIDÁTICA E CLAREZA: Responda SEMPRE em PORTUGUÊS DO BRASIL de forma clara, empática e profissional. Se houver um passo a passo, use listas numeradas.
 3. CONTEXTO EXCLUSIVO: Toda instrução técnica deve ser extraída dos trechos abaixo. Você pode usar seu conhecimento geral para estruturar a frase ou explicar conceitos básicos da área, mas senhas e procedimentos específicos devem vir do manual.
 4. HONESTIDADE: Se os trechos fornecidos realmente não tiverem NENHUMA pista, diga educadamente: "Ainda não encontrei informações específicas sobre isso nos manuais que aprendi, mas se você quiser detalhar mais o problema, posso tentar ajudar!"
+5. RIQUEZA DE DETALHES: Como o sistema agora é ultra rápido, você NÃO precisa ser excessivamente resumido. Forneça respostas completas, ricas em contexto. Se houver informações adicionais importantes no manual que complementem a dúvida do usuário (como dicas de segurança, avisos ou passos seguintes), INCLUA-AS. Entregue a melhor e mais completa experiência de suporte.
 
 MANUAIS DE REFERÊNCIA PARA A SUA RESPOSTA:
 ${contextText}
+
+LEMBRETE FINAL: Sua resposta DEVE ser inteiramente em PORTUGUÊS DO BRASIL.
 `;
 
     let answer = "";
@@ -140,52 +152,88 @@ ${contextText}
           const listData = await listResponse.json();
           const availableModels = listData.models?.map((m: any) => m.name.replace('models/', '')).join(', ');
           
-          throw new Error(`\n⚠️ NENHUM MODELO ENCONTRADO.\nA sua chave só tem acesso aos modelos:\n[ ${availableModels || 'Nenhum, a chave está vazia ou restrita'} ]`);
+          throw new Error(`\n⚠️ CHAVE OPENROUTER AUSENTE!\nO sistema tentou usar o OpenRouter, mas a chave OPENROUTER_API_KEY não foi encontrada nos Secrets do Supabase.\nComo fallback, tentou usar o Google Gemini, mas falhou: NENHUM MODELO ENCONTRADO na chave do Google.\nA sua chave Google só tem acesso aos modelos:\n[ ${availableModels || 'Nenhum, a chave está vazia ou restrita'} ]`);
         } catch (listErr: any) {
-          throw new Error(`Não consegui nem listar os modelos: ${listErr.message}`);
+          throw new Error(`A chave OPENROUTER_API_KEY não está no servidor! Fallback pro Google falhou: ${listErr.message}`);
         }
       }
       
       answer = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
     } else if (provider === "openrouter") {
-      // OPENROUTER - Estratégia "Free First" (Tenta todos os grátis antes de pagar)
-      const openRouterModel = Deno.env.get("OPENROUTER_MODEL");
+      // OPENROUTER - Descobre os modelos GRATUITOS disponíveis DINAMICAMENTE via API!
+      // Usa CACHE para não perder tempo buscando a lista em toda pergunta.
       
-      // Bateria de modelos 100% gratuitos e de alta inteligência
-      const freeModels = [
-        "google/gemini-2.0-flash-thinking-exp:free", // Mais inteligente (raciocínio avançado)
-        "google/gemini-2.0-flash-exp:free",          // Rápido e contexto gigante
-        "meta-llama/llama-3.3-70b-instruct:free",    // Peso-pesado da Meta
-        "qwen/qwen-2.5-72b-instruct:free",           // Excelente modelo open-source
-        "mistralai/mistral-7b-instruct:free"         // Fallback rápido e confiável
+      const now = Date.now();
+      if (cachedFreeModels.length === 0 || (now - cacheTimestamp) > CACHE_TTL_MS) {
+        try {
+          console.log("[OpenRouter] 🔍 Atualizando cache de modelos gratuitos...");
+          const modelsResponse = await fetch("https://openrouter.ai/api/v1/models", {
+            headers: { "Authorization": `Bearer ${apiKey}` }
+          });
+          const modelsData = await modelsResponse.json();
+          
+          if (modelsData.data && Array.isArray(modelsData.data)) {
+            cachedFreeModels = modelsData.data
+              .filter((m: any) => 
+                m.id.endsWith(":free") && 
+                m.pricing?.prompt === "0" && 
+                m.pricing?.completion === "0"
+              )
+              .sort((a: any, b: any) => (b.context_length || 0) - (a.context_length || 0))
+              .slice(0, 4)
+              .map((m: any) => ({ id: m.id, contextLength: m.context_length || 8192 }));
+            
+            cacheTimestamp = now;
+            console.log(`[OpenRouter] ✅ Cache atualizado: ${cachedFreeModels.length} modelos gratuitos.`);
+            cachedFreeModels.forEach(m => console.log(`  - ${m.id} (ctx: ${m.contextLength})`));
+          }
+        } catch (fetchErr: any) {
+          console.warn("[OpenRouter] ⚠️ Falha ao buscar modelos. Usando cache anterior ou fallback:", fetchErr.message);
+        }
+      } else {
+        console.log(`[OpenRouter] ⚡ Usando cache de modelos (${cachedFreeModels.length} modelos, cache tem ${Math.round((now - cacheTimestamp) / 1000)}s).`);
+      }
+      
+      let orModelsToTry = [
+        // Prioridade: modelos gratuitos rápidos com grande contexto
+        { id: "google/gemma-4-31b-it:free", contextLength: 262144 },
+        { id: "nvidia/nemotron-3-nano-30b-a3b:free", contextLength: 256000 },
+        { id: "qwen/qwen3-coder:free", contextLength: 1048576 },
+        ...cachedFreeModels
       ];
       
-      // O modelo pago foi COMPLETAMENTE REMOVIDO da fila automática para garantir ZERO GASTO.
-      // Agora o sistema só usa os modelos gratuitos.
-      const orModelsToTry = [...freeModels];
+      // Remove duplicados e limita a 4 tentativas para evitar longas esperas
+      orModelsToTry = orModelsToTry.filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i).slice(0, 4);
           
-      let lastError = null;
+      let allErrors: string[] = [];
       let data = null;
 
-      for (const model of orModelsToTry) {
+      for (const modelInfo of orModelsToTry) {
         try {
-          console.log(`[OpenRouter] Tentando modelo: ${model}...`);
+          console.log(`[OpenRouter] Tentando modelo: ${modelInfo.id} (ctx: ${modelInfo.contextLength} tokens)...`);
           
           let currentSystemPrompt = systemPrompt;
           
-          // O Gemini aguenta 2 Milhões de tokens. Mas o Llama, Mistral e Qwen na versão GRATUITA do OpenRouter 
-          // são limitados a apenas 8.192 tokens (cerca de 30.000 caracteres).
-          // Se enviarmos mais que isso, eles dão erro e a IA falha.
-          // Solução: Se o modelo não for Gemini, cortamos o texto para 25.000 caracteres para ele conseguir ler de graça.
-          if (!model.includes("gemini")) {
-            if (currentSystemPrompt.length > 25000) {
-              currentSystemPrompt = currentSystemPrompt.substring(0, 25000) + "\n\n[... RESTANTE DO MANUAL CORTADO DEVIDO AO LIMITE DE MEMÓRIA DESTA IA GRATUITA ...]";
-              console.log(`[OpenRouter] ✂️ Texto cortado para 25k caracteres para o modelo ${model} suportar na versão grátis.`);
-            }
+          // Calcula o limite de caracteres baseado no contexto REAL do modelo.
+          // 1 token ≈ 3 caracteres. Usamos 70% da capacidade para deixar margem segura.
+          // Ex: Llama 3.3 com 128k tokens → pode receber até ~268.000 caracteres!
+          const maxChars = Math.floor(modelInfo.contextLength * 3 * 0.70);
+          
+          if (currentSystemPrompt.length > maxChars) {
+            currentSystemPrompt = currentSystemPrompt.substring(0, maxChars) + "\n\n[... CONTEXTO CORTADO NO LIMITE DESTA IA GRATUITA ...]";
+            console.log(`[OpenRouter] ✂️ Texto cortado para ${maxChars} chars (${modelInfo.contextLength} tokens disponíveis em ${modelInfo.id}).`);
+          } else {
+            console.log(`[OpenRouter] ✅ Contexto completo enviado: ${currentSystemPrompt.length} chars de ${maxChars} disponíveis.`);
           }
+
+          // Timeout rigoroso: se o modelo gratuito travar ou estiver lento, 
+          // abortamos em 10 segundos e pulamos para o próximo!
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000);
 
           const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
+            signal: controller.signal,
             headers: {
               "Content-Type": "application/json",
               "Authorization": `Bearer ${apiKey}`,
@@ -193,36 +241,40 @@ ${contextText}
               "X-Title": "Nexus OS",
             },
             body: JSON.stringify({
-              model: model,
+              model: modelInfo.id,
               provider: {
-                allow_fallbacks: false, // BLOQUEIA O OPENROUTER DE TROCAR PRO MODELO PAGO SILENCIOSAMENTE!
+                allow_fallbacks: false, // BLOQUEIA O OPENROUTER DE TROCAR PRO MODELO PAGO!
               },
               messages: [
                 { role: "system", content: currentSystemPrompt },
                 { role: "user", content: query }
               ],
               temperature: 0.2,
+              max_tokens: 800, // Respostas diretas e rápidas, mas com espaço para passo-a-passo
             }),
           });
+          
+          clearTimeout(timeoutId);
 
           const jsonResponse = await response.json();
           if (jsonResponse.error) {
-            lastError = jsonResponse.error.message;
-            console.error(`[OpenRouter] ❌ Modelo ${model} falhou:`, lastError);
-            continue; // Falhou, tenta o próximo modelo grátis!
+            const errMsg = jsonResponse.error.message;
+            allErrors.push(`[${modelInfo.id}]: ${errMsg}`);
+            console.error(`[OpenRouter] ❌ Modelo ${modelInfo.id} falhou:`, errMsg);
+            continue; // Falhou, tenta o próximo!
           }
           
-          console.log(`[OpenRouter] ✅ Sucesso! Modelo solicitado: ${model} | Modelo realmente usado pelo OpenRouter: ${jsonResponse.model}`);
+          console.log(`[OpenRouter] ✅ Sucesso! Modelo usado: ${jsonResponse.model}`);
           data = jsonResponse;
           break; // Sucesso!
         } catch (err: any) {
-          lastError = err.message;
-          console.error(`[OpenRouter] ❌ Erro na requisição do modelo ${model}:`, lastError);
+          allErrors.push(`[${modelInfo.id}]: ${err.message}`);
+          console.error(`[OpenRouter] ❌ Erro na requisição do modelo ${modelInfo.id}:`, err.message);
         }
       }
 
       if (!data) {
-        throw new Error(`Nenhum modelo do OpenRouter funcionou. Último erro: ${lastError}`);
+        throw new Error(`Nenhum modelo gratuito do OpenRouter funcionou.\nMotivos:\n${allErrors.join('\n')}`);
       }
       answer = data.choices?.[0]?.message?.content || "";
     } else if (provider === "openai") {

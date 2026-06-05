@@ -19,6 +19,7 @@ import * as turf from '@turf/turf';
 import { getRegions } from '../../services/regionService';
 import { Region } from '../../types/region';
 import { useTenant } from '../../hooks/nexusHooks';
+import { supabase } from '../../lib/supabase';
 
 const checkWarrantyStatus = (manufactureDate?: string, warrantyMonths?: number) => {
   if (!manufactureDate || !warrantyMonths) return null;
@@ -64,6 +65,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   const [clientSearch, setClientSearch] = useState(initialData?.customerName || '');
   const [serialSearch, setSerialSearch] = useState('');
   const [techSearch, setTechSearch] = useState('');
+  const [openOrderWarning, setOpenOrderWarning] = useState<string | null>(null);
 
   const [localStatus, setLocalStatus] = useState<string | undefined>(initialData?.status);
   const isReadOnly = initialData?.status === OrderStatus.COMPLETED || initialData?.status === OrderStatus.CANCELED;
@@ -203,6 +205,26 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
     setSelectedEquipIds([]);
   };
 
+  const checkOpenOrderForEquipment = async (equip: any) => {
+    if (initialData || !equip || !equip.serialNumber || equip.serialNumber === '-') return;
+    
+    try {
+      const { data } = await supabase.from('orders')
+        .select('display_id, status')
+        .eq('equipment_serial', equip.serialNumber)
+        .in('status', ['PENDENTE', 'ATRIBUÍDO', 'EM DESLOCAMENTO', 'EM ANDAMENTO', 'IMPEDIDO'])
+        .limit(1);
+        
+      if (data && data.length > 0) {
+        setOpenOrderWarning(data[0].display_id);
+      } else {
+        setOpenOrderWarning(null);
+      }
+    } catch (e) {
+      console.error('Erro ao checar OS aberta', e);
+    }
+  };
+
   const handleSelectBySerial = (equip: any) => {
     const client = clients.find(c => c.id === equip.customerId);
     if (client) {
@@ -214,13 +236,22 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
         title: equip.model
       }));
       setIsSerialListOpen(false);
+      checkOpenOrderForEquipment(equip);
     }
   };
 
   const handleEquipmentToggle = (id: string) => {
+    const isSelecting = !selectedEquipIds.includes(id);
     setSelectedEquipIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
+
+    if (isSelecting) {
+      const equip = equipments.find(e => e.id === id);
+      checkOpenOrderForEquipment(equip);
+    } else {
+      setOpenOrderWarning(null);
+    }
   };
 
   // Logic to auto-select form template based on rules
@@ -683,6 +714,15 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                       </div>
                     )}
                   </div>
+                  {openOrderWarning && (
+                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2 animate-in fade-in slide-in-from-top-1">
+                      <Info className="text-amber-500 mt-0.5 shrink-0" size={14} />
+                      <p className="text-xs text-amber-700 font-medium leading-relaxed">
+                        <strong className="font-bold">Aviso:</strong> Já existe uma OS em aberto ({openOrderWarning}) para o equipamento selecionado. 
+                        Você pode continuar normalmente com a criação deste protocolo se for um novo atendimento independente.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
