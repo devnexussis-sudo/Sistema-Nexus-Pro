@@ -433,9 +433,8 @@ export const aiKnowledgeService = {
       `${s.source_name} → score: ${s.score}`
     ));
     
-    // 5 chunks equilibram robustez e velocidade. O Mini-RAG abaixo garante que
-    // cada chunk seja comprimido inteligentemente antes de ser enviado.
-    const bestMatches = scored.slice(0, 5);
+    // 3 chunks para garantir que cabemos com folga nos limites rígidos da Groq (6k tokens)
+    const bestMatches = scored.slice(0, 3);
     
     // ══════════════════════════════════════════════════════════════
     // INJEÇÃO INTELIGENTE DO MANUAL DO SISTEMA (KNOWLEDGE_BASE)
@@ -457,8 +456,8 @@ export const aiKnowledgeService = {
     });
 
     if (relevantManualItems.length > 0) {
-      // Pega no máximo as 3 regras mais relevantes para não poluir
-      const systemManualText = relevantManualItems.slice(0, 3).map(k => k.response).join('\n\n');
+      // Pega no máximo as 2 regras mais relevantes (para poupar tokens valiosos)
+      const systemManualText = relevantManualItems.slice(0, 2).map(k => k.response).join('\n\n');
       bestMatches.push({
         content: `[MANUAL OFICIAL DO SISTEMA DUNO]\n${systemManualText}`,
         source_name: 'Manual do Sistema Duno',
@@ -498,12 +497,12 @@ export const aiKnowledgeService = {
             if (m.score === 999) return m; // Manual do sistema vai inteiro
 
             const contentStr = m.content || '';
-            if (contentStr.length <= 2500) return m; // Se já é pequeno, manda inteiro
+            if (contentStr.length <= 1500) return m; // Se já é pequeno, manda inteiro
 
-            // 1. Quebra o gigante de 20k chars em janelas de 2500 chars (sobrepostas)
+            // 1. Quebra o gigante de 20k chars em janelas de 1500 chars (sobrepostas)
             const miniChunks = [];
-            for (let i = 0; i < contentStr.length; i += 1800) {
-              miniChunks.push(contentStr.substring(i, i + 2500));
+            for (let i = 0; i < contentStr.length; i += 1000) {
+              miniChunks.push(contentStr.substring(i, i + 1500));
             }
 
             // 2. Pontua qual mini-chunk tem mais a ver com a pergunta
@@ -520,10 +519,10 @@ export const aiKnowledgeService = {
                return { text: mc, score };
             });
 
-            // 3. Pega os 5 pedaços mais relevantes (mais contexto = respostas mais ricas)
+            // 3. Pega os 2 pedaços mais relevantes (segurança máxima para limite de 6k da Groq)
             scoredMiniChunks.sort((a, b) => b.score - a.score);
             const bestText = scoredMiniChunks
-               .slice(0, 5)
+               .slice(0, 2)
                .map(mc => mc.text)
                .join('\n\n[...]\n\n');
 

@@ -79,7 +79,7 @@ LEMBRETE: Responda EXCLUSIVAMENTE em PORTUGUÊS DO BRASIL. Seja completo e útil
       const groqModels = [
         { id: "llama-3.3-70b-versatile", contextLength: 128000 },
         { id: "llama-3.1-8b-instant", contextLength: 128000 },
-        { id: "mixtral-8x7b-32768", contextLength: 32768 },
+        { id: "gemma2-9b-it", contextLength: 8192 },
       ];
 
       let allErrors: string[] = [];
