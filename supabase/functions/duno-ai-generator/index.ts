@@ -7,18 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// ══════════════════════════════════════════════════════════════
-// CACHE DE MODELOS GRATUITOS (reutilizado entre requisições)
-// Evita chamar a API /models do OpenRouter a cada pergunta.
-// O cache dura 10 minutos e depois é renovado automaticamente.
-// ══════════════════════════════════════════════════════════════
-interface FreeModel { id: string; contextLength: number; }
-let cachedFreeModels: FreeModel[] = [];
-let cacheTimestamp = 0;
-const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutos
-
 serve(async (req) => {
-  // CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -33,14 +22,6 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    // Não exigiremos strict auth (auth.getUser()) porque os Técnicos e o Master Admin
-    // usam sistemas de autenticação customizados que não geram JWTs do Supabase Auth.
-    // O RLS do banco de dados (nas chamadas de RAG) e CORS já protegem a função.
-    
-    // (Código antigo de auth foi removido)
-
-
-
     const { query, chunks } = await req.json();
 
     if (!query || !chunks || !Array.isArray(chunks) || chunks.length === 0) {
@@ -50,205 +31,192 @@ serve(async (req) => {
       });
     }
 
-    const geminiApiKey = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY");
+    // ══════════════════════════════════════════════════════
+    // CHAVES DE API — apenas Groq e Google como fallback
+    // ══════════════════════════════════════════════════════
     const groqApiKey = Deno.env.get("GROQ_API_KEY");
-    const openAiApiKey = Deno.env.get("OPENAI_API_KEY");
+    const geminiApiKey = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY");
 
-    let provider = "google";
-    let apiKey = "";
-
-    // ⚡ Prioridade Máxima: Groq Cloud (Extremamente rápido e gratuito).
-    if (groqApiKey) {
-      provider = "groq";
-      apiKey = groqApiKey;
-      console.log("⚡ Usando Groq Cloud (Modelos ultra rápidos e gratuitos).");
-    } else if (geminiApiKey) {
-      provider = "google";
-      apiKey = geminiApiKey;
-      console.warn("⚠️ AVISO: Usando Google Gemini Nativo. Cuidado com os limites baixos de cota gratuita!");
-    } else if (openAiApiKey) {
-      if (openAiApiKey.startsWith("sk-or-")) {
-        provider = "openrouter"; // (mantém por compatibilidade legada)
-      } else if (openAiApiKey.startsWith("gsk_")) {
-        provider = "groq";
-      } else if (openAiApiKey.startsWith("AIzaSy")) {
-        provider = "google";
-      } else {
-        provider = "openai";
-      }
-      apiKey = openAiApiKey;
-    } else {
-      return new Response(JSON.stringify({ error: "Nenhuma API Key (GROQ_API_KEY, GEMINI_API_KEY ou OPENAI_API_KEY) configurada no servidor (Secrets)." }), {
+    if (!groqApiKey && !geminiApiKey) {
+      return new Response(JSON.stringify({
+        error: "Nenhuma API Key configurada no servidor. Configure GROQ_API_KEY nos Secrets do Supabase."
+      }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500,
       });
     }
 
-    // Montar o contexto com os chunks extraídos do manual
-    const contextText = chunks.map((c: any, i: number) => `Trecho ${i + 1}:\n"${c.content}"`).join("\n\n");
-    const systemPrompt = `IDIOMA OBRIGATÓRIO: Português do Brasil (pt-BR). Você DEVE responder SEMPRE em português brasileiro. NUNCA responda em inglês ou outro idioma.
+    // ══════════════════════════════════════════════════════
+    // MONTAGEM DO PROMPT
+    // ══════════════════════════════════════════════════════
+    const contextText = chunks
+      .map((c: any, i: number) => `Trecho ${i + 1} (Fonte: ${c.source_name || "Manual"}):\n"${c.content}"`)
+      .join("\n\n---\n\n");
 
-Você é o Duno Copilot, um especialista técnico sênior do sistema de gestão Nexus. Você tem acesso aos manuais técnicos e operacionais da empresa e sua missão é fornecer respostas COMPLETAS, RICAS e PRECISAS.
+    const systemPrompt = `IDIOMA OBRIGATÓRIO: Português do Brasil (pt-BR). Responda SEMPRE em português. NUNCA em inglês.
 
-DIRETRIZES DE COMPORTAMENTO:
-1. RACIOCÍNIO SEMÂNTICO AVANÇADO: Não procure apenas palavras exatas. Entenda o "espírito" da pergunta e conecte informações de DIFERENTES trechos para formar uma resposta completa. Se o Trecho 1 fala do procedimento e o Trecho 3 menciona uma observação importante sobre ele, COMBINE as duas informações.
-2. SÍNTESE ENTRE TRECHOS: Leia TODOS os trechos fornecidos antes de responder. A resposta completa pode estar distribuída em mais de um trecho.
-3. RESPOSTAS RICAS E DETALHADAS: Nunca dê uma resposta de 2 linhas se o manual contém mais informação relevante. Forneça o passo a passo completo, inclua avisos importantes, dicas de segurança, e informe o que acontece depois de cada etapa quando isso for relevante.
-4. FORMATO PROFISSIONAL: Use listas numeradas para passo a passos. Use negrito para termos importantes. Organize a resposta em seções se for longa.
-5. HONESTIDADE: Se os trechos realmente não contiverem NENHUMA pista sobre o assunto, diga: "Não encontrei informações específicas sobre isso nos manuais disponíveis. Pode descrever melhor o problema para eu ajudar?"
-6. CONTEXTO DO SISTEMA: Você conhece o sistema Nexus de gestão de ordens de serviço (OS), técnicos, clientes, equipamentos, regiões de atendimento e relatórios. Use esse conhecimento como base para interpretar as perguntas.
+Você é o Duno Copilot, assistente técnico sênior do sistema de gestão Nexus. Sua missão é dar respostas COMPLETAS, RICAS e PRECISAS baseadas nos manuais fornecidos.
 
-MANUAIS DE REFERÊNCIA PARA A SUA RESPOSTA:
+DIRETRIZES:
+1. RACIOCÍNIO SEMÂNTICO: Entenda o "espírito" da pergunta. Conecte informações de trechos diferentes para uma resposta completa.
+2. SÍNTESE COMPLETA: Leia TODOS os trechos antes de responder. A resposta pode estar distribuída em mais de um trecho.
+3. RESPOSTAS DETALHADAS: Inclua passo a passo completo, avisos de segurança, e informações que complementem a dúvida.
+4. FORMATO PROFISSIONAL: Use listas numeradas para passos, negrito para termos importantes, organize em seções se necessário.
+5. HONESTIDADE: Se os trechos não tiverem a informação, diga: "Não encontrei nos manuais disponíveis. Pode detalhar melhor?"
+6. CONTEXTO NEXUS: Você conhece o sistema de OS, técnicos, clientes, equipamentos, regiões e relatórios do Nexus.
+
+MANUAIS DE REFERÊNCIA:
 ${contextText}
 
-LEMBRETE FINAL: Sua resposta DEVE ser inteiramente em PORTUGUÊS DO BRASIL. Sintetize os trechos acima e entregue a resposta mais completa e útil possível.
-`;
+LEMBRETE: Responda EXCLUSIVAMENTE em PORTUGUÊS DO BRASIL. Seja completo e útil.`;
 
     let answer = "";
-    
-    if (provider === "google") {
-      const modelsToTry = [
-        "gemini-3.5-flash", 
-        "gemini-flash-latest", 
-        "gemini-2.5-flash",
-        "gemini-2.0-flash"
-      ];
-      
-      let lastError = null;
-      let data = null;
 
-      for (const model of modelsToTry) {
-        try {
-          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ role: "user", parts: [{ text: query }] }],
-              system_instruction: { parts: [{ text: systemPrompt }] },
-              generation_config: { temperature: 0.4 }
-            }),
-          });
-
-          const jsonResponse = await response.json();
-          if (jsonResponse.error) {
-            if (jsonResponse.error.message?.includes('not found') || jsonResponse.error.code === 404) {
-              lastError = jsonResponse.error.message;
-              continue;
-            }
-            throw new Error(`Google Error: ${jsonResponse.error.message}`);
-          }
-          
-          data = jsonResponse;
-          break;
-        } catch (err: any) {
-          lastError = err.message;
-        }
-      }
-
-      if (!data) {
-        try {
-          const listResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-          const listData = await listResponse.json();
-          const availableModels = listData.models?.map((m: any) => m.name.replace('models/', '')).join(', ');
-          
-          throw new Error(`\n⚠️ CHAVE GROQ_API_KEY AUSENTE!\nO sistema tentou usar o Groq, mas a chave GROQ_API_KEY não foi encontrada nos Secrets do Supabase.\nComo fallback, tentou usar o Google Gemini, mas falhou: NENHUM MODELO ENCONTRADO na chave do Google.\nA sua chave Google só tem acesso aos modelos:\n[ ${availableModels || 'Nenhum, a chave está vazia ou restrita'} ]`);
-        } catch (listErr: any) {
-          throw new Error(`A chave GROQ_API_KEY não está no servidor! Fallback pro Google falhou: ${listErr.message}`);
-        }
-      }
-      
-      answer = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    } else if (provider === "groq") {
-      // GROQ CLOUD IMPLEMENTATION (Fastest free LPU API)
-      let groqModelsToTry = [
+    // ══════════════════════════════════════════════════════
+    // GROQ CLOUD — Modelo principal (ultra rápido, gratuito)
+    // ══════════════════════════════════════════════════════
+    if (groqApiKey) {
+      const groqModels = [
         { id: "llama-3.3-70b-versatile", contextLength: 128000 },
         { id: "llama-3.1-8b-instant", contextLength: 128000 },
         { id: "mixtral-8x7b-32768", contextLength: 32768 },
       ];
-          
+
       let allErrors: string[] = [];
       let data = null;
 
-      for (const modelInfo of groqModelsToTry) {
+      for (const modelInfo of groqModels) {
         try {
-          console.log(`[Groq] Tentando modelo: ${modelInfo.id} (ctx: ${modelInfo.contextLength} tokens)...`);
-          
-          let currentSystemPrompt = systemPrompt;
-          
-          // Calcula limite de caracteres (1 token ≈ 3 caracteres)
-          const maxChars = Math.floor(modelInfo.contextLength * 3 * 0.70);
-          
-          if (currentSystemPrompt.length > maxChars) {
-            currentSystemPrompt = currentSystemPrompt.substring(0, maxChars) + "\n\n[... CONTEXTO CORTADO NO LIMITE DA IA ...]";
-            console.log(`[Groq] ✂️ Texto cortado para ${maxChars} chars.`);
-          }
+          console.log(`[Groq] ▶ Tentando: ${modelInfo.id}`);
 
-          // Timeout de 15 segundos para dar tempo de sobra pra Groq (que responde em <2s)
+          // Garante que o prompt caiba no contexto do modelo (1 token ≈ 3 chars)
+          const maxChars = Math.floor(modelInfo.contextLength * 3 * 0.75);
+          const finalPrompt = systemPrompt.length > maxChars
+            ? systemPrompt.substring(0, maxChars) + "\n\n[... contexto cortado por limite do modelo ...]"
+            : systemPrompt;
+
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 15000);
+          const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
 
           const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             signal: controller.signal,
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${apiKey}`
+              "Authorization": `Bearer ${groqApiKey}`,
             },
             body: JSON.stringify({
               model: modelInfo.id,
               messages: [
-                { role: "system", content: currentSystemPrompt },
+                { role: "system", content: finalPrompt },
                 { role: "user", content: query }
-              ]
+              ],
+              temperature: 0.2,
+              max_tokens: 2048,
             }),
           });
-          
+
           clearTimeout(timeoutId);
 
-          const jsonResponse = await response.json();
-          if (jsonResponse.error) {
-            const errMsg = jsonResponse.error.message;
+          const json = await response.json();
+
+          if (json.error) {
+            const errMsg = json.error.message || json.error.type || JSON.stringify(json.error);
             allErrors.push(`[${modelInfo.id}]: ${errMsg}`);
-            console.error(`[OpenRouter] ❌ Modelo ${modelInfo.id} falhou:`, errMsg);
-            continue; // Falhou, tenta o próximo!
+            console.error(`[Groq] ✗ ${modelInfo.id} falhou:`, errMsg);
+            continue;
           }
-          
-          console.log(`[OpenRouter] ✅ Sucesso! Modelo usado: ${jsonResponse.model}`);
-          data = jsonResponse;
-          break; // Sucesso!
+
+          const content = json.choices?.[0]?.message?.content;
+          if (!content) {
+            allErrors.push(`[${modelInfo.id}]: Resposta vazia`);
+            continue;
+          }
+
+          console.log(`[Groq] ✓ Sucesso com: ${modelInfo.id}`);
+          answer = content;
+          data = json;
+          break;
+
         } catch (err: any) {
           allErrors.push(`[${modelInfo.id}]: ${err.message}`);
-          console.error(`[OpenRouter] ❌ Erro na requisição do modelo ${modelInfo.id}:`, err.message);
+          console.error(`[Groq] ✗ Erro em ${modelInfo.id}:`, err.message);
         }
       }
 
-      if (!data) {
-        throw new Error(`Nenhum modelo gratuito do OpenRouter funcionou.\nMotivos:\n${allErrors.join('\n')}`);
+      // Fallback para Gemini se todos os modelos Groq falharam
+      if (!data && geminiApiKey) {
+        console.warn("[Groq] Todos os modelos falharam. Tentando Google Gemini como fallback...");
+        // Cai no bloco do Gemini abaixo
+        const geminiModels = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-flash-latest"];
+        for (const model of geminiModels) {
+          try {
+            const response = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  contents: [{ role: "user", parts: [{ text: query }] }],
+                  system_instruction: { parts: [{ text: systemPrompt }] },
+                  generation_config: { temperature: 0.2, max_output_tokens: 2048 }
+                }),
+              }
+            );
+            const json = await response.json();
+            if (json.error) continue;
+            const content = json.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (content) { answer = content; break; }
+          } catch { continue; }
+        }
       }
-      answer = data.choices?.[0]?.message?.content || "";
-    } else if (provider === "openai") {
-      const openAiModel = Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini";
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: openAiModel,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: query }
-          ],
-          temperature: 0.4,
-        }),
-      });
 
-      const data = await response.json();
-      if (data.error) {
-        throw new Error(`OpenAI Error: ${data.error.message}`);
+      if (!answer) {
+        return new Response(JSON.stringify({
+          error: `Groq Cloud não respondeu. Erros:\n${allErrors.join('\n')}`
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 500,
+        });
       }
-      answer = data.choices?.[0]?.message?.content || "";
+
+    // ══════════════════════════════════════════════════════
+    // GOOGLE GEMINI — Usado somente se não houver chave Groq
+    // ══════════════════════════════════════════════════════
+    } else if (geminiApiKey) {
+      const geminiModels = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-flash-latest"];
+      let found = false;
+
+      for (const model of geminiModels) {
+        try {
+          console.log(`[Gemini] ▶ Tentando: ${model}`);
+          const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [{ role: "user", parts: [{ text: query }] }],
+                system_instruction: { parts: [{ text: systemPrompt }] },
+                generation_config: { temperature: 0.2, max_output_tokens: 2048 }
+              }),
+            }
+          );
+          const json = await response.json();
+          if (json.error) { console.error(`[Gemini] ✗ ${model}:`, json.error.message); continue; }
+          const content = json.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (content) { answer = content; found = true; console.log(`[Gemini] ✓ Sucesso com: ${model}`); break; }
+        } catch (err: any) {
+          console.error(`[Gemini] ✗ Erro em ${model}:`, err.message);
+        }
+      }
+
+      if (!found) {
+        return new Response(JSON.stringify({ error: "Gemini também não respondeu. Verifique as chaves de API nos Secrets." }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 500,
+        });
+      }
     }
 
     return new Response(JSON.stringify({ answer }), {
@@ -256,6 +224,7 @@ LEMBRETE FINAL: Sua resposta DEVE ser inteiramente em PORTUGUÊS DO BRASIL. Sint
     });
 
   } catch (error: any) {
+    console.error("[Duno AI] Erro geral:", error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
