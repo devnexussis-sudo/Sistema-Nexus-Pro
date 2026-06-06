@@ -7,10 +7,11 @@ import { KNOWLEDGE_BASE } from '../data/dunoKnowledge';
 // Set the worker source
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
-// CHUNKS MASSIVOS: Cada pedaço tem ~20.000 caracteres (~4.000 palavras)
-// Isso garante que seções inteiras do manual fiquem juntas sem cortar contexto.
-const CHUNK_SIZE = 20000;
-const OVERLAP = 2000;
+// MICRO-CHUNKING: Cada pedaço tem no máximo ~1.500 caracteres
+// Isso garante precisão máxima (o banco acha o trecho exato) e 
+// evita estourar o limite de tokens da Groq Cloud.
+const CHUNK_SIZE = 1500;
+const OVERLAP = 300;
 
 export interface KnowledgeDocument {
   id: string;
