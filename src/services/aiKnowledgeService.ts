@@ -433,8 +433,9 @@ export const aiKnowledgeService = {
       `${s.source_name} → score: ${s.score}`
     ));
     
-    // 8 chunks provou ser o ponto ideal entre velocidade e robustez de contexto.
-    const bestMatches = scored.slice(0, 8);
+    // 3 chunks completos (60k chars) é o limite exato para que a IA do OpenRouter 
+    // responda rápido (em ~5 a 10s) sem cortar informações importantes dos PDFs.
+    const bestMatches = scored.slice(0, 3);
     
     // ══════════════════════════════════════════════════════════════
     // INJEÇÃO DO MANUAL DO SISTEMA (KNOWLEDGE_BASE)

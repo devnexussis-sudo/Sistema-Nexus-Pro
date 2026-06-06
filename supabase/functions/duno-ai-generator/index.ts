@@ -57,18 +57,16 @@ serve(async (req) => {
     let provider = "google";
     let apiKey = "";
 
-    // ⚡ TURBO: Prioriza a API nativa do Google Gemini em vez do OpenRouter!
-    // Motivo: O OpenRouter (plano gratuito) engasga e leva 30-50s para processar 
-    // os 160.000 caracteres de contexto que enviamos para garantir a robustez.
-    // O Google Gemini nativo processa os mesmos 160.000 caracteres em < 3 segundos.
-    if (geminiApiKey) {
-      provider = "google";
-      apiKey = geminiApiKey;
-      console.log("⚡ Usando Google Gemini (rápido para grandes contextos).");
-    } else if (openRouterApiKey) {
+    // ⚡ Prioridade: OpenRouter (pois oferece modelos com limites generosos/gratuitos).
+    // O problema de lentidão foi resolvido reduzindo os chunks na busca.
+    if (openRouterApiKey) {
       provider = "openrouter";
       apiKey = openRouterApiKey;
-      console.warn("⚠️ AVISO: Usando OpenRouter (Plano Gratuito). As respostas podem demorar 30s+ devido ao tamanho do RAG.");
+      console.log("⚡ Usando OpenRouter (Modelos gratuitos, alto limite).");
+    } else if (geminiApiKey) {
+      provider = "google";
+      apiKey = geminiApiKey;
+      console.warn("⚠️ AVISO: Usando Google Gemini Nativo. Cuidado com os limites baixos de cota gratuita!");
     } else if (openAiApiKey) {
       if (openAiApiKey.startsWith("sk-or-")) {
         provider = "openrouter";
@@ -195,9 +193,11 @@ LEMBRETE FINAL: Sua resposta DEVE ser inteiramente em PORTUGUÊS DO BRASIL.
       }
       
       let orModelsToTry = [
-        // Prioridade: modelos gratuitos rápidos com grande contexto
+        // O OpenRouter rotaciona os modelos gratuitos. Estes são os ATUAIS disponíveis:
+        // "openrouter/free" é um modelo especial que roteia automaticamente para o melhor grátis disponível!
+        { id: "openrouter/free", contextLength: 200000 },
         { id: "google/gemma-4-31b-it:free", contextLength: 262144 },
-        { id: "nvidia/nemotron-3-nano-30b-a3b:free", contextLength: 256000 },
+        { id: "meta-llama/llama-3.2-3b-instruct:free", contextLength: 131072 },
         { id: "qwen/qwen3-coder:free", contextLength: 1048576 },
         ...cachedFreeModels
       ];
@@ -250,7 +250,7 @@ LEMBRETE FINAL: Sua resposta DEVE ser inteiramente em PORTUGUÊS DO BRASIL.
                 { role: "user", content: query }
               ],
               temperature: 0.2,
-              max_tokens: 800, // Respostas diretas e rápidas, mas com espaço para passo-a-passo
+              max_tokens: 1000, // Dá liberdade total pra IA detalhar a resposta
             }),
           });
           
