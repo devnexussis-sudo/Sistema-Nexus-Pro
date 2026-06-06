@@ -438,17 +438,34 @@ export const aiKnowledgeService = {
     const bestMatches = scored.slice(0, 5);
     
     // ══════════════════════════════════════════════════════════════
-    // INJEÇÃO DO MANUAL DO SISTEMA (KNOWLEDGE_BASE)
-    // Isso garante que a IA SEMPRE saiba como operar o painel (criar usuário, etc),
-    // independentemente dos PDFs que os usuários enviaram.
+    // INJEÇÃO INTELIGENTE DO MANUAL DO SISTEMA (KNOWLEDGE_BASE)
+    // Para não estourar o limite de tokens da Groq Cloud (TPM),
+    // filtramos o manual e só enviamos as partes que tem a ver com a pergunta.
     // ══════════════════════════════════════════════════════════════
-    const systemManualText = KNOWLEDGE_BASE.map(k => k.response).join('\n\n');
-    bestMatches.push({
-      content: `[MANUAL OFICIAL DO SISTEMA DUNO]\n${systemManualText}`,
-      source_name: 'Manual do Sistema Duno',
-      keywords: ['manual', 'sistema', 'duno', 'instruções', 'painel'],
-      score: 999 // Força prioridade máxima no entendimento da IA
+    const searchWords = [...brandWords, ...queryWordsRaw, ...queryKeywords];
+    
+    // Filtra o manual interno para achar as regras que combinam
+    const relevantManualItems = KNOWLEDGE_BASE.filter(k => {
+      const itemLower = removeAccents(k.response.toLowerCase());
+      const itemKeywords = k.keywords ? k.keywords.map(kw => removeAccents(kw.toLowerCase())) : [];
+      
+      return searchWords.some(word => {
+        if (word.length < 3) return false;
+        // Verifica se a palavra da pergunta bate com as keywords do manual ou está no texto
+        return itemKeywords.includes(word) || itemLower.includes(word);
+      });
     });
+
+    if (relevantManualItems.length > 0) {
+      // Pega no máximo as 3 regras mais relevantes para não poluir
+      const systemManualText = relevantManualItems.slice(0, 3).map(k => k.response).join('\n\n');
+      bestMatches.push({
+        content: `[MANUAL OFICIAL DO SISTEMA DUNO]\n${systemManualText}`,
+        source_name: 'Manual do Sistema Duno',
+        keywords: ['manual', 'sistema'],
+        score: 999 // Vai inteiro porque já foi filtrado cirurgicamente
+      });
+    }
 
     try {
       let token = (await supabase.auth.getSession()).data.session?.access_token;
@@ -472,11 +489,11 @@ export const aiKnowledgeService = {
         body: JSON.stringify({
           query: query,
           // ⚡ TURBO 3.0 (Mini-RAG em Memória):
-          // Modelos gratuitos no OpenRouter dão "Provider returned error" se enviarmos
-          // textos muito grandes (como 3 chunks de 20.000 chars).
-          // Para manter 100% de precisão e reduzir o tamanho para a IA:
-          // Dividimos o blocão de 20k em pequenos parágrafos, achamos os que têm MAIS
-          // palavras-chave da pergunta, e enviamos só eles.
+          // Modelos ultra-rápidos do Groq Cloud (como o Llama 3.1 8b) têm um limite rígido 
+          // de Tokens Por Minuto (TPM) no plano gratuito.
+          // Para manter 100% de precisão sem estourar o limite da IA:
+          // Dividimos o blocão de 20k do banco em parágrafos de 2500 letras, 
+          // achamos os 5 que têm mais palavras da pergunta, e enviamos SÓ eles!
           chunks: bestMatches.map((m: any) => {
             if (m.score === 999) return m; // Manual do sistema vai inteiro
 
