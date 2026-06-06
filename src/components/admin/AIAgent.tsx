@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Bot, Send, User, Sparkles, RefreshCw, BookOpen, Loader2, BrainCircuit, Paperclip, GraduationCap } from 'lucide-react';
+import { Bot, Send, User, Sparkles, RefreshCw, BookOpen, Loader2, BrainCircuit, Paperclip, GraduationCap, Database, Search, Trash2, FileText, X, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { KnowledgeEntry } from '../../data/dunoKnowledge';
 import { detectDataIntent, executeDataQuery } from '../../services/dunoQueryService';
@@ -96,7 +96,45 @@ export const AIAgent: React.FC = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [learnedCount, setLearnedCount] = useState(getLearnedEntries().length);
-  const [mode, setMode] = useState<'assistant' | 'learn'>('assistant');
+  const [mode, setMode] = useState<'assistant' | 'learn' | 'memories'>('assistant');
+
+  // ── Memórias ──
+  const [documents, setDocuments] = useState<{ source_name: string; source_type: string; created_at: string }[]>([]);
+  const [memSearch, setMemSearch] = useState('');
+  const [memLoading, setMemLoading] = useState(false);
+  const [deletingDoc, setDeletingDoc] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  const loadDocuments = useCallback(async () => {
+    setMemLoading(true);
+    try {
+      const docs = await aiKnowledgeService.listDocuments();
+      setDocuments(docs);
+    } catch (err) {
+      console.error('[Memórias] Erro ao listar:', err);
+    }
+    setMemLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (mode === 'memories') loadDocuments();
+  }, [mode, loadDocuments]);
+
+  const handleDeleteDoc = async (sourceName: string) => {
+    setDeletingDoc(sourceName);
+    try {
+      await aiKnowledgeService.deleteDocument(sourceName);
+      setDocuments(prev => prev.filter(d => d.source_name !== sourceName));
+    } catch (err: any) {
+      alert('Erro ao excluir: ' + err.message);
+    }
+    setDeletingDoc(null);
+    setConfirmDelete(null);
+  };
+
+  const filteredDocs = documents.filter(d =>
+    d.source_name.toLowerCase().includes(memSearch.toLowerCase())
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -259,6 +297,101 @@ export const AIAgent: React.FC = () => {
         </div>
       </div>
 
+      {/* ── PAINEL DE MEMÓRIAS ── */}
+      {mode === 'memories' ? (
+        <div className="flex-1 overflow-y-auto p-5 z-0">
+          <div className="max-w-2xl mx-auto space-y-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center shadow-lg">
+                <Database size={18} className="text-white" />
+              </div>
+              <div>
+                <h3 className="text-[15px] font-bold text-slate-800">Memórias da IA</h3>
+                <p className="text-[11px] text-slate-500">{documents.length} {documents.length === 1 ? 'documento aprendido' : 'documentos aprendidos'}</p>
+              </div>
+              <button onClick={loadDocuments} className="ml-auto p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-all" title="Atualizar lista">
+                <RefreshCw size={15} className={memLoading ? 'animate-spin' : ''} />
+              </button>
+            </div>
+
+            <div className="relative">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Filtrar documentos..."
+                value={memSearch}
+                onChange={e => setMemSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] font-medium text-slate-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all shadow-sm"
+              />
+              {memSearch && (
+                <button onClick={() => setMemSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {memLoading ? (
+              <div className="flex items-center justify-center py-16 gap-3 text-slate-400">
+                <Loader2 size={20} className="animate-spin" />
+                <span className="text-[13px] font-medium">Carregando memórias...</span>
+              </div>
+            ) : filteredDocs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
+                <Database size={32} className="opacity-30" />
+                <p className="text-[13px] font-medium">
+                  {memSearch ? 'Nenhum documento encontrado.' : 'Nenhum PDF aprendido ainda. Use o modo Aprender para enviar manuais.'}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filteredDocs.map(doc => (
+                  <div key={doc.source_name} className="group bg-white border border-slate-200 rounded-xl px-4 py-3.5 flex items-center gap-3 shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-200">
+                    <div className="w-9 h-9 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
+                      <FileText size={16} className="text-red-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-bold text-slate-800 truncate">{doc.source_name}</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {new Date(doc.created_at).toLocaleDateString('pt-BR')}
+                      </p>
+                    </div>
+
+                    {confirmDelete === doc.source_name ? (
+                      <div className="flex items-center gap-2 animate-in fade-in duration-150">
+                        <span className="text-[11px] font-bold text-red-600 flex items-center gap-1">
+                          <AlertTriangle size={12} /> Confirmar?
+                        </span>
+                        <button
+                          onClick={() => handleDeleteDoc(doc.source_name)}
+                          disabled={deletingDoc === doc.source_name}
+                          className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold rounded-lg transition-all flex items-center gap-1 shadow-sm disabled:opacity-60"
+                        >
+                          {deletingDoc === doc.source_name ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                          Excluir
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete(null)}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-bold rounded-lg transition-all"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDelete(doc.source_name)}
+                        className="opacity-0 group-hover:opacity-100 p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all duration-200"
+                        title="Excluir documento"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
       {/* ── Chat Area ── */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar scroll-smooth relative z-0">
         <div className="max-w-2xl mx-auto space-y-6">
@@ -312,6 +445,7 @@ export const AIAgent: React.FC = () => {
           <div ref={endRef} />
         </div>
       </div>
+      )}
 
       {/* ── Input ── */}
       <div className="bg-white/80 backdrop-blur-md border-t border-slate-100 px-4 py-4 sm:px-6 shrink-0 z-10">
@@ -319,28 +453,32 @@ export const AIAgent: React.FC = () => {
             <div className="bg-slate-100 p-1 rounded-lg inline-flex items-center gap-1 shadow-inner border border-slate-200/50">
                <button onClick={() => setMode('assistant')} className={`px-4 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wide transition-all ${mode === 'assistant' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Sparkles size={12} className="inline mr-1 -mt-0.5" /> Assistente</button>
                <button onClick={() => setMode('learn')} className={`px-4 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wide transition-all ${mode === 'learn' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><GraduationCap size={12} className="inline mr-1 -mt-0.5" /> Aprender</button>
+               <button onClick={() => setMode('memories')} className={`px-4 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wide transition-all ${mode === 'memories' ? 'bg-white text-violet-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Database size={12} className="inline mr-1 -mt-0.5" /> Memórias</button>
             </div>
         </div>
-        <div className="max-w-2xl mx-auto relative">
-          <textarea ref={taRef} value={input} onChange={handleInput} onKeyDown={handleKeyDown}
-            placeholder={mode === 'learn' ? `Faça uma pergunta sobre um manual ou anexe um PDF...` : `Pergunte algo, ${firstName}...`}
-            className={`w-full bg-slate-50/50 border border-slate-200 rounded-xl ${mode === 'learn' ? 'pl-12' : 'pl-4'} pr-12 py-3.5 text-[13px] font-medium text-slate-700 outline-none focus:bg-white focus:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/5 transition-all resize-none shadow-inner`}
-            rows={1} style={{ minHeight: '52px', maxHeight: '120px' }} />
-          
-          {mode === 'learn' && (
-             <>
-               <input type="file" accept="application/pdf, text/plain" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
-               <button onClick={() => fileInputRef.current?.click()} className="absolute left-3 top-1/2 -translate-y-1/2 w-7 h-7 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg flex items-center justify-center transition-all">
-                 <Paperclip size={16} />
-               </button>
-             </>
-          )}
+        
+        {mode !== 'memories' && (
+          <div className="max-w-2xl mx-auto relative">
+            <textarea ref={taRef} value={input} onChange={handleInput} onKeyDown={handleKeyDown}
+              placeholder={mode === 'learn' ? `Faça uma pergunta sobre um manual ou anexe um PDF...` : `Pergunte algo, ${firstName}...`}
+              className={`w-full bg-slate-50/50 border border-slate-200 rounded-xl ${mode === 'learn' ? 'pl-12' : 'pl-4'} pr-12 py-3.5 text-[13px] font-medium text-slate-700 outline-none focus:bg-white focus:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/5 transition-all resize-none shadow-inner`}
+              rows={1} style={{ minHeight: '52px', maxHeight: '120px' }} />
+            
+            {mode === 'learn' && (
+               <>
+                 <input type="file" accept="application/pdf, text/plain" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+                 <button onClick={() => fileInputRef.current?.click()} className="absolute left-3 top-1/2 -translate-y-1/2 w-7 h-7 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg flex items-center justify-center transition-all">
+                   <Paperclip size={16} />
+                 </button>
+               </>
+            )}
 
-          <button onClick={handleSend} disabled={!input.trim() || isLoading}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8.5 h-8.5 bg-[#1c2d4f] hover:bg-[#253a66] disabled:bg-slate-100 disabled:text-slate-400 text-white rounded-lg flex items-center justify-center transition-all shadow-md disabled:shadow-none">
-            <Send size={14} />
-          </button>
-        </div>
+            <button onClick={handleSend} disabled={!input.trim() || isLoading}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8.5 h-8.5 bg-[#1c2d4f] hover:bg-[#253a66] disabled:bg-slate-100 disabled:text-slate-400 text-white rounded-lg flex items-center justify-center transition-all shadow-md disabled:shadow-none">
+              <Send size={14} />
+            </button>
+          </div>
+        )}
         <p className="text-center text-[9px] font-bold text-slate-400 mt-2.5 uppercase tracking-wider">
           A Duno IA está sendo desenvolvida e suas informações podem conter imprecisões.
         </p>
