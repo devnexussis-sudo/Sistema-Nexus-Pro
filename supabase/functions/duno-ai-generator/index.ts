@@ -242,15 +242,10 @@ LEMBRETE FINAL: Sua resposta DEVE ser inteiramente em PORTUGUÊS DO BRASIL.
             },
             body: JSON.stringify({
               model: modelInfo.id,
-              provider: {
-                allow_fallbacks: false, // BLOQUEIA O OPENROUTER DE TROCAR PRO MODELO PAGO!
-              },
               messages: [
                 { role: "system", content: currentSystemPrompt },
                 { role: "user", content: query }
-              ],
-              temperature: 0.2,
-              max_tokens: 1000, // Dá liberdade total pra IA detalhar a resposta
+              ]
             }),
           });
           

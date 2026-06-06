@@ -471,10 +471,47 @@ export const aiKnowledgeService = {
         },
         body: JSON.stringify({
           query: query,
-          // 100% ROBUSTEZ: Voltamos a enviar o chunk inteiro (20k chars).
-          // Garantimos que a IA não perca nada. O processamento rápido será 
-          // garantido pela mudança no backend (uso nativo do Gemini).
-          chunks: bestMatches
+          // ⚡ TURBO 3.0 (Mini-RAG em Memória):
+          // Modelos gratuitos no OpenRouter dão "Provider returned error" se enviarmos
+          // textos muito grandes (como 3 chunks de 20.000 chars).
+          // Para manter 100% de precisão e reduzir o tamanho para a IA:
+          // Dividimos o blocão de 20k em pequenos parágrafos, achamos os que têm MAIS
+          // palavras-chave da pergunta, e enviamos só eles.
+          chunks: bestMatches.map((m: any) => {
+            if (m.score === 999) return m; // Manual do sistema vai inteiro
+
+            const contentStr = m.content || '';
+            if (contentStr.length <= 2500) return m; // Se já é pequeno, manda inteiro
+
+            // 1. Quebra o gigante de 20k chars em janelas de 1000 chars
+            const miniChunks = [];
+            for (let i = 0; i < contentStr.length; i += 750) {
+              miniChunks.push(contentStr.substring(i, i + 1000));
+            }
+
+            // 2. Pontua qual mini-chunk tem mais a ver com a pergunta
+            const searchWords = [...brandWords, ...queryWordsRaw, ...queryKeywords];
+            const scoredMiniChunks = miniChunks.map(mc => {
+               let score = 0;
+               const mcLower = removeAccents(mc.toLowerCase());
+               for (const word of searchWords) {
+                 if (word.length < 3) continue;
+                 const regex = new RegExp(removeAccents(word.toLowerCase()), 'g');
+                 const matches = mcLower.match(regex);
+                 if (matches) score += matches.length; // Conta frequência!
+               }
+               return { text: mc, score };
+            });
+
+            // 3. Pega os 3 pedacinhos com MAIOR pontuação (onde a resposta realmente está)
+            scoredMiniChunks.sort((a, b) => b.score - a.score);
+            const bestText = scoredMiniChunks
+               .slice(0, 3)
+               .map(mc => mc.text)
+               .join('\n\n[...]\n\n');
+
+            return { ...m, content: bestText };
+          })
         })
       });
 
