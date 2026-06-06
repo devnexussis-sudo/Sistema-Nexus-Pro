@@ -307,16 +307,12 @@ export const aiKnowledgeService = {
     console.log('[AI Search] Iniciando busca para query:', query);
     let queryKeywords = extractKeywords(query);
 
-    // Se a extração remover todas as stopwords e não sobrar nada, 
-    // pegamos palavras maiores que 3 letras direto da query
     if (queryKeywords.length === 0) {
       queryKeywords = removeAccents(query.toLowerCase())
         .replace(/[^\w\s]/g, ' ')
         .split(/\s+/)
         .filter(w => w.length > 3);
     }
-    
-    // Se a pergunta for muito curta ou genérica, tentamos palavras com 2+ letras
     if (queryKeywords.length === 0) {
       queryKeywords = removeAccents(query.toLowerCase())
         .replace(/[^\w\s]/g, ' ')
@@ -324,162 +320,126 @@ export const aiKnowledgeService = {
         .filter(w => w.length > 2);
     }
 
+    // ══════════════════════════════════════════════════════════════
+    // BUSCA V3: O banco já ordena por relevância.
+    // Pedimos os top 20 mais relevantes e fazemos re-rank local
+    // com boost de marca/frase para precisão máxima.
+    // ══════════════════════════════════════════════════════════════
     let data: any[] = [];
+    if (queryKeywords.length > 0) {
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc('search_ai_knowledge_global', { p_keywords: queryKeywords, p_limit: 20 });
 
-    // ⚡ TURBO: Executa AMBAS as buscas em PARALELO (economiza 2-5s)
-    const rpcPromise = queryKeywords.length > 0
-      ? supabase.rpc('search_ai_knowledge_global', { p_keywords: queryKeywords, p_limit: 100 })
-      : Promise.resolve({ data: null, error: null });
-
-    const directPromise = supabase
-      .from('ai_knowledge_base')
-      .select('content, source_name, keywords')
-      .order('created_at', { ascending: false })
-      .limit(100);
-
-    const [rpcResult, directResult] = await Promise.all([rpcPromise, directPromise]);
-
-    // 1️⃣ Resultados da RPC (busca por keywords)
-    if (rpcResult.error) {
-      console.error('[AI Search] Erro na RPC:', rpcResult.error);
-    } else if (rpcResult.data && rpcResult.data.length > 0) {
-      data = rpcResult.data;
-      console.log(`[AI Search] RPC retornou ${data.length} chunks.`);
+      if (rpcError) {
+        console.error('[AI Search] Erro na RPC V3:', rpcError.message);
+        // Fallback para busca direta
+        const { data: fallbackData } = await supabase
+          .from('ai_knowledge_base')
+          .select('content, source_name, keywords')
+          .limit(20);
+        data = fallbackData || [];
+      } else {
+        data = rpcData || [];
+        console.log(`[AI Search] RPC V3 retornou ${data.length} chunks já ordenados por relevância.`);
+      }
+    } else {
+      // Pergunta sem palavras reconhecidas: busca os mais recentes
+      const { data: fallbackData } = await supabase
+        .from('ai_knowledge_base')
+        .select('content, source_name, keywords')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      data = fallbackData || [];
     }
 
-    // 2️⃣ Merge com busca direta (garante que PDFs recentes não fiquem de fora)
-    if (directResult.error) {
-       console.error('[AI Search] Erro no fallback direto:', directResult.error);
-    } else if (directResult.data && directResult.data.length > 0) {
-       const existingContents = new Set(data.map((d: any) => d.content?.substring(0, 100)));
-       let added = 0;
-       for (const doc of directResult.data) {
-         const key = doc.content?.substring(0, 100);
-         if (!existingContents.has(key)) {
-           data.push(doc);
-           existingContents.add(key);
-           added++;
-         }
-       }
-       console.log(`[AI Search] Merge: +${added} chunks extras. Total: ${data.length}`);
-    }
-
-    // Se não tiver nenhum PDF no banco, não vamos mais abortar!
-    // Queremos que a IA sempre consiga responder usando o "Manual do Sistema" injetado abaixo.
     if (data.length === 0) {
-      console.log('[AI Search] Nenhum PDF encontrado no banco. Usando apenas o Manual do Sistema injetado.');
+      console.log('[AI Search] Nenhum chunk encontrado. Usando apenas o Manual do Sistema.');
     }
 
-    // 3️⃣ RERANKING INTELIGENTE (com Boost de Marca/Modelo e Frase Exata)
+    // ══════════════════════════════════════════════════════════════
+    // RE-RANK LOCAL: Aplica boost de marca e frase exata por cima
+    // do score de relevância que o banco já calculou.
+    // ══════════════════════════════════════════════════════════════
     const queryNorm = removeAccents(query.toLowerCase());
     const queryWordsRaw = queryNorm.split(/\s+/).filter(w => w.length > 2);
-    
-    // Detecta "nomes próprios" na pergunta (marcas, modelos, siglas)
-    // São palavras que começam com maiúscula na pergunta original ou têm mais de 3 letras maiúsculas seguidas
     const brandWords = query
       .split(/\s+/)
       .filter(w => /^[A-Z]{2,}/.test(w) || /^[A-Z][a-záéíóúãõ]+/.test(w))
       .map(w => removeAccents(w.toLowerCase()));
-    
-    console.log('[AI Search] Marcas/modelos detectados na pergunta:', brandWords);
 
     const scored = data.map((doc: any) => {
-      let score = 0;
+      // Base: score de relevância que o banco calculou (V3)
+      let score = (doc.relevance_score || 0) * 3;
       const contentNorm = removeAccents((doc.content || '').toLowerCase());
       const sourceNorm = removeAccents((doc.source_name || '').toLowerCase());
-      
-      // ═══ BOOST 1: Nome do arquivo (source_name) contém a marca da pergunta ═══
-      // Se o usuário perguntou sobre "INTELBRAS" e o chunk vem de um PDF chamado
-      // "Manual_Intelbras.pdf", esse chunk ganha +50 pontos de vantagem ABSURDA.
+
+      // Boost: marca/modelo no nome do arquivo
       for (const brand of brandWords) {
-        if (sourceNorm.includes(brand)) {
-          score += 50; // MEGA BOOST por fonte correta
-        }
-        // Se a marca aparece no conteúdo do chunk, boost forte também
-        if (contentNorm.includes(brand)) {
-          score += 20;
-        }
+        if (sourceNorm.includes(brand)) score += 50;
+        if (contentNorm.includes(brand)) score += 20;
       }
-      
-      // ═══ BOOST 2: Keywords indexadas no banco ═══
-      for (const kw of queryKeywords) {
-        if ((doc.keywords || []).includes(kw)) score += 5;
-        if (contentNorm.includes(removeAccents(kw))) score += 3;
-      }
-      
-      // ═══ BOOST 3: Palavras da pergunta no conteúdo ═══
+
+      // Boost: palavras da pergunta no conteúdo
       for (const w of queryWordsRaw) {
         if (contentNorm.includes(w)) score += 2;
       }
-      
-      // ═══ BOOST 4: Frase exata (2+ palavras consecutivas da pergunta) ═══
-      // Se o usuário perguntou "acesso remoto", procuramos "acesso remoto" junto no texto.
-      // Frases exatas são MUITO mais relevantes que palavras soltas.
+
+      // Mega-boost: frase exata
       for (let len = Math.min(queryWordsRaw.length, 5); len >= 2; len--) {
         for (let start = 0; start <= queryWordsRaw.length - len; start++) {
           const phrase = queryWordsRaw.slice(start, start + len).join(' ');
-          if (contentNorm.includes(phrase)) {
-            score += len * 8; // Quanto mais longa a frase exata, mais pontos
-          }
+          if (contentNorm.includes(phrase)) score += len * 10;
         }
       }
-      
+
       return { ...doc, score };
     });
 
-    // Ordena do maior pro menor score
     scored.sort((a: any, b: any) => b.score - a.score);
-    
-    console.log('[AI Search] Top 5 scores:', scored.slice(0, 5).map((s: any) => 
-      `${s.source_name} → score: ${s.score}`
+    console.log('[AI Search] Top 5 após re-rank:', scored.slice(0, 5).map((s: any) =>
+      `"${s.source_name}" → score: ${s.score}`
     ));
-    
-    // 3 chunks para garantir que cabemos com folga nos limites rígidos da Groq (6k tokens)
-    const bestMatches = scored.slice(0, 3);
-    
+
     // ══════════════════════════════════════════════════════════════
-    // INJEÇÃO INTELIGENTE DO MANUAL DO SISTEMA (KNOWLEDGE_BASE)
-    // Para não estourar o limite de tokens da Groq Cloud (TPM),
-    // filtramos o manual e só enviamos as partes que tem a ver com a pergunta.
+    // ENVIO DIRETO (sem Mini-RAG!)
+    // Com Micro-Chunks de 1500 chars cada, o banco já retorna
+    // pedaços precisos. Enviamos os 4 melhores direto para a IA.
+    // 4 × 1500 chars ≈ 2.000 tokens — longe do limite de 6k TPM!
     // ══════════════════════════════════════════════════════════════
+    const bestMatches: any[] = scored.slice(0, 4);
+
+    // Injeção cirúrgica do manual interno (apenas seções relevantes)
     const searchWords = [...brandWords, ...queryWordsRaw, ...queryKeywords];
-    
-    // Filtra o manual interno para achar as regras que combinam
     const relevantManualItems = KNOWLEDGE_BASE.filter(k => {
       const itemLower = removeAccents(k.response.toLowerCase());
-      const itemKeywords = k.keywords ? k.keywords.map(kw => removeAccents(kw.toLowerCase())) : [];
-      
-      return searchWords.some(word => {
-        if (word.length < 3) return false;
-        // Verifica se a palavra da pergunta bate com as keywords do manual ou está no texto
-        return itemKeywords.includes(word) || itemLower.includes(word);
-      });
+      const itemKws = k.keywords ? k.keywords.map(kw => removeAccents(kw.toLowerCase())) : [];
+      return searchWords.some(word =>
+        word.length >= 3 && (itemKws.includes(word) || itemLower.includes(word))
+      );
     });
 
     if (relevantManualItems.length > 0) {
-      // Pega no máximo as 2 regras mais relevantes (para poupar tokens valiosos)
       const systemManualText = relevantManualItems.slice(0, 2).map(k => k.response).join('\n\n');
       bestMatches.push({
         content: `[MANUAL OFICIAL DO SISTEMA DUNO]\n${systemManualText}`,
         source_name: 'Manual do Sistema Duno',
         keywords: ['manual', 'sistema'],
-        score: 999 // Vai inteiro porque já foi filtrado cirurgicamente
+        score: 999
       });
     }
 
     try {
       let token = (await supabase.auth.getSession()).data.session?.access_token;
-      
-      // Se não tiver token do Supabase (ex: usuário logado via custom auth do app técnico), 
-      // usa a ANON KEY como fallback para a Edge Function
       if (!token) {
-         token = import.meta.env.VITE_SUPABASE_ANON_KEY;
-         console.log('[AI Search] Sem sessão do Supabase Auth. Usando ANON_KEY como fallback.');
+        token = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        console.log('[AI Search] Sem sessão Supabase. Usando ANON_KEY.');
       }
       
       const functionUrl = import.meta.env.VITE_SUPABASE_URL + '/functions/v1/duno-ai-generator';
-      console.log('[AI Search] Chamando Edge Function em:', functionUrl);
-      
+      console.log('[AI Search] Chamando Edge Function. Chunks:', bestMatches.length);
+
+      // ✅ Micro-Chunks já são pequenos (≤1500 chars = ≤500 tokens cada).
+      // 4 chunks + manual = ≤2500 tokens. Bem abaixo do limite de 6k da Groq!
       const response = await fetch(functionUrl, {
         method: 'POST',
         headers: {
@@ -487,72 +447,26 @@ export const aiKnowledgeService = {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          query: query,
-          // ⚡ TURBO 3.0 (Mini-RAG em Memória):
-          // Modelos ultra-rápidos do Groq Cloud (como o Llama 3.1 8b) têm um limite rígido 
-          // de Tokens Por Minuto (TPM) no plano gratuito.
-          // Para manter 100% de precisão sem estourar o limite da IA:
-          // Dividimos o blocão de 20k do banco em parágrafos de 2500 letras, 
-          // achamos os 5 que têm mais palavras da pergunta, e enviamos SÓ eles!
-          chunks: bestMatches.map((m: any) => {
-            if (m.score === 999) return m; // Manual do sistema vai inteiro
-
-            const contentStr = m.content || '';
-            if (contentStr.length <= 1500) return m; // Se já é pequeno, manda inteiro
-
-            // 1. Quebra o gigante de 20k chars em janelas de 1500 chars (sobrepostas)
-            const miniChunks = [];
-            for (let i = 0; i < contentStr.length; i += 1000) {
-              miniChunks.push(contentStr.substring(i, i + 1500));
-            }
-
-            // 2. Pontua qual mini-chunk tem mais a ver com a pergunta
-            const searchWords = [...brandWords, ...queryWordsRaw, ...queryKeywords];
-            const scoredMiniChunks = miniChunks.map(mc => {
-               let score = 0;
-               const mcLower = removeAccents(mc.toLowerCase());
-               for (const word of searchWords) {
-                 if (word.length < 3) continue;
-                 const regex = new RegExp(removeAccents(word.toLowerCase()), 'g');
-                 const matches = mcLower.match(regex);
-                 if (matches) score += matches.length;
-               }
-               return { text: mc, score };
-            });
-
-            // 3. Pega os 2 pedaços mais relevantes (segurança máxima para limite de 6k da Groq)
-            scoredMiniChunks.sort((a, b) => b.score - a.score);
-            const bestText = scoredMiniChunks
-               .slice(0, 2)
-               .map(mc => mc.text)
-               .join('\n\n[...]\n\n');
-
-            return { ...m, content: bestText };
-          })
+          query,
+          chunks: bestMatches.map((m: any) => ({
+            content: m.content,
+            source_name: m.source_name,
+            keywords: m.keywords
+          }))
         })
       });
 
       const json = await response.json();
-      if (json.answer) {
-         return json.answer;
-      }
-      
+      if (json.answer) return json.answer;
+
       if (json.error) {
         alert("⚠️ AVISO DO DEV: A Edge Function retornou erro: " + json.error);
-        if (json.error.includes('API Key') || json.error.includes('Gemini') || json.error.includes('GEMINI_API_KEY')) {
-           return `⚙️ **Atenção:** A chave de API do Gemini não está configurada no servidor Supabase.`;
-        }
         throw new Error(json.error);
       }
-      
-      if (json.error && (json.error.includes('API Key') || json.error.includes('Gemini') || json.error.includes('GEMINI_API_KEY'))) {
-         return `⚙️ **Atenção:** A chave de API do Gemini (GEMINI_API_KEY) não foi configurada no servidor Supabase. O RAG requer a chave para gerar a resposta inteligente. Configure-a no dashboard do Supabase (Edge Functions > Secrets).`;
-      }
 
-      throw new Error(json.error || 'Erro na geração');
+      throw new Error('Resposta vazia da Edge Function');
     } catch (err: any) {
-      console.error('Erro no Edge Function duno-ai-generator:', err);
-      // Fallback: mostra texto bruto dos melhores chunks
+      console.error('[AI Search] Erro no Edge Function:', err);
       let fb = `📄 **Encontrei estas informações nos documentos:**\n\n`;
       bestMatches.forEach((m: any) => fb += `> "${m.content.substring(0, 400)}..."\n\n`);
       return fb;
