@@ -51,25 +51,26 @@ serve(async (req) => {
     }
 
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY");
-    const openRouterApiKey = Deno.env.get("OPENROUTER_API_KEY");
+    const groqApiKey = Deno.env.get("GROQ_API_KEY");
     const openAiApiKey = Deno.env.get("OPENAI_API_KEY");
 
     let provider = "google";
     let apiKey = "";
 
-    // ⚡ Prioridade: OpenRouter (pois oferece modelos com limites generosos/gratuitos).
-    // O problema de lentidão foi resolvido reduzindo os chunks na busca.
-    if (openRouterApiKey) {
-      provider = "openrouter";
-      apiKey = openRouterApiKey;
-      console.log("⚡ Usando OpenRouter (Modelos gratuitos, alto limite).");
+    // ⚡ Prioridade Máxima: Groq Cloud (Extremamente rápido e gratuito).
+    if (groqApiKey) {
+      provider = "groq";
+      apiKey = groqApiKey;
+      console.log("⚡ Usando Groq Cloud (Modelos ultra rápidos e gratuitos).");
     } else if (geminiApiKey) {
       provider = "google";
       apiKey = geminiApiKey;
       console.warn("⚠️ AVISO: Usando Google Gemini Nativo. Cuidado com os limites baixos de cota gratuita!");
     } else if (openAiApiKey) {
       if (openAiApiKey.startsWith("sk-or-")) {
-        provider = "openrouter";
+        provider = "openrouter"; // (mantém por compatibilidade legada)
+      } else if (openAiApiKey.startsWith("gsk_")) {
+        provider = "groq";
       } else if (openAiApiKey.startsWith("AIzaSy")) {
         provider = "google";
       } else {
@@ -77,7 +78,7 @@ serve(async (req) => {
       }
       apiKey = openAiApiKey;
     } else {
-      return new Response(JSON.stringify({ error: "Nenhuma API Key (GEMINI_API_KEY, GOOGLE_API_KEY, OPENROUTER_API_KEY ou OPENAI_API_KEY) configurada no servidor (Secrets)." }), {
+      return new Response(JSON.stringify({ error: "Nenhuma API Key (GROQ_API_KEY, GEMINI_API_KEY ou OPENAI_API_KEY) configurada no servidor (Secrets)." }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500,
       });
@@ -150,95 +151,48 @@ LEMBRETE FINAL: Sua resposta DEVE ser inteiramente em PORTUGUÊS DO BRASIL. Sint
           const listData = await listResponse.json();
           const availableModels = listData.models?.map((m: any) => m.name.replace('models/', '')).join(', ');
           
-          throw new Error(`\n⚠️ CHAVE OPENROUTER AUSENTE!\nO sistema tentou usar o OpenRouter, mas a chave OPENROUTER_API_KEY não foi encontrada nos Secrets do Supabase.\nComo fallback, tentou usar o Google Gemini, mas falhou: NENHUM MODELO ENCONTRADO na chave do Google.\nA sua chave Google só tem acesso aos modelos:\n[ ${availableModels || 'Nenhum, a chave está vazia ou restrita'} ]`);
+          throw new Error(`\n⚠️ CHAVE GROQ_API_KEY AUSENTE!\nO sistema tentou usar o Groq, mas a chave GROQ_API_KEY não foi encontrada nos Secrets do Supabase.\nComo fallback, tentou usar o Google Gemini, mas falhou: NENHUM MODELO ENCONTRADO na chave do Google.\nA sua chave Google só tem acesso aos modelos:\n[ ${availableModels || 'Nenhum, a chave está vazia ou restrita'} ]`);
         } catch (listErr: any) {
-          throw new Error(`A chave OPENROUTER_API_KEY não está no servidor! Fallback pro Google falhou: ${listErr.message}`);
+          throw new Error(`A chave GROQ_API_KEY não está no servidor! Fallback pro Google falhou: ${listErr.message}`);
         }
       }
       
       answer = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    } else if (provider === "openrouter") {
-      // OPENROUTER - Descobre os modelos GRATUITOS disponíveis DINAMICAMENTE via API!
-      // Usa CACHE para não perder tempo buscando a lista em toda pergunta.
-      
-      const now = Date.now();
-      if (cachedFreeModels.length === 0 || (now - cacheTimestamp) > CACHE_TTL_MS) {
-        try {
-          console.log("[OpenRouter] 🔍 Atualizando cache de modelos gratuitos...");
-          const modelsResponse = await fetch("https://openrouter.ai/api/v1/models", {
-            headers: { "Authorization": `Bearer ${apiKey}` }
-          });
-          const modelsData = await modelsResponse.json();
-          
-          if (modelsData.data && Array.isArray(modelsData.data)) {
-            cachedFreeModels = modelsData.data
-              .filter((m: any) => 
-                m.id.endsWith(":free") && 
-                m.pricing?.prompt === "0" && 
-                m.pricing?.completion === "0"
-              )
-              .sort((a: any, b: any) => (b.context_length || 0) - (a.context_length || 0))
-              .slice(0, 4)
-              .map((m: any) => ({ id: m.id, contextLength: m.context_length || 8192 }));
-            
-            cacheTimestamp = now;
-            console.log(`[OpenRouter] ✅ Cache atualizado: ${cachedFreeModels.length} modelos gratuitos.`);
-            cachedFreeModels.forEach(m => console.log(`  - ${m.id} (ctx: ${m.contextLength})`));
-          }
-        } catch (fetchErr: any) {
-          console.warn("[OpenRouter] ⚠️ Falha ao buscar modelos. Usando cache anterior ou fallback:", fetchErr.message);
-        }
-      } else {
-        console.log(`[OpenRouter] ⚡ Usando cache de modelos (${cachedFreeModels.length} modelos, cache tem ${Math.round((now - cacheTimestamp) / 1000)}s).`);
-      }
-      
-      let orModelsToTry = [
-        // O OpenRouter rotaciona os modelos gratuitos. Estes são os ATUAIS disponíveis:
-        // "openrouter/free" é um modelo especial que roteia automaticamente para o melhor grátis disponível!
-        { id: "openrouter/free", contextLength: 200000 },
-        { id: "google/gemma-4-31b-it:free", contextLength: 262144 },
-        { id: "meta-llama/llama-3.2-3b-instruct:free", contextLength: 131072 },
-        { id: "qwen/qwen3-coder:free", contextLength: 1048576 },
-        ...cachedFreeModels
+    } else if (provider === "groq") {
+      // GROQ CLOUD IMPLEMENTATION (Fastest free LPU API)
+      let groqModelsToTry = [
+        { id: "llama-3.3-70b-versatile", contextLength: 128000 },
+        { id: "llama-3.1-8b-instant", contextLength: 128000 },
+        { id: "mixtral-8x7b-32768", contextLength: 32768 },
       ];
-      
-      // Remove duplicados e limita a 4 tentativas para evitar longas esperas
-      orModelsToTry = orModelsToTry.filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i).slice(0, 4);
           
       let allErrors: string[] = [];
       let data = null;
 
-      for (const modelInfo of orModelsToTry) {
+      for (const modelInfo of groqModelsToTry) {
         try {
-          console.log(`[OpenRouter] Tentando modelo: ${modelInfo.id} (ctx: ${modelInfo.contextLength} tokens)...`);
+          console.log(`[Groq] Tentando modelo: ${modelInfo.id} (ctx: ${modelInfo.contextLength} tokens)...`);
           
           let currentSystemPrompt = systemPrompt;
           
-          // Calcula o limite de caracteres baseado no contexto REAL do modelo.
-          // 1 token ≈ 3 caracteres. Usamos 70% da capacidade para deixar margem segura.
-          // Ex: Llama 3.3 com 128k tokens → pode receber até ~268.000 caracteres!
+          // Calcula limite de caracteres (1 token ≈ 3 caracteres)
           const maxChars = Math.floor(modelInfo.contextLength * 3 * 0.70);
           
           if (currentSystemPrompt.length > maxChars) {
-            currentSystemPrompt = currentSystemPrompt.substring(0, maxChars) + "\n\n[... CONTEXTO CORTADO NO LIMITE DESTA IA GRATUITA ...]";
-            console.log(`[OpenRouter] ✂️ Texto cortado para ${maxChars} chars (${modelInfo.contextLength} tokens disponíveis em ${modelInfo.id}).`);
-          } else {
-            console.log(`[OpenRouter] ✅ Contexto completo enviado: ${currentSystemPrompt.length} chars de ${maxChars} disponíveis.`);
+            currentSystemPrompt = currentSystemPrompt.substring(0, maxChars) + "\n\n[... CONTEXTO CORTADO NO LIMITE DA IA ...]";
+            console.log(`[Groq] ✂️ Texto cortado para ${maxChars} chars.`);
           }
 
-          // Timeout rigoroso: se o modelo gratuito travar ou estiver lento, 
-          // abortamos em 10 segundos e pulamos para o próximo!
+          // Timeout de 15 segundos para dar tempo de sobra pra Groq (que responde em <2s)
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000);
+          const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-          const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             signal: controller.signal,
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${apiKey}`,
-              "HTTP-Referer": "https://dunoup.com.br",
-              "X-Title": "Nexus OS",
+              "Authorization": `Bearer ${apiKey}`
             },
             body: JSON.stringify({
               model: modelInfo.id,
