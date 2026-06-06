@@ -433,9 +433,9 @@ export const aiKnowledgeService = {
       `${s.source_name} → score: ${s.score}`
     ));
     
-    // 3 chunks completos (60k chars) é o limite exato para que a IA do OpenRouter 
-    // responda rápido (em ~5 a 10s) sem cortar informações importantes dos PDFs.
-    const bestMatches = scored.slice(0, 3);
+    // 5 chunks equilibram robustez e velocidade. O Mini-RAG abaixo garante que
+    // cada chunk seja comprimido inteligentemente antes de ser enviado.
+    const bestMatches = scored.slice(0, 5);
     
     // ══════════════════════════════════════════════════════════════
     // INJEÇÃO DO MANUAL DO SISTEMA (KNOWLEDGE_BASE)
@@ -483,10 +483,10 @@ export const aiKnowledgeService = {
             const contentStr = m.content || '';
             if (contentStr.length <= 2500) return m; // Se já é pequeno, manda inteiro
 
-            // 1. Quebra o gigante de 20k chars em janelas de 1000 chars
+            // 1. Quebra o gigante de 20k chars em janelas de 2500 chars (sobrepostas)
             const miniChunks = [];
-            for (let i = 0; i < contentStr.length; i += 750) {
-              miniChunks.push(contentStr.substring(i, i + 1000));
+            for (let i = 0; i < contentStr.length; i += 1800) {
+              miniChunks.push(contentStr.substring(i, i + 2500));
             }
 
             // 2. Pontua qual mini-chunk tem mais a ver com a pergunta
@@ -498,15 +498,15 @@ export const aiKnowledgeService = {
                  if (word.length < 3) continue;
                  const regex = new RegExp(removeAccents(word.toLowerCase()), 'g');
                  const matches = mcLower.match(regex);
-                 if (matches) score += matches.length; // Conta frequência!
+                 if (matches) score += matches.length;
                }
                return { text: mc, score };
             });
 
-            // 3. Pega os 3 pedacinhos com MAIOR pontuação (onde a resposta realmente está)
+            // 3. Pega os 5 pedaços mais relevantes (mais contexto = respostas mais ricas)
             scoredMiniChunks.sort((a, b) => b.score - a.score);
             const bestText = scoredMiniChunks
-               .slice(0, 3)
+               .slice(0, 5)
                .map(mc => mc.text)
                .join('\n\n[...]\n\n');
 
