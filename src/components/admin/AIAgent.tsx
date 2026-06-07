@@ -285,15 +285,26 @@ export const AIAgent: React.FC = () => {
             <p className="text-[11px] font-medium text-slate-500 -mt-0.5">Inteligência Suprema do Sistema</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {learnedCount > 0 && (
-            <span className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50/80 text-emerald-600 border border-emerald-200/50 rounded-lg text-[10px] font-bold shadow-sm backdrop-blur-sm">
-              <BookOpen size={12} /> {learnedCount} memórias
-            </span>
+        <div className="flex flex-wrap items-center gap-2">
+          {mode !== 'assistant' && (
+            <button onClick={() => setMode('assistant')} className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all border border-slate-200/60 bg-white shadow-sm hover:shadow">
+              <Sparkles size={13} /> Assistente IA
+            </button>
           )}
-          <button onClick={() => setMessages([messages[0]])} className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-all border border-slate-200/60 bg-white shadow-sm hover:shadow">
-            <RefreshCw size={13} /> Reiniciar
+          
+          <button onClick={() => setMode('learn')} className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all border shadow-sm hover:shadow ${mode === 'learn' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 border-slate-200/60 bg-white'}`}>
+            <GraduationCap size={13} /> Enviar Instruções
           </button>
+
+          <button onClick={() => setMode('memories')} className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all border shadow-sm hover:shadow ${mode === 'memories' ? 'bg-violet-50 border-violet-200 text-violet-600' : 'text-slate-500 hover:text-violet-600 hover:bg-violet-50 border-slate-200/60 bg-white'}`}>
+            <Database size={13} /> Memórias
+          </button>
+
+          {mode === 'assistant' && (
+            <button onClick={() => setMessages([messages[0]])} className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-all border border-slate-200/60 bg-white shadow-sm hover:shadow">
+              <RefreshCw size={13} /> Reiniciar
+            </button>
+          )}
         </div>
       </div>
 
@@ -451,14 +462,6 @@ export const AIAgent: React.FC = () => {
 
       {/* ── Input ── */}
       <div className="bg-white/80 backdrop-blur-md border-t border-slate-100 px-4 py-4 sm:px-6 shrink-0 z-10">
-        <div className="flex justify-center mb-3">
-            <div className="bg-slate-100 p-1 rounded-lg inline-flex items-center gap-1 shadow-inner border border-slate-200/50">
-               <button onClick={() => setMode('assistant')} className={`px-4 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wide transition-all ${mode === 'assistant' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Sparkles size={12} className="inline mr-1 -mt-0.5" /> Assistente</button>
-               <button onClick={() => setMode('learn')} className={`px-4 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wide transition-all ${mode === 'learn' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><GraduationCap size={12} className="inline mr-1 -mt-0.5" /> Aprender</button>
-               <button onClick={() => setMode('memories')} className={`px-4 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wide transition-all ${mode === 'memories' ? 'bg-white text-violet-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Database size={12} className="inline mr-1 -mt-0.5" /> Memórias</button>
-            </div>
-        </div>
-        
         {mode !== 'memories' && (
           <div className="max-w-2xl mx-auto relative">
             <textarea ref={taRef} value={input} onChange={handleInput} onKeyDown={handleKeyDown}
