@@ -15,6 +15,7 @@ import { Button } from '../ui/Button';
 import { ResilienceIndicator } from '../ResilienceIndicator';
 import { useI18n } from '../../i18n';
 import { usePermissions } from '../../hooks/usePermissions';
+import { GlobalChatBot } from '../common/GlobalChatBot';
 
 interface AdminLayoutProps {
     children: React.ReactNode;
@@ -457,7 +458,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     </div>
                 </main>
             </div>
-
+            
+            <GlobalChatBot />
         </div>
     );
 };
