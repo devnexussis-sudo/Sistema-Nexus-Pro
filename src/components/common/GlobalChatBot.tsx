@@ -53,7 +53,21 @@ export const GlobalChatBot: React.FC = () => {
     }
   }, [isOpen, messages.length, firstName]);
 
-  // Autoscroll desativado a pedido do usuário (para ler de cima para baixo)
+  // Autoscroll inteligente: rola para o TOPO da mensagem mais recente
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    setTimeout(() => {
+      if (isLoading) {
+        const el = document.getElementById('msg-loading');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else if (messages.length > 1) {
+        const lastMsg = messages[messages.length - 1];
+        const el = document.getElementById(`msg-${lastMsg.id}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100); // pequeno delay para garantir a renderização no DOM
+  }, [messages, isLoading, isOpen]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
@@ -147,7 +161,7 @@ export const GlobalChatBot: React.FC = () => {
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-slate-50/50 flex flex-col gap-4 relative">
             {messages.map(msg => (
-              <div key={msg.id} className={`flex gap-3 max-w-[90%] ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}>
+              <div key={msg.id} id={`msg-${msg.id}`} className={`flex gap-3 max-w-[90%] ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : 'mr-auto'} scroll-mt-4`}>
                 {/* Avatar */}
                 <div className="shrink-0 mt-0.5">
                   {msg.role === 'assistant' ? (
@@ -176,7 +190,7 @@ export const GlobalChatBot: React.FC = () => {
 
             {/* Loading Indicator */}
             {isLoading && (
-              <div className="flex gap-3 mr-auto max-w-[85%]">
+              <div id="msg-loading" className="flex gap-3 mr-auto max-w-[85%] scroll-mt-4">
                 <div className="shrink-0 mt-0.5">
                   <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-600 to-[#1c2d4f] flex items-center justify-center text-white shadow-sm">
                     <Bot size={14} />
