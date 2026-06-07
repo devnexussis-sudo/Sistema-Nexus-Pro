@@ -3,7 +3,7 @@ import { Bot, X, Send, User as UserIcon, Loader2, Phone, Minus } from 'lucide-re
 import { useAuth } from '../../contexts/AuthContext';
 import { analyzeAndDiscover } from '../../services/dunoBrain';
 import { aiKnowledgeService } from '../../services/aiKnowledgeService';
-import { getCurrentTenantId } from '../../lib/supabase';
+import { getCurrentTenantId } from '../../lib/tenantContext';
 
 interface Message {
   id: string;
