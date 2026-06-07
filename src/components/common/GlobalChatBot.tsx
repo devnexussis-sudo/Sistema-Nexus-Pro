@@ -55,7 +55,7 @@ export const GlobalChatBot: React.FC = () => {
 
   // Autoscroll
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && (messages.length > 1 || isLoading)) {
       endRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isLoading, isOpen]);
