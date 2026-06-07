@@ -259,7 +259,7 @@ export const aiKnowledgeService = {
       
       // SANITIZAÇÃO PROFUNDA: o PostgreSQL rejeita jsonb se tiver \u0000 em qualquer lugar (mesmo chaves ou propriedades ocultas).
       // Transformar em string, remover nulos e voltar pra objeto garante 100% de compatibilidade.
-      const cleanBatch = JSON.parse(JSON.stringify(batch).replace(/\u0000/g, ''));
+      const cleanBatch = JSON.parse(JSON.stringify(batch).replace(/\\u0000/g, ''));
       
       const { error } = await supabase.rpc('ingest_ai_knowledge_batch', {
         chunks: cleanBatch
