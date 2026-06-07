@@ -293,9 +293,8 @@ export const AIAgent: React.FC = () => {
           )}
           
           <button onClick={() => {
-            setMode('learn');
-            setTimeout(() => fileInputRef.current?.click(), 50);
-          }} className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all border shadow-sm hover:shadow ${mode === 'learn' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 border-slate-200/60 bg-white'}`}>
+            fileInputRef.current?.click();
+          }} className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all border shadow-sm hover:shadow text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 border-slate-200/60 bg-white">
             <GraduationCap size={13} /> Enviar Instruções
           </button>
 
@@ -468,18 +467,10 @@ export const AIAgent: React.FC = () => {
         {mode !== 'memories' && (
           <div className="max-w-2xl mx-auto relative">
             <textarea ref={taRef} value={input} onChange={handleInput} onKeyDown={handleKeyDown}
-              placeholder={mode === 'learn' ? `Faça uma pergunta sobre um manual ou anexe um PDF...` : `Pergunte algo, ${firstName}...`}
-              className={`w-full bg-slate-50/50 border border-slate-200 rounded-xl ${mode === 'learn' ? 'pl-12' : 'pl-4'} pr-12 py-3.5 text-[13px] font-medium text-slate-700 outline-none focus:bg-white focus:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/5 transition-all resize-none shadow-inner`}
+              placeholder={`Pergunte algo, ${firstName}...`}
+              className="w-full bg-slate-50/50 border border-slate-200 rounded-xl pl-4 pr-12 py-3.5 text-[13px] font-medium text-slate-700 outline-none focus:bg-white focus:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/5 transition-all resize-none shadow-inner"
               rows={1} style={{ minHeight: '52px', maxHeight: '120px' }} />
             <input type="file" accept=".pdf,.doc,.docx,.txt,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
-            
-            {mode === 'learn' && (
-               <>
-                 <button onClick={() => fileInputRef.current?.click()} className="absolute left-3 top-1/2 -translate-y-1/2 w-7 h-7 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg flex items-center justify-center transition-all">
-                   <Paperclip size={16} />
-                 </button>
-               </>
-            )}
 
             <button onClick={handleSend} disabled={!input.trim() || isLoading}
               className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8.5 h-8.5 bg-[#1c2d4f] hover:bg-[#253a66] disabled:bg-slate-100 disabled:text-slate-400 text-white rounded-lg flex items-center justify-center transition-all shadow-md disabled:shadow-none">
