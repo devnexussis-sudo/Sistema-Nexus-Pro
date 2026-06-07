@@ -257,9 +257,11 @@ export const aiKnowledgeService = {
     for (let i = 0; i < inserts.length; i += BATCH_SIZE) {
       const batch = inserts.slice(i, i + BATCH_SIZE);
       
-      // SANITIZAÇÃO PROFUNDA: o PostgreSQL rejeita jsonb se tiver \u0000 em qualquer lugar (mesmo chaves ou propriedades ocultas).
-      // Transformar em string, remover nulos e voltar pra objeto garante 100% de compatibilidade.
-      const cleanBatch = JSON.parse(JSON.stringify(batch).replace(/\\u0000/g, ''));
+      // SANITIZAÇÃO PROFUNDA 2.0: o PostgreSQL jsonb rejeita duas coisas na vida:
+      // 1. Caractere Nulo (\u0000)
+      // 2. Surrogates órfãos do UTF-16 gerados na extração de PDFs (/\\u[dD][...]/)
+      // Limpar ambos garante que a transação não dê o erro "Empty or invalid json"
+      const cleanBatch = JSON.parse(JSON.stringify(batch).replace(/\\u0000|\\u[dD][0-9a-fA-F]{3}/g, ''));
       
       const { error } = await supabase.rpc('ingest_ai_knowledge_batch', {
         chunks: cleanBatch
