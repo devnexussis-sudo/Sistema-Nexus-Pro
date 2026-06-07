@@ -47,31 +47,18 @@ interface CustomerManagementProps {
   onSwitchView?: (view: any, params?: any) => void;
 }
 
-const LocationPickerLogic: React.FC<{ lat: number; lng: number; onChange: (lat: number, lng: number) => void }> = ({ lat, lng, onChange }) => {
+const LocationPickerLogic: React.FC<{ lat: number; lng: number }> = ({ lat, lng }) => {
   const map = useMap();
   
   useEffect(() => {
     map.flyTo([lat, lng], 15, { duration: 1.5 });
   }, [lat, lng, map]);
 
-  useMapEvents({
-    click(e) {
-      onChange(e.latlng.lat, e.latlng.lng);
-    }
-  });
-
   return (
     <Marker 
       position={[lat, lng]} 
-      draggable={true}
+      draggable={false}
       icon={customMarkerIcon}
-      eventHandlers={{
-        dragend: (e) => {
-          const marker = e.target;
-          const position = marker.getLatLng();
-          onChange(position.lat, position.lng);
-        }
-      }} 
     />
   );
 };
@@ -692,11 +679,11 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                           <div className="col-span-full">
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Geolocalização</p>
                             <p className="text-[10px] text-slate-500 mt-1">
-                              Preenchida automaticamente via CEP. <strong>Verifique no mapa abaixo se o pino está no local exato</strong> e arraste-o ou clique no mapa para corrigir se necessário. Isso garante que as regras de regiões funcionem perfeitamente.
+                              Preenchida automaticamente via CEP e Número. O ajuste manual está desabilitado para garantir a precisão do geocoding.
                             </p>
                           </div>
-                          <Input label="Latitude" type="number" step="any" className="rounded-xl py-3 font-medium border-slate-200" value={formData.latitude || ''} onChange={e => setFormData({ ...formData, latitude: parseFloat(e.target.value) || undefined })} />
-                          <Input label="Longitude" type="number" step="any" className="rounded-xl py-3 font-medium border-slate-200" value={formData.longitude || ''} onChange={e => setFormData({ ...formData, longitude: parseFloat(e.target.value) || undefined })} />
+                          <Input disabled label="Latitude" type="number" step="any" className="rounded-xl py-3 font-medium border-slate-200 opacity-70 cursor-not-allowed bg-slate-100/50" value={formData.latitude || ''} onChange={() => {}} />
+                          <Input disabled label="Longitude" type="number" step="any" className="rounded-xl py-3 font-medium border-slate-200 opacity-70 cursor-not-allowed bg-slate-100/50" value={formData.longitude || ''} onChange={() => {}} />
                           
                           <div className="col-span-full h-64 rounded-xl overflow-hidden border border-slate-200 shadow-inner mt-2 z-0">
                             <MapContainer 
@@ -709,7 +696,6 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                                 <LocationPickerLogic 
                                   lat={formData.latitude} 
                                   lng={formData.longitude} 
-                                  onChange={(lat, lng) => setFormData(prev => ({ ...prev, latitude: lat, longitude: lng }))}
                                 />
                               )}
                             </MapContainer>
