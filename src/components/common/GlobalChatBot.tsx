@@ -71,8 +71,8 @@ export const GlobalChatBot: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // 1. Atrasa a resposta por 2 segundos para melhorar a UI (parecer mais humano digitando)
-      await new Promise(r => setTimeout(r, 2000));
+      // 1. Atrasa a resposta por 1 segundo para melhorar a UI (parecer mais humano digitando)
+      await new Promise(r => setTimeout(r, 1000));
 
       const tenantId = getCurrentTenantId();
       let responseContent: string | null = null;
