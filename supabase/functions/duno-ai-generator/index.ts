@@ -22,7 +22,7 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { query, chunks } = await req.json();
+    const { query, chunks, persona } = await req.json();
 
     if (!query || !chunks || !Array.isArray(chunks) || chunks.length === 0) {
       return new Response(JSON.stringify({ error: "Missing query or chunks" }), {
@@ -70,6 +70,11 @@ ${contextText}
 
 LEMBRETE: Responda EXCLUSIVAMENTE em PORTUGUÊS DO BRASIL. Seja completo e útil.`;
 
+    // Se a requisição veio do Chatbot Global, adiciona a persona bem-humorada
+    const finalSystemPrompt = persona === 'chat' 
+      ? systemPrompt + `\n\nDIRETRIZ DE PERSONALIDADE ESPECIAL: Você está conversando em um chat flutuante de suporte direto com o usuário. Seja EXTREMAMENTE bem-humorado, amigável, acolhedor e use BASTANTE emojis/stickers nas suas respostas! Faça o usuário sorrir enquanto responde com precisão.`
+      : systemPrompt;
+
     let answer = "";
 
     // ══════════════════════════════════════════════════════
@@ -91,9 +96,9 @@ LEMBRETE: Responda EXCLUSIVAMENTE em PORTUGUÊS DO BRASIL. Seja completo e útil
 
           // Garante que o prompt caiba no contexto do modelo (1 token ≈ 3 chars)
           const maxChars = Math.floor(modelInfo.contextLength * 3 * 0.75);
-          const finalPrompt = systemPrompt.length > maxChars
-            ? systemPrompt.substring(0, maxChars) + "\n\n[... contexto cortado por limite do modelo ...]"
-            : systemPrompt;
+          const finalPromptText = finalSystemPrompt.length > maxChars
+            ? finalSystemPrompt.substring(0, maxChars) + "\n\n[... contexto cortado por limite do modelo ...]"
+            : finalSystemPrompt;
 
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
@@ -108,8 +113,8 @@ LEMBRETE: Responda EXCLUSIVAMENTE em PORTUGUÊS DO BRASIL. Seja completo e útil
             body: JSON.stringify({
               model: modelInfo.id,
               messages: [
-                { role: "system", content: finalPrompt },
-                { role: "user", content: query }
+                { role: "system", content: finalPromptText },
+                { role: "user", content: query },
               ],
               temperature: 0.2,
               max_tokens: 2048,

@@ -310,7 +310,7 @@ export const aiKnowledgeService = {
     if (error) throw new Error(`Erro ao excluir documento: ${error.message}`);
   },
 
-  async searchKnowledge(query: string, tenantId: string, topK: number = 7): Promise<string | null> {
+  async searchKnowledge(query: string, tenantId: string, topK: number = 7, persona?: string): Promise<string | null> {
     console.log('[AI Search] Iniciando busca para query:', query);
     let queryKeywords = extractKeywords(query);
 
@@ -459,7 +459,8 @@ export const aiKnowledgeService = {
             content: m.content,
             source_name: m.source_name,
             keywords: m.keywords
-          }))
+          })),
+          persona
         })
       });
 

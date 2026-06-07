@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Bot, X, Send, User as UserIcon, Loader2, Phone, Minus } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { analyzeAndDiscover } from '../../services/dunoBrain';
+import { aiKnowledgeService } from '../../services/aiKnowledgeService';
+import { getCurrentTenantId } from '../../lib/supabase';
 
 interface Message {
   id: string;
@@ -45,7 +47,7 @@ export const GlobalChatBot: React.FC = () => {
         {
           id: 'welcome',
           role: 'assistant',
-          content: `Olá, **${firstName}**! 👋 Sou a Inteligência Artificial da Duno.\n\nEstou aqui para tirar suas dúvidas sobre a plataforma e te ajudar no dia a dia.\n\nSe precisar de um **Suporte Humano**, não hesite em chamar a nossa equipe técnica no WhatsApp oficial clicando abaixo:\n\n[📱 Chamar Suporte Técnico](https://wa.me/553534227420)`
+          content: `E aí, **${firstName}**! 👋 Tudo tranquilo por aí? Sou a IA oficial da Duno! 🤖✨\n\nTô por aqui pra tirar suas dúvidas sobre a plataforma e dar aquela força no dia a dia. Pode me perguntar o que quiser! 🚀\n\nSe a coisa ficar muito técnica ou se só quiser bater um papo com um **Suporte Humano** de carne e osso, é só clicar no botão abaixo e chamar nossa equipe no zap:\n\n[📱 Chamar Suporte Técnico no WhatsApp](https://wa.me/553534227420) 💬`
         }
       ]);
     }
@@ -69,14 +71,25 @@ export const GlobalChatBot: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // 1. Usa o Motor RAG Global (Duno IA) para buscar na base de conhecimento
-      const proc = await analyzeAndDiscover(userText);
+      // 1. Atrasa a resposta por 2 segundos para melhorar a UI (parecer mais humano digitando)
+      await new Promise(r => setTimeout(r, 2000));
+
+      const tenantId = getCurrentTenantId();
+      let responseContent: string | null = null;
       
-      let responseContent = proc;
-      
-      // 2. Se a IA não achar contexto ou falhar na geração
+      if (tenantId) {
+        // 2. Usa o Motor RAG chamando a Edge Function com a persona 'chat'
+        responseContent = await aiKnowledgeService.searchKnowledge(userText, tenantId, 7, 'chat');
+      }
+
+      // Fallback para as regras estáticas caso a busca RAG falhe ou retorne vazio
       if (!responseContent) {
-        responseContent = `Não encontrei informações exatas sobre isso nos meus manuais, **${firstName}**.\n\nMas nossa equipe pode te ajudar com isso agora mesmo pelo WhatsApp! Basta chamar o suporte: [📱 Falar com o Suporte](https://wa.me/553534227420)`;
+        responseContent = await analyzeAndDiscover(userText);
+      }
+      
+      // 3. Se a IA não achar contexto ou falhar na geração
+      if (!responseContent) {
+        responseContent = `🤔 Hmm... não encontrei informações exatas sobre isso nos meus manuais, **${firstName}**.\n\nMas relaxa! 🚀 Nossa equipe técnica tá sempre de olho e pode te ajudar com isso num piscar de olhos pelo WhatsApp! Chama lá: [📱 Falar com o Suporte](https://wa.me/553534227420)`;
       }
 
       setMessages(prev => [...prev, {
