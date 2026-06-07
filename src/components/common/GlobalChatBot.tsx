@@ -53,12 +53,7 @@ export const GlobalChatBot: React.FC = () => {
     }
   }, [isOpen, messages.length, firstName]);
 
-  // Autoscroll
-  useEffect(() => {
-    if (isOpen && (messages.length > 1 || isLoading)) {
-      endRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, isLoading, isOpen]);
+  // Autoscroll desativado a pedido do usuário (para ler de cima para baixo)
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
