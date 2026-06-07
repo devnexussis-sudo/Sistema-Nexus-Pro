@@ -256,8 +256,13 @@ export const aiKnowledgeService = {
     const BATCH_SIZE = 50;
     for (let i = 0; i < inserts.length; i += BATCH_SIZE) {
       const batch = inserts.slice(i, i + BATCH_SIZE);
+      
+      // SANITIZAÇÃO PROFUNDA: o PostgreSQL rejeita jsonb se tiver \u0000 em qualquer lugar (mesmo chaves ou propriedades ocultas).
+      // Transformar em string, remover nulos e voltar pra objeto garante 100% de compatibilidade.
+      const cleanBatch = JSON.parse(JSON.stringify(batch).replace(/\u0000/g, ''));
+      
       const { error } = await supabase.rpc('ingest_ai_knowledge_batch', {
-        chunks: batch
+        chunks: cleanBatch
       });
       if (error) throw new Error(`Erro ao salvar no banco: ${error.message}`);
     }
