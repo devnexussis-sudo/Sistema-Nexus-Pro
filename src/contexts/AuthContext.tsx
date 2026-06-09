@@ -42,6 +42,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Mutex para evitar N chamadas simultâneas de refreshUser
     const isRefreshingUser = useRef(false);
 
+    // Controle de inatividade (8 horas)
+    const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
+    const lastActivityRef = useRef<number>(Date.now());
+
     // ── Setup: escuta eventos do Singleton (sem registrar novo onAuthStateChange) ──
     useEffect(() => {
         isMounted.current = true;
@@ -148,6 +152,110 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // setAuth não é chamado aqui de propósito para evitar que a UI "pisque" para a tela de login
         // antes do redirecionamento global (window.location.href = '/') fazer o refresh.
     }, []);
+
+    // ── Auto Logout por inatividade (8 horas) ──
+    useEffect(() => {
+        if (!auth.isAuthenticated) return;
+
+        // Sincroniza inicial
+        lastActivityRef.current = Date.now();
+
+        const updateActivity = () => {
+            const now = Date.now();
+            if (now - lastActivityRef.current > EIGHT_HOURS_MS) {
+                // Se já passou 8 horas e o usuário tentou mexer, desloga
+                logout().then(() => { window.location.href = '/'; });
+            } else {
+                lastActivityRef.current = now;
+            }
+        };
+
+        let throttleTimeout: NodeJS.Timeout | null = null;
+        const handleActivity = () => {
+            if (!throttleTimeout) {
+                updateActivity();
+                throttleTimeout = setTimeout(() => { throttleTimeout = null; }, 5000); // Throttling de 5s
+            }
+        };
+
+        const events = ['mousedown', 'keydown', 'scroll', 'touchstart', 'mousemove'];
+        events.forEach(e => window.addEventListener(e, handleActivity, { passive: true }));
+
+        const interval = setInterval(() => {
+            const now = Date.now();
+            if (now - lastActivityRef.current > EIGHT_HOURS_MS) {
+                // Estourou o tempo sem evento
+                logout().then(() => { window.location.href = '/'; });
+            }
+        }, 60000); // Verifica a cada minuto
+
+        return () => {
+            events.forEach(e => window.removeEventListener(e, handleActivity));
+            if (throttleTimeout) clearTimeout(throttleTimeout);
+            clearInterval(interval);
+        };
+    }, [auth.isAuthenticated, logout]);
+
+    // 🔒 TENANT SUSPENSION GUARD — Realtime (Big Tech Standard)
+    //
+    // ARQUITETURA: Zero polling. Zero queries periódicas.
+    // Usa Supabase Realtime (WebSocket já aberto) para escutar mudanças
+    // na linha exata do tenant do usuário logado.
+    //
+    // Custo em produção com 10.000 usuários ativos simultâneos:
+    //   - Polling (2min): ~5.000 queries/min → inaceitável
+    //   - Realtime:       0 queries/min — evento só é empurrado quando
+    //                     o Master Admin realmente altera o status.
+    useEffect(() => {
+        if (!auth.isAuthenticated || !auth.user?.tenantId) return;
+
+        const tenantId = auth.user.tenantId;
+
+        // Verificação única no mount (cobre o caso de suspensão antes do login)
+        // Usa o campo já carregado em memória — sem query extra se já disponível
+        const verifyOnMount = async () => {
+            const isSuspended = await DataService.checkTenantSuspended(tenantId).catch(() => false);
+            if (isSuspended && isMounted.current) {
+                console.warn(`[AuthContext] 🔒 Tenant ${tenantId} já suspenso no mount. Encerrando sessão.`);
+                await logout();
+                window.location.href = '/#/login?reason=suspended';
+            }
+        };
+        verifyOnMount();
+
+        // Canal Realtime — filtrado pelo tenant específico (não escuta outras empresas)
+        const channelName = `tenant-suspension-guard-${tenantId}`;
+        const channel = supabase
+            .channel(channelName)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',         // Só UPDATE — INSERT/DELETE não são relevantes aqui
+                    schema: 'public',
+                    table: 'tenants',
+                    filter: `id=eq.${tenantId}` // Filtro server-side: só este tenant
+                },
+                async (payload) => {
+                    const newStatus = (payload.new as any)?.status;
+                    if (newStatus === 'suspended' && isMounted.current) {
+                        console.warn(`[AuthContext] 🔒 Realtime: tenant ${tenantId} foi suspenso. Encerrando sessão.`);
+                        await logout();
+                        window.location.href = '/#/login?reason=suspended';
+                    }
+                }
+            )
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    console.log(`[AuthContext] 📡 Suspension guard ativo para tenant: ${tenantId}`);
+                }
+            });
+
+        // Cleanup: cancela a subscrição ao sair (desmount ou logout)
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [auth.isAuthenticated, auth.user?.tenantId, logout]);
+
 
     const refreshUser = useCallback(async () => {
         const u = await DataService.refreshUser().catch(() => undefined);

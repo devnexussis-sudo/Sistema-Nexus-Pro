@@ -298,6 +298,8 @@ export const AIAgent: React.FC = () => {
             <GraduationCap size={13} /> Enviar Instruções
           </button>
 
+          <input type="file" accept=".pdf,.doc,.docx,.txt,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+
           <button onClick={() => setMode('memories')} className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all border shadow-sm hover:shadow ${mode === 'memories' ? 'bg-violet-50 border-violet-200 text-violet-600' : 'text-slate-500 hover:text-violet-600 hover:bg-violet-50 border-slate-200/60 bg-white'}`}>
             <Database size={13} /> Memórias
           </button>
@@ -470,7 +472,6 @@ export const AIAgent: React.FC = () => {
               placeholder={`Pergunte algo, ${firstName}...`}
               className="w-full bg-slate-50/50 border border-slate-200 rounded-xl pl-4 pr-12 py-3.5 text-[13px] font-medium text-slate-700 outline-none focus:bg-white focus:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/5 transition-all resize-none shadow-inner"
               rows={1} style={{ minHeight: '52px', maxHeight: '120px' }} />
-            <input type="file" accept=".pdf,.doc,.docx,.txt,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
 
             <button onClick={handleSend} disabled={!input.trim() || isLoading}
               className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8.5 h-8.5 bg-[#1c2d4f] hover:bg-[#253a66] disabled:bg-slate-100 disabled:text-slate-400 text-white rounded-lg flex items-center justify-center transition-all shadow-md disabled:shadow-none">

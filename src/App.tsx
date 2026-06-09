@@ -34,8 +34,12 @@ const PublicAppWrapper: React.FC<{ type: 'order' | 'quote' }> = ({ type }) => {
 // Componente Interno que usa o AuthContext
 const AppRoutes: React.FC = () => {
   const { auth, isInitializing, login, logout } = useAuth();
-  const [isMasterAuthenticated, setIsMasterAuthenticated] = useState(false);
-  const [isSuperMode, setIsSuperMode] = useState(false);
+  const [isMasterAuthenticated, setIsMasterAuthenticated] = useState(
+    () => !!SessionStorage.get<boolean>('master_session_v2')
+  );
+  const [isSuperMode, setIsSuperMode] = useState(
+    () => !!SessionStorage.get<boolean>('master_session_v2')
+  );
   const [systemNotifications, setSystemNotifications] = useState<any[]>([]);
   const [isImpersonating, setIsImpersonating] = useState(false);
 

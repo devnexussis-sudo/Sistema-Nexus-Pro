@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { Mail, Lock, Shield, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Shield, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { DataService } from '../../services/dataService';
 import { User } from '../../types';
 
@@ -17,6 +17,17 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [suspendedBanner, setSuspendedBanner] = useState(false);
+
+    // Detecta se o usuário foi redirecionado por suspensão de empresa
+    useEffect(() => {
+        const hash = window.location.hash || '';
+        if (hash.includes('reason=suspended')) {
+            setSuspendedBanner(true);
+            // Limpa o parâmetro da URL sem recarregar
+            window.history.replaceState(null, '', window.location.pathname);
+        }
+    }, []);
 
     const [showForgotPassword, setShowForgotPassword] = useState(false);
     const [resetEmailSent, setResetEmailSent] = useState(false);
@@ -225,6 +236,18 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                                         Manter conectado nesta sessão
                                     </label>
                                 </div>
+
+                                {suspendedBanner && (
+                                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                        <AlertTriangle size={18} className="text-amber-500 shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-amber-800 text-xs font-medium leading-tight">Acesso suspenso</p>
+                                            <p className="text-amber-600 text-[11px] mt-0.5 leading-relaxed">
+                                                O acesso da sua empresa foi suspenso. Entre em contato com o suporte DUNO para regularizar sua situação.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {error && (
                                     <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 animate-in fade-in slide-in-from-top-2 duration-300">

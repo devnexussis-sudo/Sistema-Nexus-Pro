@@ -363,6 +363,21 @@ export const TenantService = {
         }
     },
 
+    toggleTenantStatus: async (tenantId: string, currentStatus: string): Promise<void> => {
+        if (!isCloudEnabled) return;
+        const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
+        
+        const { error } = await supabase
+            .from('tenants')
+            .update({ status: newStatus })
+            .eq('id', tenantId);
+            
+        if (error) {
+            console.error("❌ Erro ao alterar status da empresa:", error);
+            throw new Error(`Falha ao alterar status: ${error.message}`);
+        }
+    },
+
     // --- USER MANAGEMENT (TENANT LEVEL) ---
 
     getTenantUsers: async (tenantId: string, signal?: AbortSignal): Promise<User[]> => {
@@ -645,22 +660,19 @@ export const TenantService = {
                 const { data: readRecords } = await supabase.from('system_notification_reads').select('notification_id').eq('user_id', userId);
                 const readIds = (readRecords || []).map(r => r.notification_id);
 
-                // Build query; if there are read IDs, exclude them server‑side to avoid sending already‑read items
+                // Build query; fetch all recent notifications
                 let query = supabase.from('system_notifications')
                     .select('*')
                     .order('created_at', { ascending: false })
                     .limit(50);
-                if (readIds.length > 0) {
-                    query = query.not('id', 'in', readIds);
-                }
 
                 const { data: notifications, error } = await query;
                 if (error) throw error;
 
-                // Attach isRead flag for completeness (always false here because we filtered out reads)
+                // Attach isRead flag based on the readIds we found
                 return (notifications || []).map(n => ({
                     ...n,
-                    isRead: false
+                    isRead: readIds.includes(n.id)
                 }));
             } catch (err) {
                 console.error('Failed to load system notifications:', err);

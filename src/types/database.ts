@@ -61,6 +61,7 @@ export interface DbTenant {
     status: DbTenantStatus;
     os_prefix?: string;
     os_start_number?: number;
+    max_technicians?: number;
     osPrefix?: string; // Para compatibilidade legacy
     osStartNumber?: number; // Para compatibilidade legacy
     enabled_modules?: Record<string, boolean>;

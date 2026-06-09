@@ -1076,6 +1076,7 @@ export type Database = {
           enabled_modules: Json | null
           id: string
           logo_url: string | null
+          max_technicians: number | null
           metadata: Json | null
           name: string
           neighborhood: string | null
@@ -1107,6 +1108,7 @@ export type Database = {
           enabled_modules?: Json | null
           id?: string
           logo_url?: string | null
+          max_technicians?: number | null
           metadata?: Json | null
           name: string
           neighborhood?: string | null
@@ -1138,6 +1140,7 @@ export type Database = {
           enabled_modules?: Json | null
           id?: string
           logo_url?: string | null
+          max_technicians?: number | null
           metadata?: Json | null
           name?: string
           neighborhood?: string | null

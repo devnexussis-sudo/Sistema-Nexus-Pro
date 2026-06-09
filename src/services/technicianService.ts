@@ -158,6 +158,33 @@ export const TechnicianService = {
         const tenantId = getCurrentTenantId();
         if (!tenantId) throw new Error("ID da empresa não localizado.");
 
+        // 🔒 LICENSE GUARD — Verifica limite de técnicos antes de criar
+        // Big Tech Standard: falha rápida antes de qualquer provisionamento
+        if (isCloudEnabled) {
+            const { data: tenantRow } = await supabase
+                .from('tenants')
+                .select('max_technicians, company_name, name')
+                .eq('id', tenantId)
+                .maybeSingle();
+
+            const limit = tenantRow?.max_technicians ?? 0;
+
+            if (limit > 0) {
+                const { count } = await supabase
+                    .from('technicians')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('tenant_id', tenantId);
+
+                if ((count ?? 0) >= limit) {
+                    const companyName = tenantRow?.name || tenantRow?.company_name || 'sua empresa';
+                    throw new Error(
+                        `🔒 Limite de licenças atingido: ${companyName} tem plano para até ${limit} técnico${limit > 1 ? 's' : ''}. ` +
+                        `Contate o suporte DUNO para ampliar seu plano.`
+                    );
+                }
+            }
+        }
+
         // 🧹 Cache Invalidation
         CacheManager.invalidate(`techs_${tenantId}`);
 

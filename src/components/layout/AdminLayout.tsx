@@ -238,50 +238,54 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
                                 {/* Lista de notificações */}
                                 <div className="overflow-y-auto flex-1 divide-y divide-slate-50 custom-scrollbar">
-                                    {systemNotifications.filter(n => !n.isRead).length === 0 ? (
+                                    {systemNotifications.length === 0 ? (
                                         <div className="p-8 text-center text-slate-400 text-xs flex flex-col items-center gap-2">
                                             <Bell size={24} className="text-slate-200" />
                                             {t.layout.noMessages}
                                         </div>
                                     ) : (
-                                        systemNotifications.filter(n => !n.isRead).map(notif => (
+                                        systemNotifications.map(notif => (
                                             <div
                                                 key={notif.id}
-                                                className="px-4 py-3 flex gap-3 transition-colors bg-blue-50/30 hover:bg-blue-50/60"
+                                                className={`px-4 py-3 flex gap-3 transition-colors ${notif.isRead ? 'bg-white hover:bg-slate-50' : 'bg-blue-50/30 hover:bg-blue-50/60'}`}
                                             >
                                                 {/* Dot de status não lida */}
                                                 <div className="flex flex-col items-center pt-1 shrink-0">
-                                                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" title="Não lida" />
+                                                    {!notif.isRead ? <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" title="Não lida" /> : <div className="w-2 h-2" />}
                                                 </div>
 
                                                 {/* Conteúdo */}
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-start justify-between gap-2 mb-0.5">
                                                         <div className="flex items-center gap-1.5">
-                                                            {notif.priority === 'urgent' && <AlertTriangle size={11} className="text-rose-500 shrink-0" />}
-                                                            {notif.priority === 'warning' && <ShieldAlert size={11} className="text-amber-500 shrink-0" />}
-                                                            {notif.priority === 'info' && <Bell size={11} className="text-blue-500 shrink-0" />}
-                                                            <h4 className={`text-[11px] font-bold uppercase line-clamp-1 ${notif.isRead ? 'text-slate-500' : 'text-slate-800'}`}>
+                                                            {notif.priority === 'urgent' && <AlertTriangle size={11} className={`${notif.isRead ? 'text-slate-400' : 'text-rose-500'} shrink-0`} />}
+                                                            {notif.priority === 'warning' && <ShieldAlert size={11} className={`${notif.isRead ? 'text-slate-400' : 'text-amber-500'} shrink-0`} />}
+                                                            {notif.priority === 'info' && <Bell size={11} className={`${notif.isRead ? 'text-slate-400' : 'text-blue-500'} shrink-0`} />}
+                                                            <h4 className={`text-[11px] font-bold uppercase line-clamp-1 ${notif.isRead ? 'text-slate-400' : 'text-slate-800'}`}>
                                                                 {notif.title}
                                                             </h4>
                                                         </div>
                                                         {/* Badge "Nova" */}
-                                                        <span className="shrink-0 text-[9px] font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full">
-                                                            Nova
-                                                        </span>
+                                                        {!notif.isRead && (
+                                                            <span className="shrink-0 text-[9px] font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full">
+                                                                Nova
+                                                            </span>
+                                                        )}
                                                     </div>
 
-                                                    <p className="text-[10px] line-clamp-2 leading-relaxed text-slate-600">
+                                                    <p className={`text-[10px] line-clamp-2 leading-relaxed ${notif.isRead ? 'text-slate-400' : 'text-slate-600'}`}>
                                                         {notif.content}
                                                     </p>
 
                                                     {/* Ação "Marcar como lida" inline */}
-                                                    <button
-                                                        onClick={() => onMarkNotificationRead && onMarkNotificationRead(notif.id)}
-                                                        className="mt-1.5 text-[9px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-wide transition-colors"
-                                                    >
-                                                        {t.layout.markAsRead} →
-                                                    </button>
+                                                    {!notif.isRead && (
+                                                        <button
+                                                            onClick={() => onMarkNotificationRead && onMarkNotificationRead(notif.id)}
+                                                            className="mt-1.5 text-[9px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-wide transition-colors"
+                                                        >
+                                                            {t.layout.markAsRead} →
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))

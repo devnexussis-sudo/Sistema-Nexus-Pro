@@ -92,8 +92,24 @@ export const TechnicianManagement: React.FC = () => {
       console.log("Dados do Form:", formData);
 
       if (editingId) {
+        // Validação de Limite de Licenças na Edição (tentando reativar)
+        const tenant = await DataService.getTenantById();
+        if (tenant && tenant.max_technicians !== undefined && tenant.max_technicians > 0) {
+           const activeTechsCount = technicians.filter(t => t.active && t.id !== editingId).length;
+           if (formData.active && activeTechsCount >= tenant.max_technicians) {
+               throw new Error(`Limite de licenças excedido! O plano atual permite no máximo ${tenant.max_technicians} técnico(s) ativo(s). Desative um técnico antigo ou faça um upgrade.`);
+           }
+        }
         await DataService.updateTechnician({ ...formData, id: editingId });
       } else {
+        // Validação de Limite de Licenças na Criação
+        const tenant = await DataService.getTenantById();
+        if (tenant && tenant.max_technicians !== undefined && tenant.max_technicians > 0) {
+           const activeTechsCount = technicians.filter(t => t.active).length;
+           if (formData.active && activeTechsCount >= tenant.max_technicians) {
+               throw new Error(`Limite de licenças excedido! O plano atual permite no máximo ${tenant.max_technicians} técnico(s) ativo(s). Desative um técnico antigo ou faça um upgrade.`);
+           }
+        }
         await DataService.createTechnician(formData);
       }
 

@@ -55,6 +55,22 @@ export const AuthService = {
                 if (!fullUser) throw new Error("Usuário autenticado mas sem registro na tabela users.");
                 if (fullUser.active === false) throw new Error("Sua conta foi desativada. Contate o administrador.");
 
+                // 🔒 TENANT SUSPENSION CHECK — verifica status da empresa ANTES de liberar acesso
+                if (fullUser.tenantId) {
+                    const { data: tenantRow } = await supabase
+                        .from('tenants')
+                        .select('status, name, company_name')
+                        .eq('id', fullUser.tenantId)
+                        .maybeSingle();
+
+                    if (tenantRow?.status === 'suspended') {
+                        // Desloga imediatamente para não deixar token ativo
+                        await supabase.auth.signOut();
+                        const companyName = tenantRow.name || tenantRow.company_name || 'sua empresa';
+                        throw new Error(`🔒 Acesso bloqueado: ${companyName} está com o acesso suspenso. Entre em contato com o suporte para regularizar sua situação.`);
+                    }
+                }
+
                 // Persistência
                 SessionStorage.set('user', fullUser);
                 if (localStorage.getItem('nexus_ephemeral_login') !== 'true') {
@@ -100,6 +116,22 @@ export const AuthService = {
 
         // Force reload to clear memory states and redirect
         window.location.href = '/login';
+    },
+
+    // 🔒 TENANT SUSPENSION GUARD — chamado periodicamente pelo AuthContext
+    // Verifica se a empresa do usuário logado ainda está ativa
+    checkTenantSuspended: async (tenantId: string): Promise<boolean> => {
+        if (!isCloudEnabled || !tenantId) return false;
+        try {
+            const { data } = await supabase
+                .from('tenants')
+                .select('status')
+                .eq('id', tenantId)
+                .maybeSingle();
+            return data?.status === 'suspended';
+        } catch {
+            return false; // Em caso de erro de rede, não derruba a sessão
+        }
     },
 
     checkEmailExists: async (email: string): Promise<{ exists: boolean, tenantName?: string }> => {
@@ -189,11 +221,16 @@ export const AuthService = {
             : dbUser.group_id;
 
         if (primaryGroupId) {
-            const { data: group } = await supabase
+            const { data: group, error: groupError } = await supabase
                 .from('user_groups')
                 .select('permissions, name')
                 .eq('id', primaryGroupId)
                 .single();
+
+            if (groupError && groupError.code !== 'PGRST116') {
+                logger.error('Failed to fetch user group permissions', { error: groupError, primaryGroupId });
+                throw new Error(`Falha ao carregar permissões do grupo: ${groupError.message}`);
+            }
 
             if (group) {
                 groupName = group.name || '';
