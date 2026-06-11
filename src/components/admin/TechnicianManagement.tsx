@@ -23,6 +23,7 @@ export const TechnicianManagement: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [technicians, setTechnicians] = useState<UserType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tenantLimit, setTenantLimit] = useState<number>(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -40,6 +41,9 @@ export const TechnicianManagement: React.FC = () => {
     try {
       const techs = await DataService.getAllTechnicians();
       setTechnicians(techs);
+      
+      const tenant = await DataService.getTenantById();
+      setTenantLimit(tenant?.max_technicians || 0);
     } catch (error) {
       console.error("Erro ao carregar técnicos:", error);
     } finally {
@@ -95,9 +99,9 @@ export const TechnicianManagement: React.FC = () => {
         // Validação de Limite de Licenças na Edição (tentando reativar)
         const tenant = await DataService.getTenantById();
         if (tenant && tenant.max_technicians !== undefined && tenant.max_technicians > 0) {
-           const activeTechsCount = technicians.filter(t => t.active && t.id !== editingId).length;
-           if (formData.active && activeTechsCount >= tenant.max_technicians) {
-               throw new Error(`Limite de licenças excedido! O plano atual permite no máximo ${tenant.max_technicians} técnico(s) ativo(s). Desative um técnico antigo ou faça um upgrade.`);
+           const countToEvaluate = technicians.filter(t => t.id !== editingId && t.active).length;
+           if (formData.active && countToEvaluate >= tenant.max_technicians) {
+               throw new Error(`Limite de licenças excedido! O plano atual permite no máximo ${tenant.max_technicians} técnico(s) ativo(s). Desative ou remova um técnico antigo ou faça um upgrade.`);
            }
         }
         await DataService.updateTechnician({ ...formData, id: editingId });
@@ -105,9 +109,9 @@ export const TechnicianManagement: React.FC = () => {
         // Validação de Limite de Licenças na Criação
         const tenant = await DataService.getTenantById();
         if (tenant && tenant.max_technicians !== undefined && tenant.max_technicians > 0) {
-           const activeTechsCount = technicians.filter(t => t.active).length;
-           if (formData.active && activeTechsCount >= tenant.max_technicians) {
-               throw new Error(`Limite de licenças excedido! O plano atual permite no máximo ${tenant.max_technicians} técnico(s) ativo(s). Desative um técnico antigo ou faça um upgrade.`);
+           const countToEvaluate = technicians.filter(t => t.active).length;
+           if (formData.active && countToEvaluate >= tenant.max_technicians) {
+               throw new Error(`Limite de licenças excedido! O plano atual permite no máximo ${tenant.max_technicians} técnico(s) ativo(s) no total. Remova ou desative um técnico antigo ou contate o suporte para upgrade.`);
            }
         }
         await DataService.createTechnician(formData);
@@ -125,6 +129,7 @@ export const TechnicianManagement: React.FC = () => {
         msg = "Este e-mail já está em uso por outra empresa. Para evitar conflitos de acesso, é necessário usar um outro e-mail.";
       }
       setSaveError(msg);
+      alert(msg); // <--- Adicionado para garantir que o usuário veja
     } finally {
       setLoading(false);
     }
@@ -171,8 +176,23 @@ export const TechnicianManagement: React.FC = () => {
             </div>
 
               <Button
-                onClick={(e) => {
-                  if (!canCreate('technicians')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para esta ação.'); return; }
+                onClick={async (e) => {
+                  e.preventDefault();
+                  if (!canCreate('technicians')) { alert('Acesso Negado: Você não tem permissão para esta ação.'); return; }
+                  
+                  // Busca o limite em tempo real para ter efeito imediato se alterado no Master
+                  const currentTenant = await DataService.getTenantById();
+                  const currentLimit = currentTenant?.max_technicians || 0;
+                  setTenantLimit(currentLimit); // atualiza o state pra refletir visualmente em outros lugares se precisar
+
+                  if (currentLimit > 0) {
+                      const activeTechs = technicians.filter(t => t.active).length;
+                      if (activeTechs >= currentLimit) {
+                          alert(`Acesso Bloqueado: A empresa já atingiu o limite de ${currentLimit} técnico(s) ativo(s) em seu plano. Para adicionar um novo, desative um técnico antigo ou contate o suporte para upgrade.`);
+                          return;
+                      }
+                  }
+
                   setIsModalOpen(true);
                 }}
                 className={`h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl whitespace-nowrap text-white ${!canCreate('technicians') ? 'opacity-50 !cursor-not-allowed' : ''}`}
@@ -220,7 +240,7 @@ export const TechnicianManagement: React.FC = () => {
                   </td>
                   <td className="px-4 py-1.5 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
                       <button onClick={(e) => {
-                        if (!canEdit('technicians')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                        if (!canEdit('technicians')) { e.preventDefault(); alert('Acesso Negado: Você não tem permissão para editar.'); return; }
                         setFormData(t); setEditingId(t.id); setIsModalOpen(true);
                       }} className={`p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90 ${!canEdit('technicians') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar Técnico"><Edit2 size={16} /></button>
                   </td>

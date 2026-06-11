@@ -158,12 +158,12 @@ export const TechnicianService = {
         const tenantId = getCurrentTenantId();
         if (!tenantId) throw new Error("ID da empresa não localizado.");
 
-        // 🔒 LICENSE GUARD — Verifica limite de técnicos antes de criar
-        // Big Tech Standard: falha rápida antes de qualquer provisionamento
-        if (isCloudEnabled) {
+        // 🔒 LICENSE GUARD (Camada 1 de 2) — Verificação rápida no service antes de provisionar
+        // A Camada 2 é o trigger no banco de dados que barra qualquer tentativa direta à API.
+        if (isCloudEnabled && tech.active !== false) {
             const { data: tenantRow } = await supabase
                 .from('tenants')
-                .select('max_technicians, company_name, name')
+                .select('max_technicians, name, company_name')
                 .eq('id', tenantId)
                 .maybeSingle();
 
@@ -173,12 +173,13 @@ export const TechnicianService = {
                 const { count } = await supabase
                     .from('technicians')
                     .select('id', { count: 'exact', head: true })
-                    .eq('tenant_id', tenantId);
+                    .eq('tenant_id', tenantId)
+                    .eq('active', true);
 
                 if ((count ?? 0) >= limit) {
                     const companyName = tenantRow?.name || tenantRow?.company_name || 'sua empresa';
                     throw new Error(
-                        `🔒 Limite de licenças atingido: ${companyName} tem plano para até ${limit} técnico${limit > 1 ? 's' : ''}. ` +
+                        `🔒 Limite de licenças atingido: ${companyName} tem plano para até ${limit} técnico(s) ativo(s). ` +
                         `Contate o suporte DUNO para ampliar seu plano.`
                     );
                 }
@@ -272,6 +273,11 @@ export const TechnicianService = {
                 if (techError.code === '42703') { // Undefined column
                     throw new Error("Colunas faltantes na tabela 'technicians'. Por favor, execute a migração SQL mais recente no painel do Supabase.");
                 }
+                // 🔒 Camada 2: Erro do trigger de limite de licenças no banco de dados
+                if (techError.message?.includes('NEXUS_LICENSE_LIMIT')) {
+                    const match = techError.message.match(/NEXUS_LICENSE_LIMIT: (.+)/);
+                    throw new Error(match ? match[1] : '🔒 Limite de licenças de técnicos atingido. Contate o suporte DUNO para upgrade do plano.');
+                }
                 console.error("Erro ao sincronizar tabela technicians:", techError);
                 throw techError;
             }
@@ -357,6 +363,11 @@ export const TechnicianService = {
             if (error) {
                 if (error.code === '42703') {
                     throw new Error("Colunas faltantes na tabela 'technicians'. Execute a migração SQL.");
+                }
+                // 🔒 Camada 2: Trigger do banco barrou a reativação por limite de licenças
+                if (error.message?.includes('NEXUS_LICENSE_LIMIT')) {
+                    const match = error.message.match(/NEXUS_LICENSE_LIMIT: (.+)/);
+                    throw new Error(match ? match[1] : '🔒 Limite de licenças atingido. Não é possível reativar este técnico. Contate o suporte DUNO para upgrade do plano.');
                 }
                 throw error;
             }

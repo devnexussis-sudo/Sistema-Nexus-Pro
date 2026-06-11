@@ -193,6 +193,7 @@ export const TenantService = {
             // 2. Criar grupos padrão e admin
             await TenantService._provisionGroups(tenantId, processedTenant, initialPass);
 
+            CacheManager.invalidate('master_tenants_list');
             return data as any;
         }
         return tenant as any;
@@ -322,6 +323,7 @@ export const TenantService = {
             if (error) throw error;
             if (!data) throw new Error("Não foi possível localizar o registro da empresa para atualização.");
 
+            CacheManager.invalidate('master_tenants_list');
             return data as any;
         }
         return tenant as any;
@@ -357,6 +359,8 @@ export const TenantService = {
             const { error: tenantDeleteError } = await supabase.from('tenants').delete().eq('id', tenantId);
             if (tenantDeleteError) throw tenantDeleteError;
 
+            CacheManager.invalidate('master_tenants_list');
+
         } catch (err: any) {
             console.error("❌ Falha crítica ao excluir empresa:", err.message);
             throw err;
@@ -376,6 +380,8 @@ export const TenantService = {
             console.error("❌ Erro ao alterar status da empresa:", error);
             throw new Error(`Falha ao alterar status: ${error.message}`);
         }
+        
+        CacheManager.invalidate('master_tenants_list');
     },
 
     // --- USER MANAGEMENT (TENANT LEVEL) ---
