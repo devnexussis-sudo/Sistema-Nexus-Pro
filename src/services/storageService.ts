@@ -84,35 +84,47 @@ export const StorageService = {
         const ext = options?.extension || 'webp';
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
         const fullPath = `${tenantId}/${cleanPath}/${fileName}`.replace(/\/+/g, '/');
+        const contentType = options?.contentType || 'image/webp';
 
-        console.log(`[Storage] 📤 Uploading ${fullPath} (${(blobOrFile.size / 1024).toFixed(0)}KB)...`);
+        console.log(`[Storage/R2] 📤 Uploading ${fullPath} (${(blobOrFile.size / 1024).toFixed(0)}KB)...`);
 
         for (let i = 0; i <= retryCount; i++) {
             if (signal?.aborted) throw new Error('AbortError');
 
             try {
-                const uploadPromise = supabase.storage
-                    .from('nexus-files')
-                    .upload(fullPath, blobOrFile, {
-                        contentType: options?.contentType || 'image/webp',
-                        upsert: true,
-                        cacheControl: '3600'
-                    });
+                // 1. Pede a URL assinada para a Edge Function
+                const { data: signData, error: signError } = await supabase.functions.invoke('r2-operations', {
+                    body: { action: 'upload', path: fullPath, bucketType: 'private', contentType }
+                });
 
-                const networkTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('NETWORK_TIMEOUT_45S')), 45000));
-                const { data, error } = await Promise.race([uploadPromise, networkTimeout]) as any;
+                if (signError || !signData?.signedUrl) {
+                    throw new Error(signError?.message || 'Failed to get signed URL');
+                }
 
-                if (error) throw error;
-                if (!data) throw new Error("EMPTY_STORAGE_RESPONSE");
+                // 2. Faz o upload direto pro R2
+                const uploadPromise = fetch(signData.signedUrl, {
+                    method: 'PUT',
+                    body: blobOrFile,
+                    headers: {
+                        'Content-Type': contentType
+                    },
+                    signal
+                });
 
-                const { data: urlData } = supabase.storage
-                    .from('nexus-files')
-                    .getPublicUrl(fullPath);
+                const networkTimeout = new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('NETWORK_TIMEOUT_45S')), 45000));
+                const response = await Promise.race([uploadPromise, networkTimeout]);
 
-                return urlData.publicUrl;
+                if (!response.ok) {
+                    throw new Error(`R2 Upload Failed: ${response.status} ${response.statusText}`);
+                }
+
+                // URL pública gerada ou fallback pra env
+                const r2PublicUrl = import.meta.env.VITE_R2_PUBLIC_URL || signData.publicUrl;
+                return r2PublicUrl.endsWith('/') ? `${r2PublicUrl}${fullPath}` : `${r2PublicUrl}/${fullPath}`;
+
             } catch (err: any) {
                 if (err.name === 'AbortError' || signal?.aborted) throw err;
-                console.warn(`[Storage] ⚠️ Tentativa ${i + 1} falhou:`, err.message);
+                console.warn(`[Storage/R2] ⚠️ Tentativa ${i + 1} falhou:`, err.message);
 
                 if (i === retryCount) throw err;
                 await new Promise(resolve => setTimeout(resolve, 1500));
@@ -130,36 +142,44 @@ export const StorageService = {
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.webp`;
         // Não usa tenantId, salva diretamente na subpasta do dropzone
         const fullPath = `${cleanPath}/${fileName}`.replace(/\/+/g, '/');
+        const contentType = 'image/webp';
 
-        console.log(`[Storage/Dropzone] 📤 Uploading ${fullPath} (${(blobOrFile.size / 1024).toFixed(0)}KB)...`);
+        console.log(`[Storage/Dropzone-R2] 📤 Uploading ${fullPath} (${(blobOrFile.size / 1024).toFixed(0)}KB)...`);
 
         for (let i = 0; i <= retryCount; i++) {
             if (signal?.aborted) throw new Error('AbortError');
 
             try {
-                // USA publicSupabase para chamadas sem RLS associada a sessão auth (upload anônimo cego)
-                const uploadPromise = publicSupabase.storage
-                    .from('nexus-public-dropzone')
-                    .upload(fullPath, blobOrFile, {
-                        contentType: 'image/webp',
-                        upsert: true,
-                        cacheControl: '3600'
-                    });
+                // 1. Pede a URL assinada publicSupabase
+                const { data: signData, error: signError } = await publicSupabase.functions.invoke('r2-operations', {
+                    body: { action: 'upload', path: fullPath, bucketType: 'dropzone', contentType }
+                });
 
-                const networkTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('NETWORK_TIMEOUT_45S')), 45000));
-                const { data, error } = await Promise.race([uploadPromise, networkTimeout]) as any;
+                if (signError || !signData?.signedUrl) {
+                    throw new Error(signError?.message || 'Failed to get dropzone signed URL');
+                }
 
-                if (error) throw error;
-                if (!data) throw new Error("EMPTY_STORAGE_RESPONSE");
+                // 2. Faz o upload direto pro R2
+                const uploadPromise = fetch(signData.signedUrl, {
+                    method: 'PUT',
+                    body: blobOrFile,
+                    headers: {
+                        'Content-Type': contentType
+                    },
+                    signal
+                });
 
-                const { data: urlData } = publicSupabase.storage
-                    .from('nexus-public-dropzone')
-                    .getPublicUrl(fullPath);
+                const networkTimeout = new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('NETWORK_TIMEOUT_45S')), 45000));
+                const response = await Promise.race([uploadPromise, networkTimeout]);
 
-                return urlData.publicUrl;
+                if (!response.ok) {
+                    throw new Error(`R2 Dropzone Upload Failed: ${response.status} ${response.statusText}`);
+                }
+
+                return signData.publicUrl; // Já vem montado pela Edge Function
             } catch (err: any) {
                 if (err.name === 'AbortError' || signal?.aborted) throw err;
-                console.warn(`[Storage/Dropzone] ⚠️ Tentativa ${i + 1} falhou:`, err.message);
+                console.warn(`[Storage/Dropzone-R2] ⚠️ Tentativa ${i + 1} falhou:`, err.message);
 
                 if (i === retryCount) throw err;
                 await new Promise(resolve => setTimeout(resolve, 1500));
@@ -392,15 +412,41 @@ export const StorageService = {
         if (!url || !isCloudEnabled) return;
         try {
             let path = url;
+            let bucketType = 'private';
+
+            // Tratamento retrocompatível (caso aponte pro Supabase antigo)
             if (url.includes('/nexus-files/')) {
                 path = url.split('/nexus-files/')[1].split('?')[0];
-                await supabase.storage.from('nexus-files').remove([decodeURIComponent(path)]);
-                console.log(`[Storage] 🗑️ Arquivo deletado: ${path}`);
+                bucketType = 'private';
             } else if (url.includes('/nexus-public-dropzone/')) {
                 path = url.split('/nexus-public-dropzone/')[1].split('?')[0];
-                await publicSupabase.storage.from('nexus-public-dropzone').remove([decodeURIComponent(path)]);
-                console.log(`[Storage/Dropzone] 🗑️ Arquivo deletado: ${path}`);
+                bucketType = 'dropzone';
+            } 
+            // Novo formato R2
+            else if (url.includes('.r2.dev/')) {
+                path = url.split('.r2.dev/')[1].split('?')[0];
+                // Como não temos distinção clara na URL, assumimos dropzone/public dependendo do path
+                // (Para R2, vamos delegar pra Edge Function tentar deletar baseado na chave)
+                bucketType = url.includes('dropzone') ? 'dropzone' : 'private'; // simplificação
             }
+
+            // Exclui via Edge Function no R2
+            const { error } = await supabase.functions.invoke('r2-operations', {
+                body: { action: 'delete', path: decodeURIComponent(path), bucketType }
+            });
+
+            if (error) {
+                console.error(`[Storage/R2] ⚠️ Falha na Edge Function R2 (fallback pro antigo):`, error);
+                // Fallback para o storage antigo do Supabase apenas como precaução na transição
+                if (bucketType === 'dropzone') {
+                    await publicSupabase.storage.from('nexus-public-dropzone').remove([decodeURIComponent(path)]);
+                } else {
+                    await supabase.storage.from('nexus-files').remove([decodeURIComponent(path)]);
+                }
+            } else {
+                console.log(`[Storage/R2] 🗑️ Arquivo deletado: ${path}`);
+            }
+
         } catch (err) {
             console.error('[StorageService] ❌ Falha ao deletar arquivo:', err);
         }
