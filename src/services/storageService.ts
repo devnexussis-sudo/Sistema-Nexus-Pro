@@ -348,6 +348,30 @@ export const StorageService = {
     },
 
     /**
+     * Upload de Comprovante Financeiro (Imagens viram WebP, Docs são mantidos)
+     */
+    uploadFinancialReceipt: async (file: File, pathFolder: string, signal?: AbortSignal): Promise<string> => {
+        if (!isCloudEnabled) return URL.createObjectURL(file);
+        
+        try {
+            const isImage = file.type.startsWith('image/');
+            if (isImage) {
+                const compressedBlob = await StorageService.processAndCompress(file, signal);
+                const webpFile = new File([compressedBlob], `receipt_${Date.now()}.webp`, { type: 'image/webp' });
+                return await StorageService._uploadCore(webpFile, pathFolder, 2, signal, { contentType: 'image/webp', extension: 'webp' });
+            } else {
+                if (file.size > 15 * 1024 * 1024) throw new Error("O arquivo excede o limite de 15MB");
+                const extMatch = file.name.match(/\.([^.]+)$/);
+                const ext = extMatch ? extMatch[1].toLowerCase() : 'pdf';
+                return await StorageService._uploadCore(file, pathFolder, 2, signal, { contentType: file.type, extension: ext });
+            }
+        } catch (err: any) {
+            console.error(`[ReceiptUpload] ❌ Falha:`, err.message);
+            throw err;
+        }
+    },
+
+    /**
      * Upload de anexo de Observação Interna (Imagens viram WebP, Docs são mantidos)
      */
     uploadInternalNoteAttachment: async (file: File, orderId: string, signal?: AbortSignal): Promise<{ url: string, name: string, type: string, size: number }> => {

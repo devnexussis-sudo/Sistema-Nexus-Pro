@@ -407,7 +407,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         if (receiptFile) {
             try {
                 const folderId = selectedIds[0] || Date.now().toString();
-                uploadedReceiptUrl = await StorageService.uploadBlob(receiptFile, `financial/receipts/${folderId}`);
+                uploadedReceiptUrl = await StorageService.uploadFinancialReceipt(receiptFile, `financial/receipts/${folderId}`);
             } catch (err) {
                 console.error("[FinancialDashboard] Error uploading receipt:", err);
             }
