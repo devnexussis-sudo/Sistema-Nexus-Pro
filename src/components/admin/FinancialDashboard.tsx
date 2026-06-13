@@ -459,6 +459,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 billingStatus: 'PAID',
                                 paymentMethod: finalMethod,
                                 billingNotes: `Faturado via O.S. ${item.displayId || '#' + item.id.slice(0, 8)}`,
+                                receiptUrl: uploadedReceiptUrl || qOrigin.receiptUrl,
                                 paidAt
                             });
                         }
@@ -473,6 +474,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         billingStatus: 'PAID',
                         paymentMethod: finalMethod,
                         billingNotes: billingNotes,
+                        receiptUrl: uploadedReceiptUrl || item.original?.receiptUrl,
                         discount: effectiveDiscount,
                         discountType: effectiveDiscountType,
                         paidAt

@@ -118,9 +118,13 @@ export const StorageService = {
                     throw new Error(`R2 Upload Failed: ${response.status} ${response.statusText}`);
                 }
 
-                // URL pública gerada ou fallback pra env
-                const r2PublicUrl = import.meta.env.VITE_R2_PUBLIC_URL || signData.publicUrl;
-                return r2PublicUrl.endsWith('/') ? `${r2PublicUrl}${fullPath}` : `${r2PublicUrl}/${fullPath}`;
+                // URL pública: se usar a do signData (Edge Function), ela já vem com o path!
+                // Só concatena o fullPath se for a URL base do .env
+                const envUrl = import.meta.env.VITE_R2_PUBLIC_URL;
+                if (envUrl) {
+                    return envUrl.endsWith('/') ? `${envUrl}${fullPath}` : `${envUrl}/${fullPath}`;
+                }
+                return signData.publicUrl;
 
             } catch (err: any) {
                 if (err.name === 'AbortError' || signal?.aborted) throw err;
