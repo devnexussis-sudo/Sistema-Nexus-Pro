@@ -48,8 +48,8 @@ serve(async (req) => {
 
         // URL Pública para acesso depois
         const publicUrl = bucketType === 'dropzone'
-            ? `${Deno.env.get('R2_DROPZONE_PUBLIC_URL')}/${path}`
-            : `${Deno.env.get('R2_DROPZONE_PUBLIC_URL')}/${path}` // Se nexus-files usar o mesmo domínio base, ou se VITE_R2_PUBLIC_URL for configurado depois
+            ? `${Deno.env.get('R2_DROPZONE_PUBLIC_URL')?.trim()}/${path}`
+            : `${Deno.env.get('R2_PUBLIC_BUCKET_URL')?.trim()}/${path}`
 
         return new Response(JSON.stringify({ signedUrl, path, bucketName, publicUrl }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
