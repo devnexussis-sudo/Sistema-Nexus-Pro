@@ -15,9 +15,9 @@ serve(async (req) => {
   try {
     const { action, path, bucketType, contentType } = await req.json()
     
-    const accountId = Deno.env.get('R2_ACCOUNT_ID')
-    const accessKeyId = Deno.env.get('R2_ACCESS_KEY_ID')
-    const secretAccessKey = Deno.env.get('R2_SECRET_ACCESS_KEY')
+    const accountId = Deno.env.get('R2_ACCOUNT_ID')?.trim()
+    const accessKeyId = Deno.env.get('R2_ACCESS_KEY_ID')?.trim()
+    const secretAccessKey = Deno.env.get('R2_SECRET_ACCESS_KEY')?.trim()
     
     if (!accountId || !accessKeyId || !secretAccessKey) {
         throw new Error('As variáveis de ambiente do R2 não estão configuradas na Edge Function.')
