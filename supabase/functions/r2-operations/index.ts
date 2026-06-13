@@ -24,8 +24,8 @@ serve(async (req) => {
     }
 
     const bucketName = bucketType === 'dropzone' 
-        ? Deno.env.get('R2_DROPZONE_BUCKET') || 'nexus-public-dropzone'
-        : Deno.env.get('R2_PUBLIC_BUCKET') || 'nexus-files'
+        ? 'nexus-public-dropzone'
+        : 'nexus-files'
 
     const S3 = new S3Client({
       region: "auto",
