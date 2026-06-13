@@ -47,9 +47,13 @@ serve(async (req) => {
         const signedUrl = await getSignedUrl(S3, command, { expiresIn: 3600 })
 
         // URL Pública para acesso depois
-        const publicUrl = bucketType === 'dropzone'
-            ? `${Deno.env.get('R2_DROPZONE_PUBLIC_URL')?.trim()}/${path}`
-            : `${Deno.env.get('R2_PUBLIC_BUCKET_URL')?.trim()}/${path}`
+        const r2PublicBaseUrl = bucketType === 'dropzone'
+            ? Deno.env.get('R2_DROPZONE_PUBLIC_URL')?.trim()
+            : Deno.env.get('R2_PUBLIC_BUCKET_URL')?.trim()
+
+        const publicUrl = r2PublicBaseUrl
+            ? (r2PublicBaseUrl.endsWith('/') ? `${r2PublicBaseUrl}${path}` : `${r2PublicBaseUrl}/${path}`)
+            : `https://pub-e1fad40780de437fbbb01f3b203193e9.r2.dev/${path}`
 
         return new Response(JSON.stringify({ signedUrl, path, bucketName, publicUrl }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
