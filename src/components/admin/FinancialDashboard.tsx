@@ -499,7 +499,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 setSelectedItem((prev: any) => prev ? ({
                     ...prev,
                     status: 'PAID',
-                    original: { ...prev.original, billingStatus: 'PAID', paymentMethod: finalMethod, paidAt, discount: billingDiscount, discountType: billingDiscountType }
+                    original: { ...prev.original, billingStatus: 'PAID', paymentMethod: finalMethod, paidAt, discount: billingDiscount, discountType: billingDiscountType, receiptUrl: uploadedReceiptUrl || prev.original?.receiptUrl }
                 }) : null);
             }
 

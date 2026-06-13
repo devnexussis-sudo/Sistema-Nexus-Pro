@@ -47,13 +47,13 @@ serve(async (req) => {
         const signedUrl = await getSignedUrl(S3, command, { expiresIn: 3600 })
 
         // URL Pública para acesso depois
-        // Fallbacks hardcoded com as URLs corretas pub-xxx.r2.dev de cada bucket
+        // Forçando as URLs corretas pub-xxx.r2.dev ignorando temporariamente os secrets errados do Supabase
         const FALLBACK_PRIVATE_URL = 'https://pub-e1fad40780de437fbbb01f3b203193e9.r2.dev'
         const FALLBACK_DROPZONE_URL = 'https://pub-4cf13c9b58ea42038881f5e6fef98e17.r2.dev'
 
         const r2PublicBaseUrl = bucketType === 'dropzone'
-            ? (Deno.env.get('R2_DROPZONE_PUBLIC_URL')?.trim() || FALLBACK_DROPZONE_URL)
-            : (Deno.env.get('R2_PUBLIC_BUCKET_URL')?.trim() || FALLBACK_PRIVATE_URL)
+            ? FALLBACK_DROPZONE_URL
+            : FALLBACK_PRIVATE_URL
 
         const publicUrl = r2PublicBaseUrl.endsWith('/')
             ? `${r2PublicBaseUrl}${path}`
