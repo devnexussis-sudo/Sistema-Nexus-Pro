@@ -83,35 +83,50 @@ export const StorageService = {
         const cleanPath = path.toString().replace(/^\/+/, '').replace(/\/+$/, '');
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.webp`;
         const fullPath = `${tenantId}/${cleanPath}/${fileName}`.replace(/\/+/g, '/');
+        const contentType = 'image/webp';
 
-        console.log(`[Storage] 📤 Uploading ${fullPath} (${(blobOrFile.size / 1024).toFixed(0)}KB)...`);
+        console.log(`[Storage/R2] 📤 Uploading ${fullPath} (${(blobOrFile.size / 1024).toFixed(0)}KB)...`);
 
         for (let i = 0; i <= retryCount; i++) {
             if (signal?.aborted) throw new Error('AbortError');
 
             try {
-                const uploadPromise = supabase.storage
-                    .from('nexus-files')
-                    .upload(fullPath, blobOrFile, {
-                        contentType: 'image/webp',
-                        upsert: true,
-                        cacheControl: '3600'
-                    });
+                // 1. Pede a URL assinada para a Edge Function
+                const { data: signData, error: signError } = await supabase.functions.invoke('r2-operations', {
+                    body: { action: 'upload', path: fullPath, bucketType: 'private', contentType }
+                });
 
-                const networkTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('NETWORK_TIMEOUT_45S')), 45000));
-                const { data, error } = await Promise.race([uploadPromise, networkTimeout]) as any;
+                if (signError || !signData?.signedUrl) {
+                    throw new Error(signError?.message || 'Failed to get signed URL');
+                }
 
-                if (error) throw error;
-                if (!data) throw new Error("EMPTY_STORAGE_RESPONSE");
+                // 2. Faz o upload direto pro R2
+                const uploadPromise = fetch(signData.signedUrl, {
+                    method: 'PUT',
+                    body: blobOrFile,
+                    headers: {
+                        'Content-Type': contentType
+                    },
+                    signal
+                });
 
-                const { data: urlData } = supabase.storage
-                    .from('nexus-files')
-                    .getPublicUrl(fullPath);
+                const networkTimeout = new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('NETWORK_TIMEOUT_45S')), 45000));
+                const response = await Promise.race([uploadPromise, networkTimeout]);
 
-                return urlData.publicUrl;
+                if (!response.ok) {
+                    throw new Error(`R2 Upload Failed: ${response.status} ${response.statusText}`);
+                }
+
+                // URL pública: se usar a do signData (Edge Function), ela já vem com o path!
+                const envUrl = import.meta.env.VITE_R2_PUBLIC_URL;
+                if (envUrl) {
+                    return envUrl.endsWith('/') ? `${envUrl}${fullPath}` : `${envUrl}/${fullPath}`;
+                }
+                return signData.publicUrl;
+
             } catch (err: any) {
                 if (err.name === 'AbortError' || signal?.aborted) throw err;
-                console.warn(`[Storage] ⚠️ Tentativa ${i + 1} falhou:`, err.message);
+                console.warn(`[Storage/R2] ⚠️ Tentativa ${i + 1} falhou:`, err.message);
 
                 if (i === retryCount) throw err;
                 await new Promise(resolve => setTimeout(resolve, 1500));
@@ -129,36 +144,45 @@ export const StorageService = {
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.webp`;
         // Não usa tenantId, salva diretamente na subpasta do dropzone
         const fullPath = `${cleanPath}/${fileName}`.replace(/\/+/g, '/');
+        const contentType = 'image/webp';
 
-        console.log(`[Storage/Dropzone] 📤 Uploading ${fullPath} (${(blobOrFile.size / 1024).toFixed(0)}KB)...`);
+        console.log(`[Storage/Dropzone R2] 📤 Uploading ${fullPath} (${(blobOrFile.size / 1024).toFixed(0)}KB)...`);
 
         for (let i = 0; i <= retryCount; i++) {
             if (signal?.aborted) throw new Error('AbortError');
 
             try {
                 // USA publicSupabase para chamadas sem RLS associada a sessão auth (upload anônimo cego)
-                const uploadPromise = publicSupabase.storage
-                    .from('nexus-public-dropzone')
-                    .upload(fullPath, blobOrFile, {
-                        contentType: 'image/webp',
-                        upsert: true,
-                        cacheControl: '3600'
-                    });
+                const { data: signData, error: signError } = await publicSupabase.functions.invoke('r2-operations', {
+                    body: { action: 'upload', path: fullPath, bucketType: 'dropzone', contentType }
+                });
 
-                const networkTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('NETWORK_TIMEOUT_45S')), 45000));
-                const { data, error } = await Promise.race([uploadPromise, networkTimeout]) as any;
+                if (signError || !signData?.signedUrl) {
+                    throw new Error(signError?.message || 'Failed to get signed URL for dropzone');
+                }
 
-                if (error) throw error;
-                if (!data) throw new Error("EMPTY_STORAGE_RESPONSE");
+                const uploadPromise = fetch(signData.signedUrl, {
+                    method: 'PUT',
+                    body: blobOrFile,
+                    headers: {
+                        'Content-Type': contentType
+                    },
+                    signal
+                });
 
-                const { data: urlData } = publicSupabase.storage
-                    .from('nexus-public-dropzone')
-                    .getPublicUrl(fullPath);
+                const networkTimeout = new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('NETWORK_TIMEOUT_45S')), 45000));
+                const response = await Promise.race([uploadPromise, networkTimeout]);
 
-                return urlData.publicUrl;
+                if (!response.ok) {
+                    throw new Error(`R2 Dropzone Upload Failed: ${response.status} ${response.statusText}`);
+                }
+
+                // O bucket dropzone ignora a env privada e retorna direto a pública assinada gerada pela Edge Function
+                return signData.publicUrl;
+
             } catch (err: any) {
                 if (err.name === 'AbortError' || signal?.aborted) throw err;
-                console.warn(`[Storage/Dropzone] ⚠️ Tentativa ${i + 1} falhou:`, err.message);
+                console.warn(`[Storage/Dropzone R2] ⚠️ Tentativa ${i + 1} falhou:`, err.message);
 
                 if (i === retryCount) throw err;
                 await new Promise(resolve => setTimeout(resolve, 1500));
