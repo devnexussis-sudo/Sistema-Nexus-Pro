@@ -350,7 +350,7 @@ ${greetingInstruction}`,
           Authorization: `Bearer ${groqApiKey}`,
         },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-8b-instant",
           messages: llmMessages,
           tools: TOOLS,
           tool_choice: "auto",
