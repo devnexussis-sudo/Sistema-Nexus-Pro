@@ -130,7 +130,7 @@ async function executeTool(
             .from("customers")
             .select("id, name, trading_name, document, email, phone, whatsapp")
             .eq("tenant_id", args.tenant_id)
-            .or(`document.eq.${cleanCnpj},document.eq.${formattedCnpj}`)
+            .in("document", [cleanCnpj, formattedCnpj])
             .limit(1)
             .single();
 
