@@ -21,6 +21,7 @@ import { QuoteManagement } from '../../components/admin/QuoteManagement';
 import { AIAgent } from '../../components/admin/AIAgent';
 import { DocsPage } from '../../components/admin/DocsPage';
 import { IntegrationsPage } from '../../components/admin/IntegrationsPage';
+import { WhatsAppInbox } from '../../components/admin/WhatsAppInbox';
 import { DataService } from '../../services/dataService';
 import SessionStorage from '../../lib/sessionStorage';
 import {
@@ -404,6 +405,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
 
                 <Route path="/ai" element={<AIAgent />} />
                 <Route path="/docs" element={<DocsPage />} />
+                <Route path="/whatsapp" element={<PermissionGuard requiredMenu="settings"><WhatsAppInbox /></PermissionGuard>} />
                 <Route path="/integrations" element={<PermissionGuard requiredMenu="settings"><IntegrationsPage /></PermissionGuard>} />
 
                 {/* Fallback */}

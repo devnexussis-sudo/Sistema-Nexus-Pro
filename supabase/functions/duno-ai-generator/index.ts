@@ -70,10 +70,28 @@ ${contextText}
 
 LEMBRETE: Responda EXCLUSIVAMENTE em PORTUGUÊS DO BRASIL. Seja completo e útil.`;
 
-    // Se a requisição veio do Chatbot Global, adiciona a persona bem-humorada
-    const finalSystemPrompt = persona === 'chat' 
-      ? systemPrompt + `\n\nDIRETRIZ DE PERSONALIDADE ESPECIAL: Você está conversando em um chat flutuante de suporte direto com o usuário. Seja EXTREMAMENTE bem-humorado, amigável, acolhedor e use BASTANTE emojis/stickers nas suas respostas! O sistema se chama DUNO (nunca Nexus). Faça o usuário sorrir enquanto responde com precisão.`
-      : systemPrompt;
+    // Se a requisição veio do aplicativo móvel de forma restrita
+    const restrictedSystemPrompt = `IDIOMA OBRIGATÓRIO: Português do Brasil (pt-BR). Responda SEMPRE em português. NUNCA em inglês.
+
+Você é a Duno IA, assistente inteligente técnica do aplicativo móvel para técnicos em campo.
+Sua única e exclusiva função é responder perguntas baseando-se estritamente nos manuais e PDFs de aprendizado fornecidos.
+
+DIRETRIZES RÍGIDAS DE RESTRIÇÃO:
+1. NADA DO SISTEMA ADMINISTRATIVO: Você não tem acesso a dados reais do sistema, status de ordens de serviço, listas de clientes, faturamento, rotas, etc. Você não deve simular ou inventar essas informações.
+2. LIMITAÇÃO DE ESCOPO: Se o usuário perguntar sobre dados em tempo real, como criar itens no painel web, ou qualquer outra funcionalidade administrativa que não esteja descrita nos manuais anexados, responda educadamente informando que você só tem permissão para responder a dúvidas técnicas sobre os equipamentos e procedimentos contidos nos manuais/PDFs aprendidos.
+3. INSTRUÇÕES PRECISAS: Forneça respostas completas e passo a passo baseadas apenas no contexto fornecido.
+4. HONESTIDADE: Se os manuais anexados não contiverem a resposta, diga educadamente: "Não encontrei essa informação nos manuais e PDFs de aprendizado disponíveis no meu sistema."
+
+MANUAIS DE REFERÊNCIA:
+${contextText}
+
+LEMBRETE: Responda EXCLUSIVAMENTE em PORTUGUÊS DO BRASIL. Seja objetivo, direto e técnico.`;
+
+    const finalSystemPrompt = persona === 'mobile_restricted'
+      ? restrictedSystemPrompt
+      : (persona === 'chat' 
+        ? systemPrompt + `\n\nDIRETRIZ DE PERSONALIDADE ESPECIAL: Você está conversando em um chat flutuante de suporte direto com o usuário. Seja EXTREMAMENTE bem-humorado, amigável, acolhedor e use BASTANTE emojis/stickers nas suas respostas! O sistema se chama DUNO (nunca Nexus). Faça o usuário sorrir enquanto responde com precisão.`
+        : systemPrompt);
 
     let answer = "";
 
@@ -163,7 +181,7 @@ LEMBRETE: Responda EXCLUSIVAMENTE em PORTUGUÊS DO BRASIL. Seja completo e útil
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   contents: [{ role: "user", parts: [{ text: query }] }],
-                  system_instruction: { parts: [{ text: systemPrompt }] },
+                  system_instruction: { parts: [{ text: finalSystemPrompt }] },
                   generation_config: { temperature: 0.2, max_output_tokens: 2048 }
                 }),
               }
@@ -202,7 +220,7 @@ LEMBRETE: Responda EXCLUSIVAMENTE em PORTUGUÊS DO BRASIL. Seja completo e útil
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 contents: [{ role: "user", parts: [{ text: query }] }],
-                system_instruction: { parts: [{ text: systemPrompt }] },
+                system_instruction: { parts: [{ text: finalSystemPrompt }] },
                 generation_config: { temperature: 0.2, max_output_tokens: 2048 }
               }),
             }

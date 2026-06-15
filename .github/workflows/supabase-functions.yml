@@ -25,3 +25,9 @@ jobs:
 
       - name: 🚀 Deploy da Edge Function (r2-operations)
         run: supabase functions deploy r2-operations --project-ref $PROJECT_ID
+
+      - name: 🚀 Deploy Edge Functions (WhatsApp Bot)
+        run: |
+          supabase functions deploy whatsapp-bot --project-ref $PROJECT_ID
+          supabase functions deploy whatsapp-ai-agent --project-ref $PROJECT_ID
+          supabase functions deploy whatsapp-admin-send --project-ref $PROJECT_ID

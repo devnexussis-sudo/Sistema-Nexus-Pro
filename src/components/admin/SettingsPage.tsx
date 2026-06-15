@@ -9,7 +9,7 @@ import {
   Navigation, Smartphone, Lock, Unlock, ListOrdered,
   ShieldAlert, X, UploadCloud, Languages,
   BellRing, Database, History, HardDrive, Loader2, Loader, Share2, PlayCircle, PieChart, Target, ImagePlus,
-  Monitor
+  Monitor, MapPinned, MessageCircle, QrCode, Wifi, WifiOff
 } from 'lucide-react';
 import { useI18n, TIMEZONE_OPTIONS, type SupportedLocale, type SupportedTimezone } from '../../i18n';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -45,6 +45,7 @@ interface SystemParams {
   sessionTimeout: string;
   backupFrequency: 'daily' | 'weekly' | 'monthly';
   showItemPricesInApp: boolean;
+  requireLocationForExecution: boolean;
   showItemPricesInPublicView: boolean;
   allowOsSharing: boolean;
   allowMultipleInProgress: boolean;
@@ -58,6 +59,19 @@ interface SystemParams {
   // Controles do Link Público
   showVisitHistoryInPublicLink: boolean;
   enableGeofencing: boolean;
+  // Check-in Automático
+  autoCheckin: boolean;
+}
+
+interface WhatsAppConfig {
+  evolution_api_url: string;
+  evolution_api_key: string;
+  instance_name: string;
+  bot_enabled: boolean;
+  bot_name: string;
+  greeting_message: string;
+  human_keyword: string;
+  phone_number_display: string;
 }
 
 export const SettingsPage: React.FC = () => {
@@ -73,13 +87,28 @@ export const SettingsPage: React.FC = () => {
   };
 
   // Primeira aba acessível como default
-  const firstAvailable = (['company', 'system', 'app', 'dashboard'] as const).find(k => tabAccess[k]) || 'company';
+  const firstAvailable = (['company', 'system', 'app', 'dashboard', 'whatsapp'] as const).find(k =>
+    k === 'whatsapp' ? isAdmin : tabAccess[k as keyof typeof tabAccess]
+  ) || 'company';
 
-  const [activeTab, setActiveTab] = useState<'company' | 'system' | 'app' | 'dashboard'>(firstAvailable);
+  const [activeTab, setActiveTab] = useState<'company' | 'system' | 'app' | 'dashboard' | 'whatsapp'>(firstAvailable as any);
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showSuperUserUnlock, setShowSuperUserUnlock] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [whatsapp, setWhatsapp] = useState<WhatsAppConfig>({
+    evolution_api_url: '',
+    evolution_api_key: '',
+    instance_name: '',
+    bot_enabled: false,
+    bot_name: '',
+    greeting_message: '',
+    human_keyword: 'ATENDENTE',
+    phone_number_display: '',
+  });
+  const [wppTestStatus, setWppTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
+  const [wppQrCode, setWppQrCode] = useState<string | null>(null);
+  const [wppConnected, setWppConnected] = useState(false);
 
   // Estados com Inicialização por LocalStorage (como fallback inicial)
   const [company, setCompany] = useState<CompanyData>({
@@ -124,6 +153,8 @@ export const SettingsPage: React.FC = () => {
     sla48hTargetPercentage: 90,
     showVisitHistoryInPublicLink: true,
     enableGeofencing: false,
+    autoCheckin: false,
+    requireLocationForExecution: false,
   });
 
   const [dbInfo, setDbInfo] = useState<{ slug: string, id: string } | null>(null);
@@ -176,7 +207,25 @@ export const SettingsPage: React.FC = () => {
         sla48hTargetPercentage: data.metadata?.sla48hTargetPercentage ?? 90,
         showVisitHistoryInPublicLink: data.metadata?.showVisitHistoryInPublicLink ?? true,
         enableGeofencing: data.metadata?.enableGeofencing ?? false,
+        autoCheckin: data.metadata?.autoCheckin ?? false,
+        requireLocationForExecution: data.metadata?.requireLocationForExecution ?? false,
       }));
+
+      // Sync WhatsApp settings
+      if (data.whatsapp_settings) {
+        const ws = data.whatsapp_settings as Record<string, any>;
+        setWhatsapp({
+          evolution_api_url: ws.evolution_api_url || '',
+          evolution_api_key: ws.evolution_api_key || '',
+          instance_name: ws.instance_name || '',
+          bot_enabled: ws.bot_enabled ?? false,
+          bot_name: ws.bot_name || '',
+          greeting_message: ws.greeting_message || '',
+          human_keyword: ws.human_keyword || 'ATENDENTE',
+          phone_number_display: ws.phone_number_display || '',
+        });
+        setWppConnected(ws.connected ?? false);
+      }
 
       // Sincronizar I18nContext com dados do banco
       if (data.metadata?.language) {
@@ -315,7 +364,9 @@ export const SettingsPage: React.FC = () => {
         cep: company.zip,
         metadata: {
           ...data?.metadata,
+          timezone: params.timezone,
           showItemPricesInApp: params.showItemPricesInApp,
+          requireLocationForExecution: params.requireLocationForExecution,
           showItemPricesInPublicView: params.showItemPricesInPublicView,
           techAdvancedSettings: params.techAdvancedSettings,
           allowOsSharing: params.allowOsSharing,
@@ -325,11 +376,11 @@ export const SettingsPage: React.FC = () => {
           allowImpediment: params.allowImpediment,
           showVisitHistory: params.showVisitHistory,
           language: params.language,
-          timezone: params.timezone,
           slaTargetPercentage: params.slaTargetPercentage,
           sla48hTargetPercentage: params.sla48hTargetPercentage,
           showVisitHistoryInPublicLink: params.showVisitHistoryInPublicLink,
           enableGeofencing: params.enableGeofencing,
+          autoCheckin: params.autoCheckin,
         }
       };
 
@@ -490,6 +541,15 @@ export const SettingsPage: React.FC = () => {
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'dashboard' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
             >
               <PieChart size={14} /> {t.settings.tabs.dashboard}
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('whatsapp')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'whatsapp' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <MessageCircle size={14} /> WhatsApp Bot
             </button>
           )}
         </div>
@@ -985,6 +1045,47 @@ export const SettingsPage: React.FC = () => {
 
                     {/* ──── NOVOS TOGGLES ──── */}
 
+                    {/* Toggle: Check-in Automático */}
+                    <div className="flex items-start gap-4 p-4 bg-emerald-50/60 rounded-2xl border border-emerald-100 group transition-all hover:bg-white hover:shadow-xl col-span-full">
+                      <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.autoCheckin ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                        <MapPinned size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">Check-in Automático</h4>
+                            <span className="text-[8px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full uppercase tracking-wider">Novo</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setParams({ ...params, autoCheckin: !params.autoCheckin })}
+                            className={`w-10 h-5 rounded-full relative transition-colors ${params.autoCheckin ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                          >
+                            <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: params.autoCheckin ? '22px' : '2px' }}></div>
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
+                          Quando ativado, o app detecta automaticamente a chegada do técnico ao endereço do cliente (raio de 50 m por 10 minutos) e inicia a OS sem intervenção manual, marcando como "Cheguei no Cliente".
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Restringir Execução por Localização */}
+                    <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.requireLocationForExecution ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">Restringir Execução (300m)</h4>
+                        <button
+                          onClick={() => setParams({ ...params, requireLocationForExecution: !params.requireLocationForExecution })}
+                          className={`w-10 h-5 rounded-full relative transition-colors ${params.requireLocationForExecution ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                        >
+                          <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: params.requireLocationForExecution ? '22px' : '2px' }}></div>
+                        </button>
+                      </div>
+                      <p className={`text-[10px] leading-snug mt-1 ${params.requireLocationForExecution ? 'text-emerald-50' : 'text-gray-500'}`}>
+                        O técnico só conseguirá executar a OS se estiver a menos de 300 metros do cliente (ignorado se o app estiver offline).
+                      </p>
+                    </div>
+
                     <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
                       <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.showClientContact ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
                         <Phone size={20} />
@@ -1073,6 +1174,209 @@ export const SettingsPage: React.FC = () => {
               </div>
             )}
           </form>
+
+            {/* ═══ WHATSAPP BOT TAB ═══ */}
+            {activeTab === 'whatsapp' && isAdmin && (
+              <div className="space-y-4 animate-fade-in py-2">
+                <section className="bg-white p-4 rounded-xl border border-gray-100 shadow-xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-gray-50 pb-3">
+                    <div>
+                      <h2 className="text-lg font-medium text-gray-900 uppercase tracking-tight leading-none flex items-center gap-2">
+                        <MessageCircle size={18} className="text-emerald-500" /> WhatsApp Bot
+                      </h2>
+                      <p className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mt-1">Automação de atendimento via WhatsApp</p>
+                    </div>
+                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                      wppConnected ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-gray-50 text-gray-400 border-gray-200'
+                    }`}>
+                      {wppConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
+                      {wppConnected ? 'Conectado' : 'Desconectado'}
+                    </div>
+                  </div>
+
+                  {/* Evolution API Credentials */}
+                  <div className="space-y-3">
+                    <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">🔌 Evolution API</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">URL do Servidor</label>
+                        <input
+                          type="url"
+                          value={whatsapp.evolution_api_url}
+                          onChange={e => setWhatsapp({ ...whatsapp, evolution_api_url: e.target.value })}
+                          placeholder="https://sua-evolution-api.com"
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">API Key</label>
+                        <input
+                          type="password"
+                          value={whatsapp.evolution_api_key}
+                          onChange={e => setWhatsapp({ ...whatsapp, evolution_api_key: e.target.value })}
+                          placeholder="Chave secreta da Evolution API"
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Nome da Instância</label>
+                        <input
+                          type="text"
+                          value={whatsapp.instance_name}
+                          onChange={e => setWhatsapp({ ...whatsapp, instance_name: e.target.value })}
+                          placeholder="minha-empresa-bot"
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Número exibido (ex: (35) 9999-8888)</label>
+                        <input
+                          type="text"
+                          value={whatsapp.phone_number_display}
+                          onChange={e => setWhatsapp({ ...whatsapp, phone_number_display: e.target.value })}
+                          placeholder="(00) 00000-0000"
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Actions: Test + QR Code */}
+                    <div className="flex gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!whatsapp.evolution_api_url || !whatsapp.evolution_api_key || !whatsapp.instance_name) return;
+                          setWppTestStatus('testing');
+                          try {
+                            const res = await fetch(`${whatsapp.evolution_api_url}/instance/connectionState/${whatsapp.instance_name}`, {
+                              headers: { apikey: whatsapp.evolution_api_key }
+                            });
+                            const json = await res.json();
+                            const connected = json?.instance?.state === 'open';
+                            setWppConnected(connected);
+                            setWppTestStatus(connected ? 'ok' : 'error');
+                          } catch { setWppTestStatus('error'); }
+                        }}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wide border transition-all ${
+                          wppTestStatus === 'ok' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
+                          wppTestStatus === 'error' ? 'bg-red-50 text-red-500 border-red-200' :
+                          'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        <Wifi size={14} />
+                        {wppTestStatus === 'testing' ? 'Verificando...' : wppTestStatus === 'ok' ? 'Conectado ✓' : wppTestStatus === 'error' ? 'Falhou ✗' : 'Testar Conexão'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!whatsapp.evolution_api_url || !whatsapp.evolution_api_key || !whatsapp.instance_name) return;
+                          try {
+                            const res = await fetch(`${whatsapp.evolution_api_url}/instance/connect/${whatsapp.instance_name}`, {
+                              headers: { apikey: whatsapp.evolution_api_key }
+                            });
+                            const json = await res.json();
+                            setWppQrCode(json?.base64 || null);
+                          } catch (e) { console.error('QR Code error', e); }
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wide border bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 transition-all"
+                      >
+                        <QrCode size={14} /> Gerar QR Code
+                      </button>
+                    </div>
+
+                    {/* QR Code display */}
+                    {wppQrCode && (
+                      <div className="flex flex-col items-center gap-2 p-4 bg-white border border-emerald-100 rounded-2xl">
+                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Escaneie no WhatsApp do número do cliente</p>
+                        <img src={wppQrCode} alt="QR Code WhatsApp" className="w-48 h-48 rounded-xl" />
+                        <p className="text-[9px] text-gray-400">WhatsApp → Aparelhos conectados → Conectar aparelho</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bot Config */}
+                  <div className="space-y-3 border-t border-gray-50 pt-4">
+                    <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">🤖 Configurações do Bot</h3>
+                    
+                    {/* Bot Enable Toggle */}
+                    <div className={`p-3 rounded-xl shadow-inner transition-colors ${whatsapp.bot_enabled ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">Bot Ativo</h4>
+                        <button
+                          type="button"
+                          onClick={() => setWhatsapp({ ...whatsapp, bot_enabled: !whatsapp.bot_enabled })}
+                          className={`w-10 h-5 rounded-full relative transition-colors ${whatsapp.bot_enabled ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                        >
+                          <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: whatsapp.bot_enabled ? '22px' : '2px' }}></div>
+                        </button>
+                      </div>
+                      <p className={`text-[10px] leading-snug ${whatsapp.bot_enabled ? 'text-emerald-50' : 'text-gray-500'}`}>
+                        Quando ativado, o bot responde automaticamente as mensagens recebidas no número configurado.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Nome do Bot (ex: Assistente TechCool)</label>
+                        <input
+                          type="text"
+                          value={whatsapp.bot_name}
+                          onChange={e => setWhatsapp({ ...whatsapp, bot_name: e.target.value })}
+                          placeholder={`Assistente ${data?.trading_name || data?.company_name || 'da Empresa'}`}
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Palavra para chamar humano</label>
+                        <input
+                          type="text"
+                          value={whatsapp.human_keyword}
+                          onChange={e => setWhatsapp({ ...whatsapp, human_keyword: e.target.value })}
+                          placeholder="ATENDENTE"
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Mensagem de boas-vindas customizada (opcional)</label>
+                      <textarea
+                        value={whatsapp.greeting_message}
+                        onChange={e => setWhatsapp({ ...whatsapp, greeting_message: e.target.value })}
+                        rows={3}
+                        placeholder={`Olá! Sou o assistente virtual da ${data?.trading_name || 'sua empresa'}. Informe seu CNPJ ou número de série do equipamento para começar.`}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none resize-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Save button for whatsapp */}
+                  <div className="flex justify-end border-t border-gray-50 pt-3">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!dbInfo?.id) return;
+                        setLoading(true);
+                        try {
+                          const { supabase } = await import('../../lib/supabase');
+                          await supabase.from('tenants').update({
+                            whatsapp_settings: {
+                              ...whatsapp,
+                              connected: wppConnected,
+                            }
+                          }).eq('id', dbInfo.id);
+                          setSaved(true);
+                          setTimeout(() => setSaved(false), 3000);
+                        } finally { setLoading(false); }
+                      }}
+                      className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white rounded-xl text-[11px] font-bold uppercase tracking-wide hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+                    >
+                      <Save size={14} /> Salvar WhatsApp
+                    </button>
+                  </div>
+                </section>
+              </div>
+            )}
         </div>
       </div>
     </div>
