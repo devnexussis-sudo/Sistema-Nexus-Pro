@@ -184,16 +184,19 @@ async function executeTool(
           .from("orders")
           .select("id, display_id, sequence_number, title, description, status, operation_type, created_at, start_date, scheduled_date, public_token, users(name, phone), customers(name, trading_name)");
 
-        if (args.order_ref.includes("-") && args.order_ref.length < 20) {
-          // Código de exibição como "OS-2847"
-          query = query.or(`display_id.eq.${args.order_ref},display_id.ilike.%${args.order_ref}%`);
+        const ref = args.order_ref.trim();
+        if (ref.length === 36 && ref.includes("-")) {
+          query = query.eq("id", ref);
         } else {
-          query = query.eq("id", args.order_ref);
+          const seq = ref.replace(/\D/g, "");
+          if (seq) {
+            query = query.or(`display_id.ilike.%${ref}%,sequence_number.eq.${seq}`);
+          } else {
+            query = query.ilike("display_id", `%${ref}%`);
+          }
         }
 
-        if (args.tenant_id) {
-          query = query.eq("tenant_id", args.tenant_id);
-        }
+        query = query.eq("tenant_id", args.tenant_id);
 
         const { data, error } = await query.limit(1).single();
         if (error || !data) return JSON.stringify({ error: "OS não encontrada." });
