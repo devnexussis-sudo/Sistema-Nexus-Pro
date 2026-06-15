@@ -158,6 +158,8 @@ export const SettingsPage: React.FC = () => {
   });
 
   const [dbInfo, setDbInfo] = useState<{ slug: string, id: string } | null>(null);
+  // Ref para evitar que o Realtime apague os dados recém-salvos
+  const wppSyncedRef = React.useRef(false);
 
   // 📡 Nexus Resilient Hook (Big Tech standard)
   const { data: data, isLoading: tenantLoading, isError: tenantError, error: queryError, refetch: refetchTenant } = useTenant();
@@ -211,20 +213,25 @@ export const SettingsPage: React.FC = () => {
         requireLocationForExecution: data.metadata?.requireLocationForExecution ?? false,
       }));
 
-      // Sync WhatsApp settings
-      if (data.whatsapp_settings) {
-        const ws = data.whatsapp_settings as Record<string, any>;
-        setWhatsapp({
-          evolution_api_url: ws.evolution_api_url || '',
-          evolution_api_key: ws.evolution_api_key || '',
-          instance_name: ws.instance_name || '',
-          bot_enabled: ws.bot_enabled ?? false,
-          bot_name: ws.bot_name || '',
-          greeting_message: ws.greeting_message || '',
-          human_keyword: ws.human_keyword || 'ATENDENTE',
-          phone_number_display: ws.phone_number_display || '',
-        });
-        setWppConnected(ws.connected ?? false);
+      // Sync WhatsApp settings — só sincroniza do banco se ainda não foi sincronizado
+      // ou se o banco tem dados reais (evita que o Realtime apague dados recém-salvos)
+      const ws = data.whatsapp_settings as Record<string, any> | null;
+      const hasRealWppData = ws && ws.evolution_api_url;
+      if (hasRealWppData || !wppSyncedRef.current) {
+        if (ws) {
+          setWhatsapp({
+            evolution_api_url: ws.evolution_api_url || '',
+            evolution_api_key: ws.evolution_api_key || '',
+            instance_name: ws.instance_name || '',
+            bot_enabled: ws.bot_enabled ?? false,
+            bot_name: ws.bot_name || '',
+            greeting_message: ws.greeting_message || '',
+            human_keyword: ws.human_keyword || 'ATENDENTE',
+            phone_number_display: ws.phone_number_display || '',
+          });
+          setWppConnected(ws.connected ?? false);
+        }
+        wppSyncedRef.current = true;
       }
 
       // Sincronizar I18nContext com dados do banco
@@ -1248,36 +1255,77 @@ export const SettingsPage: React.FC = () => {
                           if (!whatsapp.evolution_api_url || !whatsapp.evolution_api_key || !whatsapp.instance_name) return;
                           setWppTestStatus('testing');
                           try {
-                            const res = await fetch(`${whatsapp.evolution_api_url}/instance/connectionState/${whatsapp.instance_name}`, {
-                              headers: { apikey: whatsapp.evolution_api_key }
+                            const url = whatsapp.evolution_api_url.trim().replace(/\/+$/, '');
+                            const key = whatsapp.evolution_api_key.trim();
+                            const instance = whatsapp.instance_name.trim();
+                            const res = await fetch(`${url}/instance/connectionState/${instance}`, {
+                              headers: { apikey: key }
                             });
                             const json = await res.json();
-                            const connected = json?.instance?.state === 'open';
-                            setWppConnected(connected);
-                            setWppTestStatus(connected ? 'ok' : 'error');
-                          } catch { setWppTestStatus('error'); }
+                            const state = json?.instance?.state;
+                            if (state === 'open') {
+                              setWppConnected(true);
+                              setWppTestStatus('ok');
+                            } else if (state === 'connecting') {
+                              setWppConnected(false);
+                              setWppTestStatus('connecting');
+                            } else {
+                              setWppConnected(false);
+                              setWppTestStatus('error');
+                            }
+                          } catch (e) {
+                            console.error('Teste conexão erro:', e);
+                            setWppTestStatus('error');
+                          }
                         }}
                         className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wide border transition-all ${
                           wppTestStatus === 'ok' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
+                          wppTestStatus === 'connecting' ? 'bg-yellow-50 text-yellow-600 border-yellow-200' :
                           wppTestStatus === 'error' ? 'bg-red-50 text-red-500 border-red-200' :
                           'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
                         }`}
                       >
                         <Wifi size={14} />
-                        {wppTestStatus === 'testing' ? 'Verificando...' : wppTestStatus === 'ok' ? 'Conectado ✓' : wppTestStatus === 'error' ? 'Falhou ✗' : 'Testar Conexão'}
+                        {wppTestStatus === 'testing' ? 'Verificando...' :
+                         wppTestStatus === 'ok' ? 'Conectado ✓' :
+                         wppTestStatus === 'connecting' ? 'Aguard. QR Code ⚠' :
+                         wppTestStatus === 'error' ? 'Falhou ✗' : 'Testar Conexão'}
                       </button>
 
                       <button
                         type="button"
                         onClick={async () => {
                           if (!whatsapp.evolution_api_url || !whatsapp.evolution_api_key || !whatsapp.instance_name) return;
+                          setWppQrCode(null);
                           try {
-                            const res = await fetch(`${whatsapp.evolution_api_url}/instance/connect/${whatsapp.instance_name}`, {
-                              headers: { apikey: whatsapp.evolution_api_key }
+                            const url = whatsapp.evolution_api_url.trim().replace(/\/+$/, '');
+                            const key = whatsapp.evolution_api_key.trim();
+                            const instance = whatsapp.instance_name.trim();
+                            
+                            const reqUrl = `${url}/instance/connect/${instance}`;
+                            console.log('[QR Code] Chamando:', reqUrl);
+                            const res = await fetch(reqUrl, {
+                              headers: { apikey: key }
                             });
+                            console.log('[QR Code] Status HTTP:', res.status);
                             const json = await res.json();
-                            setWppQrCode(json?.base64 || null);
-                          } catch (e) { console.error('QR Code error', e); }
+                            console.log('[QR Code] Resposta completa:', JSON.stringify(json).substring(0, 200));
+                            // Evolution API v2 pode retornar base64 direto ou dentro de qrcode
+                            const qrBase64 = json?.base64 || json?.qrcode?.base64 || json?.qr?.base64 || null;
+                            console.log('[QR Code] base64 encontrado?', !!qrBase64, '| início:', String(qrBase64 || '').substring(0, 30));
+                            if (qrBase64) {
+                              // Garante que tem o prefixo correto
+                              const src = qrBase64.startsWith('data:') ? qrBase64 : `data:image/png;base64,${qrBase64}`;
+                              setWppQrCode(src);
+                            } else {
+                              const msg = `QR Code não encontrado.\nResposta da API: ${JSON.stringify(json).substring(0, 300)}`;
+                              console.error('[QR Code]', msg);
+                              alert(msg);
+                            }
+                          } catch (e: any) {
+                            console.error('[QR Code] Erro fetch:', e);
+                            alert(`Erro ao conectar: ${e?.message || 'Verifique o console F12'}`);
+                          }
                         }}
                         className="flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wide border bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 transition-all"
                       >
@@ -1355,18 +1403,54 @@ export const SettingsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={async () => {
-                        if (!dbInfo?.id) return;
+                        if (!dbInfo?.id) {
+                          alert('❌ ID do tenant não encontrado. Recarregue a página.');
+                          return;
+                        }
                         setLoading(true);
                         try {
                           const { supabase } = await import('../../lib/supabase');
-                          await supabase.from('tenants').update({
-                            whatsapp_settings: {
-                              ...whatsapp,
-                              connected: wppConnected,
-                            }
-                          }).eq('id', dbInfo.id);
+
+                          // Diagnóstico: verifica se consegue ler o próprio tenant
+                          const { data: readCheck, error: readErr } = await supabase
+                            .from('tenants')
+                            .select('id')
+                            .eq('id', dbInfo.id)
+                            .single();
+
+                          if (readErr || !readCheck) {
+                            alert(`❌ Sem acesso ao tenant!\nID: ${dbInfo.id}\nErro: ${readErr?.message || 'não encontrado'}`);
+                            return;
+                          }
+
+                          const { data: updated, error } = await supabase
+                            .from('tenants')
+                            .update({
+                              whatsapp_settings: {
+                                ...whatsapp,
+                                connected: wppConnected,
+                              }
+                            })
+                            .eq('id', dbInfo.id)
+                            .select('id, whatsapp_settings');
+
+                          if (error) {
+                            console.error('[WhatsApp Save] Erro RLS:', error);
+                            alert(`❌ Erro ao salvar: ${error.message}\nCódigo: ${error.code}`);
+                            return;
+                          }
+
+                          if (!updated || updated.length === 0) {
+                            alert(`❌ Salvo bloqueado por RLS (0 linhas afetadas).\nID usado: ${dbInfo.id}\nVerifique a policy "tenants_update_admin" no Supabase.`);
+                            return;
+                          }
+
+                          console.log('[WhatsApp Save] ✅ Salvo com sucesso:', updated[0]);
                           setSaved(true);
                           setTimeout(() => setSaved(false), 3000);
+                        } catch (err: any) {
+                          console.error('[WhatsApp Save] Erro inesperado:', err);
+                          alert(`❌ Erro inesperado: ${err?.message || 'Verifique o console.'}`);
                         } finally { setLoading(false); }
                       }}
                       className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white rounded-xl text-[11px] font-bold uppercase tracking-wide hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"

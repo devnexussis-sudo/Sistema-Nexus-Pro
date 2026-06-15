@@ -338,7 +338,7 @@ ${greetingInstruction}`,
           Authorization: `Bearer ${groqApiKey}`,
         },
         body: JSON.stringify({
-          model: "llama-3.1-70b-versatile",
+          model: "llama-3.3-70b-versatile",
           messages: llmMessages,
           tools: TOOLS,
           tool_choice: "auto",
