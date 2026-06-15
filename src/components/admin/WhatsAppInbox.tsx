@@ -17,7 +17,7 @@ interface Conversation {
   last_message_at: string;
   customer_id: string | null;
   assigned_agent_id: string | null;
-  customers?: { name: string; trading_name?: string; cnpj?: string } | null;
+  customers?: { name: string; trading_name?: string; document?: string } | null;
   users?: { name: string } | null;
 }
 
@@ -57,11 +57,13 @@ export const WhatsAppInbox: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'waiting' | 'active'>('all');
 
   const fetchConversations = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('whatsapp_conversations')
-      .select('*, customers(name, trading_name, cnpj), users(name)')
+      .select('*, customers(name, trading_name, document), users(name)')
       .order('last_message_at', { ascending: false })
       .limit(50);
+    
+    if (error) console.error('Erro ao carregar conversas:', error);
     if (data) setConversations(data as Conversation[]);
     setLoading(false);
   };
@@ -243,7 +245,7 @@ export const WhatsAppInbox: React.FC = () => {
               </div>
               <p className="text-[10px] text-gray-400">
                 <Phone size={10} className="inline mr-1" />{formatPhone(selected.phone_number)}
-                {selected.customers?.cnpj && ` · CNPJ: ${selected.customers.cnpj}`}
+                {selected.customers?.document && ` · Doc: ${selected.customers.document}`}
               </p>
             </div>
             <div className="flex items-center gap-2">
