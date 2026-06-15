@@ -119,10 +119,16 @@ async function executeTool(
       case "find_customer": {
         if (args.cnpj) {
           const cleanCnpj = args.cnpj.replace(/\D/g, "");
+          let formattedCnpj = cleanCnpj;
+          if (cleanCnpj.length === 14) {
+             formattedCnpj = cleanCnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+          }
+
           const { data, error } = await supabase
             .from("customers")
             .select("id, name, trading_name, cnpj, email, phone, whatsapp")
-            .or(`cnpj.eq.${cleanCnpj},cnpj.eq.${args.cnpj}`)
+            .eq("tenant_id", args.tenant_id)
+            .or(`cnpj.eq.${cleanCnpj},cnpj.eq.${formattedCnpj}`)
             .limit(1)
             .single();
 
@@ -133,7 +139,8 @@ async function executeTool(
         if (args.serial_number) {
           const { data, error } = await supabase
             .from("equipments")
-            .select("id, serial_number, model, customer_id, customers(id, name, trading_name, cnpj)")
+            .select("id, serial_number, model, customer_id, customers!inner(id, name, trading_name, cnpj, tenant_id)")
+            .eq("customers.tenant_id", args.tenant_id)
             .ilike("serial_number", `%${args.serial_number}%`)
             .limit(1)
             .single();
@@ -305,7 +312,7 @@ REGRAS:
 5. Ao identificar o cliente, SEMPRE confirme o nome antes de prosseguir
 6. Ao abrir OS, SEMPRE confirme os dados com o cliente antes de criar
 7. Quando não souber resolver, use escalate_to_human
-8. Se o cliente perguntar sobre equipamento, peça o número de série
+8. IMPORTANTÍSSIMO: Se não localizar o CNPJ, solicite ao cliente que informe o NÚMERO DE SÉRIE do equipamento ou o NÚMERO DA OS (se ele já tiver uma aberta).
 9. Formate listas com emojis numerados: 1️⃣ 2️⃣ 3️⃣
 
 ESTADO ATUAL DA CONVERSA: ${conversation.state}
@@ -370,7 +377,9 @@ ${greetingInstruction}`,
       // Executar cada tool call
       for (const toolCall of assistantMsg.tool_calls) {
         const toolName = toolCall.function.name;
+        // Injetar o tenant_id nos argumentos para evitar acesso cruzado e unificar a chamada
         const toolArgs = JSON.parse(toolCall.function.arguments || "{}");
+        toolArgs.tenant_id = tenant_id;
 
         const toolResult = await executeTool(toolName, toolArgs, supabase);
         const parsed = JSON.parse(toolResult);
