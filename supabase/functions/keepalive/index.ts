@@ -1,20 +1,18 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-
-// Configuração do CORS para ser chamada pelo frontend
-const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 serve(async (req) => {
-    // Lidar com a preflight request do CORS
-    if (req.method === 'OPTIONS') {
-        return new Response('ok', { headers: corsHeaders });
-    }
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
 
-    // Resposta simples de ping/keepalive
-    return new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  const { data } = await supabase
+    .from("customers")
+    .select("document, name")
+    .limit(20);
+
+  return new Response(JSON.stringify(data), {
+    headers: { "Content-Type": "application/json" },
+  });
 });
