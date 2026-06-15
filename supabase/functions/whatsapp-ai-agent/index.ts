@@ -122,6 +122,8 @@ async function executeTool(
           let formattedCnpj = cleanCnpj;
           if (cleanCnpj.length === 14) {
              formattedCnpj = cleanCnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+          } else if (cleanCnpj.length === 11) {
+             formattedCnpj = cleanCnpj.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
           }
 
           const { data, error } = await supabase
