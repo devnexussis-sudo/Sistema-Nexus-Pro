@@ -126,9 +126,9 @@ async function executeTool(
 
           const { data, error } = await supabase
             .from("customers")
-            .select("id, name, trading_name, cnpj, email, phone, whatsapp")
+            .select("id, name, trading_name, document, email, phone, whatsapp")
             .eq("tenant_id", args.tenant_id)
-            .or(`cnpj.eq.${cleanCnpj},cnpj.eq.${formattedCnpj}`)
+            .or(`document.eq.${cleanCnpj},document.eq.${formattedCnpj}`)
             .limit(1)
             .single();
 
@@ -139,7 +139,7 @@ async function executeTool(
         if (args.serial_number) {
           const { data, error } = await supabase
             .from("equipments")
-            .select("id, serial_number, model, customer_id, customers!inner(id, name, trading_name, cnpj, tenant_id)")
+            .select("id, serial_number, model, customer_id, customers!inner(id, name, trading_name, document, tenant_id)")
             .eq("customers.tenant_id", args.tenant_id)
             .ilike("serial_number", `%${args.serial_number}%`)
             .limit(1)
