@@ -191,7 +191,7 @@ export const WhatsAppInbox: React.FC = () => {
           {filtered.map(conv => {
             const stateInfo = STATE_LABELS[conv.state] || STATE_LABELS['GREETING'];
             const lastMsg = conv.history[conv.history.length - 1];
-            const customerName = conv.customers?.trading_name || conv.customers?.name;
+            const customerName = conv.customers?.name;
             return (
               <button
                 key={conv.id}
@@ -232,7 +232,7 @@ export const WhatsAppInbox: React.FC = () => {
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-bold text-gray-800">
-                  {selected.customers?.trading_name || selected.customers?.name || formatPhone(selected.phone_number)}
+                  {selected.customers?.name || formatPhone(selected.phone_number)}
                 </p>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                   STATE_LABELS[selected.state]?.dot.includes('orange') ? 'bg-orange-50 text-orange-500 border-orange-200' :
