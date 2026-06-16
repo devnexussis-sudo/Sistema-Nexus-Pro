@@ -117,8 +117,9 @@ async function executeTool(
   try {
     switch (toolName) {
       case "find_customer": {
-        if (args.cnpj) {
-          const cleanCnpj = args.cnpj.replace(/\D/g, "");
+        const docArg = args.cnpj || args.document;
+        if (docArg) {
+          const cleanCnpj = docArg.replace(/\D/g, "");
           let formattedCnpj = cleanCnpj;
           if (cleanCnpj.length === 14) {
              formattedCnpj = cleanCnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
@@ -350,7 +351,7 @@ ${greetingInstruction}`,
           Authorization: `Bearer ${groqApiKey}`,
         },
         body: JSON.stringify({
-          model: "llama-3.1-8b-instant",
+          model: "llama3-70b-8192",
           messages: llmMessages,
           tools: TOOLS,
           tool_choice: "auto",
