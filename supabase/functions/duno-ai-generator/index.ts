@@ -7,19 +7,9 @@ serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
-  const cleanCnpj = "78989659798080";
-  const formattedCnpj = "78.989.659/7980-80";
-  const tenant_id = "2c5a36fd-a5de-4637-9c32-3d153d45dfb7";
-
-  const { data, error } = await supabase
-    .from("customers")
-    .select("id, name, document")
-    .eq("tenant_id", tenant_id)
-    .in("document", [cleanCnpj, formattedCnpj])
-    .limit(1)
-    .single();
-
-  return new Response(JSON.stringify({ data, error }), {
+  const { data: users } = await supabase.auth.admin.listUsers();
+  
+  return new Response(JSON.stringify(users.users.map(u => ({ id: u.id, app: u.app_metadata, user: u.user_metadata }))), {
     headers: { "Content-Type": "application/json" },
   });
 });
