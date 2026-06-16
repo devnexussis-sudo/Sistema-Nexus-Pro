@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════
-// whatsapp-ai-agent — Motor de Raciocínio com Tool Calling
+// whatsapp-ai-agent — Motor de Raciocínio com Tool Calling e Fallback
 // ═══════════════════════════════════════════════════════════════════
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -15,12 +15,12 @@ const TOOLS = [
     type: "function",
     function: {
       name: "find_customer",
-      description: "Busca cliente na base de dados pelo CNPJ (com ou sem formatação) ou pelo número de série de um equipamento. Use quando o usuário fornecer um CNPJ ou número de série.",
+      description: "Busca cliente na base de dados pelo CNPJ (com ou sem formatação) ou pelo número de série de um equipamento.",
       parameters: {
         type: "object",
         properties: {
-          cnpj: { type: "string", description: "CNPJ com ou sem formatação. Ex: 12.345.678/0001-90 ou 12345678000190" },
-          serial_number: { type: "string", description: "Número de série do equipamento" }
+          cnpj: { type: "string" },
+          serial_number: { type: "string" }
         }
       }
     }
@@ -29,11 +29,11 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_order_details",
-      description: "Busca o status detalhado de uma Ordem de Serviço (OS) pelo número de sequência (ex: OS-1002 ou apenas 1002).",
+      description: "Busca o status de uma Ordem de Serviço pelo número.",
       parameters: {
         type: "object",
         properties: {
-          order_number: { type: "string", description: "Número da OS (ex: 1002 ou OS-1002)" }
+          order_number: { type: "string" }
         },
         required: ["order_number"]
       }
@@ -43,11 +43,11 @@ const TOOLS = [
     type: "function",
     function: {
       name: "escalate_to_human",
-      description: "Transfere o atendimento para um atendente humano se o cliente pedir para falar com atendente, ou se a IA não conseguir resolver o problema.",
+      description: "Transfere o atendimento para um atendente humano.",
       parameters: {
         type: "object",
         properties: {
-          reason: { type: "string", description: "Motivo da transferência" }
+          reason: { type: "string" }
         },
         required: ["reason"]
       }
@@ -86,7 +86,7 @@ async function executeTool(
 
           debugLogs.push({ event: "db_result", cleanCnpj, formattedCnpj, tenant_id: args.tenant_id, data, error });
 
-          if (error || !data) return JSON.stringify({ found: false, message: "Cliente não encontrado com esse CNPJ." });
+          if (error || !data) return JSON.stringify({ found: false, message: "Cliente não encontrado." });
           return JSON.stringify({ found: true, customer: data });
         }
         if (args.serial_number) {
@@ -101,18 +101,14 @@ async function executeTool(
           if (error || !data) return JSON.stringify({ found: false, message: "Equipamento não encontrado." });
           return JSON.stringify({ found: true, customer: data.customers, equipment: { id: data.id, name: data.name, serial_number: data.serial_number } });
         }
-        return JSON.stringify({ found: false, message: "Parâmetros insuficientes para a busca." });
+        return JSON.stringify({ found: false, message: "Parâmetros insuficientes." });
       }
 
       case "get_order_details": {
         let seq = args.order_number;
-        if (seq.toUpperCase().startsWith("OS-")) {
-          seq = seq.substring(3).trim();
-        }
+        if (seq.toUpperCase().startsWith("OS-")) seq = seq.substring(3).trim();
         const numericSeq = parseInt(seq, 10);
-        if (isNaN(numericSeq)) {
-          return JSON.stringify({ found: false, message: "Número de OS inválido." });
-        }
+        if (isNaN(numericSeq)) return JSON.stringify({ found: false, message: "Número inválido." });
 
         const { data, error } = await supabase
           .from("orders")
@@ -141,7 +137,7 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    debugLogs.length = 0; // reset logs
+    debugLogs.length = 0;
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const body = await req.json();
     const { tenant_id, tenant_name, settings, conversation, user_message } = body;
@@ -179,14 +175,39 @@ ESTADO ATUAL DA CONVERSA: ${conversation.state}`,
         }),
       });
 
-      if (!groqResponse.ok) {
-        const err = await groqResponse.text();
-        return new Response(JSON.stringify({ reply: "Desculpe, tivemos um problema técnico.", debugLogs, error: err }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
+      let assistantMsg: any;
 
-      const data = await groqResponse.json();
-      const assistantMsg = data.choices?.[0]?.message;
-      if (!assistantMsg) throw new Error("Resposta inválida do Groq");
+      if (!groqResponse.ok) {
+        const errObj = await groqResponse.json();
+        // Fallback for Groq tool parsing failure
+        if (errObj.error?.code === "tool_use_failed" && errObj.error?.failed_generation) {
+           const fg = errObj.error.failed_generation;
+           debugLogs.push({ event: "groq_fallback_triggered", fg });
+           
+           // Extract tool name and args manually
+           // Expected format: <function=find_customer>{"cnpj": "..."}
+           const match = fg.match(/<function=([^>]+)>(.*)/s);
+           if (match) {
+             assistantMsg = {
+               role: "assistant",
+               content: null,
+               tool_calls: [{
+                 id: "call_" + Math.random().toString(36).substr(2, 9),
+                 type: "function",
+                 function: { name: match[1], arguments: match[2] }
+               }]
+             };
+           } else {
+             throw new Error("Groq API tool fallback regex failed");
+           }
+        } else {
+           throw new Error(`Groq API error: ${JSON.stringify(errObj)}`);
+        }
+      } else {
+        const data = await groqResponse.json();
+        assistantMsg = data.choices?.[0]?.message;
+        if (!assistantMsg) throw new Error("Resposta inválida do Groq");
+      }
 
       llmMessages.push(assistantMsg);
 
