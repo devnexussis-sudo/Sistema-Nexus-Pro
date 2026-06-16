@@ -143,7 +143,7 @@ serve(async (req: Request) => {
     const { tenant_id, tenant_name, settings, conversation, user_message } = body;
     let customerId = conversation.customer_id;
     let newState = conversation.state;
-    const groqApiKey = Deno.env.get("GROQ_API_KEY");
+    const openAiApiKey = Deno.env.get("OPENAI_API_KEY") || Deno.env.get("GROQ_API_KEY"); // Fallback to groq if they replace the value there
 
     const recentHistory = conversation.history.slice(-10);
     const llmMessages: any[] = [
@@ -163,11 +163,11 @@ ESTADO ATUAL DA CONVERSA: ${conversation.state}`,
 
     let reply = "";
     for (let i = 0; i < 5; i++) {
-      const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      const openAiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${groqApiKey}`, "Content-Type": "application/json" },
+        headers: { "Authorization": `Bearer ${openAiApiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama-3.1-8b-instant",
+          model: "gpt-4o-mini",
           messages: llmMessages,
           tools: TOOLS,
           tool_choice: "auto",
@@ -177,8 +177,8 @@ ESTADO ATUAL DA CONVERSA: ${conversation.state}`,
 
       let assistantMsg: any;
 
-      if (!groqResponse.ok) {
-        const errObj = await groqResponse.json();
+      if (!openAiResponse.ok) {
+        const errObj = await openAiResponse.json();
         // Fallback for Groq tool parsing failure
         if (errObj.error?.code === "tool_use_failed" && errObj.error?.failed_generation) {
            const fg = errObj.error.failed_generation;
@@ -201,12 +201,12 @@ ESTADO ATUAL DA CONVERSA: ${conversation.state}`,
              throw new Error("Groq API tool fallback regex failed");
            }
         } else {
-           throw new Error(`Groq API error: ${JSON.stringify(errObj)}`);
+           throw new Error(`OpenAI API error: ${JSON.stringify(errObj)}`);
         }
       } else {
-        const data = await groqResponse.json();
+        const data = await openAiResponse.json();
         assistantMsg = data.choices?.[0]?.message;
-        if (!assistantMsg) throw new Error("Resposta inválida do Groq");
+        if (!assistantMsg) throw new Error("Resposta inválida da OpenAI");
       }
 
       llmMessages.push(assistantMsg);
