@@ -78,7 +78,7 @@ async function executeTool(
 
           const { data, error } = await supabase
             .from("customers")
-            .select("id, name, trading_name, document, email, phone, whatsapp")
+            .select("id, name, document, email, phone, whatsapp")
             .eq("tenant_id", args.tenant_id)
             .in("document", [cleanCnpj, formattedCnpj])
             .limit(1)

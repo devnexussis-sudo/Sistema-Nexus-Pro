@@ -17,7 +17,7 @@ interface Conversation {
   last_message_at: string;
   customer_id: string | null;
   assigned_agent_id: string | null;
-  customers?: { name: string; trading_name?: string; document?: string } | null;
+  customers?: { name: string; document?: string } | null;
   users?: { name: string } | null;
 }
 
@@ -59,7 +59,7 @@ export const WhatsAppInbox: React.FC = () => {
   const fetchConversations = async () => {
     const { data, error } = await supabase
       .from('whatsapp_conversations')
-      .select('*, customers(name, trading_name, document), users(name)')
+      .select('*, customers(name, document), users(name)')
       .order('last_message_at', { ascending: false })
       .limit(50);
     
