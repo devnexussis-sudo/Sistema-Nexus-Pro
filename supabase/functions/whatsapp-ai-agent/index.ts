@@ -344,7 +344,7 @@ ${greetingInstruction}`,
     const MAX_ITERATIONS = 5;
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
-        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${groqApiKey}`,
