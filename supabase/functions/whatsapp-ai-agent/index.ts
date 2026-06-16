@@ -1,6 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════
 // whatsapp-ai-agent — Motor de Raciocínio com Tool Calling
-// Groq LLaMA 3.1 70B decide ações, executa tools no banco e gera resposta
 // ═══════════════════════════════════════════════════════════════════
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -10,8 +9,6 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-// ── Tool Definitions ──────────────────────────────────────────────────────────
 
 const TOOLS = [
   {
@@ -23,97 +20,49 @@ const TOOLS = [
         type: "object",
         properties: {
           cnpj: { type: "string", description: "CNPJ com ou sem formatação. Ex: 12.345.678/0001-90 ou 12345678000190" },
-          serial_number: { type: "string", description: "Número de série do equipamento" },
-        },
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "list_orders",
-      description: "Lista as ordens de serviço abertas, em andamento ou recentes do cliente identificado. Retorna ID, status, descrição e técnico.",
-      parameters: {
-        type: "object",
-        properties: {
-          customer_id: { type: "string", description: "UUID do cliente" },
-        },
-        required: ["customer_id"],
-      },
-    },
+          serial_number: { type: "string", description: "Número de série do equipamento" }
+        }
+      }
+    }
   },
   {
     type: "function",
     function: {
       name: "get_order_details",
-      description: "Retorna detalhes completos de uma OS específica pelo código de exibição (ex: OS-2847) ou pelo UUID.",
+      description: "Busca o status detalhado de uma Ordem de Serviço (OS) pelo número de sequência (ex: OS-1002 ou apenas 1002).",
       parameters: {
         type: "object",
         properties: {
-          order_ref: { type: "string", description: "Código da OS (ex: OS-2847) ou UUID" },
-          tenant_id: { type: "string", description: "UUID do tenant" },
+          order_number: { type: "string", description: "Número da OS (ex: 1002 ou OS-1002)" }
         },
-        required: ["order_ref", "tenant_id"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "create_service_order",
-      description: "Abre uma nova ordem de serviço para o cliente. Confirme os dados com o cliente antes de criar.",
-      parameters: {
-        type: "object",
-        properties: {
-          customer_id: { type: "string", description: "UUID do cliente" },
-          tenant_id: { type: "string", description: "UUID do tenant" },
-          description: { type: "string", description: "Descrição do problema relatado pelo cliente" },
-          equipment_serial: { type: "string", description: "Número de série do equipamento com problema (opcional)" },
-          priority: { type: "string", enum: ["low", "medium", "high"], description: "Prioridade: low, medium ou high" },
-        },
-        required: ["customer_id", "tenant_id", "description"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_public_link",
-      description: "Gera o link público de acompanhamento de uma OS para enviar ao cliente.",
-      parameters: {
-        type: "object",
-        properties: {
-          order_id: { type: "string", description: "UUID da OS" },
-        },
-        required: ["order_id"],
-      },
-    },
+        required: ["order_number"]
+      }
+    }
   },
   {
     type: "function",
     function: {
       name: "escalate_to_human",
-      description: "Transfere a conversa para um agente humano quando o bot não conseguir resolver.",
+      description: "Transfere o atendimento para um atendente humano se o cliente pedir para falar com atendente, ou se a IA não conseguir resolver o problema.",
       parameters: {
         type: "object",
         properties: {
-          reason: { type: "string", description: "Motivo da escalada" },
+          reason: { type: "string", description: "Motivo da transferência" }
         },
-        required: ["reason"],
-      },
-    },
-  },
+        required: ["reason"]
+      }
+    }
+  }
 ];
 
-// ── Tool Executor ─────────────────────────────────────────────────────────────
+const debugLogs: any[] = [];
 
 async function executeTool(
   toolName: string,
   args: Record<string, string>,
   supabase: ReturnType<typeof createClient>
 ): Promise<string> {
-  console.log(`[AI Agent] 🔧 Executando tool: ${toolName}`, args);
-
+  debugLogs.push({ event: "tool_called", toolName, args });
   try {
     switch (toolName) {
       case "find_customer": {
@@ -135,198 +84,78 @@ async function executeTool(
             .limit(1)
             .single();
 
+          debugLogs.push({ event: "db_result", cleanCnpj, formattedCnpj, tenant_id: args.tenant_id, data, error });
+
           if (error || !data) return JSON.stringify({ found: false, message: "Cliente não encontrado com esse CNPJ." });
           return JSON.stringify({ found: true, customer: data });
         }
-
         if (args.serial_number) {
           const { data, error } = await supabase
             .from("equipments")
-            .select("id, serial_number, model, customer_id, customers!inner(id, name, trading_name, document, tenant_id)")
-            .eq("customers.tenant_id", args.tenant_id)
-            .ilike("serial_number", `%${args.serial_number}%`)
+            .select("id, name, serial_number, customer_id, customers(id, name, document)")
+            .eq("tenant_id", args.tenant_id)
+            .eq("serial_number", args.serial_number)
             .limit(1)
             .single();
-
-          if (error || !data) return JSON.stringify({ found: false, message: "Equipamento não encontrado com esse número de série." });
-          return JSON.stringify({ found: true, customer: (data as any).customers, equipment: { id: data.id, serial: data.serial_number, model: data.model } });
+          debugLogs.push({ event: "db_result_serial", data, error });
+          if (error || !data) return JSON.stringify({ found: false, message: "Equipamento não encontrado." });
+          return JSON.stringify({ found: true, customer: data.customers, equipment: { id: data.id, name: data.name, serial_number: data.serial_number } });
         }
-
-        return JSON.stringify({ found: false, message: "Forneça CNPJ ou número de série." });
-      }
-
-      case "list_orders": {
-        const { data, error } = await supabase
-          .from("orders")
-          .select("id, display_id, sequence_number, title, status, operation_type, created_at, users(name)")
-          .eq("customer_id", args.customer_id)
-          .not("status", "in", "(CANCELADO,CONCLUÍDO)")
-          .order("created_at", { ascending: false })
-          .limit(5);
-
-        if (error) return JSON.stringify({ error: error.message });
-        if (!data || data.length === 0) return JSON.stringify({ orders: [], message: "Nenhum chamado em aberto encontrado." });
-
-        const orders = data.map((o: any) => ({
-          id: o.id,
-          code: o.display_id || `OS-${o.sequence_number || o.id.substring(0, 6).toUpperCase()}`,
-          title: o.title,
-          status: o.status,
-          type: o.operation_type,
-          created_at: o.created_at,
-          technician: o.users?.name || "Não atribuído",
-        }));
-
-        return JSON.stringify({ orders });
+        return JSON.stringify({ found: false, message: "Parâmetros insuficientes para a busca." });
       }
 
       case "get_order_details": {
-        let query = supabase
-          .from("orders")
-          .select("id, display_id, sequence_number, title, description, status, operation_type, created_at, start_date, scheduled_date, public_token, users(name, phone), customers(name, trading_name)");
-
-        const ref = args.order_ref.trim();
-        if (ref.length === 36 && ref.includes("-")) {
-          query = query.eq("id", ref);
-        } else {
-          const seq = ref.replace(/\D/g, "");
-          if (seq) {
-            query = query.or(`display_id.ilike.%${ref}%,sequence_number.eq.${seq}`);
-          } else {
-            query = query.ilike("display_id", `%${ref}%`);
-          }
+        let seq = args.order_number;
+        if (seq.toUpperCase().startsWith("OS-")) {
+          seq = seq.substring(3).trim();
+        }
+        const numericSeq = parseInt(seq, 10);
+        if (isNaN(numericSeq)) {
+          return JSON.stringify({ found: false, message: "Número de OS inválido." });
         }
 
-        query = query.eq("tenant_id", args.tenant_id);
-
-        const { data, error } = await query.limit(1).single();
-        if (error || !data) return JSON.stringify({ error: "OS não encontrada." });
-
-        const order: any = data;
-        const publicLink = order.public_token
-          ? `${Deno.env.get("SUPABASE_URL")?.replace("supabase.co/", "supabase.co/").split("/rest")[0]}/os/public/${order.public_token}`
-          : null;
-
-        return JSON.stringify({
-          id: order.id,
-          code: order.display_id || `OS-${order.sequence_number}`,
-          title: order.title,
-          description: order.description,
-          status: order.status,
-          type: order.operation_type,
-          technician: order.users?.name || "Não atribuído",
-          technician_phone: order.users?.phone,
-          customer: order.customers?.trading_name || order.customers?.name,
-          scheduled_date: order.scheduled_date,
-          started_at: order.start_date,
-          public_link: publicLink,
-        });
-      }
-
-      case "create_service_order": {
-        const priorityMap: Record<string, string> = {
-          low: "BAIXA",
-          medium: "MÉDIA",
-          high: "ALTA",
-        };
-
         const { data, error } = await supabase
           .from("orders")
-          .insert({
-            tenant_id: args.tenant_id,
-            customer_id: args.customer_id,
-            title: args.description.substring(0, 100),
-            description: args.description,
-            status: "ABERTA",
-            priority: priorityMap[args.priority || "medium"] || "MÉDIA",
-            source: "whatsapp_bot",
-          })
-          .select("id, display_id, sequence_number")
+          .select("id, status, description, scheduled_at, customers(name)")
+          .eq("tenant_id", args.tenant_id)
+          .eq("sequence_id", numericSeq)
+          .limit(1)
           .single();
-
-        if (error || !data) return JSON.stringify({ error: "Falha ao criar OS: " + error?.message });
-
-        const order: any = data;
-        const code = order.display_id || `OS-${order.sequence_number || order.id.substring(0, 6).toUpperCase()}`;
-        return JSON.stringify({ created: true, order_id: order.id, code });
-      }
-
-      case "get_public_link": {
-        const { data, error } = await supabase
-          .from("orders")
-          .select("public_token")
-          .eq("id", args.order_id)
-          .single();
-
-        if (error || !data?.public_token) return JSON.stringify({ link: null, message: "Link público não disponível para esta OS." });
-
-        // Domínio da aplicação — usar variável de ambiente
-        const appDomain = Deno.env.get("APP_DOMAIN") || "https://app.duno.com.br";
-        const link = `${appDomain}/os/public/${data.public_token}`;
-        return JSON.stringify({ link });
+        if (error || !data) return JSON.stringify({ found: false, message: "OS não encontrada." });
+        return JSON.stringify({ found: true, order: data });
       }
 
       case "escalate_to_human": {
-        return JSON.stringify({ escalated: true, reason: args.reason });
+        return JSON.stringify({ escalated: true, message: "Atendimento transferido para humano." });
       }
 
       default:
-        return JSON.stringify({ error: "Tool não reconhecida: " + toolName });
+        return JSON.stringify({ error: `Tool desconhecida: ${toolName}` });
     }
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error(`[AI Agent] Tool ${toolName} erro:`, msg);
-    return JSON.stringify({ error: msg });
+  } catch (e: any) {
+    return JSON.stringify({ error: `Erro na execução da tool: ${e.message}` });
   }
 }
 
-// ── Main Handler ──────────────────────────────────────────────────────────────
-
 serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
-    const { tenant_id, tenant_name, settings, conversation, user_message } = await req.json();
-
+    debugLogs.length = 0; // reset logs
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const body = await req.json();
+    const { tenant_id, tenant_name, settings, conversation, user_message } = body;
+    let customerId = conversation.customer_id;
+    let newState = conversation.state;
     const groqApiKey = Deno.env.get("GROQ_API_KEY");
-    if (!groqApiKey) throw new Error("GROQ_API_KEY não configurada.");
 
-    const botName = settings.bot_name || `Assistente ${tenant_name}`;
-    const greetingInstruction = settings.greeting_message || `Olá! Sou o assistente virtual da *${tenant_name}*. Para começar, por favor me informe seu *CNPJ* ou o *número de série* do equipamento.`;
-
-    // ── Montar histórico para o LLM (últimas 10 mensagens)
     const recentHistory = conversation.history.slice(-10);
-    const llmMessages: Array<{ role: string; content: string }> = [
+    const llmMessages: any[] = [
       {
         role: "system",
-        content: `Você é ${botName}, assistente virtual de atendimento ao cliente da empresa *${tenant_name}*.
-
-MISSÃO: Atender clientes de forma profissional, humanizada e eficiente via WhatsApp.
-
-REGRAS:
-1. Sempre se comunique em PORTUGUÊS BRASILEIRO informal e amigável
-2. Use emojis com moderação para humanizar (✅ 📋 🔧 ⏳ 🙋)
-3. Seja CONCISO — mensagens curtas funcionam melhor no WhatsApp
-4. NUNCA invente informações — use sempre as tools para buscar dados reais
-5. Ao identificar o cliente, SEMPRE confirme o nome antes de prosseguir
-6. Ao abrir OS, SEMPRE confirme os dados com o cliente antes de criar
-7. Quando não souber resolver, use escalate_to_human
-8. OBRIGATÓRIO: Sempre que o cliente enviar um CNPJ ou Número de Série, VOCÊ DEVE OBRIGATORIAMENTE usar a tool 'find_customer' para buscar os dados ANTES de dar qualquer resposta!
-9. Formate listas com emojis numerados: 1️⃣ 2️⃣ 3️⃣
-
-ESTADO ATUAL DA CONVERSA: ${conversation.state}
-CLIENTE IDENTIFICADO: ${conversation.customer_id ? "Sim (customer_id: " + conversation.customer_id + ")" : "Não identificado ainda"}
-TENANT ID: ${tenant_id}
-
-Se for a primeira mensagem (estado GREETING), use a saudação abaixo:
-${greetingInstruction}`,
+        content: `Você é o assistente virtual da empresa ${tenant_name}.
+MUITO IMPORTANTE: Quando o cliente mandar um CNPJ ou Número de Série ou Número da OS, VOCÊ TEM QUE USAR A TOOL CORRESPONDENTE (find_customer ou get_order_details) PARA BUSCAR NO BANCO. NUNCA DE UMA DESCULPA ANTES DE USAR A TOOL!
+ESTADO ATUAL DA CONVERSA: ${conversation.state}`,
       },
     ];
 
@@ -334,100 +163,68 @@ ${greetingInstruction}`,
       if (msg.role === "user") llmMessages.push({ role: "user", content: msg.content });
       else if (msg.role === "bot") llmMessages.push({ role: "assistant", content: msg.content });
     }
-
     llmMessages.push({ role: "user", content: user_message });
 
-    // ── Loop de raciocínio com Tool Calling (máx 5 iterações)
     let reply = "";
-    let newState = conversation.state;
-    let customerId = conversation.customer_id;
-    const MAX_ITERATIONS = 5;
-
-    for (let i = 0; i < MAX_ITERATIONS; i++) {
-        const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${groqApiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "llama-3.1-8b-instant",
-            messages: llmMessages,
+    for (let i = 0; i < 5; i++) {
+      const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${groqApiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama-3.1-8b-instant",
+          messages: llmMessages,
           tools: TOOLS,
           tool_choice: "auto",
-          max_tokens: 800,
-          temperature: 0.4,
+          temperature: 0.2,
         }),
       });
 
       if (!groqResponse.ok) {
-        const errText = await groqResponse.text();
-        throw new Error("Groq API error: " + errText);
+        const err = await groqResponse.text();
+        return new Response(JSON.stringify({ reply: "Desculpe, tivemos um problema técnico.", debugLogs, error: err }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      const groqData = await groqResponse.json();
-      const choice = groqData.choices?.[0];
-      const assistantMsg = choice?.message;
-
+      const data = await groqResponse.json();
+      const assistantMsg = data.choices?.[0]?.message;
       if (!assistantMsg) throw new Error("Resposta inválida do Groq");
 
-      // Adicionar resposta do assistente ao histórico do loop
       llmMessages.push(assistantMsg);
 
-      // Se não há tool calls, temos a resposta final
       if (!assistantMsg.tool_calls || assistantMsg.tool_calls.length === 0) {
-        reply = assistantMsg.content || "Desculpe, não consegui processar sua solicitação.";
+        reply = assistantMsg.content || "Desculpe, não consegui processar.";
         break;
       }
 
-      // Executar cada tool call
       for (const toolCall of assistantMsg.tool_calls) {
         const toolName = toolCall.function.name;
-        // Injetar o tenant_id nos argumentos para evitar acesso cruzado e unificar a chamada
-        const toolArgs = JSON.parse(toolCall.function.arguments || "{}");
+        let toolArgs;
+        try {
+           toolArgs = JSON.parse(toolCall.function.arguments || "{}");
+        } catch (e) {
+           debugLogs.push({ error: "JSON Parse failed for tool arguments", arguments: toolCall.function.arguments });
+           toolArgs = {};
+        }
         toolArgs.tenant_id = tenant_id;
-
         const toolResult = await executeTool(toolName, toolArgs, supabase);
         const parsed = JSON.parse(toolResult);
 
-        // Atualizar estado baseado no resultado das tools
         if (toolName === "find_customer" && parsed.found && parsed.customer) {
           customerId = parsed.customer.id;
           newState = "CUSTOMER_FOUND";
-        } else if (toolName === "list_orders") {
-          newState = "VIEWING_ORDERS";
-        } else if (toolName === "create_service_order" && parsed.created) {
-          newState = "CUSTOMER_FOUND"; // volta ao menu após criar
         } else if (toolName === "escalate_to_human" && parsed.escalated) {
           newState = "WAITING_HUMAN";
         }
 
-        // Adicionar resultado da tool ao histórico
-        llmMessages.push({
-          role: "tool",
-          content: toolResult,
-          // @ts-ignore — Groq espera tool_call_id
-          tool_call_id: toolCall.id,
-        });
+        llmMessages.push({ role: "tool", tool_call_id: toolCall.id, name: toolName, content: toolResult });
       }
-
-      // Se todas as tools foram executadas, continuar loop para gerar resposta final
     }
 
-    if (!reply) {
-      reply = "Desculpe, não consegui processar sua solicitação no momento. Tente novamente ou digite *ATENDENTE* para falar com um humano.";
-    }
-
-    return new Response(
-      JSON.stringify({ reply, new_state: newState, customer_id: customerId }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[AI Agent] Erro:", msg);
-    return new Response(
-      JSON.stringify({ reply: "Desculpe, tivemos um problema técnico. Tente novamente em instantes.", error: msg }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
-    );
+    return new Response(JSON.stringify({ reply, new_state: newState, customer_id: customerId, debugLogs }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ reply: "Desculpe, tivemos um problema técnico. Tente novamente.", error: err.message, debugLogs }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
