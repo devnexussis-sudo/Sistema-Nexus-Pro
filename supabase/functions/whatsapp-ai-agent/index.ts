@@ -318,7 +318,7 @@ REGRAS:
 5. Ao identificar o cliente, SEMPRE confirme o nome antes de prosseguir
 6. Ao abrir OS, SEMPRE confirme os dados com o cliente antes de criar
 7. Quando não souber resolver, use escalate_to_human
-8. IMPORTANTÍSSIMO: Se não localizar o CNPJ, solicite ao cliente que informe o NÚMERO DE SÉRIE do equipamento ou o NÚMERO DA OS (se ele já tiver uma aberta).
+8. OBRIGATÓRIO: Sempre que o cliente enviar um CNPJ ou Número de Série, VOCÊ DEVE OBRIGATORIAMENTE usar a tool 'find_customer' para buscar os dados ANTES de dar qualquer resposta!
 9. Formate listas com emojis numerados: 1️⃣ 2️⃣ 3️⃣
 
 ESTADO ATUAL DA CONVERSA: ${conversation.state}
@@ -344,14 +344,14 @@ ${greetingInstruction}`,
     const MAX_ITERATIONS = 5;
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
-      const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${groqApiKey}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "mixtral-8x7b-32768",
+            model: "llama-3.1-8b-instant",
             messages: llmMessages,
           tools: TOOLS,
           tool_choice: "auto",
