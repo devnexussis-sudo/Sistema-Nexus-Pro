@@ -16,6 +16,7 @@ import { ResilienceIndicator } from '../ResilienceIndicator';
 import { useI18n } from '../../i18n';
 import { usePermissions } from '../../hooks/usePermissions';
 import { GlobalChatBot } from '../common/GlobalChatBot';
+import { useGlobalWhatsAppNotifications } from '../../hooks/useGlobalWhatsAppNotifications';
 
 interface AdminLayoutProps {
     children: React.ReactNode;
@@ -37,6 +38,28 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
     // IDs de notificações já dispensadas neste ciclo de vida (evita flash durante gravação)
     const [locallyDismissed, setLocallyDismissed] = useState<string[]>([]);
+    const [whatsappWaitingCount, setWhatsappWaitingCount] = useState(0);
+
+    const { t } = useI18n();
+    const { canAccessMenu, isAdmin, can } = usePermissions();
+
+    // Hook global que verifica mensagens novas independente da aba aberta
+    const { alertCount } = useGlobalWhatsAppNotifications(user?.id || null, isAdmin);
+
+    // Buscar contador de WhatsApp aguardando humano
+    useEffect(() => {
+        if (!isAdmin) return;
+        const fetchWACount = async () => {
+            const { count } = await supabase
+                .from('whatsapp_conversations')
+                .select('*', { count: 'exact', head: true })
+                .eq('state', 'WAITING_HUMAN');
+            setWhatsappWaitingCount(count || 0);
+        };
+        fetchWACount();
+        const interval = setInterval(fetchWACount, 5000); // atualiza o menu a cada 5s
+        return () => clearInterval(interval);
+    }, [isAdmin]);
 
     // Fecha sidebar mobile ao navegar
     useEffect(() => {
@@ -53,10 +76,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
-
-
-    const { t } = useI18n();
-    const { canAccessMenu, isAdmin, can } = usePermissions();
 
     // Usa isAdmin do hook — que já respeita grupos vinculados corretamente
     const menuVisible = (menu: string): boolean => {
@@ -89,7 +108,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         { path: '/admin/regions', id: 'regions', label: 'Gestão de Regiões', icon: MapPin, visible: menuVisible('regions'), enabled: isModuleEnabled('regions') },
         { path: '/admin/users', id: 'users', label: t.nav.users, icon: ShieldAlert, visible: menuVisible('users'), enabled: isModuleEnabled('users') },
         { path: '/admin/settings', id: 'settings', label: t.nav.settings, icon: Settings, visible: menuVisible('settings'), enabled: isModuleEnabled('settings') },
-        { path: '/admin/whatsapp', id: 'whatsapp', label: 'WhatsApp Inbox', icon: MessageCircle, visible: isAdmin, enabled: true },
+        { path: '/admin/whatsapp', id: 'whatsapp', label: 'WhatsApp Inbox', icon: MessageCircle, visible: isAdmin, enabled: true, badge: whatsappWaitingCount + alertCount },
         { path: '/admin/integrations', id: 'integrations', label: 'Integrações', icon: Code2, visible: menuVisible('settings'), enabled: isModuleEnabled('settings') },
     ];
 
@@ -125,9 +144,20 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                                     : 'text-white/70 hover:text-white hover:bg-white/5'
                                 }`}
                         >
-                            <div className="flex items-center gap-3">
-                                <item.icon size={18} className={`${isActive ? 'text-white' : 'text-white/60'}`} />
-                                {(!isSidebarCollapsed || onItemClick) && <span>{item.label}</span>}
+                            <div className="flex items-center justify-between w-full relative">
+                                <div className="flex items-center gap-3">
+                                    <item.icon size={18} className={`${isActive ? 'text-white' : 'text-white/60'}`} />
+                                    {(!isSidebarCollapsed || onItemClick) && <span>{item.label}</span>}
+                                </div>
+                                {(item.badge || 0) > 0 && (
+                                    isSidebarCollapsed && !onItemClick ? (
+                                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-orange-500 rounded-full border border-[#1c2d4f] animate-pulse" />
+                                    ) : (
+                                        <span className="bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">
+                                            {item.badge}
+                                        </span>
+                                    )
+                                )}
                             </div>
                         </Link>
                     );

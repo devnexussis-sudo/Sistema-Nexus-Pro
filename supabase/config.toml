@@ -132,3 +132,12 @@ port = 54327
 vector_port = 54328
 # Configure one of the supported backends: `postgres`, `bigquery`.
 backend = "postgres"
+
+[functions.whatsapp-bot]
+verify_jwt = false
+
+[functions.whatsapp-ai-agent]
+verify_jwt = true
+
+[functions.whatsapp-admin-send]
+verify_jwt = true

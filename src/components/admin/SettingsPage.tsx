@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useI18n, TIMEZONE_OPTIONS, type SupportedLocale, type SupportedTimezone } from '../../i18n';
 import { usePermissions } from '../../hooks/usePermissions';
+import { useDialog } from '../../contexts/DialogContext';
 
 interface CompanyData {
   name: string;
@@ -64,9 +65,9 @@ interface SystemParams {
 }
 
 interface WhatsAppConfig {
-  evolution_api_url: string;
-  evolution_api_key: string;
-  instance_name: string;
+  zapi_instance_id: string;
+  zapi_instance_token: string;
+  zapi_client_token: string;
   bot_enabled: boolean;
   bot_name: string;
   greeting_message: string;
@@ -77,6 +78,7 @@ interface WhatsAppConfig {
 export const SettingsPage: React.FC = () => {
   const { t, locale, timezone, setLocale, setTimezone } = useI18n();
   const { isAdmin, permissions } = usePermissions();
+  const { showAlert, showConfirm } = useDialog();
 
   // Determina quais abas o usuário pode acessar
   const tabAccess = {
@@ -97,9 +99,9 @@ export const SettingsPage: React.FC = () => {
   const [showSuperUserUnlock, setShowSuperUserUnlock] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [whatsapp, setWhatsapp] = useState<WhatsAppConfig>({
-    evolution_api_url: '',
-    evolution_api_key: '',
-    instance_name: '',
+    zapi_instance_id: '',
+    zapi_instance_token: '',
+    zapi_client_token: '',
     bot_enabled: false,
     bot_name: '',
     greeting_message: '',
@@ -213,16 +215,15 @@ export const SettingsPage: React.FC = () => {
         requireLocationForExecution: data.metadata?.requireLocationForExecution ?? false,
       }));
 
-      // Sync WhatsApp settings — só sincroniza do banco se ainda não foi sincronizado
-      // ou se o banco tem dados reais (evita que o Realtime apague dados recém-salvos)
-      const ws = data.whatsapp_settings as Record<string, any> | null;
-      const hasRealWppData = ws && ws.evolution_api_url;
-      if (hasRealWppData || !wppSyncedRef.current) {
+      // Sync WhatsApp settings — só sincroniza do banco na primeira carga
+      // para evitar que o React Query apague os dados que o usuário está digitando
+      if (!wppSyncedRef.current) {
+        const ws = data.whatsapp_settings as Record<string, any> | null;
         if (ws) {
           setWhatsapp({
-            evolution_api_url: ws.evolution_api_url || '',
-            evolution_api_key: ws.evolution_api_key || '',
-            instance_name: ws.instance_name || '',
+            zapi_instance_id: ws.zapi_instance_id || ws.mega_instance_key || '',
+            zapi_instance_token: ws.zapi_instance_token || ws.mega_api_token || '',
+            zapi_client_token: ws.zapi_client_token || '',
             bot_enabled: ws.bot_enabled ?? false,
             bot_name: ws.bot_name || '',
             greeting_message: ws.greeting_message || '',
@@ -369,6 +370,10 @@ export const SettingsPage: React.FC = () => {
         city: company.city,
         state: company.state,
         cep: company.zip,
+        whatsapp_settings: {
+          ...whatsapp,
+          connected: wppConnected,
+        },
         metadata: {
           ...data?.metadata,
           timezone: params.timezone,
@@ -1201,37 +1206,39 @@ export const SettingsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Evolution API Credentials */}
+                  {/* Z-API Credentials */}
                   <div className="space-y-3">
-                    <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">🔌 Evolution API</h3>
+                    <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">🔌 Z-API</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
-                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">URL do Servidor</label>
-                        <input
-                          type="url"
-                          value={whatsapp.evolution_api_url}
-                          onChange={e => setWhatsapp({ ...whatsapp, evolution_api_url: e.target.value })}
-                          placeholder="https://sua-evolution-api.com"
-                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">API Key</label>
-                        <input
-                          type="password"
-                          value={whatsapp.evolution_api_key}
-                          onChange={e => setWhatsapp({ ...whatsapp, evolution_api_key: e.target.value })}
-                          placeholder="Chave secreta da Evolution API"
-                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Nome da Instância</label>
+                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Instance ID</label>
                         <input
                           type="text"
-                          value={whatsapp.instance_name}
-                          onChange={e => setWhatsapp({ ...whatsapp, instance_name: e.target.value })}
-                          placeholder="minha-empresa-bot"
+                          value={whatsapp.zapi_instance_id}
+                          onChange={e => setWhatsapp({ ...whatsapp, zapi_instance_id: e.target.value })}
+                          placeholder="Ex: 3D29D51824..."
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Instance Token</label>
+                        <input
+                          type="password"
+                          value={whatsapp.zapi_instance_token}
+                          onChange={e => setWhatsapp({ ...whatsapp, zapi_instance_token: e.target.value })}
+                          placeholder="Token da instância Z-API"
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">
+                          Client-Token <span className="normal-case text-gray-400 font-normal">(opcional — encontre em Segurança no painel Z-API)</span>
+                        </label>
+                        <input
+                          type="password"
+                          value={whatsapp.zapi_client_token}
+                          onChange={e => setWhatsapp({ ...whatsapp, zapi_client_token: e.target.value })}
+                          placeholder="Deixe vazio se não tiver (opcional)"
                           className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none"
                         />
                       </div>
@@ -1252,26 +1259,23 @@ export const SettingsPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={async () => {
-                          if (!whatsapp.evolution_api_url || !whatsapp.evolution_api_key || !whatsapp.instance_name) return;
+                          if (!whatsapp.zapi_instance_id || !whatsapp.zapi_instance_token) return;
                           setWppTestStatus('testing');
                           try {
-                            const url = whatsapp.evolution_api_url.trim().replace(/\/+$/, '');
-                            const key = whatsapp.evolution_api_key.trim();
-                            const instance = whatsapp.instance_name.trim();
-                            const res = await fetch(`${url}/instance/connectionState/${instance}`, {
-                              headers: { apikey: key }
-                            });
+                            const id = whatsapp.zapi_instance_id.trim();
+                            const token = whatsapp.zapi_instance_token.trim();
+                            const clientToken = whatsapp.zapi_client_token.trim();
+                            const headers: Record<string, string> = {};
+                            if (clientToken) headers['Client-Token'] = clientToken;
+                            const res = await fetch(`https://api.z-api.io/instances/${id}/token/${token}/status`, { headers });
                             const json = await res.json();
-                            const state = json?.instance?.state;
-                            if (state === 'open') {
+                            const connected = json?.connected === true;
+                            if (connected) {
                               setWppConnected(true);
                               setWppTestStatus('ok');
-                            } else if (state === 'connecting') {
-                              setWppConnected(false);
-                              setWppTestStatus('connecting');
                             } else {
                               setWppConnected(false);
-                              setWppTestStatus('error');
+                              setWppTestStatus('connecting');
                             }
                           } catch (e) {
                             console.error('Teste conexão erro:', e);
@@ -1295,41 +1299,90 @@ export const SettingsPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={async () => {
-                          if (!whatsapp.evolution_api_url || !whatsapp.evolution_api_key || !whatsapp.instance_name) return;
+                          if (!whatsapp.zapi_instance_id || !whatsapp.zapi_instance_token) return;
                           setWppQrCode(null);
                           try {
-                            const url = whatsapp.evolution_api_url.trim().replace(/\/+$/, '');
-                            const key = whatsapp.evolution_api_key.trim();
-                            const instance = whatsapp.instance_name.trim();
-                            
-                            const reqUrl = `${url}/instance/connect/${instance}`;
+                            const id = whatsapp.zapi_instance_id.trim();
+                            const token = whatsapp.zapi_instance_token.trim();
+                            const clientToken = whatsapp.zapi_client_token.trim();
+                            const headers: Record<string, string> = {};
+                            if (clientToken) headers['Client-Token'] = clientToken;
+
+                            const reqUrl = `https://api.z-api.io/instances/${id}/token/${token}/qr-code/image`;
                             console.log('[QR Code] Chamando:', reqUrl);
-                            const res = await fetch(reqUrl, {
-                              headers: { apikey: key }
-                            });
+                            const res = await fetch(reqUrl, { headers });
                             console.log('[QR Code] Status HTTP:', res.status);
                             const json = await res.json();
                             console.log('[QR Code] Resposta completa:', JSON.stringify(json).substring(0, 200));
-                            // Evolution API v2 pode retornar base64 direto ou dentro de qrcode
-                            const qrBase64 = json?.base64 || json?.qrcode?.base64 || json?.qr?.base64 || null;
+
+                            const qrBase64 = json?.value || json?.qrcode || json?.base64 || null;
                             console.log('[QR Code] base64 encontrado?', !!qrBase64, '| início:', String(qrBase64 || '').substring(0, 30));
-                            if (qrBase64) {
-                              // Garante que tem o prefixo correto
+                            if (qrBase64 && typeof qrBase64 === 'string') {
                               const src = qrBase64.startsWith('data:') ? qrBase64 : `data:image/png;base64,${qrBase64}`;
                               setWppQrCode(src);
                             } else {
                               const msg = `QR Code não encontrado.\nResposta da API: ${JSON.stringify(json).substring(0, 300)}`;
                               console.error('[QR Code]', msg);
-                              alert(msg);
+                              showAlert(msg, 'warning');
                             }
                           } catch (e: any) {
                             console.error('[QR Code] Erro fetch:', e);
-                            alert(`Erro ao conectar: ${e?.message || 'Verifique o console F12'}`);
+                            showAlert(`Erro ao conectar: ${e?.message || 'Verifique sua conexão e o painel de erros'}`, 'error');
                           }
                         }}
                         className="flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wide border bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 transition-all"
                       >
                         <QrCode size={14} /> Gerar QR Code
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={!wppConnected}
+                        onClick={() => {
+                          if (!whatsapp.zapi_instance_id || !whatsapp.zapi_instance_token) return;
+                          
+                          showConfirm(
+                            "Tem certeza que deseja desconectar o WhatsApp atual da API? O número perderá a conexão imediatamente.",
+                            async () => {
+                              try {
+                                const id = whatsapp.zapi_instance_id.trim();
+                                const token = whatsapp.zapi_instance_token.trim();
+                                const clientToken = whatsapp.zapi_client_token.trim();
+                                const headers: Record<string, string> = {};
+                                if (clientToken) headers['Client-Token'] = clientToken;
+
+                                console.log('[Logout] Desconectando...');
+                                const res = await fetch(`https://api.z-api.io/instances/${id}/token/${token}/disconnect`, {
+                                  method: 'GET',
+                                  headers,
+                                });
+                                
+                                if (!res.ok) {
+                                   const errData = await res.json().catch(() => null);
+                                   throw new Error(`O servidor recusou a desconexão (Status ${res.status}). Detalhes: ${JSON.stringify(errData || 'Nenhum')}`);
+                                }
+
+                                showAlert("Sessão desconectada com sucesso!", "success");
+                                setWppConnected(false);
+                                setWppQrCode(null);
+                              } catch (e: any) {
+                                console.error('[Logout] Erro fetch:', e);
+                                showAlert(`Erro ao desconectar: ${e?.message || 'Erro na comunicação'}`, 'error');
+                                setWppConnected(true);
+                              }
+                            },
+                            "Desconectar WhatsApp",
+                            "Desconectar",
+                            true
+                          );
+                        }}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wide border transition-all ${
+                          wppConnected 
+                            ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' 
+                            : 'bg-gray-100 text-gray-400 border-gray-200 opacity-60 cursor-not-allowed'
+                        }`}
+                      >
+                        <WifiOff size={14} /> Desconectar
                       </button>
                     </div>
 
@@ -1404,7 +1457,7 @@ export const SettingsPage: React.FC = () => {
                       type="button"
                       onClick={async () => {
                         if (!dbInfo?.id) {
-                          alert('❌ ID do tenant não encontrado. Recarregue a página.');
+                          showAlert('❌ ID do tenant não encontrado. Recarregue a página.', 'error');
                           return;
                         }
                         setLoading(true);
@@ -1419,7 +1472,7 @@ export const SettingsPage: React.FC = () => {
                             .single();
 
                           if (readErr || !readCheck) {
-                            alert(`❌ Sem acesso ao tenant!\nID: ${dbInfo.id}\nErro: ${readErr?.message || 'não encontrado'}`);
+                            showAlert(`❌ Sem acesso ao tenant!\nID: ${dbInfo.id}\nErro: ${readErr?.message || 'não encontrado'}`, 'error');
                             return;
                           }
 
@@ -1436,21 +1489,22 @@ export const SettingsPage: React.FC = () => {
 
                           if (error) {
                             console.error('[WhatsApp Save] Erro RLS:', error);
-                            alert(`❌ Erro ao salvar: ${error.message}\nCódigo: ${error.code}`);
+                            showAlert(`❌ Erro ao salvar: ${error.message}`, 'error');
                             return;
                           }
 
                           if (!updated || updated.length === 0) {
-                            alert(`❌ Salvo bloqueado por RLS (0 linhas afetadas).\nID usado: ${dbInfo.id}\nVerifique a policy "tenants_update_admin" no Supabase.`);
+                            showAlert(`❌ Salvo bloqueado por RLS (0 linhas afetadas).\nVerifique a policy no Supabase.`, 'error');
                             return;
                           }
 
                           console.log('[WhatsApp Save] ✅ Salvo com sucesso:', updated[0]);
+                          showAlert("WhatsApp salvo com sucesso!", 'success');
                           setSaved(true);
                           setTimeout(() => setSaved(false), 3000);
                         } catch (err: any) {
                           console.error('[WhatsApp Save] Erro inesperado:', err);
-                          alert(`❌ Erro inesperado: ${err?.message || 'Verifique o console.'}`);
+                          showAlert(`❌ Erro inesperado: ${err?.message || 'Verifique o console.'}`, 'error');
                         } finally { setLoading(false); }
                       }}
                       className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white rounded-xl text-[11px] font-bold uppercase tracking-wide hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
