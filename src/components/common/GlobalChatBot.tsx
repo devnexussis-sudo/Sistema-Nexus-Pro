@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { analyzeAndDiscover } from '../../services/dunoBrain';
 import { aiKnowledgeService } from '../../services/aiKnowledgeService';
 import { getCurrentTenantId } from '../../lib/tenantContext';
+import { useLocation } from 'react-router-dom';
 
 interface Message {
   id: string;
@@ -34,11 +35,13 @@ export const GlobalChatBot: React.FC = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { auth } = useAuth();
+  const location = useLocation();
   
   const endRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
   const firstName = auth.user?.name?.split(' ')[0] || 'Visitante';
+  const isWhatsAppPage = location.pathname.includes('/admin/whatsapp');
 
   // Inicializa a primeira mensagem
   useEffect(() => {
@@ -133,7 +136,7 @@ export const GlobalChatBot: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end print:hidden">
+    <div className={`fixed right-6 z-[9999] flex flex-col items-end print:hidden transition-all duration-300 ${isWhatsAppPage ? 'bottom-20' : 'bottom-6'}`}>
       
       {/* ── JANELA DO CHAT (Aberta) ── */}
       {isOpen && (

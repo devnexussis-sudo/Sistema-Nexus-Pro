@@ -101,22 +101,17 @@ export function sendBrowserNotification(title: string, body: string) {
   } catch (_) {}
 }
 
-export function useGlobalWhatsAppNotifications(currentUserId: string | null, isAdmin: boolean) {
+export function useGlobalWhatsAppNotifications(currentUserId: string | null, isAdmin: boolean, pathname: string) {
   const previousConversationsRef = useRef<Record<string, { historyLen: number, state: string, assigned: string | null }>>({});
   const isInitialLoad = useRef(true);
   const [alertCount, setAlertCount] = useState(0);
 
   // Limpa o contador se o usuário estiver na tela do WhatsApp
   useEffect(() => {
-    const checkPath = () => {
-      if (window.location.pathname.includes('/admin/whatsapp')) {
-        setAlertCount(0);
-      }
-    };
-    checkPath();
-    window.addEventListener('popstate', checkPath);
-    return () => window.removeEventListener('popstate', checkPath);
-  }, []);
+    if (pathname.includes('/admin/whatsapp')) {
+      setAlertCount(0);
+    }
+  }, [pathname]);
 
   useEffect(() => {
     if (!isAdmin && !currentUserId) return;

@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw, X, BellRing, Bell, Volume2, ArrowRight } from 'lucide-react';
+import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw, X, BellRing, Bell, Volume2, ArrowRight, Sticker } from 'lucide-react';
 
 interface Message {
   role: 'bot' | 'user' | 'agent';
   content: string;
   timestamp: string;
   agent_id?: string;
+  type?: 'text' | 'sticker';
 }
 
 interface Conversation {
@@ -32,6 +34,14 @@ const STATE_LABELS: Record<string, { label: string; color: string; dot: string }
   RESOLVED:       { label: 'Resolvido',        color: 'text-gray-400',    dot: 'bg-gray-300' },
 };
 
+const DEFAULT_STICKERS = [
+  { id: '1', url: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Smilies/Smiling%20Face%20with%20Smiling%20Eyes.png', label: 'Sorriso' },
+  { id: '2', url: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Hand%20gestures/Thumbs%20Up.png', label: 'Joinha' },
+  { id: '3', url: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Hand%20gestures/Waving%20Hand.png', label: 'Olá' },
+  { id: '4', url: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Smilies/Party%20Popper.png', label: 'Pronto!' },
+  { id: '5', url: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Hand%20gestures/Folded%20Hands.png', label: 'Obrigado' },
+];
+
 function formatPhone(phone: string) {
   const d = phone.replace(/\D/g, '');
   if (d.length === 13) return `+${d.slice(0,2)} (${d.slice(2,4)}) ${d.slice(4,9)}-${d.slice(9)}`;
@@ -49,11 +59,9 @@ function timeAgo(iso: string) {
 
 // ─── Notificações ────────────────────────────────────────────────────────────
 
-// AudioContext global
 let audioCtx: AudioContext | null = null;
 let audioUnlocked = false;
 
-// Desbloqueia o áudio no primeiro clique/interação do usuário na página inteira
 function initGlobalAudioUnlock() {
   if (audioUnlocked || typeof window === 'undefined') return;
 
@@ -66,7 +74,6 @@ function initGlobalAudioUnlock() {
       if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume();
       }
-      // Toca um silêncio para forçar o desbloqueio
       if (audioCtx) {
         const buf = audioCtx.createBuffer(1, 1, 22050);
         const src = audioCtx.createBufferSource();
@@ -75,9 +82,6 @@ function initGlobalAudioUnlock() {
         src.start(0);
       }
       audioUnlocked = true;
-      console.log('[Audio] AudioContext desbloqueado via interação global.');
-      
-      // Remove os listeners após desbloquear
       ['click', 'touchstart', 'keydown'].forEach(evt => {
         document.removeEventListener(evt, unlock);
       });
@@ -91,7 +95,6 @@ function initGlobalAudioUnlock() {
   });
 }
 
-// Inicia o listener imediatamente
 initGlobalAudioUnlock();
 
 let titleFlashInterval: ReturnType<typeof setInterval> | null = null;
@@ -128,7 +131,6 @@ function playBloop() {
     const g = audioCtx.createGain();
     g.connect(audioCtx.destination);
 
-    // Frequências para o bip (880Hz e 1100Hz) com volume ajustado
     [[880, 0], [1100, 0.1]].forEach(([freq, delay]) => {
       const osc = audioCtx!.createOscillator();
       osc.type = 'sine';
@@ -136,7 +138,7 @@ function playBloop() {
       osc.connect(g);
       
       g.gain.setValueAtTime(0, audioCtx!.currentTime + delay);
-      g.gain.linearRampToValueAtTime(0.5, audioCtx!.currentTime + delay + 0.02); // volume mais alto (0.5)
+      g.gain.linearRampToValueAtTime(0.5, audioCtx!.currentTime + delay + 0.02);
       g.gain.exponentialRampToValueAtTime(0.001, audioCtx!.currentTime + delay + 0.3);
       
       osc.start(audioCtx!.currentTime + delay);
@@ -149,7 +151,7 @@ function playBloop() {
 
 function sendBrowserNotification(title: string, body: string) {
   if (Notification.permission !== 'granted') return;
-  if (!document.hidden) return; // só quando janela está em 2º plano
+  if (!document.hidden) return;
   try {
     const n = new Notification(title, {
       body,
@@ -162,9 +164,8 @@ function sendBrowserNotification(title: string, body: string) {
   } catch (_) {}
 }
 
-// ─── Componente principal ─────────────────────────────────────────────────────
-
 export const WhatsAppInbox: React.FC = () => {
+  const location = useLocation();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -177,18 +178,28 @@ export const WhatsAppInbox: React.FC = () => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<{ id: string, name: string }[]>([]);
   const [transferModal, setTransferModal] = useState<string | null>(null);
+  const [inboxSearch, setInboxSearch] = useState('');
+  const [agentSearch, setAgentSearch] = useState('');
   const [readIndex, setReadIndex] = useState<Record<string, number>>({});
+  const [showStickers, setShowStickers] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const conversationsRef = useRef<Conversation[]>([]);
   const selectedIdRef = useRef<string | null>(null);
 
-  // Buscar usuário logado, permissões e equipe
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id || null));
     supabase.from('users').select('id, name').neq('role', 'TECHNICIAN').order('name').then(({ data }) => setTeamMembers(data || []));
     const notifPerm = (Notification.permission as 'prompt' | 'granted' | 'denied');
     setPermissionState(notifPerm === 'default' ? 'prompt' : notifPerm);
-  }, []);
+
+    // Selecionar conversa vinda de outra página (ex: Solicitações)
+    const state = location.state as { selectedConvId?: string } | null;
+    if (state?.selectedConvId) {
+      setSelectedId(state.selectedConvId);
+      // Opcional: limpar o state para não re-selecionar ao navegar voltar/avançar
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   // Função que pede todas as permissões de uma vez
   const requestPermissions = async () => {
@@ -228,6 +239,9 @@ export const WhatsAppInbox: React.FC = () => {
   }, [selected?.history?.length]);
 
   const [realtimeOk, setRealtimeOk] = useState(false);
+
+  // Helper para disparar atualização imediata na badge do menu
+  const triggerNavUpdate = () => window.dispatchEvent(new Event('whatsapp_state_changed'));
 
   // ── Carregar conversas (merge silencioso, sem piscar) ───────────────────────
   const fetchConversations = useCallback(async (silent = false) => {
@@ -275,7 +289,7 @@ export const WhatsAppInbox: React.FC = () => {
       });
     }
     if (!silent) setLoading(false);
-  }, []);
+  }, [currentUserId]);
 
   // ── Realtime subscription + polling fallback ─────────────────────────────
   useEffect(() => {
@@ -324,6 +338,7 @@ export const WhatsAppInbox: React.FC = () => {
       alert('Erro: ' + data.error);
       return false;
     }
+    triggerNavUpdate();
     return true;
   };
 
@@ -345,9 +360,17 @@ export const WhatsAppInbox: React.FC = () => {
     try { await invoke('close_conversation'); } finally { setSending(false); }
   };
   
-  const handleTransfer = (targetUserId: string) => {
-    invoke('transfer', { target_user_id: targetUserId });
+  const handleResetBot = async () => {
+    if (!selected) return;
+    if (!confirm('Deseja realmente apagar o histórico e reiniciar o bot para este cliente?')) return;
+    setSending(true);
+    try { await invoke('reset_bot'); } finally { setSending(false); }
+  };
+
+  const handleTransfer = async (targetUserId: string) => {
+    setSending(true);
     setTransferModal(null);
+    try { await invoke('transfer', { target_user_id: targetUserId }); } finally { setSending(false); }
   };
 
   const handleSend = async () => {
@@ -381,11 +404,51 @@ export const WhatsAppInbox: React.FC = () => {
     }
   };
 
+  const handleSendSticker = async (url: string) => {
+    if (!selected) return;
+    setSending(true);
+    setShowStickers(false);
+
+    const optimisticMsg: Message = {
+      role: 'agent',
+      content: '[✨ Figurinha Enviada]',
+      timestamp: new Date().toISOString(),
+    };
+    
+    setConversations(prev => prev.map(c => {
+      if (c.id !== selected.id) return c;
+      return { ...c, history: [...(c.history || []), optimisticMsg], last_message_at: new Date().toISOString() };
+    }));
+
+    try {
+      await invoke('send_sticker', { message: url });
+    } catch {
+      setConversations(prev => prev.map(c => {
+        if (c.id !== selected.id) return c;
+        return { ...c, history: (c.history || []).filter(m => m !== optimisticMsg) };
+      }));
+    } finally {
+      setSending(false);
+    }
+  };
+
   // ── Filtros ───────────────────────────────────────────────────────────────
   const filtered = conversations.filter(c => {
-    if (filter === 'waiting') return c.state === 'WAITING_HUMAN';
-    if (filter === 'mine') return c.state === 'HUMAN_ACTIVE' && c.assigned_agent_id === currentUserId;
-    if (filter === 'active') return c.state === 'HUMAN_ACTIVE';
+    // Ocultar conversas encerradas (RESOLVED) — histórico preservado no banco
+    if (c.state === 'RESOLVED') return false;
+
+    if (filter === 'waiting' && c.state !== 'WAITING_HUMAN') return false;
+    if (filter === 'mine' && (c.state !== 'HUMAN_ACTIVE' || c.assigned_agent_id !== currentUserId)) return false;
+    if (filter === 'active' && c.state !== 'HUMAN_ACTIVE') return false;
+
+    if (inboxSearch.trim()) {
+      const q = inboxSearch.toLowerCase().trim();
+      const matchPhone = c.phone_number?.includes(q) || false;
+      const matchName = c.customers?.name?.toLowerCase().includes(q) || c.users?.name?.toLowerCase().includes(q) || false;
+      const matchHistory = c.history?.some(h => h.content?.toLowerCase().includes(q));
+      if (!matchPhone && !matchName && !matchHistory) return false;
+    }
+
     return true;
   });
 
@@ -495,6 +558,28 @@ export const WhatsAppInbox: React.FC = () => {
               </button>
             ))}
           </div>
+
+          {/* Campo de pesquisa de conversas */}
+          <div className="mt-3 relative">
+            <input
+              type="text"
+              placeholder="Pesquisar conversa..."
+              value={inboxSearch}
+              onChange={(e) => setInboxSearch(e.target.value)}
+              className="w-full pl-8 pr-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none placeholder:text-gray-400 text-gray-700"
+            />
+            <svg className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            {inboxSearch && (
+              <button
+                onClick={() => setInboxSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -586,13 +671,22 @@ export const WhatsAppInbox: React.FC = () => {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {(selected.state === 'WAITING_HUMAN' || (selected.state === 'HUMAN_ACTIVE' && selected.assigned_agent_id !== currentUserId)) && (
+              {(selected.state !== 'HUMAN_ACTIVE' || selected.assigned_agent_id !== currentUserId) && (
                 <button
                   onClick={handleTakeover}
                   disabled={sending}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-[11px] font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-sm"
                 >
-                  <UserCheck size={14} /> {selected.state === 'HUMAN_ACTIVE' ? 'Assumir p/ Mim' : 'Assumir Conversa'}
+                  {sending ? <RefreshCw size={14} className="animate-spin" /> : <UserCheck size={14} />} {selected.state === 'HUMAN_ACTIVE' ? 'Assumir p/ Mim' : 'Assumir Conversa'}
+                </button>
+              )}
+              {selected.state !== 'HUMAN_ACTIVE' && (
+                <button
+                  onClick={handleResetBot}
+                  disabled={sending}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-600 text-[11px] font-bold rounded-xl hover:bg-gray-200 disabled:opacity-50 transition-all"
+                >
+                  {sending ? <RefreshCw size={14} className="animate-spin" /> : <RotateCcw size={14} />} Reiniciar Bot
                 </button>
               )}
               {selected.state === 'HUMAN_ACTIVE' && selected.assigned_agent_id === currentUserId && (
@@ -603,21 +697,34 @@ export const WhatsAppInbox: React.FC = () => {
                       disabled={sending}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-600 text-[11px] font-bold rounded-xl hover:bg-gray-200 disabled:opacity-50 transition-all"
                     >
-                      <ArrowRight size={14} /> Transferir
+                      {sending ? <RefreshCw size={14} className="animate-spin" /> : <ArrowRight size={14} />} Transferir
                     </button>
                     {transferModal === selected.id && (
                       <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-100 shadow-xl rounded-xl z-50 overflow-hidden">
-                        <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                        <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 flex flex-col gap-2">
                           <p className="text-[10px] font-bold text-gray-500 uppercase">Selecione o agente</p>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              placeholder="Pesquisar agente..."
+                              value={agentSearch}
+                              onChange={(e) => setAgentSearch(e.target.value)}
+                              className="w-full px-2 py-1 bg-white border border-gray-200 rounded text-[10px] focus:ring-1 focus:ring-indigo-500 outline-none"
+                              autoFocus
+                            />
+                          </div>
                         </div>
                         <div className="max-h-48 overflow-y-auto">
-                          {teamMembers.filter(m => m.id !== currentUserId).length === 0 && (
-                            <p className="px-3 py-4 text-xs text-gray-400 text-center">Nenhum outro agente</p>
+                          {teamMembers.filter(m => m.id !== currentUserId && (m.name || '').toLowerCase().includes(agentSearch.toLowerCase())).length === 0 && (
+                            <p className="px-3 py-4 text-xs text-gray-400 text-center">Nenhum agente encontrado</p>
                           )}
-                          {teamMembers.filter(m => m.id !== currentUserId).map(m => (
+                          {teamMembers.filter(m => m.id !== currentUserId && (m.name || '').toLowerCase().includes(agentSearch.toLowerCase())).map(m => (
                             <button
                               key={m.id}
-                              onClick={() => handleTransfer(m.id)}
+                              onClick={() => {
+                                handleTransfer(m.id);
+                                setAgentSearch('');
+                              }}
                               className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors border-b border-gray-50 last:border-0"
                             >
                               {m.name}
@@ -632,14 +739,14 @@ export const WhatsAppInbox: React.FC = () => {
                     disabled={sending}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-600 text-[11px] font-bold rounded-xl hover:bg-gray-200 disabled:opacity-50 transition-all"
                   >
-                    <RotateCcw size={14} /> Devolver ao Bot
+                    {sending ? <RefreshCw size={14} className="animate-spin" /> : <RotateCcw size={14} />} Devolver ao Bot
                   </button>
                   <button
                     onClick={handleCloseConversation}
                     disabled={sending}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-100 text-rose-600 text-[11px] font-bold rounded-xl hover:bg-rose-200 disabled:opacity-50 transition-all"
                   >
-                    <X size={14} /> Encerrar Atendimento
+                    {sending ? <RefreshCw size={14} className="animate-spin" /> : <X size={14} />} Encerrar Atendimento
                   </button>
                 </>
               )}
@@ -677,10 +784,9 @@ export const WhatsAppInbox: React.FC = () => {
                     : 'bg-white text-gray-800 border border-gray-100 rounded-tl-sm'
                 }`}>
                   <p className="whitespace-pre-wrap">{msg.content}</p>
-                  <p className={`text-[9px] mt-1 ${msg.role === 'user' || msg.role === 'agent' ? 'text-white/60' : 'text-gray-400'}`}>
-                    {new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    {msg.role === 'bot' && ' · Bot'}
-                    {msg.role === 'agent' && ' · Agente'}
+                  <p className={`text-[9px] mt-1 flex flex-wrap gap-1 ${msg.role === 'user' || msg.role === 'agent' ? 'text-white/60' : 'text-gray-400'}`}>
+                    <span>{new Date(msg.timestamp).toLocaleDateString('pt-BR')} às {new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span>· {msg.role === 'bot' ? 'Bot' : msg.role === 'agent' ? 'Agente' : 'Cliente'}</span>
                   </p>
                 </div>
                 {msg.role === 'user' && (
@@ -695,22 +801,60 @@ export const WhatsAppInbox: React.FC = () => {
 
           {/* Input */}
           {selected.state === 'HUMAN_ACTIVE' ? (
-            <div className="bg-white border-t border-gray-100 p-3 flex gap-2">
-              <input
-                type="text"
-                value={message}
-                onChange={e => setMessage(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                placeholder="Digite uma mensagem e pressione Enter..."
-                className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100"
-              />
-              <button
-                onClick={handleSend}
-                disabled={sending || !message.trim()}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-40 transition-all"
-              >
-                <Send size={16} />
-              </button>
+            <div className="bg-white border-t border-gray-100 p-4 relative">
+              
+              {/* Sticker Popover */}
+              {showStickers && (
+                <div className="absolute bottom-full mb-2 left-4 bg-white border border-gray-200 shadow-xl rounded-2xl p-3 z-50 w-64 animate-in slide-in-from-bottom-2">
+                  <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-100">
+                    <p className="text-xs font-bold text-gray-600">Figurinhas Rápidas</p>
+                    <button onClick={() => setShowStickers(false)} className="text-gray-400 hover:text-gray-600">
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {DEFAULT_STICKERS.map(sticker => (
+                      <button
+                        key={sticker.id}
+                        onClick={() => handleSendSticker(sticker.url)}
+                        className="p-1 hover:bg-gray-50 rounded-xl transition-all border border-transparent hover:border-gray-200 group relative"
+                        title={sticker.label}
+                        disabled={sending}
+                      >
+                        <img src={sticker.url} alt={sticker.label} className="w-10 h-10 object-contain mx-auto group-hover:scale-110 transition-transform" />
+                        <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[9px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-10">
+                          {sticker.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-full pr-2 pl-2 py-1.5 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-400 transition-all">
+                <button
+                  onClick={() => setShowStickers(!showStickers)}
+                  className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors shrink-0 ${showStickers ? 'bg-indigo-100 text-indigo-600' : 'text-gray-400 hover:bg-gray-200 hover:text-gray-600'}`}
+                  title="Enviar Figurinha"
+                >
+                  <Sticker size={18} />
+                </button>
+                <input
+                  type="text"
+                  value={message}
+                  onChange={e => setMessage(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
+                  placeholder="Digite sua mensagem..."
+                  className="flex-1 bg-transparent border-none outline-none text-sm text-gray-700 placeholder-gray-400 py-2"
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={sending || !message.trim()}
+                  className="w-10 h-10 flex items-center justify-center bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:opacity-50 disabled:bg-indigo-400 transition-all shrink-0 shadow-sm"
+                >
+                  {sending ? <RefreshCw size={18} className="animate-spin" /> : <Send size={18} className="ml-1" />}
+                </button>
+              </div>
             </div>
           ) : (
             <div className="bg-white border-t border-gray-100 p-3 text-center text-[11px] text-gray-400">

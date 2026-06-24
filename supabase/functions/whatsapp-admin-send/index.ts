@@ -81,7 +81,7 @@ serve(async (req: Request) => {
         })
         .eq("id", conversation_id);
 
-      await sendZApiMessage(settings, conv.phone_number, takeoverMsg);
+      await sendWhatsAppMessage(settings, conv.phone_number, takeoverMsg);
 
       return new Response(JSON.stringify({ ok: true, action: "takeover" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -91,7 +91,7 @@ serve(async (req: Request) => {
     // ── Ação: devolver ao bot
     if (action === "return_to_bot") {
       const returnMsg = `🤖 O atendimento foi retornado ao assistente virtual. Como posso ajudar?`;
-      
+
       const updatedHistory = [
         ...(conv.history || []),
         { role: "bot", content: returnMsg, timestamp: new Date().toISOString() },
@@ -102,12 +102,12 @@ serve(async (req: Request) => {
         .update({
           state: "CUSTOMER_FOUND",
           assigned_agent_id: null,
-          history: updatedHistory,
+          history: updatedHistory.slice(-100),
           last_message_at: new Date().toISOString(),
         })
         .eq("id", conversation_id);
 
-      await sendZApiMessage(settings, conv.phone_number, returnMsg);
+      await sendWhatsAppMessage(settings, conv.phone_number, returnMsg);
 
       return new Response(JSON.stringify({ ok: true, action: "return_to_bot" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -124,7 +124,7 @@ serve(async (req: Request) => {
 
       const targetName = targetAgent?.name || "outro agente";
       const transferMsg = `🔃 O atendimento foi transferido para *${targetName}*. Aguarde um momento.`;
-      
+
       const updatedHistory = [
         ...(conv.history || []),
         { role: "agent", content: transferMsg, timestamp: new Date().toISOString(), agent_id: user.id },
@@ -134,14 +134,31 @@ serve(async (req: Request) => {
         .from("whatsapp_conversations")
         .update({
           assigned_agent_id: extra.target_user_id,
-          history: updatedHistory,
+          history: updatedHistory.slice(-100),
           last_message_at: new Date().toISOString(),
         })
         .eq("id", conversation_id);
 
-      await sendZApiMessage(settings, conv.phone_number, transferMsg);
+      await sendWhatsAppMessage(settings, conv.phone_number, transferMsg);
 
       return new Response(JSON.stringify({ ok: true, action: "transfer" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Ação: reiniciar bot
+    if (action === "reset_bot") {
+      await supabaseAdmin
+        .from("whatsapp_conversations")
+        .update({
+          state: "GREETING",
+          assigned_agent_id: null,
+          history: [],
+          last_message_at: new Date().toISOString(),
+        })
+        .eq("id", conversation_id);
+
+      return new Response(JSON.stringify({ ok: true, action: "reset_bot" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -149,7 +166,7 @@ serve(async (req: Request) => {
     // ── Ação: encerrar conversa
     if (action === "close_conversation") {
       const closeMsg = `Atendimento encerrado por um de nossos agentes. Agradecemos o contato! 👋`;
-      
+
       const updatedHistory = [
         ...(conv.history || []),
         { role: "agent", content: closeMsg, timestamp: new Date().toISOString(), agent_id: user.id },
@@ -165,7 +182,7 @@ serve(async (req: Request) => {
         })
         .eq("id", conversation_id);
 
-      await sendZApiMessage(settings, conv.phone_number, closeMsg);
+      await sendWhatsAppMessage(settings, conv.phone_number, closeMsg);
 
       return new Response(JSON.stringify({ ok: true, action: "close_conversation" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -175,10 +192,18 @@ serve(async (req: Request) => {
     // ── Ação: enviar mensagem do agente
     if (action === "send" && message) {
       // Salvar no histórico
-      const updatedHistory = [
+      // --- ANTI-BLOAT: Impedir mensagens maiores que 2000 caracteres (ex: base64) ---
+      const safeText = message.substring(0, 2000);
+
+      let updatedHistory = [
         ...(conv.history || []),
-        { role: "agent", content: message, timestamp: new Date().toISOString(), agent_id: user.id },
+        { role: "agent", content: safeText, timestamp: new Date().toISOString(), agent_id: user.id },
       ];
+
+      // --- ANTI-BLOAT: Janela deslizante de 100 mensagens ---
+      if (updatedHistory.length > 100) {
+        updatedHistory = updatedHistory.slice(-100);
+      }
 
       await supabaseAdmin
         .from("whatsapp_conversations")
@@ -188,10 +213,40 @@ serve(async (req: Request) => {
         })
         .eq("id", conversation_id);
 
-      // Enviar via Z-API
-      await sendZApiMessage(settings, conv.phone_number, message);
+      // Enviar via UAZAPI / Z-API
+      await sendWhatsAppMessage(settings, conv.phone_number, message);
 
       return new Response(JSON.stringify({ ok: true, action: "sent" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Ação: enviar figurinha do agente
+    if (action === "send_sticker" && message) {
+      // O 'message' conterá a URL ou base64 da figurinha, mas salvaremos no histórico como um aviso amigável
+      const safeText = "[✨ Figurinha Enviada]";
+
+      let updatedHistory = [
+        ...(conv.history || []),
+        { role: "agent", content: safeText, timestamp: new Date().toISOString(), agent_id: user.id },
+      ];
+
+      if (updatedHistory.length > 100) {
+        updatedHistory = updatedHistory.slice(-100);
+      }
+
+      await supabaseAdmin
+        .from("whatsapp_conversations")
+        .update({
+          history: updatedHistory,
+          last_message_at: new Date().toISOString(),
+        })
+        .eq("id", conversation_id);
+
+      // Enviar sticker via UAZAPI / Z-API
+      await sendWhatsAppSticker(settings, conv.phone_number, message);
+
+      return new Response(JSON.stringify({ ok: true, action: "send_sticker" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -206,21 +261,119 @@ serve(async (req: Request) => {
   }
 });
 
-async function sendZApiMessage(
+async function sendWhatsAppMessage(
   settings: Record<string, string>,
   phone: string,
   text: string
 ): Promise<void> {
+  // 1. Tentar UAZAPI primeiro
+  if (settings.uazapi_url && settings.uazapi_token) {
+    let baseUrl = settings.uazapi_url.trim();
+    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+
+    // --- ANTI-BAN: Calcular delay humano para o atendente ---
+    const baseDelay = 1000; // 1s base para o atendente
+    const charDelay = Math.min(text.length * (Math.floor(Math.random() * 15) + 20), 3000);
+    const calculatedDelay = baseDelay + charDelay;
+
+    const url = `${baseUrl}/send/text`;
+
+    const payload = { 
+      number: phone, 
+      text: text,
+      readchat: true,      // Simula visualização da mensagem recebida
+      delay: calculatedDelay // Simula o digitando...
+    };
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": settings.uazapi_token.trim(),
+        "token": settings.uazapi_token.trim()
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("[Admin Send] ❌ Falha UAZAPI:", res.status, errText);
+    }
+    return;
+  }
+
+  // 2. Fallback Z-API
   const { zapi_instance_id, zapi_instance_token, zapi_client_token } = settings;
-  if (!zapi_instance_id || !zapi_instance_token) return;
+  if (!zapi_instance_id || !zapi_instance_token) {
+    console.error("[Admin Send] Credenciais de WhatsApp ausentes no tenant");
+    return;
+  }
 
   const url = `https://api.z-api.io/instances/${zapi_instance_id}/token/${zapi_instance_token}/send-text`;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (zapi_client_token) headers["Client-Token"] = zapi_client_token;
-  
-  await fetch(url, {
+
+  const res = await fetch(url, {
     method: "POST",
     headers,
     body: JSON.stringify({ phone: phone, message: text }),
   });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error("[Admin Send] ❌ Falha Z-API:", res.status, errText);
+}
+
+async function sendWhatsAppSticker(
+  settings: Record<string, string>,
+  phone: string,
+  stickerUrlOrBase64: string
+): Promise<void> {
+  // 1. Tentar UAZAPI primeiro
+  if (settings.uazapi_url && settings.uazapi_token) {
+    let baseUrl = settings.uazapi_url.trim();
+    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+
+    const url = `${baseUrl}/send/sticker`;
+
+    const payload = { 
+      number: phone, 
+      sticker: stickerUrlOrBase64
+    };
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": settings.uazapi_token.trim(),
+        "token": settings.uazapi_token.trim()
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("[Admin Send] ❌ Falha UAZAPI (Sticker):", res.status, errText);
+    }
+    return;
+  }
+
+  // 2. Fallback Z-API
+  const { zapi_instance_id, zapi_instance_token, zapi_client_token } = settings;
+  if (!zapi_instance_id || !zapi_instance_token) return;
+
+  const url = `https://api.z-api.io/instances/${zapi_instance_id}/token/${zapi_instance_token}/send-sticker`;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (zapi_client_token) headers["Client-Token"] = zapi_client_token;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ phone: phone, sticker: stickerUrlOrBase64 }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error("[Admin Send] ❌ Falha Z-API (Sticker):", res.status, errText);
+  }
 }

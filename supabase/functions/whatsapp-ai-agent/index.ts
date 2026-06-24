@@ -14,12 +14,12 @@ const TOOLS = [
   {
     type: "function",
     function: {
-      name: "find_customer",
-      description: "Busca cliente na base de dados pelo CNPJ (com ou sem formatação) ou pelo número de série de um equipamento.",
+      name: "check_customer_registration",
+      description: "Busca os dados do cliente e a ordem de serviço atual ativa informando CPF, CNPJ ou Número de Série do equipamento.",
       parameters: {
         type: "object",
         properties: {
-          cnpj: { type: "string" },
+          cnpj: { type: "string", description: "CPF ou CNPJ do cliente com ou sem pontuação. Ex: 123.456.789-00 ou 12.345.678/0001-90" },
           serial_number: { type: "string" }
         }
       }
@@ -43,12 +43,12 @@ const TOOLS = [
     type: "function",
     function: {
       name: "list_orders",
-      description: "Busca a lista de Ordens de Serviço (OS) de um cliente pelo CNPJ, ou vinculadas a um equipamento pelo número de série. Retorna o status, agendamento, etc.",
+      description: "Busca a lista de Ordens de Serviço (OS) de um cliente pelo CPF ou CNPJ, ou vinculadas a um equipamento pelo número de série. O sistema aceita tanto CPF quanto CNPJ.",
       parameters: {
         type: "object",
         properties: {
-          cnpj: { type: "string" },
-          serial_number: { type: "string" }
+          cnpj: { type: "string", description: "CPF (pessoa física) ou CNPJ (pessoa jurídica) do cliente, com ou sem pontuação. Ex: 123.456.789-00 ou 12.345.678/0001-90" },
+          serial_number: { type: "string", description: "Número de série do equipamento" }
         }
       }
     }
@@ -66,15 +66,58 @@ const TOOLS = [
         required: ["reason"]
       }
     }
+  },
+  {
+    type: "function",
+    function: {
+      name: "request_service_order",
+      description: "Registra uma solicitação de abertura de Ordem de Serviço (OS/Chamado) feita pelo cliente. Use quando o cliente pede para abrir um chamado, registrar um problema, solicitar visita técnica ou qualquer tipo de atendimento técnico. Pode ser chamado mesmo sem todos os dados do cliente.",
+      parameters: {
+        type: "object",
+        properties: {
+          customer_name: { type: "string", description: "Nome do cliente, se identificado" },
+          customer_document: { type: "string", description: "CPF ou CNPJ do cliente, se informado" },
+          equipment_serial: { type: "string", description: "Número de série do equipamento, se informado" },
+          equipment_name: { type: "string", description: "Nome ou modelo do equipamento" },
+          problem_description: { type: "string", description: "Descrição do problema relatado pelo cliente" }
+        },
+        required: ["problem_description"]
+      }
+    }
   }
 ];
 
 const debugLogs: any[] = [];
 
+function isWithinBusinessHours(settings: Record<string, any>): boolean {
+  const businessDays = settings.business_days ?? [1, 2, 3, 4, 5];
+  const startStr = settings.business_start || "08:00";
+  const endStr = settings.business_end || "18:00";
+
+  const now = new Date();
+  const spDate = new Date(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+  
+  const currentDay = spDate.getDay();
+  if (!businessDays.includes(currentDay)) return false;
+
+  const currentHour = spDate.getHours();
+  const currentMinute = spDate.getMinutes();
+  const currentTotal = currentHour * 60 + currentMinute;
+
+  const [startH, startM] = startStr.split(':').map(Number);
+  const startTotal = startH * 60 + (startM || 0);
+
+  const [endH, endM] = endStr.split(':').map(Number);
+  const endTotal = endH * 60 + (endM || 0);
+
+  return currentTotal >= startTotal && currentTotal <= endTotal;
+}
+
 async function executeTool(
   toolName: string,
   args: Record<string, string>,
-  supabase: ReturnType<typeof createClient>
+  supabase: ReturnType<typeof createClient>,
+  settings: Record<string, any>
 ): Promise<string> {
   debugLogs.push({ event: "tool_called", toolName, args });
   try {
@@ -183,7 +226,58 @@ async function executeTool(
       }
 
       case "escalate_to_human": {
+        const isOnline = isWithinBusinessHours(settings);
+        if (!isOnline) {
+          const outMsg = settings.out_of_office_msg || "Nosso horário de atendimento com humanos é de Seg a Sex das 08h às 18h.";
+          return JSON.stringify({ 
+            escalated: false, 
+            message: `ATENÇÃO (Instrução de Sistema): A empresa está FECHADA neste momento e não há humanos disponíveis. Informe o cliente dizendo exatamente isto ou algo similar: "${outMsg}", mas pergunte se você pode ajudar com alguma outra dúvida enquanto isso. NÃO encerre a conversa.` 
+          });
+        }
         return JSON.stringify({ escalated: true, message: "Atendimento transferido para humano." });
+      }
+
+      case "request_service_order": {
+        // Recupera o tenant_id e conversation_id dos args injetados
+        const tenantId = args.tenant_id;
+        const convId = args.conversation_id || null;
+        const phoneNumber = args.phone_number || "";
+        const customerId = args.customer_id || null;
+
+        const { data: reqData, error: reqError } = await supabase
+          .from("whatsapp_service_requests")
+          .insert({
+            tenant_id: tenantId,
+            conversation_id: convId,
+            phone_number: phoneNumber,
+            customer_id: customerId,
+            customer_name: args.customer_name || null,
+            customer_document: args.customer_document || null,
+            equipment_serial: args.equipment_serial || null,
+            equipment_name: args.equipment_name || null,
+            problem_description: args.problem_description,
+            status: "PENDING"
+          })
+          .select("id")
+          .single();
+
+        if (reqError) {
+          debugLogs.push({ event: "request_service_order_error", error: reqError.message });
+          return JSON.stringify({ 
+            registered: false, 
+            message: "Não foi possível registrar a solicitação no momento. Tente novamente em instantes." 
+          });
+        }
+
+        const shortTicket = reqData?.id ? reqData.id.substring(0, 6).toUpperCase() : "";
+        debugLogs.push({ event: "request_service_order_ok", id: reqData?.id, ticket: shortTicket });
+        
+        return JSON.stringify({ 
+          registered: true, 
+          request_id: reqData?.id,
+          ticket_number: `Ticket #${shortTicket}`,
+          message: `Solicitação registrada com sucesso sob o protocolo #${shortTicket}. Nossa equipe entrará em contato para confirmar o agendamento. (Diga exatamente este número de Ticket para o cliente)` 
+        });
       }
 
       default:
@@ -236,13 +330,19 @@ serve(async (req: Request) => {
     const llmMessages: any[] = [
       {
         role: "system",
-        content: `Você é Lia, assistente virtual da empresa ${tenant_name ?? "nossa empresa"}, especialista em ordens de serviço.
+        content: `Você é Lia, da equipe de atendimento da empresa ${tenant_name ?? "nossa empresa"}, especialista em ordens de serviço.
 
-Sua personalidade: próxima, atenciosa, profissional mas descontraída. Use emojis com naturalidade. Escreva como uma pessoa real — com pontuação natural, sem parecer um formulário.
+Sua personalidade: humana, extremamente natural, empática, respeitosa e muito profissional. O cliente NUNCA deve perceber que está falando com uma Inteligência Artificial. 
+IMPORTANTE SOBRE COMUNICAÇÃO:
+- Use a linguagem do dia a dia de forma educada e cortês.
+- Use emojis com EXTREMA MODERAÇÃO e cautela. NÃO coloque emojis no final de cada frase e não repita o mesmo emoji o tempo todo. 
+- Evite parecer excessivamente empolgada. Mantenha um tom sóbrio, acolhedor e focado na solução.
+- Use mensagens curtas e diretas, com pontuação natural (exatamente como um humano digitaria no WhatsApp).
 
 REGRAS PARA BUSCAR OS:
-- Quando o cliente informar um CNPJ ou Número de Série → use IMEDIATAMENTE a tool 'list_orders'
+- Quando o cliente informar um CPF, CNPJ ou Número de Série → use IMEDIATAMENTE a tool 'list_orders'
 - Quando informar número de OS (ex: 1007, NEX-1007) → use IMEDIATAMENTE a tool 'get_order_details'
+- O sistema aceita tanto CPF (pessoa física) quanto CNPJ (pessoa jurídica) — NUNCA diga que só aceita CNPJ
 - NUNCA diga que não encontrou antes de tentar as tools
 
 REGRAS PARA APRESENTAR OS:
@@ -258,15 +358,20 @@ REGRAS PARA APRESENTAR OS:
 
 OUTRAS REGRAS:
 - Para transferir para humano: use 'escalate_to_human'
-- Seja caloroso — o cliente não deve perceber que é uma IA
+- NUNCA se refira a si mesma como "bot", "IA" ou "assistente virtual". Fale sempre em nome da equipe (ex: "nós vamos verificar", "nossa equipe está vendo isso").
+- Mantenha o atendimento extremamente humano e sutil.
+- Quando o cliente pedir para ABRIR UM CHAMADO, solicitar VISITA TÉCNICA ou REGISTRAR UM PROBLEMA: use IMEDIATAMENTE a tool 'request_service_order' com todas as informações coletadas na conversa. Confirme ao cliente que a solicitação foi registrada e que a equipe entrará em contato.
 ESTADO ATUAL: ${newState}`,
       },
     ];
 
     for (const msg of recentHistory) {
       if (!msg?.role || !msg?.content) continue;
-      if (msg.role === "user") llmMessages.push({ role: "user", content: msg.content });
-      else if (msg.role === "bot") llmMessages.push({ role: "assistant", content: msg.content });
+      if (msg.role === "user") {
+        llmMessages.push({ role: "user", content: msg.content });
+      } else if (msg.role === "bot" || msg.role === "agent") {
+        llmMessages.push({ role: "assistant", content: msg.content });
+      }
     }
     llmMessages.push({ role: "user", content: user_message });
 
@@ -318,8 +423,12 @@ ESTADO ATUAL: ${newState}`,
           debugLogs.push({ error: "JSON Parse failed for tool arguments", arguments: toolCall.function.arguments });
           toolArgs = {};
         }
+        // Injeta contexto da conversa para as tools que precisam
         toolArgs.tenant_id = tenant_id;
-        const toolResult = await executeTool(toolName, toolArgs, supabase);
+        toolArgs.conversation_id = conversation.id || null;
+        toolArgs.phone_number = conversation.phone_number || "";
+        toolArgs.customer_id = customerId;
+        const toolResult = await executeTool(toolName, toolArgs, supabase, settings);
         const parsed = JSON.parse(toolResult);
 
         if (toolName === "find_customer" && parsed.found && parsed.customer) {
@@ -327,6 +436,9 @@ ESTADO ATUAL: ${newState}`,
           newState = "CUSTOMER_FOUND";
         } else if (toolName === "escalate_to_human" && parsed.escalated) {
           newState = "WAITING_HUMAN";
+        } else if (toolName === "request_service_order" && parsed.registered) {
+          // Mantém o estado atual, apenas registra a solicitação
+          debugLogs.push({ event: "service_request_registered", request_id: parsed.request_id });
         }
 
         llmMessages.push({ role: "tool", tool_call_id: toolCall.id, name: toolName, content: toolResult });

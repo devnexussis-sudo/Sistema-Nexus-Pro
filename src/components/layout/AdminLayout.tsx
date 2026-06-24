@@ -3,7 +3,7 @@ import {
     Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Calendar,
     Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck,
     Settings, LogOut, Bell, Package, ArrowRight, FileText,
-    AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff, X, Phone, Menu, Bot, Code2, BookOpen, MapPin, MessageCircle
+    AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff, X, Phone, Menu, Bot, Code2, BookOpen, MapPin, MessageCircle, ClipboardCheck
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { NexusBranding } from '../ui/NexusBranding';
@@ -39,12 +39,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     // IDs de notificações já dispensadas neste ciclo de vida (evita flash durante gravação)
     const [locallyDismissed, setLocallyDismissed] = useState<string[]>([]);
     const [whatsappWaitingCount, setWhatsappWaitingCount] = useState(0);
+    const [solicitacoesCount, setSolicitacoesCount] = useState(0);
 
     const { t } = useI18n();
     const { canAccessMenu, isAdmin, can } = usePermissions();
 
     // Hook global que verifica mensagens novas independente da aba aberta
-    const { alertCount } = useGlobalWhatsAppNotifications(user?.id || null, isAdmin);
+    const { alertCount } = useGlobalWhatsAppNotifications(user?.id || null, isAdmin, location.pathname);
 
     // Buscar contador de WhatsApp aguardando humano
     useEffect(() => {
@@ -58,6 +59,29 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         };
         fetchWACount();
         const interval = setInterval(fetchWACount, 5000); // atualiza o menu a cada 5s
+        
+        // Listener imediato para ações tomadas no painel
+        window.addEventListener('whatsapp_state_changed', fetchWACount);
+        
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('whatsapp_state_changed', fetchWACount);
+        };
+    }, [isAdmin]);
+
+    // Buscar contador de solicitações pendentes
+    useEffect(() => {
+        if (!isAdmin) return;
+        const fetchSolicitacoesCount = async () => {
+            const { count } = await supabase
+                .from('whatsapp_service_requests')
+                .select('*', { count: 'exact', head: true })
+                .eq('status', 'PENDING');
+            setSolicitacoesCount(count || 0);
+        };
+        fetchSolicitacoesCount();
+        const interval = setInterval(fetchSolicitacoesCount, 5000); // atualiza o menu a cada 5s
+        
         return () => clearInterval(interval);
     }, [isAdmin]);
 
@@ -94,6 +118,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         { path: '/admin', id: 'dashboard', label: t.nav.dashboard, icon: LayoutDashboard, visible: menuVisible('dashboard'), enabled: isModuleEnabled('dashboard') },
         { path: '/admin/ai', id: 'ai', label: 'Duno IA', icon: Bot, visible: true, enabled: true },
         { path: '/admin/docs', id: 'docs', label: 'Docs / FAQ', icon: BookOpen, visible: true, enabled: true },
+        { path: '/admin/whatsapp', id: 'whatsapp', label: 'WhatsApp Inbox', icon: MessageCircle, visible: isAdmin, enabled: true, badge: whatsappWaitingCount + alertCount },
+        { path: '/admin/solicitacoes', id: 'solicitacoes', label: 'Solicitações', icon: ClipboardCheck, visible: isAdmin, enabled: true, badge: solicitacoesCount },
         { path: '/admin/orders', id: 'orders', label: t.nav.orders, icon: ClipboardList, visible: menuVisible('orders'), enabled: isModuleEnabled('orders') },
         { path: '/admin/calendar', id: 'calendar', label: t.nav.calendar, icon: Calendar, visible: menuVisible('calendar'), enabled: isModuleEnabled('orders') },
         { path: '/admin/map', id: 'map', label: t.nav.map, icon: Navigation, visible: menuVisible('map'), enabled: isModuleEnabled('map') },
@@ -108,7 +134,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         { path: '/admin/regions', id: 'regions', label: 'Gestão de Regiões', icon: MapPin, visible: menuVisible('regions'), enabled: isModuleEnabled('regions') },
         { path: '/admin/users', id: 'users', label: t.nav.users, icon: ShieldAlert, visible: menuVisible('users'), enabled: isModuleEnabled('users') },
         { path: '/admin/settings', id: 'settings', label: t.nav.settings, icon: Settings, visible: menuVisible('settings'), enabled: isModuleEnabled('settings') },
-        { path: '/admin/whatsapp', id: 'whatsapp', label: 'WhatsApp Inbox', icon: MessageCircle, visible: isAdmin, enabled: true, badge: whatsappWaitingCount + alertCount },
         { path: '/admin/integrations', id: 'integrations', label: 'Integrações', icon: Code2, visible: menuVisible('settings'), enabled: isModuleEnabled('settings') },
     ];
 

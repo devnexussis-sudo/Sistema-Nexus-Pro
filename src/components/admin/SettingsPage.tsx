@@ -9,7 +9,7 @@ import {
   Navigation, Smartphone, Lock, Unlock, ListOrdered,
   ShieldAlert, X, UploadCloud, Languages,
   BellRing, Database, History, HardDrive, Loader2, Loader, Share2, PlayCircle, PieChart, Target, ImagePlus,
-  Monitor, MapPinned, MessageCircle, QrCode, Wifi, WifiOff
+  Monitor, MapPinned, MessageCircle, QrCode, Wifi, WifiOff, Clock
 } from 'lucide-react';
 import { useI18n, TIMEZONE_OPTIONS, type SupportedLocale, type SupportedTimezone } from '../../i18n';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -65,14 +65,21 @@ interface SystemParams {
 }
 
 interface WhatsAppConfig {
-  zapi_instance_id: string;
-  zapi_instance_token: string;
-  zapi_client_token: string;
+  uazapi_url: string;
+  uazapi_instance: string;
+  uazapi_token: string;
+  zapi_instance_id?: string;
+  zapi_instance_token?: string;
+  zapi_client_token?: string;
   bot_enabled: boolean;
   bot_name: string;
   greeting_message: string;
   human_keyword: string;
   phone_number_display: string;
+  business_days?: number[];
+  business_start?: string;
+  business_end?: string;
+  out_of_office_msg?: string;
 }
 
 export const SettingsPage: React.FC = () => {
@@ -99,6 +106,9 @@ export const SettingsPage: React.FC = () => {
   const [showSuperUserUnlock, setShowSuperUserUnlock] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [whatsapp, setWhatsapp] = useState<WhatsAppConfig>({
+    uazapi_url: '',
+    uazapi_instance: '',
+    uazapi_token: '',
     zapi_instance_id: '',
     zapi_instance_token: '',
     zapi_client_token: '',
@@ -107,6 +117,10 @@ export const SettingsPage: React.FC = () => {
     greeting_message: '',
     human_keyword: 'ATENDENTE',
     phone_number_display: '',
+    business_days: [1, 2, 3, 4, 5],
+    business_start: '08:00',
+    business_end: '18:00',
+    out_of_office_msg: 'Nosso horário de atendimento com humanos é de Seg a Sex das 08h às 18h. Posso continuar te ajudando por aqui!',
   });
   const [wppTestStatus, setWppTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [wppQrCode, setWppQrCode] = useState<string | null>(null);
@@ -221,6 +235,9 @@ export const SettingsPage: React.FC = () => {
         const ws = data.whatsapp_settings as Record<string, any> | null;
         if (ws) {
           setWhatsapp({
+            uazapi_url: ws.uazapi_url || '',
+            uazapi_instance: ws.uazapi_instance || '',
+            uazapi_token: ws.uazapi_token || '',
             zapi_instance_id: ws.zapi_instance_id || ws.mega_instance_key || '',
             zapi_instance_token: ws.zapi_instance_token || ws.mega_api_token || '',
             zapi_client_token: ws.zapi_client_token || '',
@@ -229,6 +246,10 @@ export const SettingsPage: React.FC = () => {
             greeting_message: ws.greeting_message || '',
             human_keyword: ws.human_keyword || 'ATENDENTE',
             phone_number_display: ws.phone_number_display || '',
+            business_days: ws.business_days ?? [1, 2, 3, 4, 5],
+            business_start: ws.business_start || '08:00',
+            business_end: ws.business_end || '18:00',
+            out_of_office_msg: ws.out_of_office_msg || 'Nosso horário de atendimento com humanos é de Seg a Sex das 08h às 18h. Posso continuar te ajudando por aqui!',
           });
           setWppConnected(ws.connected ?? false);
         }
@@ -1206,39 +1227,39 @@ export const SettingsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Z-API Credentials */}
+                  {/* UAZAPI Credentials */}
                   <div className="space-y-3">
-                    <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">🔌 Z-API</h3>
+                    <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">🔌 UAZAPI</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Instance ID</label>
-                        <input
-                          type="text"
-                          value={whatsapp.zapi_instance_id}
-                          onChange={e => setWhatsapp({ ...whatsapp, zapi_instance_id: e.target.value })}
-                          placeholder="Ex: 3D29D51824..."
-                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Instance Token</label>
-                        <input
-                          type="password"
-                          value={whatsapp.zapi_instance_token}
-                          onChange={e => setWhatsapp({ ...whatsapp, zapi_instance_token: e.target.value })}
-                          placeholder="Token da instância Z-API"
-                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none"
-                        />
+                      <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">URL Base da API</label>
+                          <input
+                            type="text"
+                            value={whatsapp.uazapi_url}
+                            onChange={e => setWhatsapp({ ...whatsapp, uazapi_url: e.target.value })}
+                            placeholder="Ex: https://free.uazapi.com"
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Nome da Instância</label>
+                          <input
+                            type="text"
+                            value={whatsapp.uazapi_instance}
+                            onChange={e => setWhatsapp({ ...whatsapp, uazapi_instance: e.target.value })}
+                            placeholder="Ex: duno"
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none"
+                          />
+                        </div>
                       </div>
                       <div className="md:col-span-2">
-                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">
-                          Client-Token <span className="normal-case text-gray-400 font-normal">(opcional — encontre em Segurança no painel Z-API)</span>
-                        </label>
+                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Token de Autenticação</label>
                         <input
                           type="password"
-                          value={whatsapp.zapi_client_token}
-                          onChange={e => setWhatsapp({ ...whatsapp, zapi_client_token: e.target.value })}
-                          placeholder="Deixe vazio se não tiver (opcional)"
+                          value={whatsapp.uazapi_token}
+                          onChange={e => setWhatsapp({ ...whatsapp, uazapi_token: e.target.value })}
+                          placeholder="Ex: SEU_TOKEN_AQUI"
                           className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none"
                         />
                       </div>
@@ -1259,17 +1280,24 @@ export const SettingsPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={async () => {
-                          if (!whatsapp.zapi_instance_id || !whatsapp.zapi_instance_token) return;
+                          if (!whatsapp.uazapi_url || !whatsapp.uazapi_token || !whatsapp.uazapi_instance) return;
                           setWppTestStatus('testing');
                           try {
-                            const id = whatsapp.zapi_instance_id.trim();
-                            const token = whatsapp.zapi_instance_token.trim();
-                            const clientToken = whatsapp.zapi_client_token.trim();
-                            const headers: Record<string, string> = {};
-                            if (clientToken) headers['Client-Token'] = clientToken;
-                            const res = await fetch(`https://api.z-api.io/instances/${id}/token/${token}/status`, { headers });
+                            let baseUrl = whatsapp.uazapi_url.trim();
+                            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+                            const token = whatsapp.uazapi_token.trim();
+                            const instanceName = whatsapp.uazapi_instance.trim();
+                            
+                            const headers = { 
+                              'apikey': token,
+                              'token': token,
+                              'Content-Type': 'application/json'
+                            };
+                            
+                            // Na UazapiGO a rota de status é GET /instance/status
+                            const res = await fetch(`${baseUrl}/instance/status`, { headers });
                             const json = await res.json();
-                            const connected = json?.connected === true;
+                            const connected = json?.connected === true || json?.instance?.status === 'connected' || json?.instance?.state === 'open' || json?.state === 'open' || json?.status === 'connected';
                             if (connected) {
                               setWppConnected(true);
                               setWppTestStatus('ok');
@@ -1299,26 +1327,31 @@ export const SettingsPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={async () => {
-                          if (!whatsapp.zapi_instance_id || !whatsapp.zapi_instance_token) return;
+                          if (!whatsapp.uazapi_url || !whatsapp.uazapi_token || !whatsapp.uazapi_instance) return;
                           setWppQrCode(null);
                           try {
-                            const id = whatsapp.zapi_instance_id.trim();
-                            const token = whatsapp.zapi_instance_token.trim();
-                            const clientToken = whatsapp.zapi_client_token.trim();
-                            const headers: Record<string, string> = {};
-                            if (clientToken) headers['Client-Token'] = clientToken;
+                            let baseUrl = whatsapp.uazapi_url.trim();
+                            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+                            const token = whatsapp.uazapi_token.trim();
+                            const instanceName = whatsapp.uazapi_instance.trim();
+                            
+                            const headers = { 
+                              'apikey': token,
+                              'token': token,
+                              'Content-Type': 'application/json'
+                            };
 
-                            const reqUrl = `https://api.z-api.io/instances/${id}/token/${token}/qr-code/image`;
+                            // Na UazapiGO a rota de connect é POST e não exige o nome da instância se o token já identifica
+                            const reqUrl = `${baseUrl}/instance/connect`;
                             console.log('[QR Code] Chamando:', reqUrl);
-                            const res = await fetch(reqUrl, { headers });
+                            const res = await fetch(reqUrl, { method: 'POST', headers });
                             console.log('[QR Code] Status HTTP:', res.status);
                             const json = await res.json();
                             console.log('[QR Code] Resposta completa:', JSON.stringify(json).substring(0, 200));
 
-                            const qrBase64 = json?.value || json?.qrcode || json?.base64 || null;
-                            console.log('[QR Code] base64 encontrado?', !!qrBase64, '| início:', String(qrBase64 || '').substring(0, 30));
+                            const qrBase64 = json?.instance?.qrcode || json?.qrcode?.base64 || json?.base64 || json?.qrcode || json?.value || null;
                             if (qrBase64 && typeof qrBase64 === 'string') {
-                              const src = qrBase64.startsWith('data:') ? qrBase64 : `data:image/png;base64,${qrBase64}`;
+                              const src = qrBase64.startsWith('data:') ? qrBase64 : `data:image/png;base64,${qrBase64.replace(/^data:image\/png;base64,/, '')}`;
                               setWppQrCode(src);
                             } else {
                               const msg = `QR Code não encontrado.\nResposta da API: ${JSON.stringify(json).substring(0, 300)}`;
@@ -1339,21 +1372,26 @@ export const SettingsPage: React.FC = () => {
                         type="button"
                         disabled={!wppConnected}
                         onClick={() => {
-                          if (!whatsapp.zapi_instance_id || !whatsapp.zapi_instance_token) return;
+                          if (!whatsapp.uazapi_url || !whatsapp.uazapi_token || !whatsapp.uazapi_instance) return;
                           
                           showConfirm(
                             "Tem certeza que deseja desconectar o WhatsApp atual da API? O número perderá a conexão imediatamente.",
                             async () => {
                               try {
-                                const id = whatsapp.zapi_instance_id.trim();
-                                const token = whatsapp.zapi_instance_token.trim();
-                                const clientToken = whatsapp.zapi_client_token.trim();
-                                const headers: Record<string, string> = {};
-                                if (clientToken) headers['Client-Token'] = clientToken;
+                                let baseUrl = whatsapp.uazapi_url.trim();
+                                if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+                                const token = whatsapp.uazapi_token.trim();
+                                const instanceName = whatsapp.uazapi_instance.trim();
+                                
+                                const headers = { 
+                                  'apikey': token,
+                                  'token': token,
+                                  'Content-Type': 'application/json'
+                                };
 
                                 console.log('[Logout] Desconectando...');
-                                const res = await fetch(`https://api.z-api.io/instances/${id}/token/${token}/disconnect`, {
-                                  method: 'GET',
+                                const res = await fetch(`${baseUrl}/instance/logout`, {
+                                  method: 'DELETE',
                                   headers,
                                 });
                                 
@@ -1366,8 +1404,8 @@ export const SettingsPage: React.FC = () => {
                                 setWppConnected(false);
                                 setWppQrCode(null);
                               } catch (e: any) {
-                                console.error('[Logout] Erro fetch:', e);
-                                showAlert(`Erro ao desconectar: ${e?.message || 'Erro na comunicação'}`, 'error');
+                                console.error('[Logout] Erro:', e);
+                                showAlert(`Erro ao desconectar: ${e?.message || 'Desconhecido'}`, "error");
                                 setWppConnected(true);
                               }
                             },
@@ -1448,6 +1486,82 @@ export const SettingsPage: React.FC = () => {
                         placeholder={`Olá! Sou o assistente virtual da ${data?.trading_name || 'sua empresa'}. Informe seu CNPJ ou número de série do equipamento para começar.`}
                         className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none resize-none"
                       />
+                    </div>
+                  </div>
+
+                  {/* Configurações de Horário de Atendimento */}
+                  <div className="bg-white rounded-2xl border border-gray-100 p-4 md:p-6 mb-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-500">
+                        <Clock size={16} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-gray-900">Horário de Atendimento (Humano)</h4>
+                        <p className="text-xs text-gray-500">O bot continuará respondendo 24/7, mas usará essa configuração para fila de espera.</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-2">Dias de Funcionamento</label>
+                        <div className="flex flex-wrap gap-2">
+                          {[
+                            { val: 0, label: 'Dom' }, { val: 1, label: 'Seg' }, { val: 2, label: 'Ter' },
+                            { val: 3, label: 'Qua' }, { val: 4, label: 'Qui' }, { val: 5, label: 'Sex' },
+                            { val: 6, label: 'Sáb' }
+                          ].map(day => {
+                            const isSelected = whatsapp.business_days?.includes(day.val);
+                            return (
+                              <button
+                                key={day.val}
+                                type="button"
+                                onClick={() => {
+                                  const current = whatsapp.business_days || [];
+                                  const next = isSelected ? current.filter(d => d !== day.val) : [...current, day.val];
+                                  setWhatsapp({ ...whatsapp, business_days: next.sort() });
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                                  isSelected ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}
+                              >
+                                {day.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div>
+                          <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Abre às</label>
+                          <input
+                            type="time"
+                            value={whatsapp.business_start}
+                            onChange={e => setWhatsapp({ ...whatsapp, business_start: e.target.value })}
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-indigo-100 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Fecha às</label>
+                          <input
+                            type="time"
+                            value={whatsapp.business_end}
+                            onChange={e => setWhatsapp({ ...whatsapp, business_end: e.target.value })}
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-indigo-100 outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Mensagem de Fora de Expediente</label>
+                        <textarea
+                          value={whatsapp.out_of_office_msg}
+                          onChange={e => setWhatsapp({ ...whatsapp, out_of_office_msg: e.target.value })}
+                          rows={2}
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-indigo-100 outline-none resize-none"
+                        />
+                        <p className="text-[10px] text-gray-400 mt-1">Essa mensagem é enviada antes de transferir ou continuar, caso o cliente chame um humano fora do horário.</p>
+                      </div>
                     </div>
                   </div>
 

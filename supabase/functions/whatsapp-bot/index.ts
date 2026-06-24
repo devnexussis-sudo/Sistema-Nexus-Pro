@@ -18,10 +18,31 @@ interface ZApiMessage {
   phone?: string;
   isGroupMsg?: boolean;
   fromMe?: boolean;
-  type?: string; // "ReceivedCallback", "chat", "DeliveryCallback", etc.
+  type?: string; 
   text?: { message?: string };
   body?: string;
+  content?: string;
   chatName?: string;
+  wook?: string;
+  status?: string;
+  session?: string;
+  
+  // Campos UazapiGO / Evolution API
+  event?: string;
+  instance?: string;
+  data?: {
+    key?: {
+      remoteJid?: string;
+      fromMe?: boolean;
+    };
+    message?: {
+      conversation?: string;
+      extendedTextMessage?: {
+        text?: string;
+      };
+    };
+    pushName?: string;
+  };
 }
 
 interface Conversation {
@@ -36,19 +57,58 @@ interface Conversation {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function extractPhoneNumber(payload: ZApiMessage): string {
-  return String(payload.phone || '').replace(/[^0-9]/g, '');
+function extractPhoneNumber(payload: any): string {
+  const msgObj = payload.data?.messages?.[0] || payload.data;
+  const phoneVal = payload.phone || 
+                   payload.chat?.phone || 
+                   payload.message?.chatid || 
+                   msgObj?.key?.remoteJid || 
+                   '';
+  return String(phoneVal).replace(/[^0-9]/g, '');
 }
 
-function extractText(payload: ZApiMessage): string | null {
-  return payload.text?.message || payload.body || null;
+function extractText(payload: any): string | null {
+  const msgObj = payload.data?.messages?.[0] || payload.data;
+  return payload.content || 
+         payload.message?.content ||
+         payload.text?.message || 
+         payload.body || 
+         msgObj?.message?.conversation ||
+         msgObj?.message?.extendedTextMessage?.text ||
+         null;
 }
 
-// Tipos de eventos que a Z-API envia que NÃO são mensagens recebidas
+function isWithinBusinessHours(settings: Record<string, any>): boolean {
+  const businessDays = settings.business_days ?? [1, 2, 3, 4, 5];
+  const startStr = settings.business_start || "08:00";
+  const endStr = settings.business_end || "18:00";
+
+  // Pegar data e hora atuais no fuso de São Paulo
+  const now = new Date();
+  const spDate = new Date(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+  
+  const currentDay = spDate.getDay(); // 0 a 6
+  if (!businessDays.includes(currentDay)) return false;
+
+  const currentHour = spDate.getHours();
+  const currentMinute = spDate.getMinutes();
+  const currentTotal = currentHour * 60 + currentMinute;
+
+  const [startH, startM] = startStr.split(':').map(Number);
+  const startTotal = startH * 60 + (startM || 0);
+
+  const [endH, endM] = endStr.split(':').map(Number);
+  const endTotal = endH * 60 + (endM || 0);
+
+  return currentTotal >= startTotal && currentTotal <= endTotal;
+}
+
+// Tipos de eventos que a Z-API/UAZAPI envia que NÃO são mensagens recebidas
 const STATUS_EVENT_TYPES = [
   'DeliveryCallback', 'ReadCallback', 'PlayedCallback',
   'SentCallback', 'MessageStatusCallback', 'PresenceCallback',
   'ConnectedCallback', 'DisconnectedCallback', 'AllUnreadMessagesCallback',
+  'MESSAGE_STATUS', 'CONNECTION_UPDATE'
 ];
 
 // ── Main Handler ──────────────────────────────────────────────────────────────
@@ -65,8 +125,13 @@ serve(async (req: Request) => {
     );
 
     // ── Parse payload
-    const payload: ZApiMessage = await req.json();
-    console.log("[WPP Bot] Payload:", JSON.stringify(payload).substring(0, 400));
+    const rawPayload = await req.json();
+    const payload: ZApiMessage = rawPayload;
+    console.log("[WPP Bot] Keys:", Object.keys(rawPayload).join(', '));
+    console.log("[WPP Bot] Payload:", JSON.stringify(rawPayload).substring(0, 2000));
+    // Se o payload tem 'message' como objeto, logar
+    if (rawPayload.message) console.log("[WPP Bot] message:", JSON.stringify(rawPayload.message).substring(0, 500));
+    if (rawPayload.chat) console.log("[WPP Bot] chat:", JSON.stringify(rawPayload.chat).substring(0, 500));
 
     // ── Ignorar eventos de status/entrega da Z-API (não são mensagens do cliente)
     if (STATUS_EVENT_TYPES.includes(payload.type || '')) {
@@ -76,14 +141,32 @@ serve(async (req: Request) => {
     }
 
     // ── Ignorar mensagens enviadas pelo próprio bot ou de grupos
-    if (payload.fromMe === true || payload.isGroupMsg === true) {
+    const msgObj = payload.data?.messages?.[0] || payload.data;
+    const isFromMe = payload.fromMe === true || msgObj?.key?.fromMe === true;
+    const remoteJid = msgObj?.key?.remoteJid || '';
+    const isGroup = payload.isGroupMsg === true || remoteJid.includes('@g.us');
+
+    if (isFromMe || isGroup) {
       return new Response(JSON.stringify({ ok: true, skipped: "fromMe_or_group" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const phone = extractPhoneNumber(payload);
-    const text = extractText(payload);
+    let text = extractText(payload);
+    
+    // --- MEDIA INTERCEPTION ---
+    // If text is null, check if it's a media message
+    if (!text) {
+      const msgType = payload.type || (msgObj?.message ? Object.keys(msgObj.message)[0] : '');
+      const typeStr = String(msgType).toLowerCase();
+      
+      if (typeStr.includes('image') || typeStr.includes('photo')) text = '[📸 Imagem Recebida]';
+      else if (typeStr.includes('video')) text = '[📹 Vídeo Recebido]';
+      else if (typeStr.includes('audio') || typeStr === 'ptt') text = '[🎤 Áudio Recebido]';
+      else if (typeStr.includes('document') || typeStr.includes('file')) text = '[📄 Documento Recebido]';
+      else if (typeStr.includes('sticker')) text = '[✨ Figurinha Recebida]';
+    }
 
     console.log("[WPP Bot] phone:", phone, "| text:", text?.substring(0, 80), "| type:", payload.type);
 
@@ -94,21 +177,45 @@ serve(async (req: Request) => {
     }
 
     if (!text) {
-      return new Response(JSON.stringify({ ok: true, skipped: "no_text" }), {
+      return new Response(JSON.stringify({ ok: true, skipped: "no_text_or_media" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // ── Encontrar tenant pela instância Z-API
-    const instanceId = payload.instanceId || '';
-    console.log("[WPP Bot] instanceId:", instanceId);
+    // --- ANTI-BLOAT: Impedir mensagens maiores que 2000 caracteres (ex: base64) ---
+    const safeText = text.substring(0, 2000);
 
-    const { data: tenants, error: tenantErr } = await supabase
-      .from("tenants")
-      .select("id, company_name, trading_name, whatsapp_settings")
-      .filter("whatsapp_settings->>zapi_instance_id", "eq", instanceId);
+    // ── Encontrar tenant
+    const url = new URL(req.url);
+    const tenantIdParam = url.searchParams.get("tenant_id");
+    const instanceId = payload.instanceName || payload.instance || payload.instanceId || payload.session || '';
+    console.log("[WPP Bot] instanceId:", instanceId, "| tenantIdParam:", tenantIdParam);
 
-    if (tenantErr || !tenants || tenants.length === 0) {
+    let tenants: any[] | null = null;
+    
+    if (tenantIdParam) {
+      const { data } = await supabase
+        .from("tenants")
+        .select("id, company_name, trading_name, whatsapp_settings")
+        .eq("id", tenantIdParam);
+      tenants = data;
+    } else {
+      const { data } = await supabase
+        .from("tenants")
+        .select("id, company_name, trading_name, whatsapp_settings");
+        
+      if (data) {
+        tenants = data.filter(t => {
+          const ws = t.whatsapp_settings as Record<string, any>;
+          if (!ws) return false;
+          if (ws.uazapi_url && instanceId && ws.uazapi_url.includes(instanceId)) return true;
+          if (ws.zapi_instance_id === instanceId) return true;
+          return false;
+        });
+      }
+    }
+
+    if (!tenants || tenants.length === 0) {
       console.error("[WPP Bot] Tenant não encontrado para instanceId:", instanceId);
       return new Response(JSON.stringify({ ok: false, error: "tenant_not_found", instanceId }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -139,6 +246,24 @@ serve(async (req: Request) => {
 
     if (existingConv) {
       conversation = existingConv as Conversation;
+
+      // --- AUTO-FINALIZE INATIVAS POR > 6 HORAS ---
+      const lastMsgTime = conversation.last_message_at ? new Date(conversation.last_message_at).getTime() : 0;
+      if (Date.now() - lastMsgTime > 6 * 60 * 60 * 1000 && conversation.state !== 'RESOLVED') {
+        conversation.assigned_agent_id = null;
+        
+        // Salva o encerramento no banco SEM apagar o histórico
+        await supabase
+          .from("whatsapp_conversations")
+          .update({
+            state: "RESOLVED",
+            assigned_agent_id: null,
+          })
+          .eq("id", conversation.id);
+
+        // Atualiza apenas o state local para o fluxo continuar normalmente com a nova mensagem
+        conversation.state = "GREETING";
+      }
     } else {
       const { data: newConv, error: createErr } = await supabase
         .from("whatsapp_conversations")
@@ -157,13 +282,13 @@ serve(async (req: Request) => {
       conversation = newConv as Conversation;
     }
 
-    // ── Prevenção de duplicidade: ignorar mensagens idênticas recebidas em menos de 15 segundos
+    // Prevenção de duplicidade otimizada: checa a janela de tempo dos últimos 15s e ignora floods
+    const nowTime = Date.now();
     const lastUserMsg = [...conversation.history].reverse().find(m => m.role === "user");
-    if (lastUserMsg && lastUserMsg.content === text) {
+    if (lastUserMsg) {
       const lastTime = new Date(lastUserMsg.timestamp).getTime();
-      if (Date.now() - lastTime < 15000) {
-        console.log("[WPP Bot] Mensagem duplicada ignorada (recebida há menos de 15s):", text);
-        return new Response(JSON.stringify({ ok: true, skipped: "duplicate" }), {
+      if ((nowTime - lastTime < 15000) && lastUserMsg.content === text) {
+        return new Response(JSON.stringify({ ok: true, skipped: "duplicate_spam" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -171,10 +296,11 @@ serve(async (req: Request) => {
 
     // ── Se agente humano está ativo: apenas salvar no histórico, não processar com IA
     if (conversation.state === "HUMAN_ACTIVE") {
-      const updatedHistory = [
+      let updatedHistory = [
         ...conversation.history,
-        { role: "user", content: text, timestamp: new Date().toISOString() },
+        { role: "user", content: safeText, timestamp: new Date().toISOString() },
       ];
+      if (updatedHistory.length > 100) updatedHistory = updatedHistory.slice(-100);
       await supabase
         .from("whatsapp_conversations")
         .update({ history: updatedHistory, last_message_at: new Date().toISOString() })
@@ -187,13 +313,48 @@ serve(async (req: Request) => {
 
     // ── Verificar palavra-chave para chamar humano manualmente
     const humanKeyword = settings.human_keyword || "ATENDENTE";
-    if (text.toUpperCase().includes(humanKeyword.toUpperCase())) {
+    if (safeText.toUpperCase().includes(humanKeyword.toUpperCase())) {
+      const isOnline = isWithinBusinessHours(settings);
+      
+      if (!isOnline) {
+        // Se fora do horário comercial, avisa o cliente e MANTÉM a IA ativa (não muda o state para WAITING_HUMAN)
+        const outMsg = settings.out_of_office_msg || "Nosso horário de atendimento com humanos é de Seg a Sex das 08h às 18h. Posso continuar te ajudando por aqui!";
+        
+        await sendWhatsAppMessage(settings, phone, outMsg);
+        
+        // Adiciona a mensagem ao histórico em memória para a IA e para o banco mais abaixo
+        conversation.history.push({ role: "bot", content: outMsg, timestamp: new Date().toISOString() });
+        
+        // E NÃO RETORNA! Deixa o fluxo prosseguir para o whatsapp-ai-agent processar a mensagem atual.
+      } else {
+        // Se dentro do horário, vai para fila humana
+        const agentMsg = "🙋 Entendido! Estou notificando nossa equipe agora. Um atendente assumirá a conversa em instantes. Aguarde... ⏳";
+        let updatedHistory = [
+          ...conversation.history,
+          { role: "user", content: safeText, timestamp: new Date().toISOString() },
+          { role: "bot", content: agentMsg, timestamp: new Date().toISOString() },
+        ];
+        if (updatedHistory.length > 100) updatedHistory = updatedHistory.slice(-100);
+        await supabase.from("whatsapp_conversations").update({
+          state: "WAITING_HUMAN",
+          history: updatedHistory,
+          last_message_at: new Date().toISOString(),
+        }).eq("id", conversation.id);
+
+        await sendWhatsAppMessage(settings, phone, outMsg);
+        return new Response(JSON.stringify({ ok: true, state: "KEPT_BOT_ACTIVE" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Se dentro do horário, vai para fila humana
       const agentMsg = "🙋 Entendido! Estou notificando nossa equipe agora. Um atendente assumirá a conversa em instantes. Aguarde... ⏳";
-      const updatedHistory = [
+      let updatedHistory = [
         ...conversation.history,
-        { role: "user", content: text, timestamp: new Date().toISOString() },
+        { role: "user", content: safeText, timestamp: new Date().toISOString() },
         { role: "bot", content: agentMsg, timestamp: new Date().toISOString() },
       ];
+      if (updatedHistory.length > 100) updatedHistory = updatedHistory.slice(-100);
       await supabase.from("whatsapp_conversations").update({
         state: "WAITING_HUMAN",
         history: updatedHistory,
@@ -241,11 +402,13 @@ serve(async (req: Request) => {
     }
 
     // ── Atualizar sessão no banco
-    const updatedHistory = [
+    const safeReply = reply.substring(0, 2000);
+    let updatedHistory = [
       ...conversation.history,
-      { role: "user", content: text, timestamp: new Date().toISOString() },
-      { role: "bot", content: reply, timestamp: new Date().toISOString() },
+      { role: "user", content: safeText, timestamp: new Date().toISOString() },
+      { role: "bot", content: safeReply, timestamp: new Date().toISOString() },
     ];
+    if (updatedHistory.length > 100) updatedHistory = updatedHistory.slice(-100);
 
     await supabase.from("whatsapp_conversations").update({
       state: new_state || conversation.state,
@@ -272,17 +435,56 @@ serve(async (req: Request) => {
   }
 });
 
-// ── Z-API: enviar mensagem ────────────────────────────────────────────────────
+// ── UAZAPI / Z-API: enviar mensagem ─────────────────────────────────────────────
 
 async function sendWhatsAppMessage(
   settings: Record<string, any>,
   phone: string,
   text: string
 ): Promise<void> {
+  // --- ANTI-BAN: Calcular delay humano ---
+  // Uma pessoa digita cerca de 200 a 300 caracteres por minuto. 
+  // Um bot precisa simular "lendo" a mensagem, depois "digitando".
+  // Tempo base = 2 segundos + 30ms a 50ms por caractere da resposta, limitado a 6s.
+  const baseDelay = 2000;
+  const charDelay = Math.min(text.length * (Math.floor(Math.random() * 20) + 30), 4000);
+  const calculatedDelay = baseDelay + charDelay;
+
+  // 1. Tentar UAZAPI primeiro
+  if (settings.uazapi_url && settings.uazapi_token) {
+    let baseUrl = settings.uazapi_url.trim();
+    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+    const url = `${baseUrl}/send/text`;
+    
+    const payload = { 
+      number: phone, 
+      text: text,
+      readchat: true,      // Simula visualização da mensagem recebida
+      delay: calculatedDelay // Simula o digitando...
+    };
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": settings.uazapi_token.trim(),
+        "token": settings.uazapi_token.trim()
+      },
+      body: JSON.stringify(payload),
+    });
+    
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("[WPP Bot] ❌ Falha UAZAPI:", res.status, errText);
+    }
+    return;
+  }
+
+  // 2. Fallback para Z-API (compatibilidade)
   const { zapi_instance_id, zapi_instance_token, zapi_client_token } = settings;
 
   if (!zapi_instance_id || !zapi_instance_token) {
-    console.error("[WPP Bot] Credenciais Z-API ausentes no tenant");
+    console.error("[WPP Bot] Credenciais de WhatsApp ausentes no tenant");
     return;
   }
 
