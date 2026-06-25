@@ -51,11 +51,35 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     useEffect(() => {
         if (!isAdmin) return;
         const fetchWACount = async () => {
-            const { count } = await supabase
+            // 1. Contar conversas na fila global (qualquer um pode pegar)
+            const { count: waitingCount } = await supabase
                 .from('whatsapp_conversations')
                 .select('*', { count: 'exact', head: true })
                 .eq('state', 'WAITING_HUMAN');
-            setWhatsappWaitingCount(count || 0);
+                
+            // 2. Contar conversas já atribuídas a MIM onde o cliente mandou a última mensagem
+            let myUnread = 0;
+            if (user?.id) {
+                const { data: myConversations } = await supabase
+                    .from('whatsapp_conversations')
+                    .select('history')
+                    .eq('state', 'HUMAN_ACTIVE')
+                    .eq('assigned_agent_id', user.id);
+                    
+                if (myConversations) {
+                    myConversations.forEach(conv => {
+                        const history = conv.history as any[];
+                        if (history && history.length > 0) {
+                            const lastMsg = history[history.length - 1];
+                            if (lastMsg.role === 'user') {
+                                myUnread++;
+                            }
+                        }
+                    });
+                }
+            }
+            
+            setWhatsappWaitingCount((waitingCount || 0) + myUnread);
         };
         fetchWACount();
         const interval = setInterval(fetchWACount, 5000); // atualiza o menu a cada 5s
@@ -118,7 +142,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         { path: '/admin', id: 'dashboard', label: t.nav.dashboard, icon: LayoutDashboard, visible: menuVisible('dashboard'), enabled: isModuleEnabled('dashboard') },
         { path: '/admin/ai', id: 'ai', label: 'Duno IA', icon: Bot, visible: true, enabled: true },
         { path: '/admin/docs', id: 'docs', label: 'Docs / FAQ', icon: BookOpen, visible: true, enabled: true },
-        { path: '/admin/whatsapp', id: 'whatsapp', label: 'WhatsApp Inbox', icon: MessageCircle, visible: isAdmin, enabled: true, badge: whatsappWaitingCount + alertCount },
+        { path: '/admin/whatsapp', id: 'whatsapp', label: 'WhatsApp Inbox', icon: MessageCircle, visible: isAdmin, enabled: true, badge: whatsappWaitingCount },
         { path: '/admin/solicitacoes', id: 'solicitacoes', label: 'Solicitações', icon: ClipboardCheck, visible: isAdmin, enabled: true, badge: solicitacoesCount },
         { path: '/admin/orders', id: 'orders', label: t.nav.orders, icon: ClipboardList, visible: menuVisible('orders'), enabled: isModuleEnabled('orders') },
         { path: '/admin/calendar', id: 'calendar', label: t.nav.calendar, icon: Calendar, visible: menuVisible('calendar'), enabled: isModuleEnabled('orders') },

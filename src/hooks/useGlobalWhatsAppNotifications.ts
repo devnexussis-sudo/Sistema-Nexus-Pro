@@ -142,7 +142,7 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
         if (!isInitialLoad.current) {
           const isNewToMe = !prev; // Conversa nova que acabou de cair na fila ou ser atribuída
           const historyGrew = prev && history.length > prev.historyLen;
-          const assignedToMe = conv.assigned_agent_id === currentUserId && prev?.assigned !== currentUserId && currentUserId !== null;
+          const assignedToMe = conv.assigned_agent_id === currentUserId && prev?.assigned !== currentUserId && currentUserId !== null && conv.state === 'HUMAN_ACTIVE';
           const askedForHuman = conv.state === 'WAITING_HUMAN' && prev?.state !== 'WAITING_HUMAN';
 
           if (isNewToMe || historyGrew || assignedToMe || askedForHuman) {
@@ -153,7 +153,23 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
               const userMsgWhileHuman = hasUserMsg && (conv.state === 'WAITING_HUMAN' || conv.state === 'HUMAN_ACTIVE');
               const justAssignedToMe = assignedToMe;
 
-              if (justAskedForHuman || userMsgWhileHuman || justAssignedToMe) {
+              // ── REGRA DE QUEM RECEBE A NOTIFICAÇÃO ──
+              let shouldNotify = false;
+              if (justAssignedToMe) {
+                 shouldNotify = true;
+              } else if (justAskedForHuman) {
+                 shouldNotify = true; // "aguardando interacao humana deve cair pra todos"
+              } else if (userMsgWhileHuman) {
+                 if (conv.assigned_agent_id) {
+                     // Se a conversa já tem dono, só apita para ele
+                     shouldNotify = (conv.assigned_agent_id === currentUserId);
+                 } else {
+                     // Se está solta na fila, apita para todos
+                     shouldNotify = true;
+                 }
+              }
+
+              if (shouldNotify) {
                 const isWhatsAppPage = window.location.pathname.includes('/admin/whatsapp');
                 
                 if (!isWhatsAppPage) {

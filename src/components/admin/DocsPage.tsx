@@ -4,7 +4,7 @@ import {
     Bot, Calendar, Settings, ShieldAlert, Users, Box, Package,
     FileText, ClipboardList, DollarSign, Workflow, Wrench,
     Map, ChevronDown, ChevronUp, ExternalLink, Code2, Info, ShieldCheck, PlayCircle,
-    LayoutDashboard, MapPin
+    LayoutDashboard, MapPin, MessageCircle
 } from 'lucide-react';
 
 interface ModuleDoc {
@@ -328,6 +328,39 @@ export const DocsPage: React.FC = () => {
                 "Digite sua dúvida sobre procedimentos operacionais ou técnicos (ex: 'como criar etiquetas de estoque?').",
                 "A IA analisará a documentação interna e as tabelas para retornar uma resposta explicativa passo a passo."
             ]
+        },
+        {
+            id: 'whatsapp',
+            title: "Caixa de Entrada WhatsApp (Agente de IA)",
+            category: 'workflow',
+            stepRelation: 6,
+            icon: MessageCircle,
+            menuPath: "Menu Lateral > WhatsApp",
+            filePath: "src/components/admin/WhatsAppInbox.tsx",
+            dbTable: "public.whatsapp_messages & public.whatsapp_sessions",
+            description: "Canal integrado de atendimento multicanal via WhatsApp. Possui um Agente de IA Duno nativo ('Lia') capaz de fazer triagem de clientes antes do transbordo humano.",
+            steps: [
+                "Visualize as conversas em andamento ou na fila de espera.",
+                "O Agente de IA fará a triagem inicial do cliente e responderá dúvidas genéricas.",
+                "Quando necessário, o operador pode assumir a conversa (transbordo humano), pausando temporariamente a IA Duno."
+            ],
+            technicalDetails: "Baseia-se em webhooks em tempo real e um sistema de fila para transbordo humano persistente."
+        },
+        {
+            id: 'solicitacoes',
+            title: "Central de Solicitações e Validações",
+            category: 'workflow',
+            stepRelation: 6,
+            icon: ShieldCheck,
+            menuPath: "Menu Lateral > Solicitações",
+            filePath: "src/components/admin/SolicitacoesPage.tsx",
+            dbTable: "public.solicitacoes_os",
+            description: "Portal de aprovações onde o backoffice (supervisores) analisa e libera solicitações especiais originadas pelos técnicos em campo ou sistema.",
+            steps: [
+                "Abra a página de Solicitações para visualizar o painel Kanban com os cards de análise pendentes.",
+                "Selecione uma solicitação para revisar os motivos ou evidências anexadas.",
+                "Aprove ou Recuse a solicitação, emitindo uma justificativa para registro."
+            ]
         }
     ];
 
@@ -359,6 +392,14 @@ export const DocsPage: React.FC = () => {
         {
             q: "De onde a Duno IA retira as informações para responder às perguntas?",
             a: "A Duno IA lê a estrutura do código-fonte do projeto, metadados do banco de dados, dicionários de tradução e os manuais de ajuda do sistema em tempo real. Isso garante respostas ultra-precisas e atualizadas de acordo com a versão atualizada da plataforma de cada cliente."
+        },
+        {
+            q: "Como o Agente de IA lida com arquivos de áudio e mídia no WhatsApp?",
+            a: "Atualmente, a Lia (Agente de IA) intercepta tentativas de envio de áudios, imagens e mídias por parte do cliente final no WhatsApp. Ela responderá de forma humanizada e profissional informando que ainda não consegue processar ou escutar arquivos multimidia, pedindo que o cliente digite sua solicitação em texto."
+        },
+        {
+            q: "O que é e para que serve o painel de Solicitações?",
+            a: "O painel de Solicitações é uma central de auditoria que atua como um 'funil' de aprovação. Em vez de permitir ações destrutivas (ex: cancelamentos de OS sensíveis ou liberações excepcionais), o sistema cria um card no painel de solicitações para que os supervisores validem antes da execução. Isso mantém o controle e segurança sobre a operação."
         }
     ];
 
@@ -631,12 +672,22 @@ export const DocsPage: React.FC = () => {
                             <div className="text-slate-300 font-bold text-sm">↓</div>
 
                             {/* Fase 6 */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl mx-auto w-full">
-                                <div className="p-3 bg-slate-100 border border-slate-200 rounded-xl font-semibold text-slate-600">
-                                    🔌 16. Integrações & Webhooks (ERPs)
+                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                                <div className="p-3 bg-blue-50/50 border border-blue-150 rounded-xl shadow-xs">
+                                    <div className="text-[10px] font-bold text-blue-600 uppercase">16. Auditoria</div>
+                                    <div className="font-semibold text-slate-900 mt-1">Central de Solicitações</div>
                                 </div>
-                                <div className="p-3 bg-indigo-50 border border-indigo-150 rounded-xl font-semibold text-indigo-700">
-                                    🤖 17. Duno IA Copilot
+                                <div className="p-3 bg-slate-100 border border-slate-200 rounded-xl shadow-xs">
+                                    <div className="text-[10px] font-bold text-slate-600 uppercase">17. Integrações</div>
+                                    <div className="font-semibold text-slate-900 mt-1">APIs & Webhooks</div>
+                                </div>
+                                <div className="p-3 bg-indigo-50/80 border border-indigo-200 rounded-xl shadow-xs">
+                                    <div className="text-[10px] font-bold text-indigo-700 uppercase">18. Comunicação</div>
+                                    <div className="font-semibold text-indigo-900 mt-1">WhatsApp IA Inbox</div>
+                                </div>
+                                <div className="p-3 bg-indigo-50/80 border border-indigo-200 rounded-xl shadow-xs">
+                                    <div className="text-[10px] font-bold text-indigo-700 uppercase">19. Inteligência</div>
+                                    <div className="font-semibold text-indigo-900 mt-1">Duno IA Copilot</div>
                                 </div>
                             </div>
 
@@ -671,7 +722,7 @@ export const DocsPage: React.FC = () => {
                                 { step: 3, title: '3. Clientes e Técnicos', desc: 'Base de dados básica. Localiza clientes no mapa de despacho.' },
                                 { step: 4, title: '4. Equipamentos e Estoque', desc: 'Inventário de máquinas de clientes e estoque de peças.' },
                                 { step: 5, title: '5. Checklists (Formulários)', desc: 'Criação de questionários e regras de disparo.' },
-                                { step: 6, title: '6. Ordens de Serviço e PMOC', desc: 'Execução técnica em campo e faturamento financeiro.' }
+                                { step: 6, title: '6. Operação, Comunicação e OS', desc: 'Ordens de Serviço em campo, Caixa de Entrada WhatsApp, Solicitações e Faturamento.' }
                             ].map((item, idx) => {
                                 const isSelected = selectedStep === item.step;
                                 return (
@@ -804,36 +855,6 @@ export const DocsPage: React.FC = () => {
                                                         </ol>
                                                     </div>
 
-                                                    {/* Detalhes de Engenharia */}
-                                                    {mod.technicalDetails && (
-                                                        <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-xl flex gap-3">
-                                                            <Info size={16} className="text-blue-600 shrink-0 mt-0.5" />
-                                                            <div className="flex flex-col gap-0.5">
-                                                                <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-600">Nota de Engenharia</span>
-                                                                <p className="text-xs text-slate-600 leading-relaxed">
-                                                                    {renderHighlightedText(mod.technicalDetails, searchTerm)}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    {/* Detalhes de Arquivos */}
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3 border-t border-slate-100 text-[11px]">
-                                                        <div className="flex flex-col gap-1">
-                                                            <span className="text-slate-400">Componente da View (Frontend)</span>
-                                                            <code className="text-blue-600 bg-white px-2 py-1 rounded border border-slate-200 font-mono select-all truncate">
-                                                                {renderHighlightedText(mod.filePath, searchTerm)}
-                                                            </code>
-                                                        </div>
-                                                        {mod.dbTable && (
-                                                            <div className="flex flex-col gap-1">
-                                                                <span className="text-slate-400">Tabela Relacionada (PostgreSQL)</span>
-                                                                <code className="text-emerald-600 bg-white px-2 py-1 rounded border border-slate-200 font-mono select-all truncate">
-                                                                    {renderHighlightedText(mod.dbTable, searchTerm)}
-                                                                </code>
-                                                            </div>
-                                                        )}
-                                                    </div>
                                                 </div>
                                             )}
                                         </div>

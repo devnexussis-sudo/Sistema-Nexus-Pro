@@ -68,7 +68,7 @@ serve(async (req: Request) => {
 
       const updatedHistory = [
         ...(conv.history || []),
-        { role: "agent", content: takeoverMsg, timestamp: new Date().toISOString(), agent_id: user.id },
+        { role: "agent", content: takeoverMsg, timestamp: new Date().toISOString(), agent_id: user.id, agent_name: agentName },
       ];
 
       await supabaseAdmin
@@ -127,7 +127,7 @@ serve(async (req: Request) => {
 
       const updatedHistory = [
         ...(conv.history || []),
-        { role: "agent", content: transferMsg, timestamp: new Date().toISOString(), agent_id: user.id },
+        { role: "agent", content: transferMsg, timestamp: new Date().toISOString(), agent_id: user.id, agent_name: extra?.agent_name || "Agente" },
       ];
 
       await supabaseAdmin
@@ -153,7 +153,6 @@ serve(async (req: Request) => {
         .update({
           state: "GREETING",
           assigned_agent_id: null,
-          history: [],
           last_message_at: new Date().toISOString(),
         })
         .eq("id", conversation_id);
@@ -169,7 +168,7 @@ serve(async (req: Request) => {
 
       const updatedHistory = [
         ...(conv.history || []),
-        { role: "agent", content: closeMsg, timestamp: new Date().toISOString(), agent_id: user.id },
+        { role: "agent", content: closeMsg, timestamp: new Date().toISOString(), agent_id: user.id, agent_name: extra?.agent_name || "Agente" },
       ];
 
       await supabaseAdmin
@@ -197,7 +196,7 @@ serve(async (req: Request) => {
 
       let updatedHistory = [
         ...(conv.history || []),
-        { role: "agent", content: safeText, timestamp: new Date().toISOString(), agent_id: user.id },
+        { role: "agent", content: safeText, timestamp: new Date().toISOString(), agent_id: user.id, agent_name: extra?.agent_name || "Agente" },
       ];
 
       // --- ANTI-BLOAT: Janela deslizante de 100 mensagens ---
@@ -228,7 +227,7 @@ serve(async (req: Request) => {
 
       let updatedHistory = [
         ...(conv.history || []),
-        { role: "agent", content: safeText, timestamp: new Date().toISOString(), agent_id: user.id },
+        { role: "agent", content: safeText, timestamp: new Date().toISOString(), agent_id: user.id, agent_name: extra?.agent_name || "Agente" },
       ];
 
       if (updatedHistory.length > 100) {

@@ -223,7 +223,11 @@ export function useQuery<T>(
 
         const handleInvalidation = (e: any) => {
             const targetKey = e.detail?.key;
-            if (!targetKey || key.startsWith(targetKey) || targetKey === '*') {
+            if (targetKey === '*') {
+                // Full cache purge requested (e.g. on auth change) — clear ALL in-memory entries
+                queryCache.clear();
+                setTimeout(() => { if (isMounted.current) fetchData(true); }, 50);
+            } else if (!targetKey || key.startsWith(targetKey)) {
                 setTimeout(() => { if (isMounted.current) fetchData(true); }, 50);
             }
         };

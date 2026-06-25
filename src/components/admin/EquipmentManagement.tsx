@@ -111,7 +111,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
       // Busca OS onde o equipamento está vinculado (forma direta)
       const { data: directOrders } = await supabase
         .from('orders')
-        .select('id, display_id, created_at, status, title')
+        .select('id, display_id, created_at, status, title, public_token')
         .eq('tenant_id', tenantId)
         .eq('equipment_serial', serial)
         .order('created_at', { ascending: false });
@@ -119,7 +119,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
       // Busca OS via tabela de relacionamento
       const { data: linkedOrders } = await supabase
         .from('service_order_equipments')
-        .select('order_id, orders(id, display_id, created_at, status, title)')
+        .select('order_id, orders(id, display_id, created_at, status, title, public_token)')
         .eq('tenant_id', tenantId)
         .eq('equipment_id', equipmentId);
 
@@ -598,7 +598,14 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                           </thead>
                           <tbody className="divide-y divide-slate-50">
                             {equipmentOrders.map(order => (
-                              <tr key={order.id} className="hover:bg-slate-50/80 transition-colors group">
+                              <tr key={order.id} 
+                                  onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      window.open(`/#/order/view/${order.public_token || order.id}`, '_blank');
+                                  }}
+                                  className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
+                              >
                                 <td className="px-6 py-3">
                                   <span className="font-mono text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">#{order.display_id}</span>
                                 </td>
@@ -614,9 +621,8 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                                 <td className="px-4 py-3 text-right">
                                   <button
                                     type="button"
-                                    onClick={() => { closeModal(); window.dispatchEvent(new CustomEvent('NEXUS_OPEN_ORDER', { detail: { orderId: order.id } })); }}
                                     className="w-8 h-8 flex items-center justify-center bg-slate-50 text-slate-400 rounded-lg group-hover:bg-[#1c2d4f] group-hover:text-white transition-colors shadow-sm ml-auto"
-                                    title="Abrir OS"
+                                    title="Abrir Link Público da OS"
                                   >
                                     <ChevronLeft size={14} className="rotate-180" />
                                   </button>

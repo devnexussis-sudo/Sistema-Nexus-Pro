@@ -18,13 +18,17 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
     const [error, setError] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [suspendedBanner, setSuspendedBanner] = useState(false);
+    const [expiredBanner, setExpiredBanner] = useState(false);
 
-    // Detecta se o usuário foi redirecionado por suspensão de empresa
+    // Detecta se o usuário foi redirecionado por suspensão de empresa ou sessão expirada
     useEffect(() => {
         const hash = window.location.hash || '';
         if (hash.includes('reason=suspended')) {
             setSuspendedBanner(true);
             // Limpa o parâmetro da URL sem recarregar
+            window.history.replaceState(null, '', window.location.pathname);
+        } else if (hash.includes('reason=expired')) {
+            setExpiredBanner(true);
             window.history.replaceState(null, '', window.location.pathname);
         }
     }, []);
@@ -244,6 +248,18 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                                             <p className="text-amber-800 text-xs font-medium leading-tight">Acesso suspenso</p>
                                             <p className="text-amber-600 text-[11px] mt-0.5 leading-relaxed">
                                                 O acesso da sua empresa foi suspenso. Entre em contato com o suporte DUNO para regularizar sua situação.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {expiredBanner && (
+                                    <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                        <Shield size={18} className="text-blue-500 shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-blue-800 text-xs font-medium leading-tight">Sessão Expirada</p>
+                                            <p className="text-blue-600 text-[11px] mt-0.5 leading-relaxed">
+                                                Por motivos de segurança, sua sessão foi encerrada após longo período de inatividade. Por favor, acesse novamente.
                                             </p>
                                         </div>
                                     </div>

@@ -24,6 +24,7 @@
 // ============================================================
 
 import { createClient, SupabaseClient, type LockFunc } from '@supabase/supabase-js';
+import { CacheManager } from './cache';
 
 // ---------------------------------------------------------------
 // Environment Variables
@@ -199,6 +200,23 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
                         if (isDev) console.warn(`[Nexus Fetch] HTTP ${response.status} — retry ${attempt + 1}/${MAX_RETRIES} em ${delay}ms`);
                         await new Promise(r => setTimeout(r, delay));
                         continue;
+                    }
+
+                    // 🔒 INTERCEPTADOR GLOBAL DE EXPIRAÇÃO (Big Tech Standard)
+                    // Se a API retornar 401 (Unauthorized) e o usuário não estiver na tela de login, o token expirou (Ex: o PC dormiu).
+                    if (response.status === 401 && typeof window !== 'undefined' && !window.location.hash.includes('/login')) {
+                        if (isDev) console.error('[Nexus Security] 401 Unauthorized detectado. Forçando logout imediato...');
+                        // Dispara SIGNED_OUT para os contextos React limparem a UI
+                        window.dispatchEvent(new CustomEvent('NEXUS_AUTH_EVENT', { detail: { event: 'SIGNED_OUT', session: null } }));
+                        // Limpa explicitamente o Cache API e o LocalStorage para evitar resquícios de tokens
+                        try {
+                            for (let i = 0; i < localStorage.length; i++) {
+                                const k = localStorage.key(i);
+                                if (k && k.includes('supabase.auth.token')) localStorage.removeItem(k);
+                            }
+                        } catch(e){}
+                        // Redireciona com flag de expiração
+                        window.location.href = '/#/login?reason=expired';
                     }
 
                     return response;
@@ -417,6 +435,35 @@ if (typeof window !== 'undefined') {
         globalSessionOk = !!session;
 
         if (isDev) console.log(`[Auth Singleton] 🔑 Event: ${event} | hasSession: ${globalSessionOk}`);
+
+        // ── BIG TECH CACHE PURGE PATTERN ─────────────────────────────────────
+        // Na troca de identidade (login/logout), todo cache de dados precisa ser
+        // descartado imediatamente. Dados do usuário anterior não podem vazar.
+        //
+        // SIGNED_IN  → pode ser um usuário DIFERENTE do que estava em cache
+        // SIGNED_OUT → o próximo login não pode ver dados desta sessão
+        //
+        // 1. In-memory CacheManager (src/lib/cache.ts)
+        // 2. In-memory queryCache (src/hooks/useQuery.ts) via evento global
+        // 3. localStorage NEXUS_CACHE_* entries
+        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+            // Clear in-memory app cache
+            CacheManager.clear();
+
+            // Clear all NEXUS_CACHE_* keys from localStorage (useQuery disk cache)
+            try {
+                const keysToDelete: string[] = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const k = localStorage.key(i);
+                    if (k && k.startsWith('NEXUS_CACHE_')) keysToDelete.push(k);
+                }
+                keysToDelete.forEach(k => localStorage.removeItem(k));
+                if (isDev) console.log(`[Auth Singleton] 🧹 Purged ${keysToDelete.length} cache entries on ${event}`);
+            } catch { /* noop — localStorage pode estar bloqueado em modo privado */ }
+
+            // Signal all active useQuery instances to discard their in-memory cache
+            window.dispatchEvent(new CustomEvent('NEXUS_QUERY_INVALIDATE', { detail: { key: '*' } }));
+        }
 
         // Propaga para o AuthContext (e qualquer outro listener) via evento do DOM.
         // Isso EVITA que o AuthContext registre sua própria assinatura e

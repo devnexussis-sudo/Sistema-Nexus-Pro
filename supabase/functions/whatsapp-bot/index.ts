@@ -69,13 +69,98 @@ function extractPhoneNumber(payload: any): string {
 
 function extractText(payload: any): string | null {
   const msgObj = payload.data?.messages?.[0] || payload.data;
-  return payload.content || 
-         payload.message?.content ||
-         payload.text?.message || 
-         payload.body || 
-         msgObj?.message?.conversation ||
-         msgObj?.message?.extendedTextMessage?.text ||
-         null;
+  const content = payload.content || 
+                  payload.message?.content ||
+                  payload.text?.message || 
+                  payload.body || 
+                  msgObj?.message?.conversation ||
+                  msgObj?.message?.extendedTextMessage?.text;
+
+  // Em alguns payloads da UAZAPI, 'content' é um objeto quando é mídia.
+  if (typeof content === 'string') return content;
+  if (typeof content === 'object' && content !== null) {
+    return content.caption || null;
+  }
+  return null;
+}
+
+// Retorna o objeto interno da mensagem (remove os wrappers da UAZAPI/Evolution API)
+function getActualMessageObj(payload: any): any {
+  return payload.data?.messages?.[0]?.message || 
+         payload.data?.message?.message || 
+         payload.data?.message || 
+         payload.message || 
+         {};
+}
+
+// Tenta extrair a melhor representação da mídia do payload (UAZAPI/Z-API)
+// Para imagens: usa jpegThumbnail (base64) que é acessível diretamente no browser
+// Para outros: retorna apenas metadados (URL do WA é criptografada, não acessível)
+function extractMediaUrl(payload: any): { type: string; url: string; thumbnail?: string } | null {
+  const msgData = getActualMessageObj(payload);
+  const topType = String(payload.type || '').toLowerCase();
+
+  // UAZAPI / Evolution API
+  const imageMsg   = msgData.imageMessage;
+  const videoMsg   = msgData.videoMessage;
+  const audioMsg   = msgData.audioMessage || msgData.pttMessage;
+  const docMsg     = msgData.documentMessage || msgData.documentWithCaptionMessage?.message?.documentMessage;
+  const stickerMsg = msgData.stickerMessage;
+
+  // Z-API: campos top-level
+  const zapiImageUrl = payload.image?.imageUrl || payload.imageUrl;
+  const zapiAudioUrl = payload.audio?.audioUrl || payload.audioUrl;
+  const zapiVideoUrl = payload.video?.videoUrl || payload.videoUrl;
+  const zapiDocUrl   = payload.document?.documentUrl || payload.documentUrl;
+  const zapiCaption  = payload.image?.caption || payload.video?.caption || payload.caption || '';
+
+  const isImage = imageMsg || topType.includes('image') || topType.includes('photo') || !!zapiImageUrl;
+  const isVideo = videoMsg || topType.includes('video') || !!zapiVideoUrl;
+  const isAudio = audioMsg || topType === 'ptt' || topType.includes('audio') || topType.includes('voice') || !!zapiAudioUrl;
+  const isDoc   = docMsg || topType.includes('document') || topType.includes('file') || !!zapiDocUrl;
+  const isSticker = stickerMsg || topType.includes('sticker');
+
+  // Detecção específica para o webhook "EventType: messages" da UAZAPI
+  if (typeof payload.message?.content === 'object' && payload.message?.content?.URL) {
+    const mime = String(payload.message.content.mimetype || '').toLowerCase();
+    // A UAZAPI não manda thumbnail base64 aqui, apenas a URL encriptada do WhatsApp
+    if (mime.includes('image')) return { type: 'image', url: '', thumbnail: 'Imagem' };
+    if (mime.includes('video')) return { type: 'video', url: '', thumbnail: 'Vídeo' };
+    if (mime.includes('audio')) return { type: 'audio', url: '' };
+    return { type: 'document', url: '', thumbnail: 'Documento' };
+  }
+
+  if (isImage) {
+    // jpegThumbnail é base64 acessível diretamente - não requer auth do WA
+    const thumbnail = imageMsg?.jpegThumbnail || stickerMsg?.jpegThumbnail || '';
+    // Z-API fornece URL pública direta
+    const directUrl = zapiImageUrl || '';
+    const caption = imageMsg?.caption || zapiCaption || '';
+    // Prefere URL direta da Z-API; se não, usa thumbnail base64
+    const displayUrl = directUrl || (thumbnail ? `data:image/jpeg;base64,${thumbnail}` : '');
+    return { type: 'image', url: displayUrl, thumbnail: caption };
+  }
+  if (isSticker) {
+    const thumbnail = stickerMsg?.jpegThumbnail || '';
+    const displayUrl = thumbnail ? `data:image/jpeg;base64,${thumbnail}` : '';
+    return { type: 'sticker', url: displayUrl };
+  }
+  if (isVideo) {
+    const thumbnail = videoMsg?.jpegThumbnail || '';
+    const directUrl = zapiVideoUrl || '';
+    const displayUrl = directUrl || (thumbnail ? `data:image/jpeg;base64,${thumbnail}` : '');
+    const caption = videoMsg?.caption || zapiCaption || '';
+    return { type: 'video', url: displayUrl, thumbnail: caption };
+  }
+  if (isAudio) {
+    // Áudio da UAZAPI não tem thumbnail - só Z-API fornece URL direta
+    return { type: 'audio', url: zapiAudioUrl || '' };
+  }
+  if (isDoc) {
+    const fileName = docMsg?.fileName || docMsg?.title || payload.document?.fileName || 'Documento';
+    return { type: 'document', url: zapiDocUrl || '', thumbnail: fileName };
+  }
+  return null;
 }
 
 function isWithinBusinessHours(settings: Record<string, any>): boolean {
@@ -156,21 +241,73 @@ serve(async (req: Request) => {
     let text = extractText(payload);
     
     // --- MEDIA INTERCEPTION ---
-    // If text is null, check if it's a media message
-    if (!text) {
-      const msgType = payload.type || (msgObj?.message ? Object.keys(msgObj.message)[0] : '');
-      const typeStr = String(msgType).toLowerCase();
-      
-      const warning = "INSTRUÇÃO PARA A IA: Informe ao cliente gentilmente que você ainda não consegue receber ou ler imagens/vídeos/áudios, e peça para ele digitar o que precisa em texto.";
-      if (typeStr.includes('image') || typeStr.includes('photo')) text = `[📸 Imagem Recebida] ${warning}`;
-      else if (typeStr.includes('video')) text = `[📹 Vídeo Recebido] ${warning}`;
-      else if (typeStr.includes('audio') || typeStr === 'ptt') text = `[🎤 Áudio Recebido] ${warning}`;
-      else if (typeStr.includes('document') || typeStr.includes('file')) text = `[📄 Documento Recebido] ${warning}`;
-      else if (typeStr.includes('sticker')) text = `[✨ Figurinha Recebida] ${warning}`;
-      else text = `[Mídia/Arquivo não reconhecido] ${warning}`;
-    }
+    // Detectar tipo de mídia em múltiplos formatos (Z-API, UAZAPI, Evolution API)
+    const msgType = payload.type || '';
+    const msgData = getActualMessageObj(payload);
+    
+    // Detectar pelo campo 'type' top-level
+    const typeStr = String(msgType).toLowerCase();
+    
+    // Detectar pelo conteúdo do objeto message (UAZAPI/Evolution envia assim)
+    const msgKeys = Object.keys(msgData).join(',').toLowerCase();
+    const hasImage    = typeStr.includes('image') || typeStr.includes('photo') || msgKeys.includes('image');
+    const hasVideo    = typeStr.includes('video') || msgKeys.includes('video');
+    const hasAudio    = typeStr.includes('audio') || typeStr === 'ptt' || typeStr.includes('voice') || msgKeys.includes('audio') || msgKeys.includes('ptt');
+    const hasDoc      = typeStr.includes('document') || typeStr.includes('file') || msgKeys.includes('document');
+    const hasSticker  = typeStr.includes('sticker') || msgKeys.includes('sticker');
+    const hasLocation = typeStr.includes('location') || msgKeys.includes('location');
+    const hasContact  = typeStr.includes('contact') || msgKeys.includes('contact');
+    
+    // Suporte ao formato UAZAPI 'EventType: messages'
+    const isUazapiMedia = typeof payload.message?.content === 'object';
+    const waLastMsgType = String(payload.chat?.wa_lastMessageType || '');
+    const isUazapiImage = isUazapiMedia && (waLastMsgType === 'ImageMessage' || String(payload.message.content.mimetype).includes('image'));
+    const isUazapiVideo = isUazapiMedia && (waLastMsgType === 'VideoMessage' || String(payload.message.content.mimetype).includes('video'));
+    const isUazapiAudio = isUazapiMedia && (waLastMsgType === 'AudioMessage' || String(payload.message.content.mimetype).includes('audio'));
+    const isUazapiDoc   = isUazapiMedia && waLastMsgType === 'DocumentMessage';
 
-    console.log("[WPP Bot] phone:", phone, "| text:", text?.substring(0, 80), "| type:", payload.type);
+    const isMedia = hasImage || hasVideo || hasAudio || hasDoc || hasSticker || hasLocation || hasContact || isUazapiMedia;
+
+    if (isMedia || !text) {
+      // Tenta pegar a melhor representação da mídia (thumbnail base64 ou URL direta)
+      const mediaInfo = extractMediaUrl(payload);
+      const cdnUrl = mediaInfo?.url || '';
+      const extractedThumbnailCap = (mediaInfo as any)?.thumbnail || '';
+      
+      // Combina caption da extração de texto (Evolution API coloca aqui às vezes) com a da mídia
+      const caption = text && text !== extractedThumbnailCap ? text : extractedThumbnailCap;
+
+      const mediaWarning = "INSTRUÇÃO PARA A IA: Informe ao cliente gentilmente que você ainda não consegue receber ou ler imagens/vídeos/áudios/documentos, e peça para ele digitar o que precisa em texto.";
+
+      // Formatos com URL: salvamos para exibir no painel (sem armazenar arquivo binário)
+      // Formato: MEDIA_URL:tipo:url|caption (caption é opcional)
+      const mkMedia = (type: string, url: string, cap?: string) =>
+        url ? `MEDIA_URL:${type}:${url}${cap ? `|${cap}` : ''}` : null;
+
+      if (hasImage || isUazapiImage)         text = mkMedia('image', cdnUrl, caption) || `[📸 Imagem Recebida] ${mediaWarning}`;
+      else if (hasVideo || isUazapiVideo)    text = mkMedia('video', cdnUrl, caption) || `[📹 Vídeo Recebido] ${mediaWarning}`;
+      else if (hasAudio || isUazapiAudio)    text = mkMedia('audio', cdnUrl) || `[🎤 Áudio/PTT Recebido] ${mediaWarning}`;
+      else if (hasDoc || isUazapiDoc)        text = mkMedia('document', cdnUrl, caption) || `[📄 Documento Recebido] ${mediaWarning}`;
+      else if (hasSticker)                   text = mkMedia('sticker', cdnUrl) || `[✨ Figurinha Recebida] ${mediaWarning}`;
+      else if (hasLocation)                  text = `[📍 Localização Recebida] ${mediaWarning}`;
+      else if (hasContact)                   text = `[👤 Contato Recebido] ${mediaWarning}`;
+      else {
+        console.warn("[WPP Bot] Tipo desconhecido sem texto. type:", msgType, "| msgKeys:", msgKeys);
+        text = `[Mensagem não reconhecida] ${mediaWarning}`;
+      }
+
+      // Quando temos URL/thumbnail, a IA apenas confirma o recebimento visual
+      if (cdnUrl) {
+        text += ' INSTRUCAO: Apenas diga ao cliente que você recebeu a mídia e que o atendimento continua. Não mencione limitacões.';
+      }
+
+      console.log("[WPP Bot] Mídia detectada. type:", msgType, "| hasThumb:", cdnUrl ? 'sim' : 'não', "| texto_len:", text?.length);
+    }
+    
+    // Garantir que text seja uma string válida para evitar throw em .substring()
+    text = String(text || '');
+    
+    console.log("[WPP Bot] phone:", phone, "| text:", text.substring(0, 80), "| type:", payload.type);
 
     if (!phone) {
       return new Response(JSON.stringify({ ok: true, skipped: "no_phone" }), {
@@ -184,8 +321,9 @@ serve(async (req: Request) => {
       });
     }
 
-    // --- ANTI-BLOAT: Impedir mensagens maiores que 2000 caracteres (ex: base64) ---
-    const safeText = text.substring(0, 2000);
+    // --- ANTI-BLOAT: Impedir mensagens textuais maiores que 2000 caracteres ---
+    // Importante: Não trunca strings que começam com MEDIA_URL: porque contêm base64
+    const safeText = text.startsWith('MEDIA_URL:') ? text : text.substring(0, 2000);
 
     // ── Encontrar tenant
     const url = new URL(req.url);
@@ -266,6 +404,11 @@ serve(async (req: Request) => {
         // Atualiza apenas o state local para o fluxo continuar normalmente com a nova mensagem
         conversation.state = "GREETING";
       }
+
+      // Se o cliente enviar mensagem para uma conversa que estava encerrada, ela volta a ser GREETING
+      if (conversation.state === 'RESOLVED') {
+        conversation.state = "GREETING";
+      }
     } else {
       const { data: newConv, error: createErr } = await supabase
         .from("whatsapp_conversations")
@@ -285,9 +428,10 @@ serve(async (req: Request) => {
     }
 
     // Prevenção de duplicidade otimizada: checa a janela de tempo dos últimos 15s e ignora floods
+    // (Bypass para mídia, pois o texto de fallback será igual)
     const nowTime = Date.now();
     const lastUserMsg = [...conversation.history].reverse().find(m => m.role === "user");
-    if (lastUserMsg) {
+    if (lastUserMsg && !isMedia) {
       const lastTime = new Date(lastUserMsg.timestamp).getTime();
       if ((nowTime - lastTime < 15000) && lastUserMsg.content === text) {
         return new Response(JSON.stringify({ ok: true, skipped: "duplicate_spam" }), {
@@ -298,9 +442,15 @@ serve(async (req: Request) => {
 
     // ── Se agente humano está ativo: apenas salvar no histórico, não processar com IA
     if (conversation.state === "HUMAN_ACTIVE") {
+      // Quando um humano está ativo, removemos o aviso gigante da IA para não poluir o painel do atendente
+      let humanVisibleText = safeText;
+      if (humanVisibleText.includes("INSTRUÇÃO PARA A IA:")) {
+         humanVisibleText = humanVisibleText.split("INSTRUÇÃO PARA A IA:")[0].trim();
+      }
+      
       let updatedHistory = [
         ...conversation.history,
-        { role: "user", content: safeText, timestamp: new Date().toISOString() },
+        { role: "user", content: humanVisibleText, timestamp: new Date().toISOString() },
       ];
       if (updatedHistory.length > 100) updatedHistory = updatedHistory.slice(-100);
       await supabase

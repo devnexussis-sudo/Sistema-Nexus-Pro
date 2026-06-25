@@ -52,6 +52,8 @@ export interface UserPermissions {
     technicians: boolean;
     users: boolean;
     settings: boolean;
+    whatsapp: boolean;
+    solicitacoes: boolean;
   };
 }
 
@@ -90,6 +92,8 @@ export const DEFAULT_PERMISSIONS: UserPermissions = {
     technicians: true,
     users: false,
     settings: false,
+    whatsapp: false,
+    solicitacoes: false,
   }
 };
 
@@ -128,6 +132,8 @@ export const ADMIN_PERMISSIONS: UserPermissions = {
     technicians: true,
     users: true,
     settings: true,
+    whatsapp: true,
+    solicitacoes: true,
   }
 };
 

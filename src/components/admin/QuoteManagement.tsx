@@ -536,8 +536,8 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                             onClick={handleManualRefresh}
                             disabled={quotesLoading || isManualSyncing}
                             className={`group h-10 px-4 flex items-center gap-2 rounded-xl border transition-all duration-300 shadow-sm active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed ${quotesLoading || isManualSyncing
-                                    ? 'bg-primary-50 border-primary-200 text-primary-600'
-                                    : 'bg-white hover:bg-slate-50 border-[#1c2d4f]/20 text-[#1c2d4f] hover:text-primary-600 hover:border-primary-300 hover:shadow-md'
+                                ? 'bg-primary-50 border-primary-200 text-primary-600'
+                                : 'bg-white hover:bg-slate-50 border-[#1c2d4f]/20 text-[#1c2d4f] hover:text-primary-600 hover:border-primary-300 hover:shadow-md'
                                 }`}
                             title="Atualizar todos os dados"
                         >
@@ -604,16 +604,16 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         key={opt.value}
                                         onClick={() => { setStatusFilter(opt.value); setCurrentPage(1); }}
                                         className={`flex-1 rounded-md text-[8px] font-medium uppercase tracking-wide transition-all whitespace-nowrap px-1 ${statusFilter === opt.value
-                                                ? opt.value === 'ABERTO'
-                                                    ? 'bg-sky-500 text-white shadow-sm'
-                                                    : opt.value === 'APROVADO'
-                                                        ? 'bg-emerald-500 text-white shadow-sm'
-                                                        : opt.value === 'CONVERTIDO'
-                                                            ? 'bg-indigo-500 text-white shadow-sm'
-                                                            : opt.value === 'REJEITADO'
-                                                                ? 'bg-rose-500 text-white shadow-sm'
-                                                                : 'bg-slate-800 text-white shadow-sm'
-                                                : 'text-slate-500 hover:bg-slate-50'
+                                            ? opt.value === 'ABERTO'
+                                                ? 'bg-sky-500 text-white shadow-sm'
+                                                : opt.value === 'APROVADO'
+                                                    ? 'bg-emerald-500 text-white shadow-sm'
+                                                    : opt.value === 'CONVERTIDO'
+                                                        ? 'bg-indigo-500 text-white shadow-sm'
+                                                        : opt.value === 'REJEITADO'
+                                                            ? 'bg-rose-500 text-white shadow-sm'
+                                                            : 'bg-slate-800 text-white shadow-sm'
+                                            : 'text-slate-500 hover:bg-slate-50'
                                             }`}
                                     >
                                         {opt.label}

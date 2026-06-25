@@ -27,7 +27,8 @@ import {
   UserPlus,
   Users,
   Workflow,
-  X
+  X,
+  MessageCircle
 } from 'lucide-react';
 import { useUserGroups, useUsers } from '../../hooks/nexusHooks';
 import { useI18n } from '../../i18n/I18nContext';
@@ -106,6 +107,10 @@ const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, onSave, title
     { id: 'financial', isMenuOnly: true, label: 'Módulo Financeiro', icon: Building2, menuKey: 'financial', extraInfo: 'Permissões abaixo' },
     { id: 'users', isMenuOnly: true, label: 'Usuários e Grupos', icon: ShieldAlert, menuKey: 'users', extraInfo: 'Permissões abaixo' },
     { id: 'settings', isMenuOnly: true, label: 'Configurações Globais', icon: Settings, menuKey: 'settings', extraInfo: 'Abas configuradas abaixo' },
+    
+    // ── Novos Módulos ──
+    { id: 'whatsapp', isMenuOnly: true, label: 'Atendimento WhatsApp (IA)', icon: MessageCircle, menuKey: 'whatsapp' },
+    { id: 'solicitacoes', isMenuOnly: true, label: 'Central de Solicitações', icon: ShieldCheck, menuKey: 'solicitacoes' },
   ];
 
   return (

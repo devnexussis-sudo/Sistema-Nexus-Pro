@@ -38,6 +38,8 @@ const MENU_ACCESS_DEFAULTS: NonNullable<UserPermissions['menuAccess']> = {
   technicians: true,
   users: false,
   settings: false,
+  whatsapp: false,
+  solicitacoes: false,
 };
 
 // Garante que menuAccess tenha todos os campos — retrocompatibilidade

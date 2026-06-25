@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw, X, BellRing, Bell, Volume2, ArrowRight, Sticker } from 'lucide-react';
+import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw, X, BellRing, Bell, Volume2, ArrowRight, Sticker, FileVideo, Mic, FileText, Download, AlertCircle } from 'lucide-react';
 
 interface Message {
   role: 'bot' | 'user' | 'agent';
@@ -9,6 +9,7 @@ interface Message {
   timestamp: string;
   agent_id?: string;
   type?: 'text' | 'sticker';
+  agent_name?: string;
 }
 
 interface Conversation {
@@ -34,12 +35,12 @@ const STATE_LABELS: Record<string, { label: string; color: string; dot: string }
   RESOLVED:       { label: 'Resolvido',        color: 'text-gray-400',    dot: 'bg-gray-300' },
 };
 
-const DEFAULT_STICKERS = [
-  { id: '1', url: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Smilies/Smiling%20Face%20with%20Smiling%20Eyes.png', label: 'Sorriso' },
-  { id: '2', url: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Hand%20gestures/Thumbs%20Up.png', label: 'Joinha' },
-  { id: '3', url: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Hand%20gestures/Waving%20Hand.png', label: 'Olá' },
-  { id: '4', url: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Smilies/Party%20Popper.png', label: 'Pronto!' },
-  { id: '5', url: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Hand%20gestures/Folded%20Hands.png', label: 'Obrigado' },
+const DEFAULT_EMOJIS = [
+  '😀','😂','😅','😉','😊','😍','😘','😜','😎','😏',
+  '😒','😔','😭','😡','👍','👎','👏','🙌','🤝','🙏',
+  '💪','✌️','👋','✋','👌','✅','❌','❗','❓','💯',
+  '🔥','✨','🎉','💼','📅','📞','📱','🔧','⚙️','🚀',
+  '📝','📎','📌','🔍','💡','⏳','⏰','💰','💳','📦'
 ];
 
 function formatPhone(phone: string) {
@@ -176,18 +177,29 @@ export const WhatsAppInbox: React.FC = () => {
   const [permissionState, setPermissionState] = useState<'prompt' | 'granted' | 'denied'>('prompt');
   const [permBannerDismissed, setPermBannerDismissed] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserName, setCurrentUserName] = useState<string>('Agente');
   const [teamMembers, setTeamMembers] = useState<{ id: string, name: string }[]>([]);
   const [transferModal, setTransferModal] = useState<string | null>(null);
   const [inboxSearch, setInboxSearch] = useState('');
   const [agentSearch, setAgentSearch] = useState('');
   const [readIndex, setReadIndex] = useState<Record<string, number>>({});
   const [showStickers, setShowStickers] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const conversationsRef = useRef<Conversation[]>([]);
   const selectedIdRef = useRef<string | null>(null);
+  const isOptimisticPending = useRef(false);
+  const actionInitiatedConvId = useRef<string | null>(null);
+  const stickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id || null));
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        setCurrentUserId(data.user.id);
+        const mdName = data.user.user_metadata?.name || data.user.user_metadata?.full_name;
+        if (mdName) setCurrentUserName(mdName);
+      }
+    });
     supabase.from('users').select('id, name').neq('role', 'TECHNICIAN').order('name').then(({ data }) => setTeamMembers(data || []));
     const notifPerm = (Notification.permission as 'prompt' | 'granted' | 'denied');
     setPermissionState(notifPerm === 'default' ? 'prompt' : notifPerm);
@@ -231,6 +243,25 @@ export const WhatsAppInbox: React.FC = () => {
   conversationsRef.current = conversations;
   selectedIdRef.current = selectedId;
 
+  // Fechar popover de emojis ao clicar fora
+  useEffect(() => {
+    if (!showStickers) return;
+    const handler = (e: MouseEvent) => {
+      if (stickerRef.current && !stickerRef.current.contains(e.target as Node)) {
+        setShowStickers(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showStickers]);
+
+  // Quando teamMembers carregam, derivar o nome do agente atual (mais confiável que user_metadata)
+  useEffect(() => {
+    if (!currentUserId || teamMembers.length === 0) return;
+    const me = teamMembers.find(m => m.id === currentUserId);
+    if (me?.name) setCurrentUserName(me.name);
+  }, [currentUserId, teamMembers]);
+
   const selected = conversations.find(c => c.id === selectedId) || null;
 
   // Auto-scroll quando histórico muda
@@ -245,6 +276,8 @@ export const WhatsAppInbox: React.FC = () => {
 
   // ── Carregar conversas (merge silencioso, sem piscar) ───────────────────────
   const fetchConversations = useCallback(async (silent = false) => {
+    if (isOptimisticPending.current) return; // Não sobresscrever estado otimista com dados velhos do DB
+    
     const { data } = await supabase
       .from('whatsapp_conversations')
       .select('*, customers(name, document), users(name)')
@@ -253,39 +286,66 @@ export const WhatsAppInbox: React.FC = () => {
     if (data) {
       setConversations(prev => {
         // Detectar novas mensagens para tocar som/notificações
-        (data as Conversation[]).forEach(updated => {
+        const next = (data as Conversation[]).map(updated => {
           const existing = prev.find(c => c.id === updated.id);
-          if (existing) {
-            const newMsgs = (updated.history?.length || 0) > (existing.history?.length || 0)
-              ? updated.history.slice(existing.history!.length)
-              : [];
-            
-            const hasUserMsg = newMsgs.some((m: Message) => m.role === 'user');
-            
-            // Só notifica se pediu humano AGORA, ou se mandou mensagem DEPOIS de pedir humano
-            const justAskedForHuman = updated.state === 'WAITING_HUMAN' && existing.state !== 'WAITING_HUMAN';
-            const userMsgWhileHuman = hasUserMsg && (updated.state === 'WAITING_HUMAN' || updated.state === 'HUMAN_ACTIVE');
-            
-            // Notificar transferência de conversa para mim
-            const justAssignedToMe = updated.assigned_agent_id === currentUserId && existing.assigned_agent_id !== currentUserId && currentUserId !== null;
+          if (!existing) return updated;
 
-            if (justAskedForHuman || userMsgWhileHuman || justAssignedToMe) {
-              playBloop();
-              flashTitle();
-              if (justAssignedToMe) {
-                sendBrowserNotification('💬 Chat Transferido!', `Um atendimento foi transferido para você.`);
-                setToast('⚠️ Uma conversa foi transferida para você!');
-              } else {
-                const previewMsg = newMsgs.find(m => m.role === 'user')?.content || 'Cliente solicitou atendimento.';
-                const preview = String(previewMsg).substring(0, 60);
-                sendBrowserNotification('💬 Duno WhatsApp', `${updated.phone_number}: ${preview}`);
-                setToast(justAskedForHuman ? '⚠️ Cliente pediu atendimento humano!' : '💬 Nova mensagem do cliente!');
-              }
+          // Preservar mensagens otimistas locais que ainda não chegaram do servidor
+          // (mensagens do agente com timestamp mais recente que a última do servidor)
+          const serverHistoryLen = updated.history?.length || 0;
+          const localHistoryLen = existing.history?.length || 0;
+          let mergedHistory = updated.history || [];
+          if (localHistoryLen > serverHistoryLen) {
+            const localOnlyMsgs = (existing.history || []).slice(serverHistoryLen);
+            // Só mantém as mensagens locais se forem do tipo 'agent' (otimistas)
+            const optimisticOnly = localOnlyMsgs.filter(m => m.role === 'agent');
+            mergedHistory = [...mergedHistory, ...optimisticOnly];
+          }
+
+          const newMsgs = serverHistoryLen > (prev.find(c => c.id === updated.id)?.history?.length || 0)
+            ? (updated.history || []).slice(prev.find(c => c.id === updated.id)?.history?.length || 0)
+            : [];
+          
+          const hasUserMsg = newMsgs.some((m: Message) => m.role === 'user');
+          
+          const justAskedForHuman = updated.state === 'WAITING_HUMAN' && existing.state !== 'WAITING_HUMAN';
+          const userMsgWhileHuman = hasUserMsg && (updated.state === 'WAITING_HUMAN' || updated.state === 'HUMAN_ACTIVE');
+          
+          // Se fui eu que iniciei a ação, não devo receber notificação de que foi transferido para mim
+          const isMyOwnAction = actionInitiatedConvId.current === updated.id;
+          const justAssignedToMe = !isMyOwnAction && updated.assigned_agent_id === currentUserId && existing.assigned_agent_id !== currentUserId && currentUserId !== null && updated.state === 'HUMAN_ACTIVE';
+
+          let shouldNotify = false;
+          if (justAssignedToMe) {
+             shouldNotify = true;
+          } else if (justAskedForHuman) {
+             shouldNotify = true;
+          } else if (userMsgWhileHuman) {
+             if (updated.assigned_agent_id) {
+                 shouldNotify = (updated.assigned_agent_id === currentUserId);
+             } else {
+                 shouldNotify = true;
+             }
+          }
+
+          if (shouldNotify) {
+            playBloop();
+            flashTitle();
+            if (justAssignedToMe) {
+              sendBrowserNotification('💬 Chat Transferido!', `Um atendimento foi transferido para você.`);
+              setToast('⚠️ Uma conversa foi transferida para você!');
+            } else {
+              const previewMsg = newMsgs.find(m => m.role === 'user')?.content || 'Cliente solicitou atendimento.';
+              const preview = String(previewMsg).substring(0, 60);
+              sendBrowserNotification('💬 Duno WhatsApp', `${updated.phone_number}: ${preview}`);
+              setToast(justAskedForHuman ? '⚠️ Cliente pediu atendimento humano!' : '💬 Nova mensagem do cliente!');
               setTimeout(() => setToast(null), 5000);
             }
           }
+
+          return { ...updated, history: mergedHistory };
         });
-        return data as Conversation[];
+        return next;
       });
     }
     if (!silent) setLoading(false);
@@ -338,6 +398,8 @@ export const WhatsAppInbox: React.FC = () => {
       alert('Erro: ' + data.error);
       return false;
     }
+    // Não recarregamos imediatamente aqui porque o realtime já faz o trabalho 
+    // ou deixamos as promises que chamam `invoke` cuidarem disso, evitando dupla re-renderização.
     triggerNavUpdate();
     return true;
   };
@@ -345,38 +407,104 @@ export const WhatsAppInbox: React.FC = () => {
   const handleTakeover = async () => {
     if (!selected) return;
     setSendingAction('takeover');
-    try { await invoke('takeover'); } finally { setSendingAction(null); }
+    isOptimisticPending.current = true;
+    actionInitiatedConvId.current = selected.id;
+    
+    const optimisticMsg: Message = {
+      role: 'agent',
+      content: `✅ *${currentUserName}* da equipe assumiu o atendimento. Como posso ajudar?`,
+      timestamp: new Date().toISOString(),
+      agent_id: currentUserId || undefined,
+      agent_name: currentUserName
+    };
+
+    setConversations(prev => prev.map(c => c.id === selected.id ? { ...c, state: 'HUMAN_ACTIVE', assigned_agent_id: currentUserId, history: [...(c.history||[]), optimisticMsg] } : c));
+    await invoke('takeover');
+    setSendingAction(null);
+    setTimeout(() => { 
+      isOptimisticPending.current = false; 
+      fetchConversations(true); 
+      setTimeout(() => actionInitiatedConvId.current = null, 2000);
+    }, 500);
   };
 
   const handleReturnToBot = async () => {
     if (!selected) return;
     setSendingAction('return_to_bot');
-    try { await invoke('return_to_bot'); } finally { setSendingAction(null); }
+    isOptimisticPending.current = true;
+    const optimisticMsg: Message = {
+      role: 'bot',
+      content: `🤖 O atendimento foi retornado ao assistente virtual. Como posso ajudar?`,
+      timestamp: new Date().toISOString()
+    };
+    setConversations(prev => prev.map(c => c.id === selected.id ? { ...c, state: 'CUSTOMER_FOUND', assigned_agent_id: null, history: [...(c.history||[]), optimisticMsg] } : c));
+    await invoke('return_to_bot');
+    setSendingAction(null);
+    setTimeout(() => { isOptimisticPending.current = false; fetchConversations(true); }, 500);
   };
 
   const handleCloseConversation = async () => {
     if (!selected) return;
     setSendingAction('close');
-    try { await invoke('close_conversation'); } finally { setSendingAction(null); }
+    isOptimisticPending.current = true;
+    const optimisticMsg: Message = {
+      role: 'agent',
+      content: `Atendimento encerrado por um de nossos agentes. Agradecemos o contato! 👋`,
+      timestamp: new Date().toISOString(),
+      agent_id: currentUserId || undefined,
+      agent_name: currentUserName
+    };
+    
+    setConversations(prev => prev.map(c => c.id === selected.id ? { ...c, state: 'RESOLVED', assigned_agent_id: null, history: [...(c.history||[]), optimisticMsg] } : c));
+    const oldId = selected.id;
+    setSelectedId(null);
+    await invoke('close_conversation', { agent_name: currentUserName });
+    setSendingAction(null);
+    setTimeout(() => { isOptimisticPending.current = false; fetchConversations(true); }, 500);
   };
   
   const handleResetBot = async () => {
     if (!selected) return;
-    if (!confirm('Deseja realmente apagar o histórico e reiniciar o bot para este cliente?')) return;
+    setShowResetConfirm(false);
     setSendingAction('reset');
-    try { await invoke('reset_bot'); } finally { setSendingAction(null); }
+    isOptimisticPending.current = true;
+    setConversations(prev => prev.map(c => c.id === selected.id ? { ...c, state: 'GREETING', assigned_agent_id: null } : c));
+    setSelectedId(null);
+    await invoke('reset_bot');
+    setSendingAction(null);
+    setTimeout(() => { isOptimisticPending.current = false; fetchConversations(true); }, 500);
   };
 
   const handleTransfer = async (targetUserId: string) => {
+    if (!selected) return;
     setSendingAction('transfer');
+    isOptimisticPending.current = true;
+    actionInitiatedConvId.current = selected.id;
     setTransferModal(null);
-    try { await invoke('transfer', { target_user_id: targetUserId }); } finally { setSendingAction(null); }
+    const targetName = teamMembers.find(m => m.id === targetUserId)?.name || "outro agente";
+    
+    const optimisticMsg: Message = {
+      role: 'agent',
+      content: `🔃 O atendimento foi transferido para *${targetName}*. Aguarde um momento.`,
+      timestamp: new Date().toISOString(),
+      agent_id: currentUserId || undefined,
+      agent_name: currentUserName
+    };
+
+    setConversations(prev => prev.map(c => c.id === selected.id ? { ...c, assigned_agent_id: targetUserId, history: [...(c.history||[]), optimisticMsg] } : c));
+    setSelectedId(null);
+    await invoke('transfer', { target_user_id: targetUserId, agent_name: currentUserName });
+    setSendingAction(null);
+    setTimeout(() => { 
+      isOptimisticPending.current = false; 
+      fetchConversations(true); 
+      setTimeout(() => actionInitiatedConvId.current = null, 2000);
+    }, 500);
   };
 
-  const handleSend = async () => {
-    const txt = message.trim();
-    if (!selected || !txt) return;
-    setSendingAction('send');
+  const handleSend = () => {
+    if (!message.trim() || !selected || sendingAction !== null) return;
+    const txt = message;
     setMessage('');
 
     // ✨ Update otimista: mensagem aparece instantaneamente na tela
@@ -384,24 +512,29 @@ export const WhatsAppInbox: React.FC = () => {
       role: 'agent',
       content: txt,
       timestamp: new Date().toISOString(),
+      agent_id: currentUserId || undefined,
+      agent_name: currentUserName,
     };
     setConversations(prev => prev.map(c => {
       if (c.id !== selected.id) return c;
       return { ...c, history: [...(c.history || []), optimisticMsg], last_message_at: new Date().toISOString() };
     }));
 
-    try {
-      await invoke('send', { message: txt });
-    } catch {
-      // Se falhar, desfazer o optimistic update
+    // Libera o botão imediatamente — rede roda em background
+    isOptimisticPending.current = true;
+    invoke('send', { message: txt, agent_name: currentUserName }).then(() => {
+      setTimeout(() => { isOptimisticPending.current = false; fetchConversations(true); }, 500);
+    }).catch(() => {
+      // Se falhar, desfazer o optimistic update e restaurar texto
       setConversations(prev => prev.map(c => {
         if (c.id !== selected.id) return c;
         return { ...c, history: (c.history || []).filter(m => m !== optimisticMsg) };
       }));
-      setMessage(txt); // restaurar texto
-    } finally {
-      setSendingAction(null);
-    }
+      setMessage(txt);
+      setToast('❌ Falha ao enviar mensagem. Tente novamente.');
+      setTimeout(() => setToast(null), 3000);
+      isOptimisticPending.current = false;
+    });
   };
 
   const handleSendSticker = async (url: string) => {
@@ -421,12 +554,15 @@ export const WhatsAppInbox: React.FC = () => {
     }));
 
     try {
+      isOptimisticPending.current = true;
       await invoke('send_sticker', { message: url });
+      setTimeout(() => { isOptimisticPending.current = false; fetchConversations(true); }, 500);
     } catch {
       setConversations(prev => prev.map(c => {
         if (c.id !== selected.id) return c;
         return { ...c, history: (c.history || []).filter(m => m !== optimisticMsg) };
       }));
+      isOptimisticPending.current = false;
     } finally {
       setSendingAction(null);
     }
@@ -625,7 +761,7 @@ export const WhatsAppInbox: React.FC = () => {
                     </div>
                     {!customerName && <p className="text-[10px] text-gray-400">{formatPhone(conv.phone_number)}</p>}
                     <p className={`text-[10px] font-medium ${stateInfo.color}`}>
-                      {conv.state === 'HUMAN_ACTIVE' && conv.users?.name ? `👤 Atendido por: ${conv.users.name.split(' ')[0]}` : stateInfo.label}
+                      {conv.state === 'HUMAN_ACTIVE' && conv.users?.name ? `👤 Em atendimento pelo: ${conv.users.name.split(' ')[0]}` : conv.state === 'RESOLVED' && conv.users?.name ? `✅ Finalizado por: ${conv.users.name.split(' ')[0]}` : stateInfo.label}
                     </p>
                     {lastMsg && (
                       <p className={`text-xs truncate w-full ${isUnread ? 'text-emerald-600 font-semibold' : 'text-slate-500'}`}>
@@ -661,7 +797,12 @@ export const WhatsAppInbox: React.FC = () => {
                 </span>
                 {selected.state === 'HUMAN_ACTIVE' && selected.users?.name && (
                   <span className="text-[10px] font-medium text-slate-500 ml-1">
-                    Atendido por: <strong className="text-slate-700">{selected.users.name}</strong>
+                    Em atendimento pelo: <strong className="text-slate-700">{selected.users.name}</strong>
+                  </span>
+                )}
+                {selected.state === 'RESOLVED' && selected.users?.name && (
+                  <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full mt-1 w-fit">
+                    Finalizado por: <strong className="text-slate-700">{selected.users.name}</strong> em {new Date(selected.last_message_at).toLocaleString('pt-BR')}
                   </span>
                 )}
               </div>
@@ -682,7 +823,7 @@ export const WhatsAppInbox: React.FC = () => {
               )}
               {selected.state !== 'HUMAN_ACTIVE' && (
                 <button
-                  onClick={handleResetBot}
+                  onClick={() => setShowResetConfirm(true)}
                   disabled={sendingAction !== null}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-slate-600 text-[11px] font-bold rounded-xl hover:bg-slate-50 disabled:opacity-50 transition-all border border-slate-200 shadow-sm"
                 >
@@ -766,38 +907,136 @@ export const WhatsAppInbox: React.FC = () => {
                 <p className="text-xs mt-2">Nenhuma mensagem ainda</p>
               </div>
             )}
-            {(selected.history || []).map((msg, i) => (
-              <div
-                key={i}
-                className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                {msg.role !== 'user' && (
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${
-                    msg.role === 'bot' ? 'bg-emerald-100' : 'bg-indigo-100'
+            {(selected.history || []).map((msg, i) => {
+              const isFromMe = msg.role === 'agent' || msg.role === 'bot';
+              return (
+                <div
+                  key={i}
+                  className={`flex gap-2 items-end ${isFromMe ? 'justify-end' : 'justify-start'}`}
+                >
+                  {/* Avatar esquerda — apenas cliente */}
+                  {!isFromMe && (
+                    <div className="w-7 h-7 rounded-full bg-slate-300 flex items-center justify-center flex-shrink-0 shadow-sm flex-shrink-0">
+                      <User size={14} className="text-slate-600" />
+                    </div>
+                  )}
+
+                  {/* Balão */}
+                  <div className={`max-w-[72%] px-3.5 py-2.5 text-xs leading-relaxed shadow-sm ${
+                    msg.role === 'agent'
+                      ? 'bg-emerald-800 text-white rounded-2xl rounded-br-sm'
+                      : msg.role === 'bot'
+                      ? 'bg-violet-700 text-white rounded-2xl rounded-bl-sm'
+                      : 'bg-blue-800 text-white rounded-2xl rounded-bl-sm'
                   }`}>
-                    {msg.role === 'bot' ? <Bot size={14} className="text-emerald-600" /> : <User size={14} className="text-indigo-600" />}
+                    {/* Nome — apenas para o remetente correto */}
+                    {msg.role === 'user' && (
+                      <p className="text-[10px] font-semibold text-blue-200 mb-1 tracking-wide">
+                        {formatPhone(selected.phone_number)}
+                      </p>
+                    )}
+                    {msg.role === 'agent' && (
+                      <p className="text-[10px] font-semibold text-emerald-200 mb-1 tracking-wide uppercase">
+                        👤 {msg.agent_name || (msg.agent_id ? teamMembers.find(m => m.id === msg.agent_id)?.name : null) || selected.users?.name || currentUserName}
+                      </p>
+                    )}
+                    {msg.role === 'bot' && (
+                      <p className="text-[10px] font-semibold text-emerald-200 mb-1 tracking-wide uppercase">
+                        🤖 Assistente Virtual
+                      </p>
+                    )}
+
+                    {(() => {
+                      const content = msg.content || '';
+                      if (content.startsWith('MEDIA_URL:')) {
+                        const withoutPrefix = content.replace('MEDIA_URL:', '');
+                        const colonIdx = withoutPrefix.indexOf(':');
+                        const mediaType = withoutPrefix.substring(0, colonIdx);
+                        const rest = withoutPrefix.substring(colonIdx + 1);
+                        const pipeIdx = rest.lastIndexOf('|');
+                        const mediaUrl = pipeIdx >= 0 ? rest.substring(0, pipeIdx) : rest;
+                        const caption = pipeIdx >= 0 ? rest.substring(pipeIdx + 1) : '';
+                        const isLight = isFromMe;
+                        const textColor = isLight ? 'text-white/60' : 'text-slate-400';
+
+                        if ((mediaType === 'image' || mediaType === 'sticker') && mediaUrl) {
+                          return (
+                            <div className="space-y-1">
+                              <img
+                                src={mediaUrl}
+                                alt={caption || 'Imagem'}
+                                className="max-w-[220px] rounded-xl object-cover cursor-pointer hover:opacity-90 transition-opacity border border-white/10"
+                                onClick={() => window.open(mediaUrl, '_blank')}
+                                onError={(e) => {
+                                  const el = e.target as HTMLImageElement;
+                                  el.style.display = 'none';
+                                  const parent = el.parentElement;
+                                  if (parent && !parent.querySelector('.img-fallback')) {
+                                    const fb = document.createElement('div');
+                                    fb.className = 'img-fallback flex items-center gap-2 text-[11px] opacity-70 py-1';
+                                    fb.innerHTML = '📸 Imagem (visualização indisponível)';
+                                    parent.appendChild(fb);
+                                  }
+                                }}
+                              />
+                              {caption && <p className={`text-[10px] italic ${textColor}`}>{caption}</p>}
+                            </div>
+                          );
+                        }
+                        if (mediaType === 'audio' && mediaUrl) {
+                          return (
+                            <div className="flex items-center gap-2 py-1">
+                              <Mic size={16} className={isLight ? 'text-white/70' : 'text-indigo-400'} />
+                              <audio controls src={mediaUrl} className="h-8" style={{ width: '180px' }} />
+                            </div>
+                          );
+                        }
+                        if (mediaType === 'video' && mediaUrl) {
+                          return (
+                            <div className="space-y-1">
+                              <video src={mediaUrl} controls className="max-w-[220px] rounded-xl" style={{ maxHeight: '160px' }} />
+                              {caption && <p className={`text-[10px] italic ${textColor}`}>{caption}</p>}
+                            </div>
+                          );
+                        }
+                        if (mediaType === 'document') {
+                          const fileName = caption || mediaUrl.split('/').pop() || 'Documento';
+                          return (
+                            <a href={mediaUrl || '#'} target="_blank" rel="noopener noreferrer"
+                               className={`flex items-center gap-2 p-2 rounded-lg hover:opacity-80 transition-opacity ${isLight ? 'bg-white/10' : 'bg-slate-100'}`}>
+                              <FileText size={16} className={isLight ? 'text-white' : 'text-indigo-500'} />
+                              <span className={`text-[11px] font-medium truncate max-w-[150px] ${isLight ? 'text-white' : 'text-slate-700'}`}>{fileName}</span>
+                              {mediaUrl && <Download size={12} className={isLight ? 'text-white/70' : 'text-slate-400'} />}
+                            </a>
+                          );
+                        }
+                        const mediaLabel: Record<string, string> = {
+                          image: '📸 Imagem', video: '📹 Vídeo', audio: '🎤 Áudio',
+                          document: '📄 Documento', sticker: '✨ Figurinha'
+                        };
+                        return (
+                          <p className="text-[11px] opacity-80 italic">
+                            {mediaLabel[mediaType] || '📎 Mídia'} recebida (pré-visualização não disponível)
+                          </p>
+                        );
+                      }
+                      return <p className="whitespace-pre-wrap">{content}</p>;
+                    })()}
+
+                    <p className={`text-[9px] mt-1 ${isFromMe ? 'text-white/50 text-right' : 'text-slate-400'}`}>
+                      {new Date(msg.timestamp).toLocaleDateString('pt-BR')} às {new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
                   </div>
-                )}
-                <div className={`max-w-[75%] px-3 py-2 rounded-2xl text-xs leading-relaxed shadow-sm ${
-                  msg.role === 'user'
-                    ? 'bg-[#1c2d4f] text-white rounded-tr-sm'
-                    : msg.role === 'agent'
-                    ? 'bg-indigo-600 text-white rounded-tl-sm'
-                    : 'bg-white text-slate-800 border border-slate-200 rounded-tl-sm'
-                }`}>
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
-                  <p className={`text-[9px] mt-1 flex flex-wrap gap-1 ${msg.role === 'user' || msg.role === 'agent' ? 'text-white/60' : 'text-slate-400'}`}>
-                    <span>{new Date(msg.timestamp).toLocaleDateString('pt-BR')} às {new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-                    <span>· {msg.role === 'bot' ? 'Bot' : msg.role === 'agent' ? 'Agente' : 'Cliente'}</span>
-                  </p>
+
+                  {/* Avatar do Agente/Bot (direita) */}
+                  {isFromMe && (
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${msg.role === 'bot' ? 'bg-emerald-100' : 'bg-indigo-100'}`}>
+                      {msg.role === 'bot' ? <Bot size={14} className="text-emerald-600" /> : <User size={14} className="text-indigo-600" />}
+                    </div>
+                  )}
                 </div>
-                {msg.role === 'user' && (
-                  <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0 shadow-sm">
-                    <User size={14} className="text-slate-500" />
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
             <div ref={chatEndRef} />
           </div>
 
@@ -805,54 +1044,65 @@ export const WhatsAppInbox: React.FC = () => {
           {selected.state === 'HUMAN_ACTIVE' ? (
             <div className="bg-white border-t border-slate-100 p-4 relative shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
               
-              {/* Sticker Popover */}
+              {/* Emoji Popover */}
               {showStickers && (
-                <div className="absolute bottom-full mb-2 left-4 bg-white border border-slate-200 shadow-xl rounded-2xl p-3 z-50 w-64 animate-in slide-in-from-bottom-2">
+                <div
+                  ref={stickerRef}
+                  className="absolute bottom-full mb-2 left-4 bg-white border border-slate-200 shadow-xl rounded-2xl p-3 z-50 w-72 animate-in slide-in-from-bottom-2"
+                >
                   <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100">
-                    <p className="text-xs font-bold text-slate-600">Figurinhas Rápidas</p>
+                    <p className="text-xs font-bold text-slate-600">Emojis Rápidos</p>
                     <button onClick={() => setShowStickers(false)} className="text-slate-400 hover:text-slate-600">
                       <X size={14} />
                     </button>
                   </div>
-                  <div className="grid grid-cols-4 gap-2">
-                    {DEFAULT_STICKERS.map(sticker => (
+                  <div className="grid grid-cols-8 gap-1 h-36 overflow-y-auto custom-scrollbar pr-1">
+                    {DEFAULT_EMOJIS.map(emoji => (
                       <button
-                        key={sticker.id}
-                        onClick={() => handleSendSticker(sticker.url)}
-                        className="p-1 hover:bg-slate-50 rounded-xl transition-all border border-transparent hover:border-slate-200 group relative"
-                        title={sticker.label}
+                        key={emoji}
+                        onClick={() => setMessage(prev => prev + emoji)}
+                        className="text-xl hover:bg-slate-100 rounded p-1 transition-colors flex items-center justify-center"
                         disabled={sendingAction !== null}
                       >
-                        <img src={sticker.url} alt={sticker.label} className="w-10 h-10 object-contain mx-auto group-hover:scale-110 transition-transform" />
-                        <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-10">
-                          {sticker.label}
-                        </span>
+                        {emoji}
                       </button>
                     ))}
                   </div>
                 </div>
               )}
 
-              <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-full pr-2 pl-2 py-1.5 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-400 transition-all shadow-inner">
+              <div className="flex items-end gap-3 bg-slate-50 border border-slate-200 rounded-3xl pr-2 pl-2 py-2 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-400 transition-all shadow-inner">
                 <button
                   onClick={() => setShowStickers(!showStickers)}
-                  className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors shrink-0 ${showStickers ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:bg-slate-200 hover:text-slate-600'}`}
-                  title="Enviar Figurinha"
+                  className={`w-9 h-9 mb-0.5 flex items-center justify-center rounded-full transition-colors shrink-0 ${showStickers ? 'bg-emerald-100 text-emerald-600' : 'text-slate-400 hover:bg-slate-200 hover:text-slate-600'}`}
+                  title="Inserir Emoji"
                 >
                   <Sticker size={18} />
                 </button>
-                <input
-                  type="text"
+                <textarea
                   value={message}
                   onChange={e => setMessage(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                  placeholder="Digite sua mensagem..."
-                  className="flex-1 bg-transparent border-none outline-none text-sm text-slate-700 placeholder-slate-400 py-2"
+                  onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSend();
+                      }
+                  }}
+                  rows={1}
+                  placeholder="Digite sua mensagem (Shift + Enter para nova linha)..."
+                  className="flex-1 bg-transparent border-none outline-none text-sm text-slate-700 placeholder-slate-400 py-1.5 resize-none custom-scrollbar"
+                  style={{ minHeight: '36px', maxHeight: '120px' }}
+                  onInput={(e) => {
+                      const target = e.target as HTMLTextAreaElement;
+                      target.style.height = 'auto';
+                      target.style.height = `${target.scrollHeight}px`;
+                  }}
                 />
                 <button
                   onClick={handleSend}
                   disabled={sendingAction !== null || !message.trim()}
-                  className="w-10 h-10 flex items-center justify-center bg-[#1c2d4f] text-white rounded-full hover:bg-[#2a4376] disabled:opacity-50 transition-all shrink-0 shadow-md"
+                  className="w-10 h-10 mb-0.5 flex items-center justify-center bg-emerald-500 text-white rounded-full hover:bg-emerald-600 disabled:opacity-50 transition-all shrink-0 shadow-md hover:shadow-lg active:scale-95"
+                  title="Enviar (Enter)"
                 >
                   {sendingAction === 'send' ? <RefreshCw size={18} className="animate-spin" /> : <Send size={18} className="ml-1" />}
                 </button>
@@ -871,6 +1121,35 @@ export const WhatsAppInbox: React.FC = () => {
           <MessageCircle size={48} />
           <p className="text-sm font-medium">Selecione uma conversa</p>
           <p className="text-xs">As mensagens chegam automaticamente em tempo real</p>
+        </div>
+      )}
+
+      {/* Modal de Confirmação para Reiniciar Bot */}
+      {showResetConfirm && selected && (
+        <div className="absolute inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mb-4">
+              <RotateCcw size={24} />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 mb-2">Reiniciar Bot?</h3>
+            <p className="text-sm text-slate-500 mb-6">
+              O bot de Inteligência Artificial assumirá esta conversa desde o início (estado de boas-vindas). O histórico de mensagens será mantido para consulta futura.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleResetBot}
+                className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-sm font-bold rounded-xl transition-colors"
+              >
+                Sim, reiniciar
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

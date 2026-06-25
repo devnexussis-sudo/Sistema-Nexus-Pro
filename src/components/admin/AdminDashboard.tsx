@@ -997,7 +997,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (order.status === OrderStatus.CANCELED) return;
     showConfirm('Tem certeza que deseja cancelar esta Ordem de Serviço? Esta ação bloqueará edições futuras.', async () => {
       await onEditOrder({ ...order, status: OrderStatus.CANCELED });
-    }, "Cancelar OS", "Cancelar OS", true);
+    }, "Cancelar OS", "Confirmar Cancelamento", true);
   };
 
   const formatDateDisplay = (dateStr: string) => {
