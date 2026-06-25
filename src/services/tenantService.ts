@@ -664,7 +664,16 @@ export const TenantService = {
         if (isCloudEnabled) {
             try {
                 const { data: readRecords } = await supabase.from('system_notification_reads').select('notification_id').eq('user_id', userId);
-                const readIds = (readRecords || []).map(r => r.notification_id);
+                const dbReadIds = (readRecords || []).map(r => r.notification_id);
+
+                // Big Tech Resilience: Combine DB read state with LocalStorage cache
+                let localReadIds: string[] = [];
+                try {
+                    const localKey = `nexus_dismissed_notif_${userId}`;
+                    localReadIds = JSON.parse(localStorage.getItem(localKey) || '[]');
+                } catch(e) {}
+                
+                const allReadIds = Array.from(new Set([...dbReadIds, ...localReadIds]));
 
                 // Build query; fetch all recent notifications
                 let query = supabase.from('system_notifications')
@@ -675,10 +684,10 @@ export const TenantService = {
                 const { data: notifications, error } = await query;
                 if (error) throw error;
 
-                // Attach isRead flag based on the readIds we found
+                // Attach isRead flag based on the combined readIds
                 return (notifications || []).map(n => ({
                     ...n,
-                    isRead: readIds.includes(n.id)
+                    isRead: allReadIds.includes(n.id)
                 }));
             } catch (err) {
                 console.error('Failed to load system notifications:', err);
@@ -689,18 +698,43 @@ export const TenantService = {
     },
 
     markSystemNotificationAsRead: async (userId: string, notificationId: string) => {
+        // 1. Immediate Local Persistence (Big Tech UX standard: never flash again on this device)
+        try {
+            const localKey = `nexus_dismissed_notif_${userId}`;
+            const dismissed = JSON.parse(localStorage.getItem(localKey) || '[]');
+            if (!dismissed.includes(notificationId)) {
+                dismissed.push(notificationId);
+                localStorage.setItem(localKey, JSON.stringify(dismissed));
+            }
+        } catch (e) {
+            console.error('[TenantService] Failed to cache dismissed notification locally:', e);
+        }
+
+        // 2. Cloud Synchronization
         if (isCloudEnabled) {
             try {
-                // Upsert usando string de colunas para onConflict (Supabase espera string)
-                await supabase.from('system_notification_reads').upsert([
-                    {
-                        user_id: userId,
-                        notification_id: notificationId,
-                        read_at: new Date().toISOString()
+                const payload = {
+                    user_id: userId,
+                    notification_id: notificationId,
+                    read_at: new Date().toISOString()
+                };
+
+                // Tenta insert direto primeiro (mais seguro se não houver unique index explícito mapeado no postgrest)
+                const { error: insertError } = await supabase.from('system_notification_reads').insert([payload]);
+                
+                if (insertError) {
+                    // Se falhar (ex: violação de constraint), tenta upsert
+                    const { error: upsertError } = await supabase.from('system_notification_reads').upsert(
+                        [payload], 
+                        { onConflict: 'user_id,notification_id', ignoreDuplicates: true }
+                    );
+                    
+                    if (upsertError && upsertError.code !== '23505') { // ignora erro de duplicidade
+                        console.error('[TenantService] Supabase erro ao sync notificação lida:', upsertError);
                     }
-                ], { onConflict: 'user_id,notification_id', ignoreDuplicates: true });
+                }
             } catch (err) {
-                console.error('[TenantService] Falha ao marcar notificação como lida:', err);
+                console.error('[TenantService] Falha ao marcar notificação como lida no DB:', err);
             }
         }
     }

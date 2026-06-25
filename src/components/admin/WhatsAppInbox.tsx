@@ -170,7 +170,7 @@ export const WhatsAppInbox: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
-  const [sending, setSending] = useState(false);
+  const [sendingAction, setSendingAction] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'waiting' | 'mine' | 'active'>('all');
   const [toast, setToast] = useState<string | null>(null);
   const [permissionState, setPermissionState] = useState<'prompt' | 'granted' | 'denied'>('prompt');
@@ -344,42 +344,42 @@ export const WhatsAppInbox: React.FC = () => {
 
   const handleTakeover = async () => {
     if (!selected) return;
-    setSending(true);
-    try { await invoke('takeover'); } finally { setSending(false); }
+    setSendingAction('takeover');
+    try { await invoke('takeover'); } finally { setSendingAction(null); }
   };
 
   const handleReturnToBot = async () => {
     if (!selected) return;
-    setSending(true);
-    try { await invoke('return_to_bot'); } finally { setSending(false); }
+    setSendingAction('return_to_bot');
+    try { await invoke('return_to_bot'); } finally { setSendingAction(null); }
   };
 
   const handleCloseConversation = async () => {
     if (!selected) return;
-    setSending(true);
-    try { await invoke('close_conversation'); } finally { setSending(false); }
+    setSendingAction('close');
+    try { await invoke('close_conversation'); } finally { setSendingAction(null); }
   };
   
   const handleResetBot = async () => {
     if (!selected) return;
     if (!confirm('Deseja realmente apagar o histórico e reiniciar o bot para este cliente?')) return;
-    setSending(true);
-    try { await invoke('reset_bot'); } finally { setSending(false); }
+    setSendingAction('reset');
+    try { await invoke('reset_bot'); } finally { setSendingAction(null); }
   };
 
   const handleTransfer = async (targetUserId: string) => {
-    setSending(true);
+    setSendingAction('transfer');
     setTransferModal(null);
-    try { await invoke('transfer', { target_user_id: targetUserId }); } finally { setSending(false); }
+    try { await invoke('transfer', { target_user_id: targetUserId }); } finally { setSendingAction(null); }
   };
 
   const handleSend = async () => {
     const txt = message.trim();
     if (!selected || !txt) return;
-    setSending(true);
+    setSendingAction('send');
     setMessage('');
 
-    // ✨ Update ot imista: mensagem aparece instantaneamente na tela
+    // ✨ Update otimista: mensagem aparece instantaneamente na tela
     const optimisticMsg: Message = {
       role: 'agent',
       content: txt,
@@ -400,13 +400,13 @@ export const WhatsAppInbox: React.FC = () => {
       }));
       setMessage(txt); // restaurar texto
     } finally {
-      setSending(false);
+      setSendingAction(null);
     }
   };
 
   const handleSendSticker = async (url: string) => {
     if (!selected) return;
-    setSending(true);
+    setSendingAction('sticker');
     setShowStickers(false);
 
     const optimisticMsg: Message = {
@@ -428,7 +428,7 @@ export const WhatsAppInbox: React.FC = () => {
         return { ...c, history: (c.history || []).filter(m => m !== optimisticMsg) };
       }));
     } finally {
-      setSending(false);
+      setSendingAction(null);
     }
   };
 
@@ -670,23 +670,23 @@ export const WhatsAppInbox: React.FC = () => {
                 {selected.customers?.document && ` · Doc: ${selected.customers.document}`}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
               {(selected.state !== 'HUMAN_ACTIVE' || selected.assigned_agent_id !== currentUserId) && (
                 <button
                   onClick={handleTakeover}
-                  disabled={sending}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-[11px] font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-sm"
+                  disabled={sendingAction !== null}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1c2d4f] text-white text-[11px] font-bold rounded-xl hover:bg-[#2a4376] disabled:opacity-50 transition-all shadow-sm border border-[#1c2d4f]"
                 >
-                  {sending ? <RefreshCw size={14} className="animate-spin" /> : <UserCheck size={14} />} {selected.state === 'HUMAN_ACTIVE' ? 'Assumir p/ Mim' : 'Assumir Conversa'}
+                  {sendingAction === 'takeover' ? <RefreshCw size={14} className="animate-spin" /> : <UserCheck size={14} />} {selected.state === 'HUMAN_ACTIVE' ? 'Assumir p/ Mim' : 'Assumir Conversa'}
                 </button>
               )}
               {selected.state !== 'HUMAN_ACTIVE' && (
                 <button
                   onClick={handleResetBot}
-                  disabled={sending}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-600 text-[11px] font-bold rounded-xl hover:bg-gray-200 disabled:opacity-50 transition-all"
+                  disabled={sendingAction !== null}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-slate-600 text-[11px] font-bold rounded-xl hover:bg-slate-50 disabled:opacity-50 transition-all border border-slate-200 shadow-sm"
                 >
-                  {sending ? <RefreshCw size={14} className="animate-spin" /> : <RotateCcw size={14} />} Reiniciar Bot
+                  {sendingAction === 'reset' ? <RefreshCw size={14} className="animate-spin" /> : <RotateCcw size={14} />} Reiniciar Bot
                 </button>
               )}
               {selected.state === 'HUMAN_ACTIVE' && selected.assigned_agent_id === currentUserId && (
@@ -694,10 +694,10 @@ export const WhatsAppInbox: React.FC = () => {
                   <div className="relative">
                     <button
                       onClick={() => setTransferModal(transferModal === selected.id ? null : selected.id)}
-                      disabled={sending}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-600 text-[11px] font-bold rounded-xl hover:bg-gray-200 disabled:opacity-50 transition-all"
+                      disabled={sendingAction !== null}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 text-[11px] font-bold rounded-xl hover:bg-indigo-100 disabled:opacity-50 transition-all border border-indigo-200 shadow-sm"
                     >
-                      {sending ? <RefreshCw size={14} className="animate-spin" /> : <ArrowRight size={14} />} Transferir
+                      {sendingAction === 'transfer' ? <RefreshCw size={14} className="animate-spin" /> : <ArrowRight size={14} />} Transferir
                     </button>
                     {transferModal === selected.id && (
                       <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-100 shadow-xl rounded-xl z-50 overflow-hidden">
@@ -736,28 +736,30 @@ export const WhatsAppInbox: React.FC = () => {
                   </div>
                   <button
                     onClick={handleReturnToBot}
-                    disabled={sending}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-600 text-[11px] font-bold rounded-xl hover:bg-gray-200 disabled:opacity-50 transition-all"
+                    disabled={sendingAction !== null}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-[11px] font-bold rounded-xl hover:bg-emerald-100 disabled:opacity-50 transition-all border border-emerald-200 shadow-sm"
                   >
-                    {sending ? <RefreshCw size={14} className="animate-spin" /> : <RotateCcw size={14} />} Devolver ao Bot
-                  </button>
-                  <button
-                    onClick={handleCloseConversation}
-                    disabled={sending}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-100 text-rose-600 text-[11px] font-bold rounded-xl hover:bg-rose-200 disabled:opacity-50 transition-all"
-                  >
-                    {sending ? <RefreshCw size={14} className="animate-spin" /> : <X size={14} />} Encerrar Atendimento
+                    {sendingAction === 'return_to_bot' ? <RefreshCw size={14} className="animate-spin" /> : <Bot size={14} />} Devolver ao Bot
                   </button>
                 </>
               )}
-              <button onClick={() => setSelectedId(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
+              {/* Encerrar Atendimento agora sempre visível (se não estiver encerrado) */}
+              <button
+                onClick={handleCloseConversation}
+                disabled={sendingAction !== null}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-700 text-[11px] font-bold rounded-xl hover:bg-rose-100 disabled:opacity-50 transition-all border border-rose-200 shadow-sm"
+              >
+                {sendingAction === 'close' ? <RefreshCw size={14} className="animate-spin" /> : <X size={14} />} Encerrar
+              </button>
+
+              <button onClick={() => setSelectedId(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 ml-1">
                 <X size={16} />
               </button>
             </div>
           </div>
 
           {/* Mensagens */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
             {(!selected.history || selected.history.length === 0) && (
               <div className="flex flex-col items-center justify-center h-full text-gray-300">
                 <MessageCircle size={40} />
@@ -770,7 +772,7 @@ export const WhatsAppInbox: React.FC = () => {
                 className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 {msg.role !== 'user' && (
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${
                     msg.role === 'bot' ? 'bg-emerald-100' : 'bg-indigo-100'
                   }`}>
                     {msg.role === 'bot' ? <Bot size={14} className="text-emerald-600" /> : <User size={14} className="text-indigo-600" />}
@@ -781,17 +783,17 @@ export const WhatsAppInbox: React.FC = () => {
                     ? 'bg-[#1c2d4f] text-white rounded-tr-sm'
                     : msg.role === 'agent'
                     ? 'bg-indigo-600 text-white rounded-tl-sm'
-                    : 'bg-white text-gray-800 border border-gray-100 rounded-tl-sm'
+                    : 'bg-white text-slate-800 border border-slate-200 rounded-tl-sm'
                 }`}>
                   <p className="whitespace-pre-wrap">{msg.content}</p>
-                  <p className={`text-[9px] mt-1 flex flex-wrap gap-1 ${msg.role === 'user' || msg.role === 'agent' ? 'text-white/60' : 'text-gray-400'}`}>
+                  <p className={`text-[9px] mt-1 flex flex-wrap gap-1 ${msg.role === 'user' || msg.role === 'agent' ? 'text-white/60' : 'text-slate-400'}`}>
                     <span>{new Date(msg.timestamp).toLocaleDateString('pt-BR')} às {new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                     <span>· {msg.role === 'bot' ? 'Bot' : msg.role === 'agent' ? 'Agente' : 'Cliente'}</span>
                   </p>
                 </div>
                 {msg.role === 'user' && (
-                  <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                    <User size={14} className="text-gray-500" />
+                  <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <User size={14} className="text-slate-500" />
                   </div>
                 )}
               </div>
@@ -801,14 +803,14 @@ export const WhatsAppInbox: React.FC = () => {
 
           {/* Input */}
           {selected.state === 'HUMAN_ACTIVE' ? (
-            <div className="bg-white border-t border-gray-100 p-4 relative">
+            <div className="bg-white border-t border-slate-100 p-4 relative shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
               
               {/* Sticker Popover */}
               {showStickers && (
-                <div className="absolute bottom-full mb-2 left-4 bg-white border border-gray-200 shadow-xl rounded-2xl p-3 z-50 w-64 animate-in slide-in-from-bottom-2">
-                  <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-100">
-                    <p className="text-xs font-bold text-gray-600">Figurinhas Rápidas</p>
-                    <button onClick={() => setShowStickers(false)} className="text-gray-400 hover:text-gray-600">
+                <div className="absolute bottom-full mb-2 left-4 bg-white border border-slate-200 shadow-xl rounded-2xl p-3 z-50 w-64 animate-in slide-in-from-bottom-2">
+                  <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100">
+                    <p className="text-xs font-bold text-slate-600">Figurinhas Rápidas</p>
+                    <button onClick={() => setShowStickers(false)} className="text-slate-400 hover:text-slate-600">
                       <X size={14} />
                     </button>
                   </div>
@@ -817,12 +819,12 @@ export const WhatsAppInbox: React.FC = () => {
                       <button
                         key={sticker.id}
                         onClick={() => handleSendSticker(sticker.url)}
-                        className="p-1 hover:bg-gray-50 rounded-xl transition-all border border-transparent hover:border-gray-200 group relative"
+                        className="p-1 hover:bg-slate-50 rounded-xl transition-all border border-transparent hover:border-slate-200 group relative"
                         title={sticker.label}
-                        disabled={sending}
+                        disabled={sendingAction !== null}
                       >
                         <img src={sticker.url} alt={sticker.label} className="w-10 h-10 object-contain mx-auto group-hover:scale-110 transition-transform" />
-                        <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[9px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-10">
+                        <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-10">
                           {sticker.label}
                         </span>
                       </button>
@@ -831,10 +833,10 @@ export const WhatsAppInbox: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-full pr-2 pl-2 py-1.5 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-400 transition-all">
+              <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-full pr-2 pl-2 py-1.5 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-400 transition-all shadow-inner">
                 <button
                   onClick={() => setShowStickers(!showStickers)}
-                  className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors shrink-0 ${showStickers ? 'bg-indigo-100 text-indigo-600' : 'text-gray-400 hover:bg-gray-200 hover:text-gray-600'}`}
+                  className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors shrink-0 ${showStickers ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:bg-slate-200 hover:text-slate-600'}`}
                   title="Enviar Figurinha"
                 >
                   <Sticker size={18} />
@@ -845,14 +847,14 @@ export const WhatsAppInbox: React.FC = () => {
                   onChange={e => setMessage(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
                   placeholder="Digite sua mensagem..."
-                  className="flex-1 bg-transparent border-none outline-none text-sm text-gray-700 placeholder-gray-400 py-2"
+                  className="flex-1 bg-transparent border-none outline-none text-sm text-slate-700 placeholder-slate-400 py-2"
                 />
                 <button
                   onClick={handleSend}
-                  disabled={sending || !message.trim()}
-                  className="w-10 h-10 flex items-center justify-center bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:opacity-50 disabled:bg-indigo-400 transition-all shrink-0 shadow-sm"
+                  disabled={sendingAction !== null || !message.trim()}
+                  className="w-10 h-10 flex items-center justify-center bg-[#1c2d4f] text-white rounded-full hover:bg-[#2a4376] disabled:opacity-50 transition-all shrink-0 shadow-md"
                 >
-                  {sending ? <RefreshCw size={18} className="animate-spin" /> : <Send size={18} className="ml-1" />}
+                  {sendingAction === 'send' ? <RefreshCw size={18} className="animate-spin" /> : <Send size={18} className="ml-1" />}
                 </button>
               </div>
             </div>

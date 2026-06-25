@@ -17,21 +17,21 @@ import {
     MapPin,
     Plus,
     Printer,
+    RefreshCw,
     Search,
     ShieldCheck,
     ShoppingCart,
     Signature as SignatureIcon,
     Trash2,
     User,
-    X,
-    RefreshCw
+    X
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
-import { useI18n } from '../../i18n';
-import { useDialog } from '../../contexts/DialogContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDialog } from '../../contexts/DialogContext';
 import { usePagedQuotes, useTenant } from '../../hooks/nexusHooks';
 import { usePermissions } from '../../hooks/usePermissions';
+import { useI18n } from '../../i18n';
 import { Customer, OrderPriority, OrderStatus, Quote, QuoteItem, ServiceOrder, StockItem } from '../../types';
 import { NexusBranding } from '../ui/NexusBranding';
 import { Pagination } from '../ui/Pagination';
@@ -326,34 +326,34 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
     const handleConvertToOrder = async (quote: Quote) => {
         showConfirm('Deseja converter este orçamento em uma Ordem de Serviço ativa?', async () => {
-        try {
-            setIsConverting(true);
-            const orderPayload = {
-                title: `[ORÇAMENTO] ${quote.title}`,
-                description: quote.description,
-                customerName: quote.customerName,
-                customerAddress: quote.customerAddress,
-                status: OrderStatus.PENDING,
-                priority: OrderPriority.MEDIUM,
-                scheduledDate: new Date().toISOString().split('T')[0],
-                operationType: 'Serviço sob Orçamento',
-                quote_id: quote.id,
-                formData: {
-                    items: quote.items,
-                    totalValue: quote.totalValue,
-                    isFromQuote: true
-                }
-            };
+            try {
+                setIsConverting(true);
+                const orderPayload = {
+                    title: `[ORÇAMENTO] ${quote.title}`,
+                    description: quote.description,
+                    customerName: quote.customerName,
+                    customerAddress: quote.customerAddress,
+                    status: OrderStatus.PENDING,
+                    priority: OrderPriority.MEDIUM,
+                    scheduledDate: new Date().toISOString().split('T')[0],
+                    operationType: 'Serviço sob Orçamento',
+                    quote_id: quote.id,
+                    formData: {
+                        items: quote.items,
+                        totalValue: quote.totalValue,
+                        isFromQuote: true
+                    }
+                };
 
-            await onCreateOrder(orderPayload);
-            await onEditQuote({ ...quote, status: 'CONVERTIDO' });
-            showAlert('Conversão realizada com sucesso!', 'success');
-        } catch (e) {
-            console.error(e);
-            showAlert('Falha na conversão.', 'error');
-        } finally {
-            setIsConverting(false);
-        }
+                await onCreateOrder(orderPayload);
+                await onEditQuote({ ...quote, status: 'CONVERTIDO' });
+                showAlert('Conversão realizada com sucesso!', 'success');
+            } catch (e) {
+                console.error(e);
+                showAlert('Falha na conversão.', 'error');
+            } finally {
+                setIsConverting(false);
+            }
         }, 'Converter Orçamento', 'Converter', false);
     };
 
@@ -535,32 +535,31 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         <button
                             onClick={handleManualRefresh}
                             disabled={quotesLoading || isManualSyncing}
-                            className={`group h-10 px-4 flex items-center gap-2 rounded-xl border transition-all duration-300 shadow-sm active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed ${
-                                quotesLoading || isManualSyncing 
-                                    ? 'bg-primary-50 border-primary-200 text-primary-600' 
+                            className={`group h-10 px-4 flex items-center gap-2 rounded-xl border transition-all duration-300 shadow-sm active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed ${quotesLoading || isManualSyncing
+                                    ? 'bg-primary-50 border-primary-200 text-primary-600'
                                     : 'bg-white hover:bg-slate-50 border-[#1c2d4f]/20 text-[#1c2d4f] hover:text-primary-600 hover:border-primary-300 hover:shadow-md'
-                            }`}
+                                }`}
                             title="Atualizar todos os dados"
                         >
                             <div className="relative flex items-center justify-center">
-                                <RefreshCw 
-                                    size={16} 
-                                    className={`${quotesLoading || isManualSyncing ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} 
+                                <RefreshCw
+                                    size={16}
+                                    className={`${quotesLoading || isManualSyncing ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`}
                                 />
                                 {(quotesLoading || isManualSyncing) && (
                                     <span className="absolute inset-0 rounded-full bg-primary-400/20 animate-ping"></span>
                                 )}
                             </div>
                         </button>
-                            <button
-                                onClick={(e) => {
-                                    if (!canCreate('quotes')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para esta ação.'); return; }
-                                    resetForm(); setIsModalOpen(true);
-                                }}
-                                className={`h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl ${!canCreate('quotes') ? 'opacity-50 !cursor-not-allowed' : ''}`}
-                            >
-                                <Plus size={14} /> Novo Orçamento
-                            </button>
+                        <button
+                            onClick={(e) => {
+                                if (!canCreate('quotes')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para esta ação.'); return; }
+                                resetForm(); setIsModalOpen(true);
+                            }}
+                            className={`h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl ${!canCreate('quotes') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                        >
+                            <Plus size={14} /> Novo Orçamento
+                        </button>
                     </div>
                 </div>
 
@@ -604,8 +603,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     <button
                                         key={opt.value}
                                         onClick={() => { setStatusFilter(opt.value); setCurrentPage(1); }}
-                                        className={`flex-1 rounded-md text-[8px] font-medium uppercase tracking-wide transition-all whitespace-nowrap px-1 ${
-                                            statusFilter === opt.value
+                                        className={`flex-1 rounded-md text-[8px] font-medium uppercase tracking-wide transition-all whitespace-nowrap px-1 ${statusFilter === opt.value
                                                 ? opt.value === 'ABERTO'
                                                     ? 'bg-sky-500 text-white shadow-sm'
                                                     : opt.value === 'APROVADO'
@@ -616,7 +614,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                                 ? 'bg-rose-500 text-white shadow-sm'
                                                                 : 'bg-slate-800 text-white shadow-sm'
                                                 : 'text-slate-500 hover:bg-slate-50'
-                                        }`}
+                                            }`}
                                     >
                                         {opt.label}
                                     </button>
@@ -796,7 +794,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         </div>
 
                         <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-white">
-                            
+
                             {/* DESKTOP SIDEBAR TABS */}
                             <div className="hidden md:flex flex-col w-56 border-r border-slate-200 bg-slate-50/80 p-3 gap-1 overflow-y-auto custom-scrollbar shrink-0">
                                 <div className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest mb-2 px-2">Navegação</div>
@@ -808,11 +806,11 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         key={tab.id}
                                         onClick={() => setActiveModalTab(tab.id as 'gerais' | 'produtos')}
                                         className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all w-full text-left font-poppins
-                                        ${activeModalTab === tab.id 
-                                            ? 'bg-[#1c2d4f] text-white shadow-md ring-1 ring-[#1c2d4f]' 
-                                            : 'text-slate-500 hover:bg-white hover:text-[#1c2d4f] hover:shadow-sm'}`}
+                                        ${activeModalTab === tab.id
+                                                ? 'bg-[#1c2d4f] text-white shadow-md ring-1 ring-[#1c2d4f]'
+                                                : 'text-slate-500 hover:bg-white hover:text-[#1c2d4f] hover:shadow-sm'}`}
                                     >
-                                        <tab.icon size={15} className={activeModalTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} /> 
+                                        <tab.icon size={15} className={activeModalTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} />
                                         <span className="flex-1 truncate">{tab.label}</span>
                                     </button>
                                 ))}
@@ -828,11 +826,11 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         key={tab.id}
                                         onClick={() => setActiveModalTab(tab.id as 'gerais' | 'produtos')}
                                         className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap font-poppins
-                                        ${activeModalTab === tab.id 
-                                            ? 'bg-[#1c2d4f] text-white shadow-md' 
-                                            : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
+                                        ${activeModalTab === tab.id
+                                                ? 'bg-[#1c2d4f] text-white shadow-md'
+                                                : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
                                     >
-                                        <tab.icon size={14} className={activeModalTab === tab.id ? 'text-white' : 'text-slate-400'} /> 
+                                        <tab.icon size={14} className={activeModalTab === tab.id ? 'text-white' : 'text-slate-400'} />
                                         {tab.label}
                                     </button>
                                 ))}
@@ -841,15 +839,17 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                             {/* CONTENT AREA */}
                             <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-50/50 custom-scrollbar flex flex-col">
                                 {activeModalTab === 'gerais' && (
-                                    <div className="max-w-4xl space-y-6">
-                                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                                    <div className="max-w-4xl space-y-4">
+                                        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                                             <h3 className="text-sm font-medium text-slate-900 border-l-4 border-[#1c2d4f] pl-3 uppercase">dados básicos</h3>
-                                            <div className="space-y-4">
-                                                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                                    <label className="text-[10px] font-medium text-slate-400 uppercase block mb-1">Identificador da Proposta</label>
-                                                    <p className="text-lg font-medium text-[#1c2d4f] tracking-tight">{previewId}</p>
+
+                                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                                                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-center">
+                                                    <label className="text-[10px] font-medium text-slate-400 uppercase block mb-1">Identificador</label>
+                                                    <p className="text-base font-bold text-[#1c2d4f] tracking-tight">{previewId}</p>
                                                 </div>
-                                                <div className="space-y-2 relative">
+
+                                                <div className="space-y-1.5 relative lg:col-span-2">
                                                     <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">selecionar cliente</label>
                                                     <div className="relative">
                                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
@@ -863,7 +863,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                                 if (!e.target.value) setCustomerName('');
                                                             }}
                                                             onFocus={() => setIsClientListOpen(true)}
-                                                            className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-10 py-3 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all"
+                                                            className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-10 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all"
                                                         />
                                                         {customerName && !isClientListOpen && (
                                                             <button onClick={() => { setCustomerName(''); setClientSearch(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500">
@@ -872,7 +872,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                         )}
                                                     </div>
                                                     {isClientListOpen && (
-                                                        <div className="absolute z-[1300] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar animate-scale-up">
+                                                        <div className="absolute z-[1300] top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar animate-scale-up">
                                                             {filteredClients.length > 0 ? (
                                                                 filteredClients.map(c => (
                                                                     <button
@@ -882,94 +882,93 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                                             setClientSearch(c.name);
                                                                             setIsClientListOpen(false);
                                                                         }}
-                                                                        className="w-full text-left px-5 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors group"
+                                                                        className="w-full text-left px-4 py-2 hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors group"
                                                                     >
                                                                         <p className="text-xs font-medium text-slate-800 group-hover:text-[#1c2d4f]">{c.name}</p>
                                                                         <p className="text-[10px] text-slate-400 font-medium">{c.document || c.cnpj || c.cpf || 'Sem documento'}</p>
                                                                     </button>
                                                                 ))
                                                             ) : (
-                                                                <div className="p-6 text-center text-xs font-medium text-slate-400">Nenhum cliente localizado</div>
+                                                                <div className="p-4 text-center text-xs font-medium text-slate-400">Nenhum cliente localizado</div>
                                                             )}
                                                         </div>
                                                     )}
                                                 </div>
-                                                <div className="space-y-2">
+                                            </div>
+
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                                <div className="space-y-1.5 lg:col-span-2">
                                                     <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">título da proposta</label>
                                                     <input
                                                         type="text"
                                                         value={title}
                                                         onChange={(e) => setTitle(e.target.value)}
                                                         placeholder="Ex: Manutenção Preventiva de Geradores..."
-                                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all"
+                                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all"
                                                     />
                                                 </div>
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div className="space-y-2">
-                                                        <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">validade</label>
-                                                        <div className="relative">
-                                                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                                                            <input
-                                                                type="date"
-                                                                value={validUntil}
-                                                                onChange={(e) => setValidUntil(e.target.value)}
-                                                                className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-3 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all"
-                                                            />
-                                                        </div>
+                                                <div className="space-y-1.5">
+                                                    <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">validade</label>
+                                                    <div className="relative">
+                                                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                        <input
+                                                            type="date"
+                                                            value={validUntil}
+                                                            onChange={(e) => setValidUntil(e.target.value)}
+                                                            className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all"
+                                                        />
                                                     </div>
-                                                    <div className="space-y-2">
-                                                        <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">vincular O.S.</label>
-                                                        <div className="relative">
-                                                            <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                                                            <select
-                                                                value={linkedOrderId}
-                                                                onChange={(e) => setLinkedOrderId(e.target.value)}
-                                                                className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-3 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all appearance-none cursor-pointer"
-                                                            >
-                                                                <option value="">Nenhum Vínculo</option>
-                                                                {customerOrders.map(o => (
-                                                                    <option key={o.id} value={o.displayId || o.id}>
-                                                                        {o.displayId || o.id.slice(0, 8)} — {o.title}
-                                                                    </option>
-                                                                ))}
-                                                            </select>
-                                                        </div>
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">vincular O.S.</label>
+                                                    <div className="relative">
+                                                        <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                        <select
+                                                            value={linkedOrderId}
+                                                            onChange={(e) => setLinkedOrderId(e.target.value)}
+                                                            className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all appearance-none cursor-pointer"
+                                                        >
+                                                            <option value="">Nenhum Vínculo</option>
+                                                            {customerOrders.map(o => (
+                                                                <option key={o.id} value={o.displayId || o.id}>
+                                                                    {o.displayId || o.id.slice(0, 8)} — {o.title}
+                                                                </option>
+                                                            ))}
+                                                        </select>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
-                                        
+
                                         {customerName && (() => {
                                             const c = customers.find(cust => cust.name === customerName);
                                             if (!c) return null;
                                             return (
-                                                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                                                <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                                                     <h3 className="text-sm font-medium text-slate-900 border-l-4 border-emerald-500 pl-3 uppercase flex items-center gap-2">
                                                         <User size={16} className="text-emerald-500" /> Informações do Cliente
                                                     </h3>
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                        <div className="space-y-1"><label className="text-[10px] font-medium text-slate-400 uppercase">CPF / CNPJ</label><p className="text-xs font-semibold text-slate-700">{c.document || '—'}</p></div>
-                                                        <div className="space-y-1"><label className="text-[10px] font-medium text-slate-400 uppercase">{t.common.email}</label><p className="text-xs font-semibold text-slate-700">{c.email || '—'}</p></div>
-                                                        <div className="space-y-1"><label className="text-[10px] font-medium text-slate-400 uppercase">{t.common.phone}</label><p className="text-xs font-semibold text-slate-700">{c.phone || '—'}</p></div>
-                                                        <div className="space-y-1"><label className="text-[10px] font-medium text-slate-400 uppercase">WhatsApp</label><p className="text-xs font-semibold text-slate-700">{c.whatsapp || '—'}</p></div>
-                                                        <div className="space-y-1 md:col-span-2"><label className="text-[10px] font-medium text-slate-400 uppercase">Endereço Completo</label><p className="text-xs font-semibold text-slate-700">{[c.address, c.number, c.complement, c.neighborhood, c.city, c.state ? `/${c.state}` : null, c.zip ? `CEP: ${c.zip}` : null].filter(Boolean).join(' - ').replace(' - /', '/')}</p></div>
+                                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                                                        <div className="space-y-1"><label className="text-[9px] font-medium text-slate-400 uppercase">CPF / CNPJ</label><p className="text-xs font-semibold text-slate-700 truncate">{c.document || '—'}</p></div>
+                                                        <div className="space-y-1"><label className="text-[9px] font-medium text-slate-400 uppercase">{t.common.email}</label><p className="text-xs font-semibold text-slate-700 truncate">{c.email || '—'}</p></div>
+                                                        <div className="space-y-1"><label className="text-[9px] font-medium text-slate-400 uppercase">{t.common.phone}</label><p className="text-xs font-semibold text-slate-700 truncate">{c.phone || '—'}</p></div>
+                                                        <div className="space-y-1"><label className="text-[9px] font-medium text-slate-400 uppercase">WhatsApp</label><p className="text-xs font-semibold text-slate-700 truncate">{c.whatsapp || '—'}</p></div>
+                                                        <div className="space-y-1 lg:col-span-4"><label className="text-[9px] font-medium text-slate-400 uppercase">Endereço Completo</label><p className="text-xs font-semibold text-slate-700 truncate">{[c.address, c.number, c.complement, c.neighborhood, c.city, c.state ? `/${c.state}` : null, c.zip ? `CEP: ${c.zip}` : null].filter(Boolean).join(' - ').replace(' - /', '/')}</p></div>
                                                     </div>
                                                 </div>
                                             );
                                         })()}
-                                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                                        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
                                             <h3 className="text-sm font-medium text-slate-900 border-l-4 border-amber-500 pl-3 uppercase">detalhamento</h3>
-                                            <div className="space-y-4">
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">escopo técnico</label>
-                                                    <textarea
-                                                        value={description}
-                                                        onChange={(e) => setDescription(e.target.value)}
-                                                        rows={3}
-                                                        placeholder="Descreva detalhadamente o serviço..."
-                                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all resize-none custom-scrollbar"
-                                                    />
-                                                </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">escopo técnico</label>
+                                                <textarea
+                                                    value={description}
+                                                    onChange={(e) => setDescription(e.target.value)}
+                                                    rows={2}
+                                                    placeholder="Descreva detalhadamente o serviço..."
+                                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all resize-none custom-scrollbar"
+                                                />
                                             </div>
                                         </div>
                                     </div>
@@ -1154,9 +1153,9 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     <div className="flex items-center gap-3">
                                         <h2 className="text-base font-semibold text-slate-900 font-poppins">Orçamento #{getQuoteDisplayId(viewQuote)}</h2>
                                         <div className={`px-2.5 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wider ${viewQuote.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                                                viewQuote.status === 'REJEITADO' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
-                                                    viewQuote.status === 'CONVERTIDO' ? 'bg-slate-900 text-emerald-400 border border-slate-700' :
-                                                        'bg-primary-50 text-primary-600 border border-primary-100'
+                                            viewQuote.status === 'REJEITADO' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
+                                                viewQuote.status === 'CONVERTIDO' ? 'bg-slate-900 text-emerald-400 border border-slate-700' :
+                                                    'bg-primary-50 text-primary-600 border border-primary-100'
                                             }`}>
                                             {viewQuote.status}
                                         </div>
@@ -1189,8 +1188,8 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 setIsModalOpen(true);
                                             }}
                                             className={`h-9 px-4 gap-2 border rounded-lg text-xs font-medium transition-all flex items-center ${isLocked
-                                                    ? 'bg-slate-50 border-slate-100 text-slate-400 cursor-not-allowed opacity-60'
-                                                    : 'border-blue-200 text-blue-700 hover:bg-blue-50 active:scale-95 shadow-sm'
+                                                ? 'bg-slate-50 border-slate-100 text-slate-400 cursor-not-allowed opacity-60'
+                                                : 'border-blue-200 text-blue-700 hover:bg-blue-50 active:scale-95 shadow-sm'
                                                 } ${!canEdit('quotes') ? 'opacity-50 !cursor-not-allowed' : ''}`}
                                             title={isLocked ? "Propostas aprovadas ou faturadas não podem ser editadas" : "Editar proposta"}
                                         >
@@ -1224,8 +1223,8 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         }, 'Excluir Proposta', 'Excluir', true);
                                     }}
                                     className={`h-9 px-4 gap-2 border rounded-lg text-xs font-medium transition-all flex items-center ${(viewQuote.status === 'APROVADO' || viewQuote.status === 'CONVERTIDO' || viewQuote.billingStatus === 'PAID')
-                                            ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
-                                            : 'bg-white hover:bg-rose-50 border-rose-200 text-rose-600 hover:text-rose-600 hover:border-rose-200'
+                                        ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
+                                        : 'bg-white hover:bg-rose-50 border-rose-200 text-rose-600 hover:text-rose-600 hover:border-rose-200'
                                         } ${!canDelete('quotes') ? 'opacity-50 !cursor-not-allowed' : ''}`}
                                 >
                                     <Trash2 size={14} /> Excluir

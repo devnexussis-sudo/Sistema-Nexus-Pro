@@ -22,6 +22,7 @@ interface ServiceRequest {
   equipment_name: string | null;
   problem_description: string;
   status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  rejection_reason?: string | null;
   created_at: string;
   accepted_at: string | null;
   order_id: string | null;
@@ -185,13 +186,15 @@ export const SolicitacoesPage: React.FC = () => {
   const filtered = requests.filter(r => {
     if (filter !== 'ALL' && r.status !== filter) return false;
     if (search.trim()) {
-      const q = search.toLowerCase();
+      const q = search.toLowerCase().replace('#', '');
+      const ticketCode = r.id.substring(0, 6).toUpperCase();
       if (
         !(r.customer_name?.toLowerCase().includes(q) ||
           r.phone_number?.includes(q) ||
           r.customer_document?.includes(q) ||
           r.equipment_serial?.toLowerCase().includes(q) ||
-          r.problem_description?.toLowerCase().includes(q))
+          r.problem_description?.toLowerCase().includes(q) ||
+          ticketCode.toLowerCase().includes(q))
       ) return false;
     }
     return true;
@@ -226,8 +229,9 @@ export const SolicitacoesPage: React.FC = () => {
     try {
       await supabase.from('whatsapp_service_requests').update({
         status: 'REJECTED',
+        rejection_reason: rejectReason.trim() || null
       }).eq('id', rejectId);
-      setRequests(prev => prev.map(r => r.id === rejectId ? { ...r, status: 'REJECTED' } : r));
+      setRequests(prev => prev.map(r => r.id === rejectId ? { ...r, status: 'REJECTED', rejection_reason: rejectReason.trim() || null } : r));
     } finally {
       setActionLoading(null);
       setRejectId(null);
@@ -368,7 +372,7 @@ export const SolicitacoesPage: React.FC = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
               type="text"
-              placeholder="Buscar por cliente, documento, telefone, problema..."
+              placeholder="Buscar por ticket, cliente, documento, telefone, problema..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
@@ -411,19 +415,20 @@ export const SolicitacoesPage: React.FC = () => {
           <table className="w-full text-left border-collapse">
             <thead className="bg-slate-50/80 backdrop-blur-md sticky top-0 z-20 border-b border-slate-200 shadow-sm">
               <tr>
-                <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Status</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">O.S. Atribuída</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Data / Hora</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Cliente</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Equipamento</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Problema Relatado</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap text-right">Ações</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Ticket</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Status</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">O.S. Atribuída</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Data / Hora</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Cliente</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Equipamento</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Problema Relatado</th>
+                <th className="px-4 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-20 text-center">
+                  <td colSpan={8} className="py-20 text-center">
                     <RefreshCw size={24} className="animate-spin text-primary-400 mx-auto mb-2" />
                     <span className="text-xs font-medium uppercase tracking-widest text-slate-400">Carregando solicitações...</span>
                   </td>
@@ -437,6 +442,11 @@ export const SolicitacoesPage: React.FC = () => {
                     onClick={() => setViewingReq(req)}
                     className={`transition-all border-b border-slate-100 hover:border-slate-200 group cursor-pointer ${isPending ? 'bg-amber-50/30' : 'bg-white hover:bg-slate-50'}`}
                   >
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="text-[11px] font-mono text-slate-700 font-bold bg-slate-100 border border-slate-200 px-2 py-1 rounded" title="Número do Ticket gerado pelo Bot">
+                        #{req.id.substring(0, 6).toUpperCase()}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <StatusBadge status={req.status} />
                     </td>
@@ -468,9 +478,9 @@ export const SolicitacoesPage: React.FC = () => {
                     <td className="px-4 py-3">
                       <p className="text-[11px] text-slate-600 line-clamp-2 pr-4">{req.problem_description}</p>
                     </td>
-                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                       {isPending ? (
-                        <div className="flex items-center justify-end gap-1.5 transition-opacity opacity-90 group-hover:opacity-100">
+                        <div className="flex items-center justify-center gap-1.5 transition-opacity opacity-90 group-hover:opacity-100">
                           <button
                             onClick={() => navigate('/admin/whatsapp', { state: { selectedConvId: req.conversation_id } })}
                             className="p-1.5 px-3 flex items-center gap-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-all shadow-sm text-[10px] font-bold uppercase"
@@ -508,7 +518,7 @@ export const SolicitacoesPage: React.FC = () => {
                           </button>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-center gap-1.5">
                           <button
                             onClick={(e) => { e.stopPropagation(); navigate('/admin/whatsapp', { state: { selectedConvId: req.conversation_id } }); }}
                             className="p-1.5 px-3 flex items-center gap-1.5 text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-all shadow-sm text-[10px] font-bold uppercase"
@@ -516,20 +526,6 @@ export const SolicitacoesPage: React.FC = () => {
                           >
                             <MessageCircle size={14} /> Conversa
                           </button>
-                          
-                          {req.status === 'ACCEPTED' && req.order_id && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); openOrderPublicPage(req.order_id!); }}
-                              className="p-1.5 px-3 flex items-center gap-1.5 text-primary-600 bg-primary-50 hover:bg-primary-600 hover:text-white rounded-lg border border-primary-200 hover:border-primary-600 transition-all shadow-sm text-[10px] font-bold uppercase"
-                              title="Abrir OS em nova aba"
-                            >
-                              <Eye size={14} /> Ver OS
-                            </button>
-                          )}
-                          
-                          <span className={`text-[10px] font-medium px-2 py-0.5 rounded ${req.status === 'ACCEPTED' ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'}`}>
-                            {req.status === 'ACCEPTED' ? 'Aceita' : 'Rejeitada'}
-                          </span>
                         </div>
                       )}
                     </td>
@@ -537,7 +533,7 @@ export const SolicitacoesPage: React.FC = () => {
                 );
               }) : (
                 <tr>
-                  <td colSpan={7} className="py-32 text-center bg-slate-50/30">
+                  <td colSpan={8} className="py-32 text-center bg-slate-50/30">
                     <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-200 shadow-lg shadow-slate-200/50">
                       <Search size={24} className="text-slate-300" />
                     </div>
@@ -619,7 +615,7 @@ export const SolicitacoesPage: React.FC = () => {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5 sm:gap-3">
                     <h2 className="text-sm sm:text-base font-semibold text-slate-900 font-poppins truncate">
-                      Solicitação — {formatDateDisplay(viewingReq.created_at)}
+                      Ticket #{viewingReq.id.substring(0,6).toUpperCase()} — {formatDateDisplay(viewingReq.created_at)}
                     </h2>
                     <StatusBadge status={viewingReq.status} />
                     {viewingReq.status === 'ACCEPTED' && triage.orderDisplayId && (
@@ -673,6 +669,16 @@ export const SolicitacoesPage: React.FC = () => {
 
               {/* Triage Blockers — shown for PENDING requests with missing registrations */}
               {renderTriageBlockers()}
+
+              {/* Rejection Reason (if rejected) */}
+              {viewingReq.status === 'REJECTED' && viewingReq.rejection_reason && (
+                <div className="bg-rose-50 p-5 rounded-xl border border-rose-200 shadow-sm">
+                  <h3 className="text-xs font-bold text-rose-900 mb-2 flex items-center gap-2 uppercase tracking-wide">
+                    <XCircle size={14} className="text-rose-500" /> Motivo da Rejeição
+                  </h3>
+                  <p className="text-sm text-rose-800">{viewingReq.rejection_reason}</p>
+                </div>
+              )}
 
               {/* Client Info */}
               <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">

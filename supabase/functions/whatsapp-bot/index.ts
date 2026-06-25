@@ -161,11 +161,13 @@ serve(async (req: Request) => {
       const msgType = payload.type || (msgObj?.message ? Object.keys(msgObj.message)[0] : '');
       const typeStr = String(msgType).toLowerCase();
       
-      if (typeStr.includes('image') || typeStr.includes('photo')) text = '[📸 Imagem Recebida]';
-      else if (typeStr.includes('video')) text = '[📹 Vídeo Recebido]';
-      else if (typeStr.includes('audio') || typeStr === 'ptt') text = '[🎤 Áudio Recebido]';
-      else if (typeStr.includes('document') || typeStr.includes('file')) text = '[📄 Documento Recebido]';
-      else if (typeStr.includes('sticker')) text = '[✨ Figurinha Recebida]';
+      const warning = "INSTRUÇÃO PARA A IA: Informe ao cliente gentilmente que você ainda não consegue receber ou ler imagens/vídeos/áudios, e peça para ele digitar o que precisa em texto.";
+      if (typeStr.includes('image') || typeStr.includes('photo')) text = `[📸 Imagem Recebida] ${warning}`;
+      else if (typeStr.includes('video')) text = `[📹 Vídeo Recebido] ${warning}`;
+      else if (typeStr.includes('audio') || typeStr === 'ptt') text = `[🎤 Áudio Recebido] ${warning}`;
+      else if (typeStr.includes('document') || typeStr.includes('file')) text = `[📄 Documento Recebido] ${warning}`;
+      else if (typeStr.includes('sticker')) text = `[✨ Figurinha Recebida] ${warning}`;
+      else text = `[Mídia/Arquivo não reconhecido] ${warning}`;
     }
 
     console.log("[WPP Bot] phone:", phone, "| text:", text?.substring(0, 80), "| type:", payload.type);
@@ -196,13 +198,13 @@ serve(async (req: Request) => {
     if (tenantIdParam) {
       const { data } = await supabase
         .from("tenants")
-        .select("id, company_name, trading_name, whatsapp_settings")
+        .select("id, company_name, trading_name, whatsapp_settings, street, number, complement, neighborhood, city, state, cep")
         .eq("id", tenantIdParam);
       tenants = data;
     } else {
       const { data } = await supabase
         .from("tenants")
-        .select("id, company_name, trading_name, whatsapp_settings");
+        .select("id, company_name, trading_name, whatsapp_settings, street, number, complement, neighborhood, city, state, cep");
         
       if (data) {
         tenants = data.filter(t => {
@@ -380,6 +382,7 @@ serve(async (req: Request) => {
         body: JSON.stringify({
           tenant_id: tenant.id,
           tenant_name: tenant.trading_name || tenant.company_name,
+          tenant_address: `${tenant.street || ''}, ${tenant.number || ''} ${tenant.complement || ''} - ${tenant.neighborhood || ''}, ${tenant.city || ''} - ${tenant.state || ''}, CEP: ${tenant.cep || ''}`.replace(/,\s*,/g, ',').replace(/\s+/g, ' ').trim(),
           settings,
           conversation,
           user_message: text,

@@ -80,6 +80,7 @@ interface WhatsAppConfig {
   business_start?: string;
   business_end?: string;
   out_of_office_msg?: string;
+  company_info?: string;
 }
 
 export const SettingsPage: React.FC = () => {
@@ -121,6 +122,7 @@ export const SettingsPage: React.FC = () => {
     business_start: '08:00',
     business_end: '18:00',
     out_of_office_msg: 'Nosso horário de atendimento com humanos é de Seg a Sex das 08h às 18h. Posso continuar te ajudando por aqui!',
+    company_info: '',
   });
   const [wppTestStatus, setWppTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [wppQrCode, setWppQrCode] = useState<string | null>(null);
@@ -250,6 +252,7 @@ export const SettingsPage: React.FC = () => {
             business_start: ws.business_start || '08:00',
             business_end: ws.business_end || '18:00',
             out_of_office_msg: ws.out_of_office_msg || 'Nosso horário de atendimento com humanos é de Seg a Sex das 08h às 18h. Posso continuar te ajudando por aqui!',
+            company_info: ws.company_info || '',
           });
           setWppConnected(ws.connected ?? false);
         }
@@ -1486,6 +1489,17 @@ export const SettingsPage: React.FC = () => {
                         placeholder={`Olá! Sou o assistente virtual da ${data?.trading_name || 'sua empresa'}. Informe seu CNPJ ou número de série do equipamento para começar.`}
                         className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none resize-none"
                       />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Informações da Empresa (O que faz, marcas, etc)</label>
+                      <textarea
+                        value={whatsapp.company_info || ''}
+                        onChange={e => setWhatsapp({ ...whatsapp, company_info: e.target.value })}
+                        rows={4}
+                        placeholder="Ex: Somos uma assistência técnica especializada em refrigeração comercial e industrial. Atendemos marcas como Brastemp, Consul, Electrolux..."
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none resize-y"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1">A assistente virtual consultará este texto para responder dúvidas sobre a empresa.</p>
                     </div>
                   </div>
 
