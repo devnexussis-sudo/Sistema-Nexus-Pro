@@ -362,6 +362,7 @@ REGRAS TÉCNICAS (Use as Tools OBRIGATORIAMENTE):
 - O cliente passou CPF, CNPJ ou N. de Série? → Execute 'list_orders'.
 - O cliente passou Nº de OS (ex: 1007, NEX-1007)? → Execute 'get_order_details'.
 - O cliente quer abrir chamado, agendar visita ou relatar problema? → Execute 'request_service_order'. Pegue os dados necessários e tranquilize-o de que a equipe já foi acionada.
+- O cliente quer falar com um atendente, humano, suporte, colaborador ou representante da empresa? → Execute 'escalate_to_human'.
 - IMPORTANTE: Nunca afirme que não encontrou informações antes de de fato executar as ferramentas de busca.
 
 APRESENTAÇÃO DE O.S.:

@@ -493,30 +493,11 @@ serve(async (req: Request) => {
           last_message_at: new Date().toISOString(),
         }).eq("id", conversation.id);
 
-        await sendWhatsAppMessage(settings, phone, outMsg);
-        return new Response(JSON.stringify({ ok: true, state: "KEPT_BOT_ACTIVE" }), {
+        await sendWhatsAppMessage(settings, phone, agentMsg);
+        return new Response(JSON.stringify({ ok: true, state: "WAITING_HUMAN" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-
-      // Se dentro do horário, vai para fila humana
-      const agentMsg = "🙋 Entendido! Estou notificando nossa equipe agora. Um atendente assumirá a conversa em instantes. Aguarde... ⏳";
-      let updatedHistory = [
-        ...conversation.history,
-        { role: "user", content: safeText, timestamp: new Date().toISOString() },
-        { role: "bot", content: agentMsg, timestamp: new Date().toISOString() },
-      ];
-      if (updatedHistory.length > 100) updatedHistory = updatedHistory.slice(-100);
-      await supabase.from("whatsapp_conversations").update({
-        state: "WAITING_HUMAN",
-        history: updatedHistory,
-        last_message_at: new Date().toISOString(),
-      }).eq("id", conversation.id);
-
-      await sendWhatsAppMessage(settings, phone, agentMsg);
-      return new Response(JSON.stringify({ ok: true, state: "WAITING_HUMAN" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
     }
 
     // ── Chamar o agente IA
