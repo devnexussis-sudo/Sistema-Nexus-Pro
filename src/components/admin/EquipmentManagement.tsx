@@ -7,7 +7,7 @@ import { Input, TextArea } from '../ui/Input';
 import {
   Plus, Box, Laptop, Search, Trash2, Edit2, X, Save,
   Power, PowerOff, Info, User, Tag, Hash, LayoutGrid,
-  Layers, Settings2, MapPin, Filter, Calendar, ChevronLeft
+  Layers, Settings2, MapPin, Filter, Calendar, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -55,6 +55,10 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
   const ITEMS_PER_PAGE = 12;
 
   const [eqFormData, setEqFormData] = useState<Partial<Equipment>>({ active: true });
+  const [clientSearch, setClientSearch] = useState('');
+  const [isClientListOpen, setIsClientListOpen] = useState(false);
+  const [familySearch, setFamilySearch] = useState('');
+  const [isFamilyListOpen, setIsFamilyListOpen] = useState(false);
 
   useEffect(() => {
     if (initialParams?.customerId) {
@@ -62,6 +66,8 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
         active: true,
         customerId: initialParams.customerId
       });
+      const cName = customers.find(c => c.id === initialParams.customerId)?.name || '';
+      setClientSearch(cName);
       setIsModalOpen(true);
       setActiveTab('list');
     }
@@ -100,6 +106,8 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
     setFamilyFormData({ active: true });
     setModalTab('dados');
     setEquipmentOrders([]);
+    setClientSearch('');
+    setFamilySearch('');
   };
 
   const loadEquipmentHistory = async (equipmentId: string, serial: string) => {
@@ -235,6 +243,18 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
   const paginatedItems = filteredItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
   const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
 
+  const filteredClients = customers.filter(c => {
+    if (!clientSearch.trim()) return true;
+    const q = clientSearch.toLowerCase();
+    const qRaw = q.replace(/[.\-\/]/g, ''); // Remove pontuação para comparar CPF/CNPJ
+    const nameMatch = c.name.toLowerCase().includes(q);
+    const docRaw = ((c as any).document || (c as any).cpf || (c as any).cnpj || '').replace(/[.\-\/]/g, '');
+    const docMatch = docRaw && docRaw.includes(qRaw);
+    return nameMatch || docMatch;
+  });
+
+  const filteredFamilies = families.filter(f => f.active && f.name.toLowerCase().includes(familySearch.toLowerCase()));
+
   return (
     <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
 
@@ -364,7 +384,14 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                             </button>
                             <button onClick={(evt) => {
                               if (!canEdit('equipments')) { evt.preventDefault(); evt.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
-                              evt.stopPropagation(); setEqFormData(e); setEditingId(e.id); setIsModalOpen(true);
+                              evt.stopPropagation();
+                              setEqFormData(e);
+                              setEditingId(e.id);
+                              const cName = customers.find(c => c.id === e.customerId)?.name || '';
+                              setClientSearch(cName);
+                              const fName = families.find(f => f.id === e.familyId)?.name || '';
+                              setFamilySearch(fName);
+                              setIsModalOpen(true);
                             }} className={`p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95 ${!canEdit('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar"><Edit2 size={16} /></button>
                           </>
                       </div>
@@ -535,29 +562,116 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                           </div>
                         </div>
 
-                        <div className="w-full">
+                        <div className="w-full relative">
                           <label className="text-[10px] font-bold text-slate-400 mb-1.5 block ml-1">Família Técnica</label>
-                          <select
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] transition-all outline-none cursor-pointer"
-                            required
-                            value={eqFormData.familyId || ''}
-                            onChange={e => setEqFormData({ ...eqFormData, familyId: e.target.value })}
-                          >
-                            <option value="" disabled>Selecione a Família...</option>
-                            {families.filter(f => f.active).map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                          </select>
+                          <div className="relative">
+                            <Layers className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                            <input
+                              type="text"
+                              required={!eqFormData.familyId}
+                              placeholder="Buscar família técnica..."
+                              value={familySearch}
+                              onChange={(e) => {
+                                setFamilySearch(e.target.value);
+                                setEqFormData({ ...eqFormData, familyId: undefined });
+                                setIsFamilyListOpen(true);
+                              }}
+                              onFocus={() => setIsFamilyListOpen(true)}
+                              onBlur={() => setTimeout(() => setIsFamilyListOpen(false), 200)}
+                              className="w-full h-12 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all"
+                            />
+                            {eqFormData.familyId && (
+                              <button 
+                                type="button" 
+                                onClick={() => { setFamilySearch(''); setEqFormData({ ...eqFormData, familyId: undefined }); setIsFamilyListOpen(true); }}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 transition-colors"
+                              >
+                                <X size={14} />
+                              </button>
+                            )}
+                          </div>
+
+                          {isFamilyListOpen && (
+                            <div className="absolute z-[170] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2">
+                              {filteredFamilies.length > 0 ? filteredFamilies.map(f => (
+                                <button
+                                  key={f.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setEqFormData({ ...eqFormData, familyId: f.id });
+                                    setFamilySearch(f.name);
+                                    setIsFamilyListOpen(false);
+                                  }}
+                                  className="w-full text-left px-5 py-3 hover:bg-slate-50 flex justify-between items-center border-b border-slate-100 last:border-0 transition-colors group"
+                                >
+                                  <div>
+                                    <p className="text-xs font-bold text-slate-800 group-hover:text-[#1c2d4f] transition-colors">{f.name}</p>
+                                    <p className="text-[10px] text-slate-400 font-medium truncate max-w-sm mt-0.5">{f.description}</p>
+                                  </div>
+                                  <ChevronRight size={16} className="text-slate-300 group-hover:text-[#1c2d4f] group-hover:translate-x-1 transition-all" />
+                                </button>
+                              )) : (
+                                <div className="p-4 text-center text-slate-400 text-xs font-medium">Nenhuma família localizada</div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                        <div className="w-full">
+                        <div className="w-full relative">
                           <label className="text-[10px] font-bold text-slate-400 mb-1.5 block ml-1">Cliente Proprietário</label>
-                          <select
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] transition-all outline-none cursor-pointer"
-                            required
-                            value={eqFormData.customerId || ''}
-                            onChange={e => setEqFormData({ ...eqFormData, customerId: e.target.value })}
-                          >
-                            <option value="" disabled>Vincular a um Cliente...</option>
-                            {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                          </select>
+                          <div className="relative">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                            <input
+                              type="text"
+                              required={!eqFormData.customerId}
+                              placeholder="Buscar cliente por nome, CPF ou CNPJ..."
+                              value={clientSearch}
+                              onChange={(e) => {
+                                setClientSearch(e.target.value);
+                                setEqFormData({ ...eqFormData, customerId: undefined });
+                                setIsClientListOpen(true);
+                              }}
+                              onFocus={() => setIsClientListOpen(true)}
+                              onBlur={() => setTimeout(() => setIsClientListOpen(false), 200)}
+                              className="w-full h-12 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all"
+                            />
+                            {eqFormData.customerId && (
+                              <button 
+                                type="button" 
+                                onClick={() => { setClientSearch(''); setEqFormData({ ...eqFormData, customerId: undefined }); setIsClientListOpen(true); }}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 transition-colors"
+                              >
+                                <X size={14} />
+                              </button>
+                            )}
+                          </div>
+
+                          {isClientListOpen && clientSearch && (
+                            <div className="absolute z-[170] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2">
+                              {filteredClients.length > 0 ? filteredClients.map(c => (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setEqFormData({ ...eqFormData, customerId: c.id });
+                                    setClientSearch(c.name);
+                                    setIsClientListOpen(false);
+                                  }}
+                                  className="w-full text-left px-5 py-3 hover:bg-slate-50 flex justify-between items-center border-b border-slate-100 last:border-0 transition-colors group"
+                                >
+                                  <div>
+                                    <p className="text-xs font-bold text-slate-800 group-hover:text-[#1c2d4f] transition-colors">{c.name}</p>
+                                    <p className="text-[10px] text-slate-400 font-medium truncate max-w-sm mt-0.5">
+                                      {((c as any).document || (c as any).cpf || (c as any).cnpj) && <span className="font-mono mr-2">{((c as any).document || (c as any).cpf || (c as any).cnpj)}</span>}
+                                      {c.address}
+                                    </p>
+                                  </div>
+                                  <ChevronRight size={16} className="text-slate-300 group-hover:text-[#1c2d4f] group-hover:translate-x-1 transition-all" />
+                                </button>
+                              )) : (
+                                <div className="p-4 text-center text-slate-400 text-xs font-medium">Nenhum cliente localizado</div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <TextArea label="Ficha Técnica / Memorial Descritivo" rows={3} className="rounded-xl p-3 border-slate-200" value={eqFormData.description || ''} onChange={e => setEqFormData({ ...eqFormData, description: e.target.value })} />

@@ -5,7 +5,7 @@ import { useI18n } from '../../i18n';
 import { useDialog } from '../../contexts/DialogContext';
 import {
   UserPlus, Info, ChevronLeft, AtSign, Building2, Edit3, Laptop, UserMinus, Plus, Box,
-  DollarSign, Trash2, Eye, EyeOff, Package, ShoppingCart, ChevronRight, Save, X, Search, CheckCircle2, Hash, RefreshCw, Clock, FileText, Link2, Unlink
+  DollarSign, Trash2, Eye, EyeOff, Package, ShoppingCart, ChevronRight, Save, X, Search, CheckCircle2, Hash, RefreshCw, Clock, FileText, Link2, Unlink, ChevronDown
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
@@ -34,6 +34,14 @@ interface CreateOrderModalProps {
   onClose: () => void;
   onSubmit: (order: Partial<ServiceOrder>) => Promise<any>;
   initialData?: ServiceOrder;
+  prefill?: {
+    customerId?: string;
+    customerName?: string;
+    customerDocument?: string;
+    equipmentSerial?: string;
+    equipmentName?: string;
+    description?: string;
+  };
 }
 
 export const OS_TYPES = [
@@ -44,7 +52,7 @@ export const OS_TYPES = [
   'Garantia Estendida'
 ];
 
-export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onSubmit, initialData }) => {
+export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onSubmit, initialData, prefill }) => {
   const { t } = useI18n();
   const { showAlert } = useDialog();
 
@@ -62,7 +70,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   const [visitTechSearch, setVisitTechSearch] = useState('');
   const [technicians, setTechnicians] = useState<UserType[]>([]);
   const [searchMode, setSearchMode] = useState<'client' | 'serial'>('client');
-  const [clientSearch, setClientSearch] = useState(initialData?.customerName || '');
+  const [clientSearch, setClientSearch] = useState(initialData?.customerName || prefill?.customerDocument || prefill?.customerName || '');
   const [serialSearch, setSerialSearch] = useState('');
   const [techSearch, setTechSearch] = useState('');
   const [openOrderWarning, setOpenOrderWarning] = useState<string | null>(null);
@@ -73,6 +81,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   const canCreateVisit = localStatus === OrderStatus.BLOCKED;
   const [isClientListOpen, setIsClientListOpen] = useState(false);
   const [isSerialListOpen, setIsSerialListOpen] = useState(false);
+  const [isOperationTypeOpen, setIsOperationTypeOpen] = useState(false);
+  const [isPriorityOpen, setIsPriorityOpen] = useState(false);
 
   const [clients, setClients] = useState<any[]>([]);
   const [equipments, setEquipments] = useState<any[]>([]);
@@ -165,6 +175,55 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
         const equip = loadedEquipments.find(e => e.serialNumber === initialData.equipmentSerial);
         if (equip) setSelectedEquipIds([equip.id]);
+      }
+
+      // Pré-seleção via solicitação (prefill) — abre no step 1 mas já com cliente marcado
+      if (!initialData && prefill) {
+        let client = null;
+
+        if (prefill.customerId) {
+          client = loadedClients.find(c => c.id === prefill.customerId);
+        }
+
+        // Fallback: tentar casar por documento
+        if (!client && prefill.customerDocument) {
+          const docRaw = prefill.customerDocument.replace(/[.\-\/]/g, '');
+          client = loadedClients.find(c => {
+            const cDoc = (c.document || c.cpf || c.cnpj || '').replace(/[.\-\/]/g, '');
+            return cDoc && cDoc === docRaw;
+          });
+        }
+
+        // Fallback: tentar casar por nome exato
+        if (!client && prefill.customerName) {
+          const nameLower = prefill.customerName.toLowerCase().trim();
+          client = loadedClients.find(c => c.name.toLowerCase().trim() === nameLower);
+        }
+
+        if (client) {
+          setSelectedClientId(client.id);
+          setClientSearch(client.name);
+          const fullAddress = client.address + (client.number ? `, ${client.number}` : '') + (client.city ? ` - ${client.city}` : '');
+          setFormData(prev => ({ ...prev, customerName: client.name, customerAddress: fullAddress }));
+        }
+
+        // Se veio com serial/nome de equipamento, pré-selecionar também
+        if (prefill.equipmentSerial) {
+          const equip = loadedEquipments.find(
+            e => e.serialNumber === prefill.equipmentSerial ||
+                 e.model?.toLowerCase() === prefill.equipmentName?.toLowerCase()
+          );
+          if (equip) setSelectedEquipIds([equip.id]);
+        }
+
+        // Pré-preencher descrição e título
+        if (prefill.description) {
+          setFormData(prev => ({
+            ...prev,
+            description: prefill.description || '',
+            title: prefill.equipmentName ? `${prefill.equipmentName} — chamado via WhatsApp` : 'Chamado via WhatsApp',
+          }));
+        }
       }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -423,9 +482,15 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
 
 
-  const filteredClients = clients.filter(c =>
-    c.name.toLowerCase().includes(clientSearch.toLowerCase())
-  );
+  const filteredClients = clients.filter(c => {
+    if (!clientSearch.trim()) return true;
+    const q = clientSearch.toLowerCase();
+    const qRaw = q.replace(/[.\-\/]/g, ''); // Remove pontuação para comparar CPF/CNPJ
+    const nameMatch = c.name.toLowerCase().includes(q);
+    const docRaw = (c.document || c.cpf || c.cnpj || '').replace(/[.\-\/]/g, '');
+    const docMatch = docRaw && docRaw.includes(qRaw);
+    return nameMatch || docMatch;
+  });
 
   const filteredSerials = equipments.filter(e =>
     e.serialNumber.toLowerCase().includes(serialSearch.toLowerCase())
@@ -614,7 +679,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               <div className="space-y-4">
                 <label className="text-[10px] font-bold text-slate-400   px-1 flex items-center gap-2">
                   {searchMode === 'client' ? <Building2 size={12} /> : <Hash size={12} />}
-                  Localizar Unidade Técnico
+                  Buscar Cliente
                 </label>
 
                 <div className="relative">
@@ -639,7 +704,10 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                         <button key={c.id} onClick={() => handleSelectClient(c)} className="w-full text-left px-5 py-4 hover:bg-slate-50 flex justify-between items-center border-b border-slate-200 last:border-0 transition-colors group">
                           <div>
                             <p className="text-xs font-bold text-slate-800 group-hover:text-[#1c2d4f] transition-colors">{c.name}</p>
-                            <p className="text-[10px] text-slate-400 font-medium truncate max-w-sm mt-0.5">{c.address}</p>
+                            <p className="text-[10px] text-slate-400 font-medium truncate max-w-sm mt-0.5">
+                              {(c.document || c.cpf || c.cnpj) && <span className="font-mono mr-2">{c.document || c.cpf || c.cnpj}</span>}
+                              {c.address}
+                            </p>
                           </div>
                           <ChevronRight size={16} className="text-slate-300 group-hover:text-[#1c2d4f] group-hover:translate-x-1 transition-all" />
                         </button>
@@ -762,31 +830,69 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-slate-400   ml-1">modalidade</label>
-                        <select
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all outline-none cursor-pointer disabled:opacity-50"
-                          value={formData.operationType}
-                          disabled={isReadOnly}
-                          onChange={e => setFormData({ ...formData, operationType: e.target.value })}
-                        >
-                          {serviceTypes.map(type => (
-                            <option key={type.id || type.name} value={type.name}>{type.name}</option>
-                          ))}
-                        </select>
+                      <div className="space-y-2 relative">
+                        <label className="text-[10px] font-bold text-slate-400 ml-1">modalidade</label>
+                        <div className="relative">
+                          <button
+                            type="button"
+                            disabled={isReadOnly}
+                            onClick={() => !isReadOnly && setIsOperationTypeOpen(!isOperationTypeOpen)}
+                            onBlur={() => setTimeout(() => setIsOperationTypeOpen(false), 200)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-left text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all flex justify-between items-center disabled:opacity-50"
+                          >
+                            <span>{formData.operationType || 'Selecione...'}</span>
+                            <ChevronDown size={16} className={`text-slate-400 transition-transform ${isOperationTypeOpen ? 'rotate-180' : ''}`} />
+                          </button>
+                          {isOperationTypeOpen && (
+                            <div className="absolute z-[170] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2">
+                              {serviceTypes.map(type => (
+                                <button
+                                  key={type.id || type.name}
+                                  type="button"
+                                  onClick={() => {
+                                    setFormData({ ...formData, operationType: type.name });
+                                    setIsOperationTypeOpen(false);
+                                  }}
+                                  className="w-full text-left px-4 py-3 hover:bg-slate-50 text-xs font-bold text-slate-700 hover:text-[#1c2d4f] border-b border-slate-100 last:border-0 transition-colors"
+                                >
+                                  {type.name}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-slate-400   ml-1">nível de prioridade</label>
-                        <select
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all outline-none cursor-pointer disabled:opacity-50"
-                          value={formData.priority}
-                          disabled={isReadOnly}
-                          onChange={e => setFormData({ ...formData, priority: e.target.value as OrderPriority })}
-                        >
-                          {Object.values(OrderPriority).map(p => (
-                            <option key={p} value={p}>{p === OrderPriority.LOW ? 'Baixo' : p === OrderPriority.MEDIUM ? 'Média' : p === OrderPriority.HIGH ? 'Alta' : 'Urgente'}</option>
-                          ))}
-                        </select>
+                      <div className="space-y-2 relative">
+                        <label className="text-[10px] font-bold text-slate-400 ml-1">nível de prioridade</label>
+                        <div className="relative">
+                          <button
+                            type="button"
+                            disabled={isReadOnly}
+                            onClick={() => !isReadOnly && setIsPriorityOpen(!isPriorityOpen)}
+                            onBlur={() => setTimeout(() => setIsPriorityOpen(false), 200)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-left text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all flex justify-between items-center disabled:opacity-50"
+                          >
+                            <span>{formData.priority === OrderPriority.LOW ? 'Baixo' : formData.priority === OrderPriority.MEDIUM ? 'Média' : formData.priority === OrderPriority.HIGH ? 'Alta' : 'Urgente'}</span>
+                            <ChevronDown size={16} className={`text-slate-400 transition-transform ${isPriorityOpen ? 'rotate-180' : ''}`} />
+                          </button>
+                          {isPriorityOpen && (
+                            <div className="absolute z-[170] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2">
+                              {Object.values(OrderPriority).map(p => (
+                                <button
+                                  key={p}
+                                  type="button"
+                                  onClick={() => {
+                                    setFormData({ ...formData, priority: p as OrderPriority });
+                                    setIsPriorityOpen(false);
+                                  }}
+                                  className="w-full text-left px-4 py-3 hover:bg-slate-50 text-xs font-bold text-slate-700 hover:text-[#1c2d4f] border-b border-slate-100 last:border-0 transition-colors"
+                                >
+                                  {p === OrderPriority.LOW ? 'Baixo' : p === OrderPriority.MEDIUM ? 'Média' : p === OrderPriority.HIGH ? 'Alta' : 'Urgente'}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                     </div>

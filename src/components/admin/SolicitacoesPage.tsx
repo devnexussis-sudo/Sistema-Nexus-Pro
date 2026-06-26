@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertCircle, AlertTriangle, CheckCircle2, ChevronRight, ClipboardCheck, Clock,
-  MessageCircle, Phone, RefreshCw, Search, User as UserIcon, X, XCircle, Eye, FileText, Package
+  MessageCircle, Phone, RefreshCw, Search, User as UserIcon, X, XCircle, Eye, FileText, Package, Edit3, Save, Shield, Cpu
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { DataService } from '../../services/dataService';
@@ -31,7 +31,27 @@ interface ServiceRequest {
 // Extended state with triage verification results
 interface TriageState {
   customerFound: boolean;
+  customerData: {
+    id: string;
+    name: string;
+    document?: string;
+    phone?: string;
+    whatsapp?: string;
+    email?: string;
+    address?: string;
+    city?: string;
+    number?: string;
+  } | null;
   equipmentFound: boolean;
+  equipmentData: {
+    id: string;
+    model: string;
+    serial_number: string;
+    family_name?: string;
+    manufacture_date?: string;
+    warranty_months?: number;
+    description?: string;
+  } | null;
   orderDisplayId: string | null;
   loading: boolean;
 }
@@ -76,8 +96,10 @@ export const SolicitacoesPage: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [editingRejectId, setEditingRejectId] = useState<string | null>(null);
+  const [editingRejectReason, setEditingRejectReason] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [triage, setTriage] = useState<TriageState>({ customerFound: false, equipmentFound: false, orderDisplayId: null, loading: false });
+  const [triage, setTriage] = useState<TriageState>({ customerFound: false, customerData: null, equipmentFound: false, equipmentData: null, orderDisplayId: null, loading: false });
   const realtimeRef = useRef<any>(null);
 
   const fetchRequests = useCallback(async (silent = false) => {
@@ -119,7 +141,7 @@ export const SolicitacoesPage: React.FC = () => {
   // When a request is opened for viewing, run triage verification
   useEffect(() => {
     if (!viewingReq) {
-      setTriage({ customerFound: false, equipmentFound: false, orderDisplayId: null, loading: false });
+      setTriage({ customerFound: false, customerData: null, equipmentFound: false, equipmentData: null, orderDisplayId: null, loading: false });
       return;
     }
 
@@ -128,39 +150,108 @@ export const SolicitacoesPage: React.FC = () => {
       const tid = DataService.getCurrentTenantId();
       if (!tid) return;
 
-      // 1. Check customer
-      let customerFound = false;
-      if (viewingReq.customer_document) {
-        const clean = viewingReq.customer_document.replace(/\D/g, '');
-        if (clean) {
+      // 1. Check customer — busca dados completos
+      let customerFound = !!viewingReq.customer_id;
+      let matchedCustomerId = viewingReq.customer_id;
+      let customerData: TriageState['customerData'] = null;
+
+      const customerSelect = 'id, name, document, phone, whatsapp, email, address, city, number';
+
+      // Se já tem customer_id direto, busca os dados completos
+      if (customerFound && matchedCustomerId) {
+        const { data: cDirect } = await supabase
+          .from('customers')
+          .select(customerSelect)
+          .eq('id', matchedCustomerId)
+          .maybeSingle();
+        if (cDirect) customerData = cDirect as any;
+      }
+
+      if (!customerFound) {
+        let orQuery = [];
+        
+        const cleanPhone = viewingReq.phone_number?.replace(/\D/g, '');
+        if (cleanPhone) {
+          orQuery.push(`phone.ilike.%${cleanPhone}%`, `whatsapp.ilike.%${cleanPhone}%`);
+          // Se tiver código do país (ex: 55), tenta buscar sem ele também
+          if (cleanPhone.startsWith('55') && cleanPhone.length >= 12) {
+            const localPhone = cleanPhone.substring(2);
+            orQuery.push(`phone.ilike.%${localPhone}%`, `whatsapp.ilike.%${localPhone}%`);
+          }
+        }
+        
+        const cleanDoc = viewingReq.customer_document?.replace(/\D/g, '');
+        if (cleanDoc) {
+          orQuery.push(`document.eq.${cleanDoc}`, `document.ilike.%${cleanDoc}%`);
+        }
+
+        const cleanName = viewingReq.customer_name?.trim();
+        if (cleanName) {
+          orQuery.push(`name.ilike.%${cleanName}%`);
+        }
+
+        if (orQuery.length > 0) {
           const { data: cData } = await supabase
             .from('customers')
-            .select('id')
+            .select(customerSelect)
             .eq('tenant_id', tid)
-            .or(`document.eq.${clean},document.ilike.%${clean}%`)
+            .or(orQuery.join(','))
             .limit(1)
             .maybeSingle();
-          customerFound = !!cData;
-        } else {
-          customerFound = !!viewingReq.customer_id;
+          
+          if (cData) {
+            customerFound = true;
+            matchedCustomerId = cData.id;
+            customerData = cData as any;
+          }
         }
-      } else {
-        customerFound = !!viewingReq.customer_id;
       }
 
       // 2. Check equipment (if any info was provided about it)
       let equipmentFound = true; // default: not required if no equipment info
+      let equipmentData: TriageState['equipmentData'] = null;
       if (viewingReq.equipment_serial || viewingReq.equipment_name) {
         equipmentFound = false;
+        
+        let orFilters = [];
         if (viewingReq.equipment_serial) {
-          const { data: eData } = await supabase
-            .from('equipments')
-            .select('id')
-            .eq('tenant_id', tid)
-            .ilike('serial_number', `%${viewingReq.equipment_serial.trim()}%`)
-            .limit(1)
-            .maybeSingle();
-          equipmentFound = !!eData;
+          const s = viewingReq.equipment_serial.trim();
+          orFilters.push(`serial_number.ilike.%${s}%`, `serial_number.eq.${s}`);
+        }
+        if (viewingReq.equipment_name) {
+          const n = viewingReq.equipment_name.trim();
+          orFilters.push(`name.ilike.%${n}%`, `model.ilike.%${n}%`);
+        }
+
+        if (orFilters.length > 0) {
+          const equipSelect = 'id, model, serial_number, family_name, manufacture_date, warranty_months, description';
+          
+          // Primeiro tenta achar o equipamento vinculado ao cliente localizado
+          if (matchedCustomerId) {
+            const { data: eDataUser } = await supabase
+              .from('equipments')
+              .select(equipSelect)
+              .eq('tenant_id', tid)
+              .eq('customer_id', matchedCustomerId)
+              .or(orFilters.join(','))
+              .limit(1)
+              .maybeSingle();
+            
+            if (eDataUser) { equipmentFound = true; equipmentData = eDataUser as any; }
+          }
+          
+          // Se não achou (ou não tinha cliente), busca globalmente
+          if (!equipmentFound) {
+            const { data: eDataGlobal } = await supabase
+              .from('equipments')
+              .select(equipSelect)
+              .eq('tenant_id', tid)
+              .or(orFilters.join(','))
+              .limit(1)
+              .maybeSingle();
+              
+            if (eDataGlobal) { equipmentFound = true; equipmentData = eDataGlobal as any; }
+          }
         }
       }
 
@@ -175,7 +266,7 @@ export const SolicitacoesPage: React.FC = () => {
         orderDisplayId = oData?.display_id || viewingReq.order_id;
       }
 
-      setTriage({ customerFound, equipmentFound, orderDisplayId, loading: false });
+      setTriage({ customerFound, customerData, equipmentFound, equipmentData, orderDisplayId, loading: false });
     };
 
     runTriage();
@@ -239,6 +330,25 @@ export const SolicitacoesPage: React.FC = () => {
     }
   };
 
+  const handleSaveRejectionReason = async () => {
+    if (!editingRejectId) return;
+    setActionLoading(editingRejectId);
+    try {
+      const newReason = editingRejectReason.trim() || null;
+      await supabase.from('whatsapp_service_requests').update({
+        rejection_reason: newReason
+      }).eq('id', editingRejectId);
+      
+      setRequests(prev => prev.map(r => r.id === editingRejectId ? { ...r, rejection_reason: newReason } : r));
+      if (viewingReq && viewingReq.id === editingRejectId) {
+        setViewingReq({ ...viewingReq, rejection_reason: newReason });
+      }
+      setEditingRejectId(null);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const StatusBadge = ({ status }: { status: string }) => {
     if (status === 'PENDING') return <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-600 border border-amber-200 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider"><Clock size={10} /> Pendente</span>;
     if (status === 'ACCEPTED') return <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider"><CheckCircle2 size={10} /> Aceita</span>;
@@ -257,16 +367,6 @@ export const SolicitacoesPage: React.FC = () => {
     return !!req.customer_id;
   };
 
-  const initialOrderData = selectedReq ? {
-    customerName: selectedReq.customer_name || '',
-    description: selectedReq.problem_description || '',
-    equipmentSerial: selectedReq.equipment_serial || '',
-    equipmentName: selectedReq.equipment_name || '',
-    equipmentModel: selectedReq.equipment_name || '',
-    priority: OrderPriority.HIGH,
-    status: OrderStatus.PENDING,
-    title: selectedReq.equipment_name ? `${selectedReq.equipment_name} — chamado via WhatsApp` : 'Chamado via WhatsApp',
-  } as Partial<ServiceOrder> : undefined;
 
   // Render the blocking requirements section for the detail modal
   const renderTriageBlockers = () => {
@@ -598,7 +698,14 @@ export const SolicitacoesPage: React.FC = () => {
             await handleOrderCreated(result as ServiceOrder);
             return result;
           }}
-          initialData={initialOrderData as ServiceOrder}
+          prefill={{
+            customerId: selectedReq.customer_id || triage.customerData?.id || undefined,
+            customerName: selectedReq.customer_name || triage.customerData?.name || undefined,
+            customerDocument: selectedReq.customer_document || triage.customerData?.document || undefined,
+            equipmentSerial: selectedReq.equipment_serial || triage.equipmentData?.serial_number || undefined,
+            equipmentName: selectedReq.equipment_name || triage.equipmentData?.model || undefined,
+            description: selectedReq.problem_description || undefined,
+          }}
         />
       )}
 
@@ -671,12 +778,52 @@ export const SolicitacoesPage: React.FC = () => {
               {renderTriageBlockers()}
 
               {/* Rejection Reason (if rejected) */}
-              {viewingReq.status === 'REJECTED' && viewingReq.rejection_reason && (
+              {viewingReq.status === 'REJECTED' && (
                 <div className="bg-rose-50 p-5 rounded-xl border border-rose-200 shadow-sm">
-                  <h3 className="text-xs font-bold text-rose-900 mb-2 flex items-center gap-2 uppercase tracking-wide">
-                    <XCircle size={14} className="text-rose-500" /> Motivo da Rejeição
+                  <h3 className="text-xs font-bold text-rose-900 mb-2 flex items-center justify-between uppercase tracking-wide">
+                    <span className="flex items-center gap-2"><XCircle size={14} className="text-rose-500" /> Motivo da Rejeição</span>
+                    {!editingRejectId && (
+                      <button 
+                        onClick={() => { setEditingRejectId(viewingReq.id); setEditingRejectReason(viewingReq.rejection_reason || ''); }}
+                        className="text-rose-600 hover:bg-rose-100 p-1.5 rounded transition-colors"
+                        title="Editar ou Adicionar Motivo"
+                      >
+                        <Edit3 size={14} />
+                      </button>
+                    )}
                   </h3>
-                  <p className="text-sm text-rose-800">{viewingReq.rejection_reason}</p>
+                  
+                  {editingRejectId === viewingReq.id ? (
+                    <div className="mt-3 animate-in fade-in">
+                      <textarea
+                        value={editingRejectReason}
+                        onChange={e => setEditingRejectReason(e.target.value)}
+                        placeholder="Descreva o motivo pelo qual esta solicitação foi rejeitada..."
+                        rows={3}
+                        className="w-full px-3 py-2.5 bg-white border border-rose-200 rounded-xl text-sm text-slate-700 outline-none focus:ring-2 focus:ring-rose-100 focus:border-rose-400 transition-all resize-none mb-3"
+                      />
+                      <div className="flex gap-2 justify-end">
+                        <button 
+                          onClick={() => setEditingRejectId(null)} 
+                          className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-rose-100 rounded-lg transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                        <button 
+                          onClick={handleSaveRejectionReason}
+                          disabled={actionLoading === viewingReq.id}
+                          className="px-4 py-2 text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 rounded-lg disabled:opacity-50 flex items-center gap-2 transition-colors shadow-sm"
+                        >
+                          {actionLoading === viewingReq.id ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />} 
+                          Salvar Motivo
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-rose-800">
+                      {viewingReq.rejection_reason || <span className="italic text-rose-500/70">Nenhum motivo registrado. Clique no ícone de lápis acima para gravar um motivo.</span>}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -687,7 +834,7 @@ export const SolicitacoesPage: React.FC = () => {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Nome do Solicitante</label>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Nome Informado pelo Cliente</label>
                     <div className="text-sm font-semibold text-slate-800">{viewingReq.customer_name || <span className="italic text-slate-400">Não identificado</span>}</div>
                   </div>
                   <div>
@@ -726,6 +873,47 @@ export const SolicitacoesPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Ficha do Cliente Localizado no Sistema */}
+                {triage.customerData && (
+                  <div className="mt-4 bg-blue-50 border border-blue-200 rounded-xl p-4 animate-in fade-in">
+                    <h4 className="text-[10px] font-bold text-blue-800 uppercase tracking-wider mb-3 flex items-center gap-2">
+                      <UserIcon size={12} /> Ficha do Cliente (Dados Cadastrais do Sistema)
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-[9px] font-bold text-blue-700/70 uppercase tracking-wider block mb-0.5">Nome Cadastrado</label>
+                        <div className="text-xs font-bold text-blue-900">{triage.customerData.name || '—'}</div>
+                      </div>
+                      {triage.customerData.document && (
+                        <div>
+                          <label className="text-[9px] font-bold text-blue-700/70 uppercase tracking-wider block mb-0.5">Documento (CPF/CNPJ)</label>
+                          <div className="text-xs font-bold text-blue-900 font-mono">{triage.customerData.document}</div>
+                        </div>
+                      )}
+                      {(triage.customerData.phone || triage.customerData.whatsapp) && (
+                        <div>
+                          <label className="text-[9px] font-bold text-blue-700/70 uppercase tracking-wider block mb-0.5">Telefone Cadastrado</label>
+                          <div className="text-xs font-bold text-blue-900">{formatPhone(triage.customerData.phone || triage.customerData.whatsapp || '')}</div>
+                        </div>
+                      )}
+                      {triage.customerData.email && (
+                        <div>
+                          <label className="text-[9px] font-bold text-blue-700/70 uppercase tracking-wider block mb-0.5">E-mail</label>
+                          <div className="text-xs font-bold text-blue-900 truncate">{triage.customerData.email}</div>
+                        </div>
+                      )}
+                      {triage.customerData.address && (
+                        <div className="col-span-full">
+                          <label className="text-[9px] font-bold text-blue-700/70 uppercase tracking-wider block mb-0.5">Endereço</label>
+                          <div className="text-xs text-blue-900">
+                            {triage.customerData.address}{triage.customerData.number ? `, ${triage.customerData.number}` : ''}{triage.customerData.city ? ` — ${triage.customerData.city}` : ''}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Problem Info */}
@@ -736,11 +924,11 @@ export const SolicitacoesPage: React.FC = () => {
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Equipamento Informado</label>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Equipamento Informado pelo Cliente</label>
                       <div className="text-sm font-semibold text-slate-800">{viewingReq.equipment_name || '—'}</div>
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Nº de Série</label>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Nº de Série Informado</label>
                       <div className="flex items-center gap-2">
                         <div className="text-sm font-semibold text-slate-800 font-mono bg-slate-50 px-2 py-1 rounded border border-slate-100 inline-block">{viewingReq.equipment_serial || '—'}</div>
                         {viewingReq.equipment_serial && !triage.loading && (
@@ -757,6 +945,77 @@ export const SolicitacoesPage: React.FC = () => {
                       </div>
                     </div>
                   </div>
+
+                  {/* Dados do Equipamento Localizado no Sistema */}
+                  {triage.equipmentData && (
+                    <div className="mt-4 bg-emerald-50 border border-emerald-200 rounded-xl p-4 animate-in fade-in">
+                      <h4 className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <Cpu size={12} /> Ficha Técnica do Ativo (Dados do Sistema)
+                      </h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        <div>
+                          <label className="text-[9px] font-bold text-emerald-700/70 uppercase tracking-wider block mb-0.5">Modelo Cadastrado</label>
+                          <div className="text-xs font-bold text-emerald-900">{triage.equipmentData.model || '—'}</div>
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-bold text-emerald-700/70 uppercase tracking-wider block mb-0.5">Nº de Série (Sistema)</label>
+                          <div className="text-xs font-bold text-emerald-900 font-mono">{triage.equipmentData.serial_number || '—'}</div>
+                        </div>
+                        {triage.equipmentData.family_name && (
+                          <div>
+                            <label className="text-[9px] font-bold text-emerald-700/70 uppercase tracking-wider block mb-0.5">Família</label>
+                            <div className="text-xs font-bold text-emerald-900">{triage.equipmentData.family_name}</div>
+                          </div>
+                        )}
+                        {triage.equipmentData.manufacture_date && (
+                          <div>
+                            <label className="text-[9px] font-bold text-emerald-700/70 uppercase tracking-wider block mb-0.5">Data de Fabricação</label>
+                            <div className="text-xs font-bold text-emerald-900">
+                              {new Date(triage.equipmentData.manufacture_date).toLocaleDateString('pt-BR')}
+                            </div>
+                          </div>
+                        )}
+                        <div>
+                          <label className="text-[9px] font-bold text-emerald-700/70 uppercase tracking-wider block mb-0.5">Garantia</label>
+                          <div className="flex items-center gap-1.5">
+                            {(() => {
+                              if (triage.equipmentData!.warranty_months == null) {
+                                return (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded border flex items-center gap-1 bg-slate-100 text-slate-500 border-slate-200">
+                                    <Shield size={10} /> Sem informações de garantia
+                                  </span>
+                                );
+                              }
+                              if (!triage.equipmentData!.manufacture_date) {
+                                return (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded border flex items-center gap-1 bg-slate-100 text-slate-500 border-slate-200">
+                                    <Shield size={10} /> {triage.equipmentData!.warranty_months} meses (sem data de fabricação)
+                                  </span>
+                                );
+                              }
+                              const expiry = new Date(triage.equipmentData!.manufacture_date);
+                              expiry.setMonth(expiry.getMonth() + triage.equipmentData!.warranty_months);
+                              const inWarranty = expiry >= new Date();
+                              return (
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border flex items-center gap-1 ${inWarranty ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-rose-50 text-rose-600 border-rose-200'}`}>
+                                  <Shield size={10} />
+                                  {inWarranty
+                                    ? `Em Garantia (até ${expiry.toLocaleDateString('pt-BR')})`
+                                    : `Fora de Garantia (venceu ${expiry.toLocaleDateString('pt-BR')})`}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                        {triage.equipmentData.description && (
+                          <div className="col-span-full">
+                            <label className="text-[9px] font-bold text-emerald-700/70 uppercase tracking-wider block mb-0.5">Observações</label>
+                            <div className="text-xs text-emerald-900">{triage.equipmentData.description}</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Descrição do Problema (Transcrição)</label>
                     <div className="text-sm font-medium text-slate-700 bg-slate-50 p-4 rounded-xl border border-slate-100 whitespace-pre-wrap leading-relaxed shadow-inner">

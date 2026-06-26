@@ -32,7 +32,8 @@ const STATE_LABELS: Record<string, { label: string; color: string; dot: string }
   CREATING_ORDER: { label: 'Abrindo OS',       color: 'text-blue-500',    dot: 'bg-blue-400' },
   WAITING_HUMAN:  { label: '⚠ Aguarda humano', color: 'text-orange-500',  dot: 'bg-orange-400 animate-pulse' },
   HUMAN_ACTIVE:   { label: 'Humano ativo',     color: 'text-indigo-600',  dot: 'bg-indigo-400' },
-  RESOLVED:       { label: 'Resolvido',        color: 'text-gray-400',    dot: 'bg-gray-300' },
+  RESOLVED:       { label: 'Finalizada',       color: 'text-gray-400',    dot: 'bg-gray-300' },
+  CLOSED:         { label: 'Finalizada',       color: 'text-gray-400',    dot: 'bg-gray-300' },
 };
 
 const DEFAULT_EMOJIS = [
@@ -242,6 +243,28 @@ export const WhatsAppInbox: React.FC = () => {
   // Manter refs sincronizadas para uso dentro do Realtime callback
   conversationsRef.current = conversations;
   selectedIdRef.current = selectedId;
+
+  // Registrar leitura local para apagar a notificação da sidebar instantaneamente ao clicar/visualizar
+  useEffect(() => {
+    if (selectedId) {
+      try {
+        const conv = conversations.find(c => c.id === selectedId);
+        if (conv && conv.history && conv.history.length > 0) {
+          const lastMsg = conv.history[conv.history.length - 1];
+          const lastMsgTime = lastMsg.timestamp || new Date().toISOString();
+          
+          const receiptsStr = localStorage.getItem('wa_read_receipts');
+          let receipts = receiptsStr ? JSON.parse(receiptsStr) : {};
+          
+          receipts[selectedId] = lastMsgTime;
+          localStorage.setItem('wa_read_receipts', JSON.stringify(receipts));
+          window.dispatchEvent(new Event('wa_read_receipts_changed'));
+        }
+      } catch (e) {
+        console.error('Erro ao salvar recibo de leitura:', e);
+      }
+    }
+  }, [selectedId, conversations]);
 
   // Fechar popover de emojis ao clicar fora
   useEffect(() => {
@@ -1045,7 +1068,7 @@ export const WhatsAppInbox: React.FC = () => {
             <div className="bg-white border-t border-slate-100 p-4 relative shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
               
               {/* Emoji Popover */}
-              {showStickers && (
+              {showStickers && selected.assigned_agent_id === currentUserId && (
                 <div
                   ref={stickerRef}
                   className="absolute bottom-full mb-2 left-4 bg-white border border-slate-200 shadow-xl rounded-2xl p-3 z-50 w-72 animate-in slide-in-from-bottom-2"
@@ -1071,10 +1094,11 @@ export const WhatsAppInbox: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex items-end gap-3 bg-slate-50 border border-slate-200 rounded-3xl pr-2 pl-2 py-2 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-400 transition-all shadow-inner">
+              <div className={`flex items-end gap-3 rounded-3xl pr-2 pl-2 py-2 transition-all shadow-inner border ${selected.assigned_agent_id === currentUserId ? 'bg-slate-50 border-slate-200 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-400' : 'bg-slate-100 border-slate-200 opacity-70 cursor-not-allowed'}`}>
                 <button
                   onClick={() => setShowStickers(!showStickers)}
-                  className={`w-9 h-9 mb-0.5 flex items-center justify-center rounded-full transition-colors shrink-0 ${showStickers ? 'bg-emerald-100 text-emerald-600' : 'text-slate-400 hover:bg-slate-200 hover:text-slate-600'}`}
+                  disabled={selected.assigned_agent_id !== currentUserId}
+                  className={`w-9 h-9 mb-0.5 flex items-center justify-center rounded-full transition-colors shrink-0 ${selected.assigned_agent_id !== currentUserId ? 'text-slate-300' : showStickers ? 'bg-emerald-100 text-emerald-600' : 'text-slate-400 hover:bg-slate-200 hover:text-slate-600'}`}
                   title="Inserir Emoji"
                 >
                   <Sticker size={18} />
@@ -1088,9 +1112,10 @@ export const WhatsAppInbox: React.FC = () => {
                           handleSend();
                       }
                   }}
+                  disabled={selected.assigned_agent_id !== currentUserId}
                   rows={1}
-                  placeholder="Digite sua mensagem (Shift + Enter para nova linha)..."
-                  className="flex-1 bg-transparent border-none outline-none text-sm text-slate-700 placeholder-slate-400 py-1.5 resize-none custom-scrollbar"
+                  placeholder={selected.assigned_agent_id === currentUserId ? "Digite sua mensagem (Shift + Enter para nova linha)..." : "Esta conversa pertence a outro agente."}
+                  className="flex-1 bg-transparent border-none outline-none text-sm text-slate-700 placeholder-slate-400 py-1.5 resize-none custom-scrollbar disabled:cursor-not-allowed"
                   style={{ minHeight: '36px', maxHeight: '120px' }}
                   onInput={(e) => {
                       const target = e.target as HTMLTextAreaElement;
@@ -1100,8 +1125,8 @@ export const WhatsAppInbox: React.FC = () => {
                 />
                 <button
                   onClick={handleSend}
-                  disabled={sendingAction !== null || !message.trim()}
-                  className="w-10 h-10 mb-0.5 flex items-center justify-center bg-emerald-500 text-white rounded-full hover:bg-emerald-600 disabled:opacity-50 transition-all shrink-0 shadow-md hover:shadow-lg active:scale-95"
+                  disabled={sendingAction !== null || !message.trim() || selected.assigned_agent_id !== currentUserId}
+                  className="w-10 h-10 mb-0.5 flex items-center justify-center bg-emerald-500 text-white rounded-full hover:bg-emerald-600 disabled:opacity-50 transition-all shrink-0 shadow-md hover:shadow-lg active:scale-95 disabled:hover:bg-emerald-500 disabled:hover:shadow-md disabled:active:scale-100"
                   title="Enviar (Enter)"
                 >
                   {sendingAction === 'send' ? <RefreshCw size={18} className="animate-spin" /> : <Send size={18} className="ml-1" />}
@@ -1127,27 +1152,31 @@ export const WhatsAppInbox: React.FC = () => {
       {/* Modal de Confirmação para Reiniciar Bot */}
       {showResetConfirm && selected && (
         <div className="absolute inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
-            <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mb-4">
-              <RotateCcw size={24} />
+          <div className="bg-white border border-[#1c2d4f]/20 rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-[#1c2d4f] px-6 py-4 flex items-center gap-3">
+              <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center text-white">
+                <RotateCcw size={18} />
+              </div>
+              <h3 className="text-base font-bold text-white tracking-wide">Reiniciar Assistente</h3>
             </div>
-            <h3 className="text-lg font-bold text-slate-800 mb-2">Reiniciar Bot?</h3>
-            <p className="text-sm text-slate-500 mb-6">
-              O bot de Inteligência Artificial assumirá esta conversa desde o início (estado de boas-vindas). O histórico de mensagens será mantido para consulta futura.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowResetConfirm(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-xl transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleResetBot}
-                className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-sm font-bold rounded-xl transition-colors"
-              >
-                Sim, reiniciar
-              </button>
+            <div className="p-6 bg-slate-50/50">
+              <p className="text-sm text-slate-600 leading-relaxed font-medium mb-6">
+                O bot de Inteligência Artificial assumirá esta conversa desde o início (fluxo de atendimento). O histórico de mensagens anteriores será mantido para consulta.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowResetConfirm(false)}
+                  className="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-xl transition-all shadow-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleResetBot}
+                  className="px-5 py-2.5 bg-[#1c2d4f] hover:bg-[#15223c] text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-[#1c2d4f]/20 flex items-center gap-2"
+                >
+                  <RotateCcw size={14} /> Confirmar Reinício
+                </button>
+              </div>
             </div>
           </div>
         </div>

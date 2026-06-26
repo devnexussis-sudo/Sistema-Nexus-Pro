@@ -62,17 +62,32 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             if (user?.id) {
                 const { data: myConversations } = await supabase
                     .from('whatsapp_conversations')
-                    .select('history')
+                    .select('id, history')
                     .eq('state', 'HUMAN_ACTIVE')
                     .eq('assigned_agent_id', user.id);
                     
+                let receipts: Record<string, string> = {};
+                try {
+                    const receiptsStr = localStorage.getItem('wa_read_receipts');
+                    if (receiptsStr) receipts = JSON.parse(receiptsStr);
+                } catch(e) {}
+
                 if (myConversations) {
                     myConversations.forEach(conv => {
                         const history = conv.history as any[];
                         if (history && history.length > 0) {
                             const lastMsg = history[history.length - 1];
-                            if (lastMsg.role === 'user') {
-                                myUnread++;
+                            // Se a conversa é minha, mas a última mensagem NÃO foi minha (foi do cliente ou de outro agente que transferiu), então é 'não lida'
+                            const isMyMessage = lastMsg.role === 'agent' && lastMsg.agent_id === user.id;
+                            if (!isMyMessage) {
+                                // Checa se já clicou/leu localmente
+                                const readAtStr = receipts[conv.id];
+                                const msgTime = lastMsg.timestamp ? new Date(lastMsg.timestamp) : new Date(0);
+                                const readTime = readAtStr ? new Date(readAtStr) : new Date(0);
+                                
+                                if (!readAtStr || msgTime > readTime) {
+                                    myUnread++;
+                                }
                             }
                         }
                     });
@@ -86,12 +101,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         
         // Listener imediato para ações tomadas no painel
         window.addEventListener('whatsapp_state_changed', fetchWACount);
+        window.addEventListener('wa_read_receipts_changed', fetchWACount);
         
         return () => {
             clearInterval(interval);
             window.removeEventListener('whatsapp_state_changed', fetchWACount);
+            window.removeEventListener('wa_read_receipts_changed', fetchWACount);
         };
-    }, [isAdmin]);
+    }, [isAdmin, alertCount, user?.id]);
 
     // Buscar contador de solicitações pendentes
     useEffect(() => {

@@ -130,8 +130,10 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
       
       data.forEach(conv => {
         const history = conv.history as any[] || [];
+        const lastMsg = history.length > 0 ? history[history.length - 1] : null;
+        
         currentMap[conv.id] = {
-          historyLen: history.length,
+          lastMsgTimestamp: lastMsg?.timestamp || null,
           state: conv.state,
           assigned: conv.assigned_agent_id
         };
@@ -141,12 +143,12 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
         // Avalia notificações apenas se não for a carga inicial
         if (!isInitialLoad.current) {
           const isNewToMe = !prev; // Conversa nova que acabou de cair na fila ou ser atribuída
-          const historyGrew = prev && history.length > prev.historyLen;
+          const hasNewMsg = prev && lastMsg?.timestamp && prev.lastMsgTimestamp && lastMsg.timestamp !== prev.lastMsgTimestamp;
           const assignedToMe = conv.assigned_agent_id === currentUserId && prev?.assigned !== currentUserId && currentUserId !== null && conv.state === 'HUMAN_ACTIVE';
           const askedForHuman = conv.state === 'WAITING_HUMAN' && prev?.state !== 'WAITING_HUMAN';
 
-          if (isNewToMe || historyGrew || assignedToMe || askedForHuman) {
-              const newMsgs = historyGrew ? history.slice(prev.historyLen) : [history[history.length - 1] || {}];
+          if (isNewToMe || hasNewMsg || assignedToMe || askedForHuman) {
+              const newMsgs = hasNewMsg ? [lastMsg] : [lastMsg || {}];
               const hasUserMsg = newMsgs.some((m: any) => m.role === 'user');
               
               const justAskedForHuman = askedForHuman || (isNewToMe && conv.state === 'WAITING_HUMAN');
