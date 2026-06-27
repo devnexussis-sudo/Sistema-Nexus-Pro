@@ -314,16 +314,27 @@ export const WhatsAppInbox: React.FC = () => {
           if (!existing) return updated;
 
           // Preservar mensagens otimistas locais que ainda não chegaram do servidor
-          // (mensagens do agente com timestamp mais recente que a última do servidor)
           const serverHistoryLen = updated.history?.length || 0;
-          const localHistoryLen = existing.history?.length || 0;
-          let mergedHistory = updated.history || [];
-          if (localHistoryLen > serverHistoryLen) {
-            const localOnlyMsgs = (existing.history || []).slice(serverHistoryLen);
-            // Só mantém as mensagens locais se forem do tipo 'agent' (otimistas)
-            const optimisticOnly = localOnlyMsgs.filter(m => m.role === 'agent');
-            mergedHistory = [...mergedHistory, ...optimisticOnly];
-          }
+          let mergedHistory = [...(updated.history || [])];
+          
+          // Buscar mensagens otimistas locais (enviadas pelo agente que talvez ainda não estejam no server)
+          const existingHistory = existing.history || [];
+          const optimisticMsgs = existingHistory.filter(m => m.role === 'agent' || m.role === 'bot');
+
+          // Adicionar as otimistas que não estão no histórico do servidor (mesmo conteúdo e horário próximo)
+          optimisticMsgs.forEach(optMsg => {
+            const isAlreadyInServer = mergedHistory.some(srvMsg => 
+              srvMsg.role === optMsg.role && 
+              srvMsg.content === optMsg.content &&
+              Math.abs(new Date(srvMsg.timestamp).getTime() - new Date(optMsg.timestamp).getTime()) < 60000
+            );
+            if (!isAlreadyInServer) {
+              mergedHistory.push(optMsg);
+            }
+          });
+
+          // ✨ Garantir ordem estritamente cronológica para evitar balões fora de ordem
+          mergedHistory = mergedHistory.sort((a: Message, b: Message) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
           const newMsgs = serverHistoryLen > (prev.find(c => c.id === updated.id)?.history?.length || 0)
             ? (updated.history || []).slice(prev.find(c => c.id === updated.id)?.history?.length || 0)

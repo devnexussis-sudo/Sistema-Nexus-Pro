@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker } from '
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { Navigation, MapPin, Clock, RefreshCw, History, Calendar, Search, Map as MapIcon, Layers, Satellite, Users, ClipboardList, X, ChevronDown, ChevronUp, Filter, ExternalLink } from 'lucide-react';
+import { Navigation, MapPin, Clock, RefreshCw, Calendar, Search, Map as MapIcon, Layers, Satellite, Users, ClipboardList, X, ChevronDown, ChevronUp, Filter, ExternalLink } from 'lucide-react';
 import { DataService } from '../../services/dataService';
 import { CacheManager } from '../../lib/cache';
 import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
@@ -32,11 +32,6 @@ interface Technician {
     battery_level?: number;
 }
 
-interface LocationHistory {
-    latitude: number;
-    longitude: number;
-    recorded_at: string;
-}
 
 const createTechIcon = (avatarUrl: string, isMoving: boolean = true, customColorHex?: string) => {
     const defaultColor = isMoving ? '#10b981' : '#ef4444'; // Verde se em movimento, vermelho se parado
@@ -119,14 +114,7 @@ export const TechnicianMap: React.FC = () => {
 
     // 👷 Techs & History State
     const [technicians, setTechnicians] = useState<Technician[]>([]);
-    const [isHistoryMode, setIsHistoryMode] = useState(false);
-    const [selectedHistoryTech, setSelectedHistoryTech] = useState<Technician | null>(null);
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-    const [historyPath, setHistoryPath] = useState<LocationHistory[]>([]);
-    const [routedPath, setRoutedPath] = useState<[number, number][][]>([]);
-    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-    const [routeSnapped, setRouteSnapped] = useState(false);
-    const [selectedStopIdx, setSelectedStopIdx] = useState<number | null>(null);
 
     // 📋 Orders State
     const [orders, setOrders] = useState<any[]>([]);
@@ -223,209 +211,8 @@ export const TechnicianMap: React.FC = () => {
     };
 
     // ═══════════════════════════════════════════════════════════════════════
-    // PROCESSAMENTO DE HISTÓRICO — 100% LOCAL (ZERO API EXTERNA)
-    // ─────────────────────────────────────────────────────────────────────
-    // PASSO 1: Detecta "janelas de movimento" (saiu do raio de 200m)
-    // PASSO 2: Para cada janela, volta nos dados brutos e pega TODOS os
-    //          pontos intermediários (filtro de 15m anti-jitter).
-    //          Com GPS a cada 10-30s, os pontos seguem as curvas da rua.
-    // RESULTADO: Instantâneo + linhas nas ruas + sem linhas quando parado
-    const getDistanceM = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-        const R = 6371e3;
-        const p1 = lat1 * Math.PI/180, p2 = lat2 * Math.PI/180;
-        const dp = (lat2-lat1)*Math.PI/180, dl = (lon2-lon1)*Math.PI/180;
-        const a = Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    };
-
-    const computeStops = (historyPath: LocationHistory[]) => {
-        if (!historyPath || historyPath.length === 0) return { historyStops: [], startPoint: null, endPoint: null, rawSamplesCount: 0 };
-        
-        const start = historyPath[0];
-        const end = historyPath[historyPath.length - 1];
-
-        // Agrupa pontos em "clusters" de 200m. Se ficou num cluster > 5min = parada.
-        const stops: { latitude: number; longitude: number; startTime: string; endTime: string; durationMins: number; pointCount: number }[] = [];
-        let clusterStart = 0;
-        let clusterAnchor = historyPath[0];
-
-        for (let i = 1; i <= historyPath.length; i++) {
-            const isLast = i === historyPath.length;
-            const departed = isLast || getDistanceM(
-                clusterAnchor.latitude, clusterAnchor.longitude,
-                historyPath[i].latitude, historyPath[i].longitude
-            ) > 200;
-
-            if (departed) {
-                const clusterEnd = i - 1;
-                const durationMins = (new Date(historyPath[clusterEnd].recorded_at).getTime() - new Date(historyPath[clusterStart].recorded_at).getTime()) / 60000;
-                
-                if (durationMins >= 5) {
-                    // Calcula centróide do cluster para posição mais precisa
-                    let sumLat = 0, sumLon = 0, count = 0;
-                    for (let j = clusterStart; j <= clusterEnd; j++) {
-                        sumLat += historyPath[j].latitude;
-                        sumLon += historyPath[j].longitude;
-                        count++;
-                    }
-                    stops.push({
-                        latitude: sumLat / count,
-                        longitude: sumLon / count,
-                        startTime: historyPath[clusterStart].recorded_at,
-                        endTime: historyPath[clusterEnd].recorded_at,
-                        durationMins: Math.round(durationMins),
-                        pointCount: count
-                    });
-                }
-
-                if (!isLast) {
-                    clusterStart = i;
-                    clusterAnchor = historyPath[i];
-                }
-            }
-        }
-        
-        // ── MERGE: Consolida paradas no mesmo raio de 250m ──────────────
-        const merged: typeof stops = [];
-        for (const stop of stops) {
-            const existing = merged.find(m => getDistanceM(m.latitude, m.longitude, stop.latitude, stop.longitude) < 250);
-            if (existing) {
-                if (new Date(stop.startTime) < new Date(existing.startTime)) existing.startTime = stop.startTime;
-                if (new Date(stop.endTime) > new Date(existing.endTime)) existing.endTime = stop.endTime;
-                existing.durationMins = Math.round((new Date(existing.endTime).getTime() - new Date(existing.startTime).getTime()) / 60000);
-                existing.pointCount += stop.pointCount;
-                const totalPts = existing.pointCount;
-                const prevPts = totalPts - stop.pointCount;
-                existing.latitude = (existing.latitude * prevPts + stop.latitude * stop.pointCount) / totalPts;
-                existing.longitude = (existing.longitude * prevPts + stop.longitude * stop.pointCount) / totalPts;
-            } else {
-                merged.push({ ...stop });
-            }
-        }
-
-        return { historyStops: merged, startPoint: start, endPoint: end, rawSamplesCount: historyPath.length };
-    };
-
+    // ROTA LIMPA E SEM RUÍDOS (REMOVIDO)
     // ═══════════════════════════════════════════════════════════════════════
-    // ROTA LIMPA E SEM RUÍDOS (ELIMINA O SCRIBBLE)
-    // ═══════════════════════════════════════════════════════════════════════
-    const processHistoryRoute = async (points: LocationHistory[], stops: any[]): Promise<[number, number][][]> => {
-        if (points.length < 2) return [];
-
-        const segments: [number, number][][] = [];
-        let currentSegment: [number, number][] = [];
-        let prevPt: any = null;
-
-        const isPointInStop = (pt: LocationHistory) => {
-            const time = new Date(pt.recorded_at).getTime();
-            return stops.find(s => time >= new Date(s.startTime).getTime() && time <= new Date(s.endTime).getTime());
-        };
-
-        for (let i = 0; i < points.length; i++) {
-            const pt = points[i];
-            const stop = isPointInStop(pt);
-
-            // 1. Se está numa parada, não desenhamos as oscilações do GPS (scribble)
-            if (stop) {
-                if (currentSegment.length >= 1) {
-                    currentSegment.push([stop.latitude, stop.longitude]); // Conecta ao centróide
-                    segments.push([...currentSegment]);
-                    currentSegment = [];
-                }
-                prevPt = { ...pt, latitude: stop.latitude, longitude: stop.longitude }; // Âncora fica na parada
-                continue;
-            }
-
-            if (!prevPt) {
-                currentSegment.push([pt.latitude, pt.longitude]);
-                prevPt = pt;
-                continue;
-            }
-
-            const d = getDistanceM(prevPt.latitude, prevPt.longitude, pt.latitude, pt.longitude);
-            const sec = Math.max(1, (new Date(pt.recorded_at).getTime() - new Date(prevPt.recorded_at).getTime()) / 1000);
-            const speedKmH = (d / sec) * 3.6;
-
-            if (speedKmH > 150) continue; // Filtro de teletransporte
-            if (d < 40) continue; // Filtro de Jitter: só registra ponto se andou >40m
-
-            if (sec > 1800 || d > 5000) {
-                // Gap grande de tempo ou distância = quebra a linha
-                if (currentSegment.length >= 2) segments.push([...currentSegment]);
-                currentSegment = [[pt.latitude, pt.longitude]];
-            } else {
-                if (currentSegment.length === 0) {
-                    currentSegment.push([prevPt.latitude, prevPt.longitude]); // Sai do último local conhecido
-                }
-                currentSegment.push([pt.latitude, pt.longitude]);
-            }
-            prevPt = pt;
-        }
-
-        if (currentSegment.length >= 2) {
-            segments.push(currentSegment);
-        }
-
-        return segments;
-    };
-
-    const loadHistoryPath = async (techId: string, date: string) => {
-        setIsLoadingHistory(true);
-        setRoutedPath([]);
-        setRouteSnapped(false);
-        try {
-            const { data, error } = await DataService.getServiceClient()
-                .from('technician_gps_pings')
-                .select('latitude, longitude, created_at')
-                .eq('technician_id', techId)
-                .gte('created_at', new Date(`${date}T00:00:00`).toISOString())
-                .lte('created_at', new Date(`${date}T23:59:59.999`).toISOString())
-                .order('created_at', { ascending: true });
-
-            if (error) throw error;
-            
-            const mappedData = (data || []).map((d: any) => ({
-                latitude: d.latitude,
-                longitude: d.longitude,
-                recorded_at: d.created_at
-            }));
-
-            setHistoryPath(mappedData);
-
-            if (mappedData.length > 0) {
-                if (mapInstance) {
-                    const bounds = L.latLngBounds(mappedData.map(p => [p.latitude, p.longitude]));
-                    mapInstance.fitBounds(bounds, { padding: [60, 60] });
-                }
-                
-                const stopsData = computeStops(mappedData);
-                const segments = await processHistoryRoute(mappedData, stopsData.historyStops);
-                setRoutedPath(segments);
-                setRouteSnapped(true);
-                // Fit to snapped route bounding box
-                if (segments.length > 0 && mapInstance) {
-                    const allPts = segments.flat();
-                    if (allPts.length > 0) {
-                        mapInstance.fitBounds(L.latLngBounds(allPts), { padding: [60, 60] });
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('[Map] Erro ao carregar histórico:', error);
-        } finally {
-            setIsLoadingHistory(false);
-        }
-    };
-
-    useEffect(() => {
-        if (!isHistoryMode || !selectedHistoryTech || !selectedDate) {
-            setHistoryPath([]);
-            setRoutedPath([]);
-            setRouteSnapped(false);
-            return;
-        }
-        loadHistoryPath(selectedHistoryTech.id, selectedDate);
-    }, [isHistoryMode, selectedHistoryTech, selectedDate]);
 
     const formatLastSeen = (lastSeen?: string) => {
         if (!lastSeen) return 'Nunca visto';
@@ -443,17 +230,6 @@ export const TechnicianMap: React.FC = () => {
         const diff = Date.now() - new Date(lastSeen).getTime();
         return Math.floor(diff / 60000) < 30;
     };
-
-    const isMovingTechsHistory = historyPath.length > 5; // Simulação de status de movimento para o resumo histórico
-
-    // Detecção de paradas com raio de 200m (consistente com o filtro de rota)
-    // Cada parada = ponto único com horário de chegada e saída
-    const { historyStops, startPoint, endPoint, rawSamplesCount } = React.useMemo(() => {
-        return computeStops(historyPath);
-    }, [historyPath]);
-
-    // Total de pontos plotados nas rotas
-    const routedPointsCount = routedPath.reduce((sum, seg) => sum + seg.length, 0);
 
     const activeTechs = technicians.filter(t => {
         const hasCoords = t.last_latitude !== undefined && t.last_latitude !== null &&
@@ -569,11 +345,7 @@ export const TechnicianMap: React.FC = () => {
                         <button
                             onClick={() => {
                                 setSelectedDate(new Date().toISOString().split('T')[0]);
-                                setIsHistoryMode(false);
                                 setTechSearch('');
-                                setHistoryPath([]);
-                                setRoutedPath([]);
-                                setRouteSnapped(false);
                             }}
                             className="text-[9px] font-black text-white bg-[#1c2d4f] hover:bg-[#111f38] px-2.5 py-1.5 rounded-lg shadow-sm transition-all uppercase tracking-wider"
                         >
@@ -606,56 +378,6 @@ export const TechnicianMap: React.FC = () => {
                             className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-primary-500 transition-colors"
                         />
                         <p className="text-[10px] text-slate-400">Exibe OS agendadas para esta data.</p>
-                    </section>
-
-                    <hr className="border-slate-100" />
-
-                    {/* Ativação do Histórico */}
-                    <section className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                <History size={12} /> Histórico de Rotas
-                            </label>
-                            <button 
-                                onClick={() => {
-                                    setIsHistoryMode(!isHistoryMode);
-                                    if (!isHistoryMode && !selectedHistoryTech && technicians.length > 0) {
-                                        setSelectedHistoryTech(technicians[0]);
-                                    }
-                                }}
-                                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isHistoryMode ? 'bg-[#1c2d4f] shadow-inner' : 'bg-slate-300'}`}
-                            >
-                                <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isHistoryMode ? 'translate-x-4' : 'translate-x-0'}`} />
-                            </button>
-                        </div>
-
-                        {isHistoryMode && (
-                            <div className="space-y-3 animate-fade-in">
-                                <label className="text-[9px] font-bold text-slate-400 uppercase">Selecione o Técnico</label>
-                                <input 
-                                    type="text"
-                                    placeholder="Buscar por nome..."
-                                    value={techSearch}
-                                    onChange={e => setTechSearch(e.target.value)}
-                                    className="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-xs outline-none focus:border-primary-500 transition-colors"
-                                />
-                                <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto px-1">
-                                    {technicians.filter(t => t.name.toLowerCase().includes(techSearch.toLowerCase())).map(t => (
-                                        <button
-                                            key={t.id}
-                                            onClick={() => setSelectedHistoryTech(t)}
-                                            className={`flex items-center gap-3 p-2 rounded-xl border transition-all text-left ${selectedHistoryTech?.id === t.id ? 'bg-primary-50 border-primary-500 text-primary-900 shadow-sm' : 'bg-white border-slate-200 hover:border-primary-300 text-slate-700'}`}
-                                        >
-                                            <img src={t.avatar || `https://ui-avatars.com/api/?name=${t.name}&background=random`} className="w-8 h-8 rounded-full border border-slate-200" alt="" />
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-xs font-bold truncate leading-none mb-1">{t.name}</p>
-                                                <p className="text-[10px] text-slate-500 truncate">{t.email}</p>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
                     </section>
                 </div>
 
