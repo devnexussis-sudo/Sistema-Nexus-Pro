@@ -1,7 +1,7 @@
 {
   "build": {
     "development": {
-      "node": "18.20.4",
+      "node": "20.19.4",
       "developmentClient": true,
       "distribution": "internal",
       "env": {
@@ -9,19 +9,21 @@
       }
     },
     "preview": {
-      "node": "18.20.4",
+      "node": "20.19.4",
       "android": {
         "buildType": "apk"
       },
       "distribution": "internal",
       "env": {
-        "NODE_ENV": "production"
+        "NODE_ENV": "production",
+        "GRADLE_OPTS": "-Xmx3g -XX:MaxMetaspaceSize=768m -Dorg.gradle.daemon=false -Dkotlin.compiler.execution.strategy=in-process -Dorg.gradle.workers.max=1"
       }
     },
     "production": {
-      "node": "18.20.4",
+      "node": "20.19.4",
       "env": {
-        "NODE_ENV": "production"
+        "NODE_ENV": "production",
+        "GRADLE_OPTS": "-Xmx3g -XX:MaxMetaspaceSize=768m -Dorg.gradle.daemon=false -Dkotlin.compiler.execution.strategy=in-process -Dorg.gradle.workers.max=1"
       }
     }
   },
