@@ -619,22 +619,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setVisitsLoading(true);
       VisitService.getVisitsByOrderId(selectedOrder.id)
         .then(v => {
-          if (v.length === 0 && (selectedOrder.visitCount || 0) > 0) {
+          if (v.length === 0 && (selectedOrder.visitCount || 0) > 0 && selectedOrder.assignedTo) {
             // Fallback Dinâmico para OS Legadas usando o visitCount parseado
             const legacyVisits = Array.from({ length: selectedOrder.visitCount || 1 }).map((_, index) => {
               const isLast = index + 1 === (selectedOrder.visitCount || 1);
+              const isPendingOS = ['PENDENTE', 'ATRIBUÍDO', 'EM ANDAMENTO'].includes(selectedOrder.status);
+              
+              let finalStatus = 'completed';
+              if (isLast) {
+                  if (selectedOrder.status === 'CONCLUÍDO' || selectedOrder.status === 'CANCELADO') finalStatus = 'completed';
+                  else if (selectedOrder.status === 'IMPEDIDO') finalStatus = 'blocked';
+                  else if (isPendingOS) finalStatus = 'pending';
+              }
+
               return {
                 id: `legacy-visit-${selectedOrder.id}-${index + 1}`,
                 orderId: selectedOrder.id,
                 visitNumber: index + 1,
-                status: isLast && selectedOrder.status === 'CONCLUÍDO' ? 'completed' : 
-                        isLast && selectedOrder.status === 'IMPEDIDO' ? 'blocked' : 'completed',
+                status: finalStatus,
                 scheduledDate: selectedOrder.scheduledDate,
                 scheduledTime: selectedOrder.scheduledTime,
                 technicianId: selectedOrder.assignedTo,
                 technicianName: techs.find(t => t.id === selectedOrder.assignedTo)?.name || selectedOrder.assignedTo || '—',
                 createdAt: selectedOrder.createdAt,
-                isLocked: true // Histórico legado é consolidado e travado
+                isLocked: !isPendingOS // Histórico legado concluído é travado, pendente fica livre
               } as any;
             });
             setVisits(legacyVisits);
