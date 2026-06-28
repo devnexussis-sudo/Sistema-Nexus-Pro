@@ -22,7 +22,7 @@ const translations = {
     menuLoading: 'Carregando...',
 
     // ── Login ──
-    loginWelcome: 'Bem-vindo de volta!',
+    loginWelcome: 'Bem vindo(a) ao app Duno!',
     loginSubtitle: 'Faça login para continuar',
     loginEmailPlaceholder: 'Email',
     loginPasswordPlaceholder: 'Senha',
@@ -332,7 +332,7 @@ const translations = {
     menuLoading: 'Loading...',
 
     // ── Login ──
-    loginWelcome: 'Welcome back!',
+    loginWelcome: 'Welcome to the Duno app!',
     loginSubtitle: 'Sign in to continue',
     loginEmailPlaceholder: 'Email',
     loginPasswordPlaceholder: 'Password',
@@ -638,7 +638,7 @@ const translations = {
     menuLoading: 'Cargando...',
 
     // ── Login ──
-    loginWelcome: '¡Bienvenido de nuevo!',
+    loginWelcome: '¡Bienvenido(a) a la aplicación Duno!',
     loginSubtitle: 'Inicie sesión para continuar',
     loginEmailPlaceholder: 'Correo electrónico',
     loginPasswordPlaceholder: 'Contraseña',

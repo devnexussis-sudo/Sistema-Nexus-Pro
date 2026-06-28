@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from './supabase';
 
 const OFFLINE_ORDERS_KEY = '@nexus_offline_today_orders';
@@ -487,7 +487,7 @@ class SyncService {
                 .eq('assigned_to', userId)
                 .gte('scheduled_date', todayStr)
                 .lte('scheduled_date', todayStr)
-                .not('status', 'in', '("CONCLUÍDO","CANCELADO")')
+                .not('status', 'in', '("CONCLUÍDO","CANCELADO","IMPEDIDO")')
                 .limit(100);
 
             // Também buscar OS em andamento (qualquer data)
@@ -526,8 +526,8 @@ class SyncService {
             // Pré-aquecer configurações usadas na tela de execução
             // Usar OrderService para popular o AsyncStorage com as chaves corretas
             try {
-                const { OrderService } = await import('./order-service');
-                const { StockService } = await import('./stock-service');
+                const { OrderService } = require('./order-service');
+                const { StockService } = require('./stock-service');
                 await Promise.all([
                     OrderService.getFormTemplates(),
                     OrderService.getActivationRules(),

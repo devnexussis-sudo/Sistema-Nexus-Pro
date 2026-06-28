@@ -36,11 +36,14 @@ export const NotificationService = {
 
         try {
             if (Platform.OS === 'android') {
-                await Notifications.setNotificationChannelAsync('default', {
-                    name: 'default',
+                await Notifications.setNotificationChannelAsync('nexus-alerts', {
+                    name: 'Alertas Nexus',
                     importance: Notifications.AndroidImportance?.MAX,
-                    vibrationPattern: [0, 250, 250, 250],
+                    vibrationPattern: [0, 250, 250, 250, 500, 250, 250, 250],
                     lightColor: '#FF231F7C',
+                    sound: 'default',
+                    enableVibrate: true,
+                    bypassDnd: true, // Força a tocar mesmo em Não Perturbe
                 });
             }
 
@@ -110,7 +113,9 @@ export const NotificationService = {
                         title: `⏰ Lembrete: OS #${displayId}`,
                         body: `Falta 1 hora para o atendimento agendado.`,
                         data: { orderId, type: 'REMINDER_60' },
-                        sound: true
+                        sound: true,
+                        priority: Notifications.AndroidNotificationPriority?.MAX,
+                        channelId: 'nexus-alerts'
                     },
                     trigger: { type: Notifications.SchedulableTriggerInputTypes?.DATE, date: time60 },
                     identifier: `reminder-60-${orderId}`
@@ -125,7 +130,9 @@ export const NotificationService = {
                         title: `🚀 Prepare-se: OS #${displayId}`,
                         body: `Seu atendimento começa em 30 minutos!`,
                         data: { orderId, type: 'REMINDER_30' },
-                        sound: true
+                        sound: true,
+                        priority: Notifications.AndroidNotificationPriority?.MAX,
+                        channelId: 'nexus-alerts'
                     },
                     trigger: { type: Notifications.SchedulableTriggerInputTypes?.DATE, date: time30 },
                     identifier: `reminder-30-${orderId}`
@@ -152,7 +159,7 @@ export const NotificationService = {
                     data,
                     sound: true,
                     priority: Notifications.AndroidNotificationPriority?.MAX,
-                    channelId: 'default'
+                    channelId: 'nexus-alerts'
                 },
                 trigger: null,
             });

@@ -80,8 +80,17 @@ export default function NotificationsScreen() {
         return date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     };
 
+    const handleNotificationPress = (item: any) => {
+        if (item.data && item.data.orderId) {
+            router.push(`/os/${item.data.orderId}`);
+        }
+    };
+
     const renderItem = ({ item }: { item: any }) => (
-        <View style={[styles.card, !item.is_read ? styles.unreadCard : null]}>
+        <Pressable 
+            style={[styles.card, !item.is_read ? styles.unreadCard : null]}
+            onPress={() => handleNotificationPress(item)}
+        >
             <View style={styles.cardHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <Ionicons name="notifications" size={18} color={!item.is_read ? '#6366f1' : '#94a3b8'} />
@@ -94,7 +103,7 @@ export default function NotificationsScreen() {
                 <Ionicons name="time-outline" size={12} color="#94a3b8" />
                 <Text style={styles.date}>{formatDate(item.created_at)}</Text>
             </View>
-        </View>
+        </Pressable>
     );
 
     return (

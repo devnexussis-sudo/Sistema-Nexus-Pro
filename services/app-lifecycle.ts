@@ -31,8 +31,16 @@ import { startBackgroundLocation, stopBackgroundLocation } from './location-serv
 import { NotificationService } from './notification-service';
 import { logger } from './logger';
 import { createDebounce, createThrottle, resetNetworkState } from './network-resilience';
+import { BootstrapService } from './bootstrap-service';
+import { CLARO_FIX_FLAGS, detectCarrier, pingSupabase } from './connection-diagnostics';
+import { resilientUpload } from './upload-resilient';
 import NetInfo from '@react-native-community/netinfo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+    setAutoCheckinEnabled,
+    setAutoCheckinOrders,
+    type AutoCheckinOrder,
+} from './auto-checkin-service';
 
 // ─── Notification Module (conditional import for Expo Go compat) ─────────────
 const isExpoGoAndroid = Platform.OS === 'android' && Constants.appOwnership === 'expo';
@@ -52,10 +60,15 @@ interface LifecycleState {
     isOffline: boolean;
 }
 
-// ─── Realtime Reconnection Config ────────────────────────────────────────────
-const REALTIME_RECONNECT_BASE_MS = 2_000;    // 2s initial delay
-const REALTIME_RECONNECT_MAX_MS = 60_000;    // 60s max delay
-const REALTIME_RECONNECT_MAX_ATTEMPTS = 10;  // Give up after 10 attempts
+// ─── Realtime Reconnection Config (PASSIVE — WebSocket is a BONUS, not primary) ──
+const REALTIME_RECONNECT_BASE_MS = 10_000;   // 10s initial delay (no rush — polling covers us)
+const REALTIME_RECONNECT_MAX_MS = 120_000;   // 2min max delay (we're patient — HTTP polling works)
+const REALTIME_RECONNECT_MAX_ATTEMPTS = 3;   // Only 3 attempts, then give up until next app wake
+
+// ─── Primary Data Channel: HTTP Polling (always-on, CGNAT-proof) ─────────────
+const POLLING_INTERVAL_ACTIVE_MS = 15_000;    // 15s when user is actively using the app
+const POLLING_INTERVAL_IDLE_MS = 45_000;      // 45s when app is idle (no interaction)
+const POLLING_INTERVAL_BACKGROUND_MS = 120_000; // 2min background (battery saver)
 
 // ─── GPS Recovery Config ─────────────────────────────────────────────────────
 const GPS_HEALTH_CHECK_INTERVAL_MS = 5 * 60_000;  // Check GPS health every 5 min
@@ -87,7 +100,23 @@ class AppLifecycleManager {
     // ── High Availability & Offline Features ──
     private netInfoSubscription: any = null;
     private pollingTimer: any = null;
+    public executePollRef: (() => Promise<void>) | null = null;
     private healthPingTimer: ReturnType<typeof setInterval> | null = null;
+    private keepalivePingTimer: ReturnType<typeof setInterval> | null = null;
+
+    /**
+     * Força a atualização da UI buscando dados no servidor.
+     */
+    public forceUISync() {
+        if (this.executePollRef) {
+            this.executePollRef().catch(() => {});
+        } else {
+            // Fallback se não configurado
+            this.orderChangeListeners.forEach(cb => {
+                try { cb({ eventType: 'POLL_SYNC', new: {} }); } catch (e) { /* silent */ }
+            });
+        }
+    }
     private offlineQueue: Array<{
         id: string;
         operationId: string; // Garantia Idempotência Backend
@@ -108,6 +137,79 @@ class AppLifecycleManager {
         consecutiveFailures: 0,
         totalUptimeMs: 0,
         lastConnectTime: 0,
+        connectionHealth: 100,          // 0–100 score
+        healthHistory: [100, 100, 100, 100, 100], // Moving-average window
+        // ── Extended Connection Telemetry (Enterprise Observability) ────────
+        totalHardResets: 0,             // Hard reconnects (circuit-breaker level)
+        totalTimeConnectedMs: 0,        // Cumulative CONNECTED uptime
+        totalTimeIdleMs: 0,             // Cumulative CONNECTED_IDLE time
+        idleTransitions: 0,             // How often we entered IDLE
+        avgTimeToFirstDataMs: 0,        // Rolling avg: connect → first payload
+        _idleEnteredAt: 0,              // Internal: timestamp when IDLE started
+        _connectedEnteredAt: 0,         // Internal: timestamp when CONNECTED started
+        _firstDataSamples: [] as number[], // Rolling window for avg calculation
+    };
+
+    // ── Resiliency Configs (Enterprise Tuned) ──
+    private readonly HEALTH_PENALTY = 15; // Suavização de penalidade (menos agressivo do que 25)
+    private lastWakeUpTime = Date.now(); // Grace period após fg
+    private channelFailingSince: number | null = null; // Confidence Window para erros efêmeros
+
+    // ── Watchdog & Deep Sleep (PASSIVE — only observes, never kills) ──
+    private lastBackgroundTime = 0;
+    private watchdogTimer: ReturnType<typeof setInterval> | null = null;
+    private lastDataReceivedAt = Date.now();
+    private lastHeartbeatAt = Date.now();
+    private lastChannelErrorAt: number | null = null;
+    private readonly DEEP_SLEEP_MS = 120 * 1000; // 2min em BG = reconectar realtime (relaxado — polling cobre)
+    
+    // ── Primary Polling (Always-On HTTP — CGNAT-proof) ──
+    private primaryPollingTimer: ReturnType<typeof setInterval> | null = null;
+    private lastPollSuccessAt = 0;
+    private pollFailCount = 0;
+    private userLastInteractionAt = Date.now();
+    
+    // ── Reconnect (Calm — max 3, no storm) ──
+    private hardResetTimestamps: number[] = [];
+    private readonly MAX_HARD_RESETS_PER_MIN = 2;
+    private lastDeepSleepWakeAt = 0;
+    private readonly CLARO_NAT_STABILIZE_MS = 8000; // Tempo mínimo para NAT da Claro estabilizar pós-deep-sleep
+
+    // ── Global Network State ──
+    public globalNetworkState = 'DISCONNECTED'; // DISCONNECTED, CONNECTING, CONNECTED, CONNECTED_IDLE, DEGRADED, RECONNECTING, ERROR
+    private networkStateListeners: Set<(state: string) => void> = new Set();
+
+    // ── Enterprise Observability ──
+    /** Optional external callback for metrics updates (analytics, UI dashboards). */
+    private metricsUpdateListeners: Set<(metrics: typeof this.realtimeMetrics) => void> = new Set();
+    /** Timer that fires if we remain in CONNECTED_IDLE for > MAX_IDLE_TIME_MS without incoming data */
+    private extendedIdleTimer: ReturnType<typeof setTimeout> | null = null;
+    private readonly MAX_IDLE_TIME_MS = 3 * 60 * 1000; // 3 minutes
+
+    // ── Intelligence Layer (Pattern Detection + Analytics) ──
+    /** Structured event log for pattern analysis and future AI/backend ingestion */
+    private _connectionEventLog: Array<{
+        event: string;
+        state: string;
+        ts: number;
+        meta?: Record<string, any>;
+    }> = [];
+    private readonly MAX_EVENT_LOG = 50; // Rolling window, no memory leak
+
+    /** Pattern detection counters (reset per session) */
+    private _patternCounters = {
+        reconnectsInWindow: 0,      // reconnects in last 5 minutes
+        reconnectWindowStart: 0,    // start of counting window
+        extendedIdleCount: 0,       // number of confirmed extended-idle events
+        lowHealthCount: 0,          // consecutive health < 40 state transitions
+    };
+
+    /** Analytics payload accumulated during session, ready for backend flush */
+    private _analyticsSession = {
+        sessionId: `sess_${Date.now().toString(36)}`,
+        startedAt: Date.now(),
+        userId: null as string | null,
+        events: [] as Array<{ event: string; ts: number; meta?: Record<string, any> }>,
     };
 
     // ── UI callbacks registered by components ──
@@ -119,7 +221,7 @@ class AppLifecycleManager {
     // ── Notification subscriptions (moved from _layout.tsx) ──
     private notificationReceivedSub: any = null;
     private notificationResponseSub: any = null;
-    private notificationResponseHandler: ((orderId: string) => void) | null = null;
+    private notificationResponseHandler: ((orderId: string) => void | Promise<void>) | null = null;
 
     // ── Timers & controls ──
     private sessionRefreshDebounce = createDebounce(3000);
@@ -202,13 +304,25 @@ class AppLifecycleManager {
             );
             this.setupNotificationListeners();
 
-            // 7. Setup realtime channels (singleton, with reconnection)
-            await this.setupRealtime();
+            // 7. START PRIMARY HTTP POLLING (always-on, CGNAT-proof)
+            this.startPrimaryPolling();
 
-            // 8. High Availability Connectivity Listener + Health Check
+            // 8. Setup realtime channels (PASSIVE bonus — not relied upon)
+            await this.setupRealtime();
+            this.startWatchdog();
+
+            // 9. Start keepalive ping (Section 1.4: select 1 every 45s while foreground + logged in)
+            this.startKeepalivePing();
+
+            // 10. Resume interrupted uploads (Section 6.2)
+            resilientUpload.resumeAll().catch(() => {});
+
+            // 11. High Availability Connectivity Listener
             await this.loadOfflineQueue();
             this.setupConnectivityListener();
-            this.startActiveHealthCheck();
+
+            // 12. Auto Check-in: load tenant settings + active orders
+            this.setupAutoCheckin().catch(() => {});
 
             this.state.initialized = true;
             console.log('[Lifecycle] ✅ App lifecycle initialized successfully');
@@ -264,7 +378,11 @@ class AppLifecycleManager {
             this.netInfoSubscription = null;
         }
         if (this.pollingTimer) clearTimeout(this.pollingTimer);
+        if (this.primaryPollingTimer) { clearInterval(this.primaryPollingTimer); this.primaryPollingTimer = null; }
         if (this.healthPingTimer) clearInterval(this.healthPingTimer);
+        if (this.keepalivePingTimer) { clearInterval(this.keepalivePingTimer); this.keepalivePingTimer = null; }
+        if (this.watchdogTimer) clearInterval(this.watchdogTimer);
+        if (this.extendedIdleTimer) { clearTimeout(this.extendedIdleTimer); this.extendedIdleTimer = null; }
         this.offlineQueue = [];
 
         // 8. Reset all state
@@ -280,10 +398,21 @@ class AppLifecycleManager {
         };
 
         this.orderChangeListeners.clear();
+        this.networkStateListeners.clear();
+        this.metricsUpdateListeners.clear();
         this.gpsRecoveryAttempts = 0;
         this.realtimeReconnectAttempts = 0;
         this.realtimeCooldownUntil = 0;
-        this.realtimeMetrics = { sessionReconnects: 0, consecutiveFailures: 0, totalUptimeMs: 0, lastConnectTime: 0 };
+        this.realtimeMetrics = {
+            sessionReconnects: 0, consecutiveFailures: 0, totalUptimeMs: 0,
+            lastConnectTime: 0, connectionHealth: 100, healthHistory: [100, 100, 100, 100, 100],
+            totalHardResets: 0, totalTimeConnectedMs: 0, totalTimeIdleMs: 0,
+            idleTransitions: 0, avgTimeToFirstDataMs: 0,
+            _idleEnteredAt: 0, _connectedEnteredAt: 0, _firstDataSamples: [],
+        };
+        this._connectionEventLog = [];
+        this._patternCounters = { reconnectsInWindow: 0, reconnectWindowStart: 0, extendedIdleCount: 0, lowHealthCount: 0 };
+        this._analyticsSession = { sessionId: `sess_${Date.now().toString(36)}`, startedAt: Date.now(), userId: null, events: [] };
 
         console.log('[Lifecycle] ✅ Lifecycle destroyed — zero resources remaining');
     }
@@ -292,7 +421,7 @@ class AppLifecycleManager {
      * Register a handler for notification taps (deep linking to OS).
      * Called by _layout.tsx so the router can handle navigation.
      */
-    setNotificationResponseHandler(handler: (orderId: string) => void) {
+    setNotificationResponseHandler(handler: (orderId: string) => void | Promise<void>) {
         this.notificationResponseHandler = handler;
     }
 
@@ -308,10 +437,290 @@ class AppLifecycleManager {
     }
 
     /**
+     * Dispara fetch imediato e silencioso na camada de View.
+     */
+    forceUISync() {
+        console.log('[Lifecycle] 🔄 Forçando resync otimista da UI...');
+        this.orderChangeThrottle(() => {
+            this.orderChangeListeners.forEach(cb => {
+                try { cb({ eventType: 'WAKEUP_SYNC', new: {} }); } catch (e) { /* silent */ }
+            });
+        });
+    }
+
+    /**
+     * Subscribe to global network state changes (for UI).
+     * @returns unsubscribe function
+     */
+    onNetworkStateChange(callback: (state: string) => void): () => void {
+        this.networkStateListeners.add(callback);
+        callback(this.globalNetworkState);
+        return () => this.networkStateListeners.delete(callback);
+    }
+
+    /**
+     * Register a callback that fires whenever connection metrics are updated.
+     * Use for analytics dashboards, UI health indicators, or remote monitoring.
+     * @returns unsubscribe function
+     */
+    onConnectionMetricsUpdate(callback: (metrics: typeof this.realtimeMetrics) => void): () => void {
+        this.metricsUpdateListeners.add(callback);
+        // Emit current snapshot immediately
+        try { callback({ ...this.realtimeMetrics }); } catch (e) { /* silent */ }
+        return () => this.metricsUpdateListeners.delete(callback);
+    }
+
+    /** Returns a read-only snapshot of all connection telemetry. */
+    getConnectionMetrics(): Readonly<typeof this.realtimeMetrics> {
+        return { ...this.realtimeMetrics };
+    }
+
+    /**
+     * Returns a human-readable message describing the current connection state.
+     * Use these strings in loading states, empty screens, or status banners
+     * wherever context is useful — without requiring a permanent global UI element.
+     *
+     * Map:
+     *   CONNECTED        → App in sync
+     *   CONNECTED_IDLE   → Awaiting updates (quiet period)
+     *   RECONNECTING     → Reconnecting…
+     *   DEGRADED         → Slow connection, using cached data
+     *   ERROR            → Connection error
+     *   DISCONNECTED     → Offline
+     */
+    getConnectionStatusMessage(): { text: string; severity: 'ok' | 'info' | 'warn' | 'error' } {
+        switch (this.globalNetworkState) {
+            case 'CONNECTED':
+                return { text: 'Sincronizado', severity: 'ok' };
+            case 'CONNECTED_IDLE':
+                return { text: 'Aguardando novas atualizações', severity: 'info' };
+            case 'RECONNECTING':
+                return { text: 'Reconectando…', severity: 'warn' };
+            case 'DEGRADED':
+                return { text: 'Conexão instável — usando dados em cache', severity: 'warn' };
+            case 'ERROR':
+                return { text: 'Erro de conexão — tentando recuperar', severity: 'error' };
+            case 'DISCONNECTED':
+                return { text: 'Modo offline — dados podem estar desatualizados', severity: 'error' };
+            default:
+                return { text: 'Sincronizando dados…', severity: 'info' };
+        }
+    }
+
+    /**
+     * Returns the last N connection events for external inspection.
+     * Useful for debug screens, support reports, or AI pattern tools.
+     */
+    getConnectionEventLog(limit = 20): ReadonlyArray<typeof this._connectionEventLog[0]> {
+        return this._connectionEventLog.slice(-limit);
+    }
+
+    /**
+     * Flush accumulated analytics payload (call after major actions or on session end).
+     * Returns the payload for the caller to forward to their backend.
+     */
+    flushAnalyticsSession(): typeof this._analyticsSession & { metrics: ReturnType<typeof this.exportHealthMetrics> } {
+        const payload = {
+            ...this._analyticsSession,
+            metrics: this.exportHealthMetrics(),
+        };
+        // Reset events but keep session ID and start time for continuity
+        this._analyticsSession.events = [];
+        this._patternCounters = { reconnectsInWindow: 0, reconnectWindowStart: 0, extendedIdleCount: 0, lowHealthCount: 0 };
+        console.log('[Analytics] 📤 Session analytics flushed:', JSON.stringify(payload).length, 'bytes');
+        return payload;
+    }
+
+    /**
+     * Internal method to safely override global state and notify all listeners.
+     */
+    private setGlobalNetworkState(newState: string) {
+        const prevState = this.globalNetworkState;
+        if (prevState === newState) return;
+        this.globalNetworkState = newState;
+        console.log(`[Lifecycle] 🌐 Global State Transition -> ${newState}`);
+
+        const now = Date.now();
+
+        // ── Telemetry: time accumulation ─────────────────────────────────
+        if (prevState === 'CONNECTED' && this.realtimeMetrics._connectedEnteredAt > 0) {
+            this.realtimeMetrics.totalTimeConnectedMs += now - this.realtimeMetrics._connectedEnteredAt;
+            this.realtimeMetrics._connectedEnteredAt = 0;
+        }
+        if (prevState === 'CONNECTED_IDLE' && this.realtimeMetrics._idleEnteredAt > 0) {
+            const idleDurationMs = now - this.realtimeMetrics._idleEnteredAt;
+            this.realtimeMetrics.totalTimeIdleMs += idleDurationMs;
+            console.log(`[Metrics] Idle duration: ${Math.round(idleDurationMs / 1000)}s`);
+            this.realtimeMetrics._idleEnteredAt = 0;
+            // Cancel extended-idle detector when leaving IDLE
+            if (this.extendedIdleTimer) { clearTimeout(this.extendedIdleTimer); this.extendedIdleTimer = null; }
+        }
+
+        if (newState === 'CONNECTED') {
+            this.realtimeMetrics._connectedEnteredAt = now;
+        }
+        if (newState === 'CONNECTED_IDLE') {
+            this.realtimeMetrics.idleTransitions++;
+            this.realtimeMetrics._idleEnteredAt = now;
+            // ─ Extended idle detector: observe only, NEVER reconnect ─
+            if (this.extendedIdleTimer) clearTimeout(this.extendedIdleTimer);
+            this.extendedIdleTimer = setTimeout(() => {
+                if (this.globalNetworkState === 'CONNECTED_IDLE') {
+                    console.warn('[Watchdog] ⚠️ Extended idle detected — possible silent failure');
+                    console.log(`[Metrics] Reconnect count: ${this.realtimeMetrics.sessionReconnects}`);
+                    console.log(`[Metrics] Avg time to data: ${Math.round(this.realtimeMetrics.avgTimeToFirstDataMs)} ms`);
+                    // Observers are notified below — no reconnect triggered
+                }
+            }, this.MAX_IDLE_TIME_MS);
+        }
+
+        // ── Health score ─────────────────────────────────────────
+        this._recalculateHealthScore();
+
+        // ── Pattern detection ───────────────────────────────────
+        this._detectPatterns(newState);
+
+        // ── Structured event log ──────────────────────────────
+        this._logConnectionEvent('STATE_CHANGE', newState, { prev: prevState, health: this.realtimeMetrics.connectionHealth });
+
+        // Notify state observers
+        this.networkStateListeners.forEach(cb => {
+            try { cb(newState); } catch (e) { /* silent */ }
+        });
+        // Notify metrics observers
+        this._emitMetricsUpdate();
+    }
+
+    /** Recalculate connectionHealth using penalties + idle stability bonus. */
+    private _recalculateHealthScore() {
+        // Base: moving-average score
+        const movingAvg = this.realtimeMetrics.healthHistory.reduce((a, b) => a + b, 0)
+            / this.realtimeMetrics.healthHistory.length;
+
+        // Penalty: each recent reconnect costs 5 pts (capped at last 5 reconnects)
+        const reconnectPenalty = Math.min(this.realtimeMetrics.sessionReconnects, 5) * 5;
+
+        // Penalty: consecutive failures cost 10 pts each (capped at 3)
+        const errorPenalty = Math.min(this.realtimeMetrics.consecutiveFailures, 3) * 10;
+
+        // Bonus: if we've been stably IDLE, add up to +5 pts for proven stability
+        const idleStabilityBonus = this.globalNetworkState === 'CONNECTED_IDLE' ? 5 : 0;
+
+        const score = Math.max(0, Math.min(100, movingAvg - reconnectPenalty - errorPenalty + idleStabilityBonus));
+        this.realtimeMetrics.connectionHealth = Math.round(score);
+    }
+
+    /** Emit metrics snapshot to all registered metric observers. */
+    private _emitMetricsUpdate() {
+        if (this.metricsUpdateListeners.size === 0) return;
+        const snapshot = { ...this.realtimeMetrics };
+        this.metricsUpdateListeners.forEach(cb => {
+            try { cb(snapshot); } catch (e) { /* silent */ }
+        });
+    }
+
+    /**
+     * Pattern detector — called on every state transition.
+     * Identifies infrastructure-level anomalies without disrupting existing flow.
+     */
+    private _detectPatterns(newState: string) {
+        const now = Date.now();
+
+        // ─ Pattern 1: Frequent reconnects (reconnect storm indicator) ──────────
+        if (newState === 'RECONNECTING') {
+            const windowMs = 5 * 60 * 1000; // 5-minute window
+            if (now - this._patternCounters.reconnectWindowStart > windowMs) {
+                // Start new window
+                this._patternCounters.reconnectsInWindow = 0;
+                this._patternCounters.reconnectWindowStart = now;
+            }
+            this._patternCounters.reconnectsInWindow++;
+            if (this._patternCounters.reconnectsInWindow >= 3) {
+                console.warn(
+                    `[Analytics] 🚨 PATTERN: ${this._patternCounters.reconnectsInWindow} reconnects in 5min ` +
+                    `— possible infrastructure instability (health: ${this.realtimeMetrics.connectionHealth})`
+                );
+                this._logConnectionEvent('PATTERN_FREQUENT_RECONNECT', newState, {
+                    count: this._patternCounters.reconnectsInWindow,
+                    windowMs,
+                });
+            }
+        }
+
+        // ─ Pattern 2: Extended idle recurrence ─────────────────────────
+        // (Fires inside the extended-idle timeout in setGlobalNetworkState)
+        // Increment here when the idle threshold is crossed:
+        if (newState === 'CONNECTED_IDLE') {
+            // Arm an analytics flag — actual extended detection is in the timer
+            const prevExtendedIdleCount = this._patternCounters.extendedIdleCount;
+            setTimeout(() => {
+                if (this.globalNetworkState === 'CONNECTED_IDLE') {
+                    this._patternCounters.extendedIdleCount++;
+                    if (this._patternCounters.extendedIdleCount >= 2) {
+                        console.warn(
+                            `[Analytics] 🚨 PATTERN: Repeated extended idle (x${this._patternCounters.extendedIdleCount}) ` +
+                            `— backend may have silent failure`
+                        );
+                        this._logConnectionEvent('PATTERN_REPEATED_EXTENDED_IDLE', newState, {
+                            count: this._patternCounters.extendedIdleCount,
+                        });
+                    }
+                }
+            }, this.MAX_IDLE_TIME_MS);
+        }
+
+        // ─ Pattern 3: Chronically low health score ────────────────────
+        if (this.realtimeMetrics.connectionHealth < 40) {
+            this._patternCounters.lowHealthCount++;
+            if (this._patternCounters.lowHealthCount >= 3) {
+                console.warn(
+                    `[Analytics] 🚨 PATTERN: Health persistently < 40 ` +
+                    `(${this._patternCounters.lowHealthCount}x) — degraded network environment`
+                );
+                this._logConnectionEvent('PATTERN_LOW_HEALTH', newState, {
+                    health: this.realtimeMetrics.connectionHealth,
+                    consecutiveCount: this._patternCounters.lowHealthCount,
+                });
+            }
+        } else {
+            this._patternCounters.lowHealthCount = 0; // Reset streak on recovery
+        }
+    }
+
+    /**
+     * Append a structured event to the rolling connection event log.
+     * Used for observability, debug, and future AI/pattern analysis ingestion.
+     */
+    private _logConnectionEvent(event: string, state: string, meta?: Record<string, any>) {
+        const entry = { event, state, ts: Date.now(), ...(meta ? { meta } : {}) };
+        this._connectionEventLog.push(entry);
+        if (this._connectionEventLog.length > this.MAX_EVENT_LOG) {
+            this._connectionEventLog.shift(); // Rolling window — no memory leak
+        }
+        // Mirror to analytics session for backend flush
+        this._analyticsSession.events.push({ event, ts: entry.ts, meta });
+        if (this._analyticsSession.events.length > this.MAX_EVENT_LOG) {
+            this._analyticsSession.events.shift();
+        }
+    }
+
+    /**
      * Get current lifecycle state (for observability/debugging).
      */
     getState(): Readonly<LifecycleState> {
         return { ...this.state };
+    }
+
+    /**
+     * Suspende o Watchdog agressivo temporariamente.
+     * Ideal para ser invocado pela UI quando o usuário iniciar filtros pesados
+     * ou buscas intensivas que mascaram a percepção de inatividade de rede.
+     */
+    suspendWatchdogTemporarily(durationMs: number = 8000) {
+        this.watchdogSuspendedUntil = Date.now() + durationMs;
+        this.lastDataReceivedAt = Date.now(); // Reseta para evitar morte súbita pós-grace
+        this.lastHeartbeatAt = Date.now();
+        console.log(`[Lifecycle] 🛡️ Watchdog suspenso explicitamente por ${durationMs}ms para ação da UI.`);
     }
 
     /**
@@ -336,9 +745,35 @@ class AppLifecycleManager {
             const prevState = this.state.appState;
             this.state.appState = nextState;
 
+            if (nextState === 'background') {
+                this.lastBackgroundTime = Date.now();
+                // Section 2.4: Pause pings in background
+                if (this.keepalivePingTimer) {
+                    clearInterval(this.keepalivePingTimer);
+                    this.keepalivePingTimer = null;
+                }
+                return;
+            }
+
             // Only act on background → active transition
             if (prevState.match(/inactive|background/) && nextState === 'active') {
                 console.log('[Lifecycle] 💓 App returned to foreground');
+                this.lastWakeUpTime = Date.now(); // Armazena timestamp real de Acordada do FG (Grace Period)
+                
+                // 🚀 BIG TECH PATTERN: UI Otimista. Independente da saúde do socket, 
+                // forçamos as telas principais a buscarem o estado mais fresco via HTTP Rest.
+                this.forceUISync();
+
+                // Section 2.2: Quick resume if >90s since last activity
+                BootstrapService.quickResume().catch(() => {});
+
+                // Section 6.2: Resume interrupted uploads on foreground return
+                resilientUpload.resumeAll().catch(() => {});
+
+                // Restart keepalive ping (was paused in background)
+                this.startKeepalivePing();
+
+                const timeAsleep = Date.now() - this.lastBackgroundTime;
 
                 // Debounced session refresh with cooldown
                 this.sessionRefreshDebounce(() => {
@@ -351,8 +786,24 @@ class AppLifecycleManager {
                     this.refreshSession();
                 });
 
-                // Check realtime health on foreground return
-                this.checkRealtimeHealth();
+                if (timeAsleep > this.DEEP_SLEEP_MS) {
+                    console.warn(`[Lifecycle] 💤 Deep sleep detectado (${Math.round(timeAsleep/1000)}s). Reconectando realtime calmamente...`);
+                    
+                    // Polling já está rodando (sempre ativo), então dados frescos chegam via HTTP.
+                    // Apenas tentamos reconectar o WebSocket como bônus, sem pressa.
+                    this.lastDeepSleepWakeAt = Date.now();
+                    const natStabilizeDelay = this.CLARO_NAT_STABILIZE_MS;
+                    
+                    console.log(`[Lifecycle] 📡 Aguardando ${natStabilizeDelay}ms para o NAT da operadora estabilizar antes de reconectar WebSocket...`);
+                    setTimeout(() => {
+                        this.realtimeCooldownUntil = 0;
+                        this.isReconnecting = false;
+                        this.scheduleRealtimeReconnect();
+                    }, natStabilizeDelay);
+                } else {
+                    console.log('[Lifecycle] ☀️ Soft wake. Polling ativo. Validando WebSocket como bônus...');
+                    this.checkRealtimeHealth();
+                }
             }
         });
     }
@@ -547,6 +998,9 @@ class AppLifecycleManager {
                         filter: `user_id=eq.${userId}`,
                     },
                     (payload: any) => {
+                        this.lastDataReceivedAt = Date.now(); // Feed the watchdog
+                        // Sair do IDLE ao receber dado real
+                        if (this.globalNetworkState === 'CONNECTED_IDLE') this.setGlobalNetworkState('CONNECTED');
                         const notif = payload.new;
                         NotificationService.triggerLocalNotification(
                             '📋 Nova Notificação',
@@ -555,6 +1009,12 @@ class AppLifecycleManager {
                         );
                     }
                 )
+                // Implementação de ping ativo via listener system
+                .on('system', { event: '*' }, () => {
+                    this.lastDataReceivedAt = Date.now();
+                    // Heartbeats do sistema também tiram do IDLE
+                    if (this.globalNetworkState === 'CONNECTED_IDLE') this.setGlobalNetworkState('CONNECTED');
+                })
                 .subscribe((status: string, err?: Error) => {
                     console.log(`[Lifecycle] 📡 Notification channel: ${status}`);
                     this.handleChannelStatus('notifications', status, err);
@@ -572,6 +1032,9 @@ class AppLifecycleManager {
                         filter: `assigned_to=eq.${userId}`,
                     },
                     (payload: any) => {
+                        this.lastDataReceivedAt = Date.now(); // Feed the watchdog
+                        // Sair do IDLE ao receber dado real do canal de orders
+                        if (this.globalNetworkState === 'CONNECTED_IDLE') this.setGlobalNetworkState('CONNECTED');
                         console.log('[Lifecycle] 🔄 Order change:', payload.eventType);
 
                         // Throttled dispatch to all listeners
@@ -580,6 +1043,9 @@ class AppLifecycleManager {
                                 try { cb(payload); } catch (e) { /* silent */ }
                             });
                         });
+
+                        // Refresh auto-checkin order list when OS status changes
+                        this.refreshAutoCheckinOrders().catch(() => {});
 
                         // Trigger local notification for new assignments
                         if (payload.eventType === 'INSERT') {
@@ -591,18 +1057,38 @@ class AppLifecycleManager {
                         }
                     }
                 )
+                // Implementação de ping ativo via listener system
+                .on('system', { event: '*' }, () => {
+                    this.lastHeartbeatAt = Date.now(); // System pings count as connection heartbeat, not data!
+                })
                 .subscribe((status: string, err?: Error) => {
                     console.log(`[Lifecycle] 📡 Orders channel: ${status}`);
                     this.handleChannelStatus('orders', status, err);
                 });
 
             this.state.realtimeActive = true;
+            this.lastDataReceivedAt = Date.now(); 
+            this.lastHeartbeatAt = Date.now(); 
             console.log('[Lifecycle] 📡 Realtime channels established (awaiting stability)');
 
         } catch (error) {
             console.error('[Lifecycle] ❌ Realtime setup failed:', error);
             this.scheduleRealtimeReconnect();
         }
+    }
+
+    /**
+     * Atualiza a Média Móvel de Saúde da Conexão (Suaviza oscilações numéricas).
+     */
+    private pushHealthMovingAverage(newScore: number) {
+        this.realtimeMetrics.healthHistory.push(newScore);
+        if (this.realtimeMetrics.healthHistory.length > 5) {
+            this.realtimeMetrics.healthHistory.shift();
+        }
+        // Actual health score is now computed in _recalculateHealthScore() on every state transition.
+        // This keeps the moving-average window updated for that calculation.
+        const sum = this.realtimeMetrics.healthHistory.reduce((a, b) => a + b, 0);
+        this.realtimeMetrics.connectionHealth = Math.round(sum / this.realtimeMetrics.healthHistory.length);
     }
 
     /**
@@ -617,16 +1103,61 @@ class AppLifecycleManager {
 
         if (status === 'SUBSCRIBED') {
             console.log(`[Lifecycle] 📡 Channel "${channelName}" SUBSCRIBED. Waiting 15s for stability...`);
+            this.setGlobalNetworkState('CONNECTED');
+            this.channelFailingSince = null;
             
-            // Atualiza métricas 
             this.realtimeMetrics.lastConnectTime = Date.now();
             this.realtimeMetrics.consecutiveFailures = 0;
+            this.pushHealthMovingAverage(100);
             if (this.pollingTimer) clearInterval(this.pollingTimer);
 
             if (this.realtimeStabilityTimer) clearTimeout(this.realtimeStabilityTimer);
+            const dataSnapshotAtSubscribe = this.lastDataReceivedAt;
+            const subscribeTime = Date.now();
+            const timeSinceDeepSleep = subscribeTime - this.lastDeepSleepWakeAt;
+            
+            // 🔑 CLARO NAT FIX: Se recebemos SUBSCRIBED muito rápido após um deep-sleep wake,
+            // pode ser um falso positivo do buffer interno do SDK. Validamos com um ping ativo.
+            const isLikelyFalsePositive = this.lastDeepSleepWakeAt > 0 && timeSinceDeepSleep < 8000;
+            
+            if (isLikelyFalsePositive && channelName === 'orders') {
+                console.warn(`[Lifecycle] ⚠️ SUBSCRIBED em ${Math.round(timeSinceDeepSleep/1000)}s após deep-sleep. Validando com ping ativo (possível falso positivo Claro/CGNAT)...`);
+                setTimeout(() => {
+                    if (!this.ordersChannel || this.isTearingDownRealtime) return;
+                    this._safeBroadcast(this.ordersChannel, 'nat_validation_ping', { ts: Date.now() })
+                        .then(() => {
+                            console.log('[Lifecycle] ✅ Ping de validação NAT OK. SUBSCRIBED confirmado como real.');
+                            this.lastHeartbeatAt = Date.now();
+                        })
+                        .catch(() => {
+                            console.warn('[Lifecycle] 🚨 Ping de validação NAT FALHOU. SUBSCRIBED era falso positivo. Forçando reconnect imediato.');
+                            this.channelFailingSince = Date.now();
+                            this.state.realtimeActive = false;
+                            this.realtimeCooldownUntil = 0;
+                            this.isReconnecting = false;
+                            this.scheduleRealtimeReconnect();
+                        });
+                }, 2500); // Aguarda 2.5s antes de pingar (dá tempo da subscrição assentar)
+            }
+
             this.realtimeStabilityTimer = setTimeout(() => {
-                console.log(`[Lifecycle] 📡 Realtime estável por 15s. Resetting reconnect backoff.`);
+                console.log(`[Lifecycle] 📡 Realtime estável por 15s. Resetting reconnect backoff e limpando flags de erro.`);
                 this.realtimeReconnectAttempts = 0;
+                this.lastChannelErrorAt = null;
+                this.lastDeepSleepWakeAt = 0; // Reset deep sleep flag após estabilidade confirmada
+                
+                // 🔑 v3: BREAK THE DEATH SPIRAL — resetar health history após estabilidade confirmada
+                // Sem isso, a média móvel fica presa em <40 e trava o app em "cronicamente degradado" para sempre
+                this.realtimeMetrics.healthHistory = [80, 80, 80, 80, 80];
+                this.realtimeMetrics.consecutiveFailures = 0;
+                this._patternCounters.lowHealthCount = 0; // Reset contador de saúde baixa
+                this._recalculateHealthScore();
+                console.log(`[Lifecycle] 📡 Health score resetado para ${this.realtimeMetrics.connectionHealth} após estabilidade confirmada.`);
+
+                if (this.lastDataReceivedAt <= dataSnapshotAtSubscribe && !this.lastChannelErrorAt) {
+                    console.log('[Lifecycle] 💤 Connection is idle but healthy');
+                    this.setGlobalNetworkState('CONNECTED_IDLE');
+                }
             }, 15000);
             return;
         }
@@ -635,72 +1166,405 @@ class AppLifecycleManager {
             const reason = err?.message || 'unknown';
             console.warn(`[Lifecycle] ⚠️ Channel "${channelName}" dropped: ${status} (Reason: ${reason})`);
             
-            // Coleta de métricas (Uptime e falhas consecutivas)
+            // Marca flag de erro recente
+            this.lastChannelErrorAt = Date.now();
+            if (!this.channelFailingSince) this.channelFailingSince = Date.now();
+            
+            // NÃO setamos ERROR global — polling HTTP primário continua funcionando normalmente
+            // Apenas degradamos se o polling TAMBÉM estiver falhando
+            if (this.pollFailCount >= 3) {
+                this.setGlobalNetworkState('ERROR');
+            } else {
+                // Polling funciona: WebSocket caiu mas dados continuam chegando via HTTP
+                this.setGlobalNetworkState('DEGRADED');
+            }
+            
+            // Coleta de métricas
             if (this.realtimeMetrics.lastConnectTime > 0) {
                 this.realtimeMetrics.totalUptimeMs += (Date.now() - this.realtimeMetrics.lastConnectTime);
                 this.realtimeMetrics.lastConnectTime = 0;
             }
             this.realtimeMetrics.consecutiveFailures++;
+            const lastHealth = this.realtimeMetrics.healthHistory[this.realtimeMetrics.healthHistory.length - 1] || 100;
+            this.pushHealthMovingAverage(Math.max(0, lastHealth - this.HEALTH_PENALTY));
 
-            // Mark as inactive and schedule reconnect
-            this.state.realtimeActive = false;
-            this.scheduleRealtimeReconnect();
-            this.managePollingFallback(); // Engata polling enquanto rede flutua
+            // Reconnect calmo após 60s (sem pressa — polling cobre)
+            setTimeout(() => {
+                if (this.channelFailingSince && Date.now() - this.channelFailingSince >= 58000) {
+                    console.log(`[Lifecycle] 📡 WebSocket instável por 60s. Tentando reconectar calmamente (polling ativo cobre dados).`);
+                    this.state.realtimeActive = false;
+                    this.scheduleRealtimeReconnect();
+                }
+            }, 60000);
         }
+    }
+
+    private watchdogSuspendedUntil = 0;
+
+    /**
+     * 🛡️ PASSIVE WATCHDOG v4 (Observe-Only — NEVER kills the socket)
+     * 
+     * The primary data channel is HTTP Polling (always-on, CGNAT-proof).
+     * This watchdog only:
+     * 1. Logs WebSocket health for telemetry
+     * 2. Schedules a CALM reconnect if WebSocket has been dead for 3+ minutes
+     * 3. NEVER triggers aggressive reconnect storms
+     */
+    private startWatchdog() {
+        if (this.watchdogTimer) clearInterval(this.watchdogTimer);
+        
+        this.watchdogTimer = setInterval(() => {
+            if (!this.state.initialized || this.state.isOffline || this.isTearingDownRealtime) return;
+            if (Date.now() < this.watchdogSuspendedUntil) return;
+
+            const now = Date.now();
+            const timeSinceData = now - this.lastDataReceivedAt;
+            const timeSinceHeartbeat = now - this.lastHeartbeatAt;
+            
+            // Passive health score update (doesn't trigger any action)
+            const worstDelay = Math.max(timeSinceData, timeSinceHeartbeat);
+            // Slower degradation: health score is based on worst delay over 120s window (not 45s)
+            this.pushHealthMovingAverage(Math.max(20, 100 - (worstDelay / 2000)));
+
+            // Log only — no killing
+            if (timeSinceHeartbeat > 12_000 && this.state.realtimeActive) {
+                console.log(`[Watchdog] 📡 WebSocket silent for ${Math.round(timeSinceHeartbeat/1000)}s. Polling HTTP cobre dados. Tentando reconectar WebSocket em background...`);
+                // Calm reconnect — no rush, polling covers us
+                if (!this.isReconnecting && !this.realtimeReconnectTimer) {
+                    this.state.realtimeActive = false;
+                    this.scheduleRealtimeReconnect();
+                }
+                this.lastHeartbeatAt = now; // Reset to avoid spamming
+            } else if (timeSinceHeartbeat > 6_000 && this.state.realtimeActive) {
+                // Gentle ping — if it fails, channel error will fire naturally
+                if (this.ordersChannel) {
+                    try {
+                        this._safeBroadcast(this.ordersChannel, 'watchdog_ping', { ts: now }).catch(() => {});
+                    } catch (e) { /* silent */ }
+                }
+            }
+        }, 3000); // Check every 3s for speedier recoveries
+    }
+
+    /**
+     * 💓 KEEPALIVE PING (Section 1.4)
+     * 
+     * While foreground + logged in, runs a lightweight `select 1` every 45s.
+     * Keeps TCP alive through Claro's CGNAT (which drops idle connections in ~60s).
+     * 
+     * Rules:
+     * - Pauses in background (Section 2.4)
+     * - Only runs when initialized + not offline
+     * - Uses pingSupabase() which is a HEAD request (minimal bandwidth)
+     */
+    private startKeepalivePing() {
+        if (!CLARO_FIX_FLAGS.ENABLE_KEEPALIVE_PING) return;
+        if (this.keepalivePingTimer) return; // Already running
+
+        const PING_INTERVAL_MS = 45_000; // 45s (within Claro's ~60s idle window)
+
+        console.log('[Lifecycle] 💓 Starting keepalive ping every 45s');
+
+        this.keepalivePingTimer = setInterval(async () => {
+            if (!this.state.initialized || this.state.isOffline || this.state.appState !== 'active') return;
+
+            try {
+                const ok = await pingSupabase(8_000);
+                if (ok) {
+                    this.lastHeartbeatAt = Date.now();
+                    this.lastDataReceivedAt = Date.now();
+                } else {
+                    console.warn('[Lifecycle] 💓 Keepalive ping failed — connection may be stale');
+                }
+            } catch {
+                // Silent — ping is best-effort
+            }
+        }, PING_INTERVAL_MS);
+    }
+
+    /**
+     * 🔄 PRIMARY HTTP POLLING (Always-On, CGNAT-Proof)
+     *
+     * This is the REAL data channel. Runs continuously with adaptive intervals:
+     * - 15s when user is actively interacting
+     * - 45s when app is idle  
+     * - 120s when in background
+     *
+     * Each poll does a lightweight REST query and dispatches changes to UI listeners.
+     * This completely bypasses WebSocket/CGNAT issues.
+     */
+    // ═══════════════════════════════════════════════════════════════════════
+    // AUTO CHECK-IN SETUP
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /** Load tenant metadata to determine if auto check-in is enabled, then fetch orders */
+    private async setupAutoCheckin(): Promise<void> {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.user) return;
+
+            // Fetch tenant metadata for the user's tenant
+            const { data: userData } = await supabase
+                .from('users')
+                .select('tenant_id')
+                .eq('id', session.user.id)
+                .maybeSingle();
+
+            if (!userData?.tenant_id) return;
+
+            const { data: tenant } = await supabase
+                .from('tenants')
+                .select('metadata')
+                .eq('id', userData.tenant_id)
+                .maybeSingle();
+
+            const autoCheckinEnabled = tenant?.metadata?.autoCheckin === true;
+            setAutoCheckinEnabled(autoCheckinEnabled);
+            logger.log(`[AutoCheckin] Setting: ${autoCheckinEnabled ? '✅ Habilitado' : '🔴 Desabilitado'}`, 'info');
+
+            if (autoCheckinEnabled) {
+                await this.refreshAutoCheckinOrders();
+            }
+        } catch (err: any) {
+            logger.log(`[AutoCheckin] Erro ao configurar: ${err.message}`, 'warn');
+        }
+    }
+
+    /** Fetch active OS assigned to this technician and update auto-checkin monitor */
+    private async refreshAutoCheckinOrders(): Promise<void> {
+        try {
+            if (!this.state.userId) return;
+
+            const { data: orders, error } = await supabase
+                .from('orders')
+                .select('id, display_id, customer_name, customer_address, customer_id, status')
+                .eq('assigned_to', this.state.userId)
+                .in('status', ['ATRIBUÍDO', 'EM DESLOCAMENTO'])
+                .limit(20);
+
+            if (error || !orders) return;
+
+            // For each order, try to get customer lat/lng if available
+            const enriched: AutoCheckinOrder[] = await Promise.all(
+                orders.map(async (o: any) => {
+                    let lat: number | null = null;
+                    let lng: number | null = null;
+
+                    if (o.customer_id) {
+                        try {
+                            const { data: customer } = await supabase
+                                .from('customers')
+                                .select('latitude, longitude')
+                                .eq('id', o.customer_id)
+                                .maybeSingle();
+                            lat = customer?.latitude ?? null;
+                            lng = customer?.longitude ?? null;
+                        } catch { /* ignore */ }
+                    }
+
+                    return {
+                        id: o.id,
+                        displayId: o.display_id,
+                        customerName: o.customer_name,
+                        customerAddress: o.customer_address,
+                        customerId: o.customer_id,
+                        customerLat: lat,
+                        customerLng: lng,
+                        status: o.status,
+                    };
+                })
+            );
+
+            setAutoCheckinOrders(enriched);
+            logger.log(`[AutoCheckin] ${enriched.length} OS carregadas para monitoramento`, 'info');
+        } catch (err: any) {
+            logger.log(`[AutoCheckin] Erro ao carregar OS: ${err.message}`, 'warn');
+        }
+    }
+
+    private startPrimaryPolling() {
+        if (this.primaryPollingTimer) clearInterval(this.primaryPollingTimer);
+        this.lastPollSuccessAt = Date.now();
+        this.pollFailCount = 0;
+        
+        console.log('[Lifecycle] 🔄 Starting PRIMARY HTTP Polling (always-on, CGNAT-proof)');
+        
+        // Adaptive interval based on app activity
+        const getPollingInterval = (): number => {
+            if (this.state.appState !== 'active') return POLLING_INTERVAL_BACKGROUND_MS;
+            const timeSinceInteraction = Date.now() - this.userLastInteractionAt;
+            if (timeSinceInteraction > 2 * 60_000) return POLLING_INTERVAL_IDLE_MS; // 2min sem interação
+            return POLLING_INTERVAL_ACTIVE_MS;
+        };
+        
+        const executePoll = async () => {
+            if (this.state.isOffline || !this.state.userId || this.state.appState !== 'active') return;
+
+            try {
+                const start = Date.now();
+                const { data, error } = await supabase
+                    .from('orders')
+                    .select('id, updated_at')
+                    .eq('assigned_to', this.state.userId!)
+                    .order('updated_at', { ascending: false })
+                    .limit(3);
+
+                if (!error && data) {
+                    const latency = Date.now() - start;
+                    this.pollFailCount = 0;
+                    this.lastPollSuccessAt = Date.now();
+                    this.lastDataReceivedAt = Date.now(); // Feed watchdog
+                    
+                    // Se polling funciona, o app está saudável mesmo sem WebSocket
+                    if (this.globalNetworkState === 'ERROR' || this.globalNetworkState === 'DISCONNECTED') {
+                        this.setGlobalNetworkState(this.state.realtimeActive ? 'CONNECTED' : 'DEGRADED');
+                    }
+                    
+                    // Notifica UI listeners para refresh (throttled)
+                    this.orderChangeThrottle(() => {
+                        this.orderChangeListeners.forEach(cb => {
+                            try { cb({ eventType: 'POLL_SYNC', new: {} }); } catch (e) { /* silent */ }
+                        });
+                    });
+                    
+                    if (latency > 5000) {
+                        console.warn(`[Polling] 🐢 Alta latência HTTP: ${latency}ms`);
+                    }
+                } else if (error) {
+                    this.pollFailCount++;
+                    if (this.pollFailCount >= 3) {
+                        console.warn(`[Polling] ❌ 3 falhas consecutivas no HTTP Polling. Rede pode estar offline.`);
+                        this.setGlobalNetworkState('ERROR');
+                    }
+                }
+            } catch (e) {
+                this.pollFailCount++;
+                console.warn('[Polling] ❌ HTTP Poll exception:', (e as Error).message);
+            }
+        };
+
+        // Salva referência do poll para poder forçar do lado de fora se necessário
+        this.executePollRef = executePoll;
+
+        // Execute first poll immediately
+        executePoll();
+        
+        // Adaptive polling loop
+        const scheduleNext = () => {
+            if (this.primaryPollingTimer) clearTimeout(this.primaryPollingTimer as any);
+            const interval = getPollingInterval();
+            this.primaryPollingTimer = setTimeout(async () => {
+                await executePoll();
+                scheduleNext(); // Self-scheduling with adaptive interval
+            }, interval) as any;
+        };
+        scheduleNext();
+    }
+
+    /** Mark user interaction for adaptive polling interval */
+    public touchUserInteraction() {
+        this.userLastInteractionAt = Date.now();
     }
 
     /**
      * Reconnection with exponential backoff.
      * Tears down existing channels and recreates them cleanly.
      */
+    /**
+     * CALM Reconnect (v4 — WebSocket is a bonus, not critical)
+     * 
+     * Max 3 attempts with long delays. If all fail, we just stop trying
+     * and let the primary HTTP polling handle everything.
+     * Next app wake or network handoff will try again.
+     */
+    /**
+     * 📡 SAFE BROADCAST — Uses httpSend() explicitly instead of deprecated send() fallback.
+     * Resolves: "Realtime send() is automatically falling back to REST API" warning.
+     * If WebSocket is connected, uses WS push. Otherwise, uses httpSend() for REST delivery.
+     */
+    private async _safeBroadcast(channel: any, event: string, payload: any): Promise<void> {
+        if (!channel) throw new Error('Channel is null');
+
+        // Check if WebSocket transport can push (channelAdapter.canPush())
+        const canPush = channel.channelAdapter?.canPush?.() 
+            ?? channel.socket?.conn?.transport?.ws?.readyState === 1;
+
+        if (canPush) {
+            // WebSocket is alive — use native push (no deprecation warning)
+            return channel.send({ type: 'broadcast', event, payload });
+        }
+
+        // WebSocket is NOT available — use httpSend() explicitly (REST delivery)
+        return channel.httpSend(event, payload);
+    }
+
     private scheduleRealtimeReconnect() {
         if (this.realtimeReconnectTimer || !this.state.initialized || this.isTearingDownRealtime) return;
 
-        // 1. Implementar Lock de Reconexão (Controle de Concorrência)
         if (this.isReconnecting) {
-            console.log('[Lifecycle] 🔒 Reconnect already in progress. Ignoring duplicate trigger.');
+            console.log('[Lifecycle] 🔒 WebSocket reconnect already in progress. Skipping.');
             return;
         }
 
-        // 6. Fail-safe adicional: Pausa caso exceda limites extremos contínuos
         if (Date.now() < this.realtimeCooldownUntil) {
-            console.warn(`[Lifecycle] 🛑 Realtime in cooldown until ${new Date(this.realtimeCooldownUntil).toLocaleTimeString()}. Paused.`);
+            console.log(`[Lifecycle] 📡 WebSocket in cooldown. Polling HTTP cobre dados.`);
             return;
         }
 
         if (this.realtimeReconnectAttempts >= REALTIME_RECONNECT_MAX_ATTEMPTS) {
-            console.error(`[Lifecycle] ❌ Realtime reconnect exhausted (${REALTIME_RECONNECT_MAX_ATTEMPTS} attempts). Engaging 60s fail-safe wait.`);
-            this.realtimeCooldownUntil = Date.now() + 60_000;
-            this.realtimeReconnectAttempts = 0; // reset for next cycle
+            console.log(`[Lifecycle] 📡 WebSocket desistiu após ${REALTIME_RECONNECT_MAX_ATTEMPTS} tentativas. HTTP Polling continua cobrindo. Próxima tentativa ao acordar o app.`);
+            this.realtimeCooldownUntil = Date.now() + 5 * 60_000; // 5min cooldown
+            this.realtimeReconnectAttempts = 0;
             this.isReconnecting = false;
             return;
         }
 
+        // Storm protection — max 2 resets per minute
+        const now = Date.now();
+        this.hardResetTimestamps = this.hardResetTimestamps.filter(t => now - t < 60_000);
+        if (this.hardResetTimestamps.length >= this.MAX_HARD_RESETS_PER_MIN) {
+            console.log(`[Lifecycle] 📡 WebSocket reconnect storm prevented. Polling HTTP continua.`);
+            this.realtimeCooldownUntil = now + 2 * 60_000; // 2min cooldown
+            this.isReconnecting = false;
+            return;
+        }
+        this.hardResetTimestamps.push(now);
+
+        // NÃO muda o estado global para RECONNECTING — polling está ativo!
+        // Apenas loga que estamos tentando reconectar o bônus
         this.realtimeReconnectAttempts++;
         this.realtimeMetrics.sessionReconnects++;
+        this.realtimeMetrics.totalHardResets++;
 
-        const delay = Math.min(
+        // Long delays — WebSocket não é urgente
+        const baseDelay = Math.min(
             REALTIME_RECONNECT_BASE_MS * Math.pow(2, this.realtimeReconnectAttempts - 1),
             REALTIME_RECONNECT_MAX_MS
         );
+        const jitter = Math.floor(Math.random() * 3000);
+        const finalDelay = baseDelay + jitter;
 
-        console.log(`[Lifecycle] 🔄 Realtime reconnect #${this.realtimeReconnectAttempts} scheduling in ${Math.round(delay / 1000)}s`);
+        console.log(`[Lifecycle] 📡 WebSocket reconnect #${this.realtimeReconnectAttempts}/${REALTIME_RECONNECT_MAX_ATTEMPTS} em ${Math.round(finalDelay/1000)}s (Polling HTTP ativo — sem pressa)`);
 
-        this.realtimeReconnectTimer = setTimeout(async () => {
-            this.realtimeReconnectTimer = null;
-            if (!this.state.initialized) return;
+        try {
+            this.realtimeReconnectTimer = setTimeout(async () => {
+                this.realtimeReconnectTimer = null;
+                if (!this.state.initialized) return;
 
-            this.isReconnecting = true; // Lock the execution
-            try {
-                // Enforce sequential teardown -> recreate race condition mitigation
-                await this.teardownRealtime();
-                await this.setupRealtime();
-            } catch (e) {
-                console.error('[Lifecycle] ❌ Reconnect flow failed violently:', e);
-            } finally {
-                this.isReconnecting = false; // Release lock even if it crashed
-            }
-        }, delay);
+                this.isReconnecting = true;
+                try {
+                    await this.teardownRealtime();
+                    await this.setupRealtime();
+                } catch (e) {
+                    console.warn('[Lifecycle] 📡 WebSocket reconnect failed. Polling cobre:', (e as Error).message);
+                } finally {
+                    this.isReconnecting = false;
+                }
+            }, finalDelay);
+        } catch (scheduleErr) {
+            console.error('[Lifecycle] 🚨 Falha ao agendar reconnect WebSocket:', scheduleErr);
+            this.isReconnecting = false;
+        }
     }
 
     /**
@@ -711,14 +1575,32 @@ class AppLifecycleManager {
         if (!this.state.realtimeActive && this.state.initialized) {
             // 5. Hardening do Lifecycle Mobile
             // Quando iOS/Android voltam pro foreground após uns segs o SDK interno tenta religar os canais nativamente.
-            // Não devemos agredir com teardown instintivo se já houver estrutura na memórica. Apenas monitorar.
             if (this.notificationChannel || this.ordersChannel) {
                 console.log('[Lifecycle] 📡 Mobile foreground return: Channels exist in memory but inactive. Trusting SDK to auto-resume...');
-                return; // Deixamos o timeout passivo/drop resolver, não entramos matando.
+                return; // Deixamos o timeout passivo/drop resolver.
             }
 
             console.log('[Lifecycle] 📡 Realtime entirely dead on foreground — attempting health recovery');
             this.scheduleRealtimeReconnect();
+        } else if (this.state.realtimeActive && this.state.initialized) {
+            // 📡 BIG TECH PATTERN: PING ATIVO AO ACORDAR DO FOREGROUND
+            // Se o socket tá vivo na memória, não confiamos cegamente porque o OS bloqueia conexões inativas.
+            console.log('[Lifecycle] 📡 Enviando PING ativo para validar se a conexão sobreviveu ao background...');
+            try {
+                if (this.ordersChannel) {
+                    this._safeBroadcast(this.ordersChannel, 'wake_ping', { ts: Date.now() })
+                    .then(() => console.log('[Lifecycle] 📡 PING de despertar concluído. Conexão firme.'))
+                    .catch(() => {
+                        console.warn('[Lifecycle] ⚠️ PING de despertar FALHOU. Conexão zumbi identificada. Destruindo...');
+                        this.state.realtimeActive = false;
+                        this.scheduleRealtimeReconnect();
+                    });
+                }
+            } catch(e) {
+                console.warn('[Lifecycle] ⚠️ Falha síncrona ao pingar no retorno do background. Forçando reconnect.');
+                this.state.realtimeActive = false;
+                this.scheduleRealtimeReconnect();
+            }
         }
     }
 
@@ -779,8 +1661,10 @@ class AppLifecycleManager {
     // HIGH AVAILABILITY & OFFLINE-FIRST MECHANISMS
     // ═══════════════════════════════════════════════════════════════════════
 
+    private lastNetworkFingerprint: string | null = null;
+
     /**
-     * C3: Estado global de conectividade + Ajuste de Cooldown (C5)
+     * C3: Estado global de conectividade + Ajuste de Cooldown (C5) + Handoff Detection
      */
     private setupConnectivityListener() {
         if (this.netInfoSubscription) return;
@@ -789,21 +1673,37 @@ class AppLifecycleManager {
             const wasOffline = this.state.isOffline;
             const isNowOffline = !(state.isConnected && state.isInternetReachable !== false);
             
-            if (wasOffline !== isNowOffline) {
+            // 📡 BIG TECH MOBILE PATTERN: CGNAT & IPv4/IPv6 Handoff Detection
+            // O IP ou tipo de rede mudou (ex: WiFi -> 4G -> 3G)? 
+            // Uma mudança silenciosa de NAT quebra a tabela de roteamento da Claro etc. 
+            // O TCP Socket interno acha que tá vivo, mas os pacotes vão pro limbo.
+            const currentFingerprint = `${state.type}-${(state.details as any)?.ipAddress || 'no-ip'}-${(state.details as any)?.cellularGeneration || 'no-gen'}`;
+            const isHandoff = !isNowOffline && this.lastNetworkFingerprint !== null && this.lastNetworkFingerprint !== currentFingerprint;
+            this.lastNetworkFingerprint = currentFingerprint;
+
+            if (wasOffline !== isNowOffline || isHandoff) {
                 this.state.isOffline = isNowOffline;
-                console.log(`[Lifecycle] 🌐 Connectivity changed: ${isNowOffline ? 'OFFLINE' : 'ONLINE'}`);
+                console.log(`[Lifecycle] 🌐 Connectivity changed: ${isNowOffline ? 'OFFLINE' : 'ONLINE'} (Handoff: ${isHandoff})`);
                 
                 if (!isNowOffline) {
-                    // C5: Rede voltou - Bypass total no cooldown, permitimos religadura brutal
-                    this.realtimeCooldownUntil = 0; 
+                    // Rede voltou — polling primário vai retomar automaticamente
+                    this.realtimeCooldownUntil = 0;
                     this.flushOfflineQueue();
                     
-                    if (!this.state.realtimeActive && this.state.initialized) {
-                        console.log('[Lifecycle] 📡 Network restored violently. Triggering instant realtime recovery.');
-                        this.scheduleRealtimeReconnect();
+                    // Reconectar WebSocket calmamente (é bônus)
+                    if (isHandoff || (!this.state.realtimeActive && this.state.initialized)) {
+                        console.log(`[Lifecycle] 📡 Network restored/handoff (${currentFingerprint}). Reconectando WebSocket em background...`);
+                        this.state.realtimeActive = false;
+                        // Delay de 3s para dar tempo à rede estabilizar
+                        setTimeout(() => this.scheduleRealtimeReconnect(), 3000);
+                    }
+                    
+                    // Restart polling if it was stopped
+                    if (!this.primaryPollingTimer) {
+                        this.startPrimaryPolling();
                     }
                 } else {
-                    this.managePollingFallback();
+                    this.setGlobalNetworkState('DISCONNECTED');
                 }
             }
         });
@@ -812,84 +1712,18 @@ class AppLifecycleManager {
     /**
      * C1: Fallback progressivo de polling inteligente e adaptativo
      */
-    private managePollingFallback() {
-        if (this.pollingTimer) {
-            clearTimeout(this.pollingTimer);
-            this.pollingTimer = null;
-        }
-        
-        if (!this.state.isOffline && !this.state.realtimeActive) {
-            console.log('[Lifecycle] 🔄 Activating HTTP Polling Fallback (Realtime indisponível)...');
-            this.pollingAttempts = 0;
-            this.scheduleNextPoll();
-        }
-    }
-
-    private scheduleNextPoll() {
-        if (this.state.realtimeActive || this.state.isOffline) return;
-
-        this.pollingAttempts++;
-        // Progresso lento exponencial (máx 120s)
-        const interval = Math.min(10000 * Math.pow(2, this.pollingAttempts - 1), 120000);
-
-        this.pollingTimer = setTimeout(async () => {
-            if (this.state.realtimeActive || this.state.isOffline) return;
-
-            try {
-                // C4: Estratégia contra colisões - Respeitamos `lastDataSyncTime` (updated_at)
-                // Se realtime voltar abruptamente no meio deste request, ignoraremos a resposta se o Socket mandou algo mais fresco.
-                const currentSyncMark = Date.now();
-                console.log(`[Lifecycle] 🔄 Executing backend adaptive poll (Delay: ${interval/1000}s)...`);
-                
-                const { data, error } = await supabase
-                    .from('orders')
-                    .select('id, updated_at')
-                    .order('updated_at', { ascending: false })
-                    .limit(1);
-
-                if (!error) {
-                    if (currentSyncMark > this.lastDataSyncTime) {
-                        this.lastDataSyncTime = currentSyncMark;
-                        console.log('[Lifecycle] 🔄 Poll reached DB securely without chronological overlap.');
-                    } else {
-                        console.log('[Lifecycle] ⚠️ Poll response discarded. Realtime socket already provided fresher data.');
-                    }
-                }
-            } catch (e) {
-                console.warn('[Lifecycle] 🔄 Poll failure block. End-node unreachable.');
-            }
-             
-            this.scheduleNextPoll();
-        }, interval) as any;
-    }
-
     /**
-     * C6: Health Check ativo (Inteligente)
+     * Legacy fallback polling — now a no-op since primary polling handles everything.
+     * Kept for interface compatibility.
      */
-    private startActiveHealthCheck() {
-        if (this.healthPingTimer) clearInterval(this.healthPingTimer);
-
-        this.healthPingTimer = setInterval(async () => {
-             // Só fazer ping se a tela estiver aberta e não estamos intencionalmente offline. 
-             if (this.state.isOffline || !this.state.userId || this.state.appState !== 'active') return;
-
-             try {
-                 const start = Date.now();
-                 // "Ping" super leve no node Postgres
-                 await supabase.from('orders').select('id', { count: 'exact', head: true });
-                 const lat = Date.now() - start;
-
-                 if (lat > 5000) {
-                     console.warn(`[Lifecycle] 🐢 Extremely high DB Gateway latency: ${lat}ms`);
-                 }
-             } catch (err) {
-                 console.warn(`[Lifecycle] ❌ Active health ping failed. Dropping active illusion.`);
-                 if (this.state.realtimeActive) {
-                     this.state.realtimeActive = false;
-                     this.scheduleRealtimeReconnect();
-                 }
-             }
-        }, 60_000);
+    private managePollingFallback() {
+        // Primary polling is always active — no need for a fallback.
+        // Just ensure state reflects reality.
+        if (!this.state.isOffline && !this.state.realtimeActive) {
+            if (this.pollFailCount < 3) {
+                this.setGlobalNetworkState('DEGRADED');
+            }
+        }
     }
 
     /**
@@ -1010,17 +1844,32 @@ class AppLifecycleManager {
      * C4: Telemetria Exportável
      */
     public exportHealthMetrics() {
+        const now = Date.now();
+        // Accumulate live time for currently active states
+        const liveConnectedMs = (this.globalNetworkState === 'CONNECTED' && this.realtimeMetrics._connectedEnteredAt > 0)
+            ? now - this.realtimeMetrics._connectedEnteredAt : 0;
+        const liveIdleMs = (this.globalNetworkState === 'CONNECTED_IDLE' && this.realtimeMetrics._idleEnteredAt > 0)
+            ? now - this.realtimeMetrics._idleEnteredAt : 0;
+
         const payload = {
             timestamp: new Date().toISOString(),
             connectivity: {
                 isOffline: this.state.isOffline,
                 realtimeActive: this.state.realtimeActive,
                 gpsHealthy: this.state.gpsHealthy,
+                currentState: this.globalNetworkState,
             },
             telemetry: {
-                ...this.realtimeMetrics,
-                uptimeTotalMs: this.realtimeMetrics.totalUptimeMs + 
-                    (this.realtimeMetrics.lastConnectTime > 0 ? (Date.now() - this.realtimeMetrics.lastConnectTime) : 0),
+                connectionHealth: this.realtimeMetrics.connectionHealth,
+                sessionReconnects: this.realtimeMetrics.sessionReconnects,
+                totalHardResets: this.realtimeMetrics.totalHardResets,
+                consecutiveFailures: this.realtimeMetrics.consecutiveFailures,
+                idleTransitions: this.realtimeMetrics.idleTransitions,
+                avgTimeToFirstDataMs: Math.round(this.realtimeMetrics.avgTimeToFirstDataMs),
+                uptimeTotalMs: this.realtimeMetrics.totalUptimeMs +
+                    (this.realtimeMetrics.lastConnectTime > 0 ? (now - this.realtimeMetrics.lastConnectTime) : 0),
+                totalTimeConnectedMs: this.realtimeMetrics.totalTimeConnectedMs + liveConnectedMs,
+                totalTimeIdleMs: this.realtimeMetrics.totalTimeIdleMs + liveIdleMs,
             },
             queue: {
                 pendingActions: this.offlineQueue.length

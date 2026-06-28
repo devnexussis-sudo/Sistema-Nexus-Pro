@@ -48,14 +48,18 @@ async function processQueue() {
             writer.on('error', reject);
         });
 
-        // 3. COMPRESSÃO AV1 (Mágica aqui)
+        // 3. COMPRESSÃO AV1 (Motor Otimizado v2)
         console.log('⚖️ Iniciando compressão AV1 (libaom-av1)...');
         await new Promise((resolve, reject) => {
             ffmpeg(inputPath)
                 .videoCodec('libaom-av1') // Codec AV1
                 // CRF 35 para bom balanço entre tamanho e qualidade
-                // cpu-used 6-8 para velocidade em CPUs modernas
-                .addOptions(['-crf 35', '-cpu-used 6', '-b:v 0']) 
+                // cpu-used 6 para velocidade em CPUs modernas
+                // tiles e row-mt para paralelizar encoding
+                .addOptions(['-crf 35', '-cpu-used 6', '-b:v 0', '-tiles 2x2', '-row-mt 1'])
+                // Áudio: 44.1kHz mono 64kbps (reduz ~40% do tamanho de áudio vs 48kHz estéreo)
+                .audioCodec('libopus')
+                .addOptions(['-ar 44100', '-ac 1', '-b:a 64k'])
                 .on('progress', (progress) => {
                     if (progress.percent) console.log(`⏳ Progresso: ${progress.percent.toFixed(1)}%`);
                 })
@@ -67,18 +71,32 @@ async function processQueue() {
                 .save(outputPath);
         });
 
-        // 4. Upload do vídeo otimizado
-        console.log('📤 Subindo vídeo otimizado para o Storage...');
+        // 4. Upload do vídeo otimizado para o Cloudflare R2
+        console.log('📤 Subindo vídeo otimizado para o Cloudflare R2...');
         const fileContent = fs.readFileSync(outputPath);
         const fileName = `orders/${job.order_id}/videos/optimized_av1_${Date.now()}.webm`;
         
-        const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('nexus-files')
-            .upload(fileName, fileContent, { contentType: 'video/webm', upsert: true });
+        const { data: signData, error: signError } = await supabase.functions.invoke('r2-operations', {
+            body: { action: 'upload', path: fileName, bucketType: 'private', contentType: 'video/webm' }
+        });
 
-        if (uploadError) throw uploadError;
+        if (signError || !signData?.signedUrl) {
+            throw new Error(`Falha ao obter URL assinada do R2: ${signError?.message}`);
+        }
 
-        const { data: { publicUrl: optimizedUrl } } = supabase.storage.from('nexus-files').getPublicUrl(fileName);
+        const uploadResponse = await fetch(signData.signedUrl, {
+            method: 'PUT',
+            body: fileContent,
+            headers: {
+                'Content-Type': 'video/webm'
+            }
+        });
+
+        if (!uploadResponse.ok) {
+            throw new Error(`Erro no R2 Upload: ${uploadResponse.status} ${uploadResponse.statusText}`);
+        }
+
+        const optimizedUrl = signData.publicUrl;
 
         // 5. Atualizar App e Fila
         const stats = fs.statSync(outputPath);

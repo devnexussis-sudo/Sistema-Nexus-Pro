@@ -8,9 +8,10 @@ import { supabase } from '@/services/supabase';
 import { syncService } from '@/services/sync-service';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, View, Linking } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, View, Linking, Modal } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useI18n } from '@/services/i18n';
 
 const ITEMS_PER_PAGE = 10;
@@ -41,6 +42,16 @@ const OrderCard = ({ order, onShare, onPress, allowShare, showClientContact, t }
 
     <Text style={styles.customerName}>{order.customer}</Text>
     
+    {(order.operationType || order.type) && (
+      <View style={{ marginBottom: 6, alignSelf: 'flex-start' }}>
+         <View style={[styles.statusBadge, { backgroundColor: '#e0e7ff', borderWidth: 1, borderColor: '#c7d2fe' }]}>
+            <Text style={[styles.statusText, { color: '#4338ca' }]}>
+               {order.operationType || order.type}
+            </Text>
+         </View>
+      </View>
+    )}
+
     <View style={styles.detailRow}>
       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
         <Ionicons name="location-outline" size={14} color="#666" />
@@ -156,10 +167,13 @@ export default function HomeScreen() {
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
+  const params = useLocalSearchParams();
 
   // Ref para sempre ter a versão mais atual de fetchOrders (evita closure stale)
   const fetchOrdersRef = useRef<((force?: boolean) => void) | null>(null);
   const flatListRef = useRef<FlatList>(null);
+  // 🛡️ Race condition guard — tracks current fetch generation
+  const fetchIdRef = useRef(0);
 
   // Offline Sync State
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
@@ -194,6 +208,12 @@ export default function HomeScreen() {
   });
 
   useEffect(() => {
+    if (params.filter && ['pending', 'in_progress', 'blocked', 'completed'].includes(params.filter as string)) {
+      setSelectedFilter(params.filter as OrderStatus);
+    }
+  }, [params.filter]);
+
+  useEffect(() => {
     // Subscribe na fila para contagem
     const unQueue = syncService.subscribe((queue) => {
       setPendingSyncCount(queue.filter(q => q.status === 'pending').length);
@@ -212,12 +232,15 @@ export default function HomeScreen() {
   }, [selectedFilter, startDate, endDate, currentPage]);
 
   const fetchOrders = async (isBackground = false) => {
+    // 🛡️ Race condition guard: increment ID before fetching
+    const thisId = ++fetchIdRef.current;
     if (!isBackground) setIsLoading(true);
 
     // ── MODO OFFLINE: ler do cache local ──────────────────────────────
     if (syncService.isOfflineModeEnabled()) {
       try {
         const raw = await syncService.getTodayOrders();
+        if (fetchIdRef.current !== thisId) return; // 🛡️ Stale — discard
         const mapped = raw.map((o: any) => OrderService.mapDbOrderToApp(o));
 
         // Filtrar pelo status selecionado
@@ -255,8 +278,10 @@ export default function HomeScreen() {
         });
         setServerStats(stats);
       } finally {
-        setIsLoading(false);
-        setRefreshing(false);
+        if (fetchIdRef.current === thisId) {
+          setIsLoading(false);
+          setRefreshing(false);
+        }
       }
       return;
     }
@@ -275,6 +300,8 @@ export default function HomeScreen() {
           forceRefresh: false
         });
 
+        if (fetchIdRef.current !== thisId) return; // 🛡️ Stale — discard
+
         if (cachedResponse?.orders?.length) {
           setOrders(cachedResponse.orders);
           setTotalOrders(cachedResponse.total);
@@ -292,6 +319,8 @@ export default function HomeScreen() {
         endDate,
         forceRefresh: true // Bypass cache
       });
+
+      if (fetchIdRef.current !== thisId) return; // 🛡️ Stale — discard
 
       // 3. Update state with fresh data
       setOrders(freshResponse.orders || []);
@@ -314,8 +343,10 @@ export default function HomeScreen() {
     } catch (e) {
       console.error(e);
     } finally {
-      setIsLoading(false);
-      setRefreshing(false);
+      if (fetchIdRef.current === thisId) {
+        setIsLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
@@ -546,7 +577,8 @@ export default function HomeScreen() {
             value={startDate || new Date()}
             mode="date"
             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={onChangeStartDate}
+            onValueChange={onChangeStartDate}
+            onDismiss={() => setShowStartPicker(false)}
             maximumDate={new Date()}
           />
         )}
@@ -556,7 +588,8 @@ export default function HomeScreen() {
             value={endDate || new Date()}
             mode="date"
             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={onChangeEndDate}
+            onValueChange={onChangeEndDate}
+            onDismiss={() => setShowEndPicker(false)}
             minimumDate={startDate || undefined}
           />
         )}
@@ -644,12 +677,12 @@ export default function HomeScreen() {
           }
         />
 
-        {isLoading && (
-          <View style={styles.loaderOverlay}>
+        <Modal transparent={true} visible={isLoading} animationType="fade">
+          <BlurView intensity={30} tint="light" style={styles.loaderOverlayModal}>
             <ActivityIndicator size="large" color="#1c2d4f" />
             <Text style={{ marginTop: 10, color: '#1c2d4f', fontWeight: '500' }}>{t('homeFiltering')}</Text>
-          </View>
-        )}
+          </BlurView>
+        </Modal>
       </View>
     </ThemedView>
   );
@@ -706,12 +739,11 @@ const styles = StyleSheet.create({
   filterButtonText: { color: '#1c2d4f', fontSize: 12, fontWeight: '600' },
   listContent: { paddingBottom: 20 },
   orderCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12, borderLeftWidth: 4, borderLeftColor: '#1c2d4f', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  loaderOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  loaderOverlayModal: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
   },
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   orderId: { fontWeight: 'bold', fontSize: 16, color: '#1c2d4f' },

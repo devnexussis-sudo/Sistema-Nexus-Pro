@@ -61,7 +61,7 @@ export default function OrderDetailsScreen() {
     const [expandedVisits, setExpandedVisits] = useState<Record<string, boolean>>({});
 
     const toggleGroup = (group: string) => {
-        setExpandedGroups(prev => ({ ...prev, [group]: prev[group] !== undefined ? !prev[group] : false }));
+        setExpandedGroups(prev => ({ ...prev, [group]: !prev[group] }));
     };
 
     useFocusEffect(
@@ -110,7 +110,7 @@ export default function OrderDetailsScreen() {
                     if (!currentOrder) return;
 
                     // 3. Fetch aggregate dependent data concurrently
-                    await Promise.all([
+                    const [visitsResult] = await Promise.all([
                         // 3.1 Visit history
                         OrderService.getOrderVisits(id as string).then(visits => {
                             if (isActive) {
@@ -119,12 +119,13 @@ export default function OrderDetailsScreen() {
                                     // Se a OS já está finalizada, mantém todos recolhidos (conforme solicitado).
                                     // Caso contrário, auto-expande a mais recente.
                                     const finalizedStatuses = ['completed', 'COMPLETED', 'blocked', 'BLOCKED', 'canceled', 'CANCELED'];
-                                    if (!finalizedStatuses.includes(currentOrder.status)) {
+                                    if (!finalizedStatuses.includes(currentOrder.status) && visits[0].status !== 'blocked') {
                                         const firstKey = visits[0].id || 'visit_0';
                                         setExpandedVisits({ [firstKey]: true });
                                     }
                                 }
                             }
+                            return visits;
                         }),
                         
                         // 3.2 Form Templates for mapping
@@ -202,9 +203,9 @@ export default function OrderDetailsScreen() {
                             });
                         }
 
-                        // Visit History Photos
-                        const visits = await OrderService.getOrderVisits(id as string);
-                        visits.forEach(v => {
+                        // Visit History Photos — reuse already-fetched visits from above (no duplicate network call)
+                        const loadedVisits = visitsResult || [];
+                        loadedVisits.forEach(v => {
                             const fd = v.form_data || {};
                             addUrls(fd.blockPhotoUrls);
                             addUrls(fd.extra_photos || fd.photos);
@@ -474,7 +475,7 @@ export default function OrderDetailsScreen() {
     return (
         <ThemedView style={styles.container}>
             <Stack.Screen options={{ title: t('osDetails') }} />
-            <ScrollView contentContainerStyle={[styles.content, !isEditable && { paddingBottom: 20 }]}>
+            <ScrollView contentContainerStyle={styles.content}>
 
                 {/* Header Status */}
                 <View style={styles.header}>
@@ -485,6 +486,33 @@ export default function OrderDetailsScreen() {
                         </Text>
                     </View>
                 </View>
+
+                {/* Root Block Info (if blocked) */}
+                {order.status === 'BLOCKED' && (order.formData?.blockReason || (order.formData?.blockPhotoUrls && order.formData.blockPhotoUrls.length > 0)) && (
+                    <View style={{ backgroundColor: '#fef2f2', borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#fecaca' }}>
+                        {order.formData?.blockReason ? (
+                            <>
+                                <Text style={{ fontSize: 10, fontWeight: '800', color: '#b91c1c', textTransform: 'uppercase', marginBottom: 4 }}>{t('osBlockReason')}</Text>
+                                <Text style={{ fontSize: 13, color: '#7f1d1d', fontWeight: '500', lineHeight: 20, marginBottom: order.formData?.blockPhotoUrls?.length ? 12 : 0 }}>
+                                    {order.formData.blockReason}
+                                </Text>
+                            </>
+                        ) : null}
+
+                        {order.formData?.blockPhotoUrls && order.formData.blockPhotoUrls.length > 0 && (
+                            <View>
+                                <Text style={{ fontSize: 10, fontWeight: '800', color: '#b91c1c', textTransform: 'uppercase', marginBottom: 6 }}>{t('osBlockPhotos')}</Text>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                    {order.formData.blockPhotoUrls.map((uri: string, pi: number) => (
+                                        <Pressable key={pi} onPress={() => openImage(uri)} style={{ marginRight: 8, borderRadius: 8, overflow: 'hidden' }}>
+                                            <SecureImage uri={uri} style={{ width: 220, height: 150 }} resizeMode="cover" useThumbnail />
+                                        </Pressable>
+                                    ))}
+                                </ScrollView>
+                            </View>
+                        )}
+                    </View>
+                )}
 
                 {/* Customer & Address Info */}
                 <View style={styles.card}>
@@ -728,15 +756,24 @@ export default function OrderDetailsScreen() {
                                             <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: isBlocked ? '#fecaca' : '#bbf7d0', paddingTop: 12 }}>
 
 
-                                                {/* Checklist */}
-                                                {formEntries.length > 0 && (
-                                                    <View style={{ marginBottom: 16 }}>
-                                                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#475569', textTransform: 'uppercase', marginBottom: 10 }}>{t('osChecklist')}</Text>
-                                                        {(() => {
-                                                            const equipments = order.equipments || [];
-                                                            const usedItemsVisit = typeof fd.items === 'object' ? fd.items : (isLegacy && isLast ? (order.items || []) : []);
-                                                            
-                                                            // 1. Mapeia grupos do checklist
+                                                {/* Checklist e Peças */}
+                                                {(() => {
+                                                    const equipments = order.equipments || [];
+                                                    let usedItemsVisit = [];
+                                                    if (Array.isArray(fd.items) && fd.items.length > 0) usedItemsVisit = fd.items;
+                                                    else if (Array.isArray(order.items) && order.items.length > 0) usedItemsVisit = order.items;
+                                                    
+                                                    if (formEntries.length === 0 && usedItemsVisit.length === 0) return null;
+
+                                                    return (
+                                                        <View style={{ marginBottom: 16 }}>
+                                                            {formEntries.length > 0 ? (
+                                                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#475569', textTransform: 'uppercase', marginBottom: 10 }}>{t('osChecklist')} e Peças</Text>
+                                                            ) : (
+                                                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#475569', textTransform: 'uppercase', marginBottom: 10 }}>Peças Utilizadas</Text>
+                                                            )}
+                                                            {(() => {
+                                                                // 1. Mapeia grupos do checklist
                                                             const groupedChecklist = formEntries.reduce((acc, entry) => {
                                                                 const match = entry[0].match(/^\[(.*?)\]\s*(?:-|$)/);
                                                                 const groupName = match ? match[1] : t('osConclusion');
@@ -795,11 +832,13 @@ export default function OrderDetailsScreen() {
 
                                                                 if (items.length === 0 && parts.length === 0) return null;
 
+                                                                const isGroupExpanded = expandedGroups[group] === true;
+
                                                                 return (
                                                                     <View key={group} style={{ backgroundColor: '#ffffff', borderRadius: 12, marginBottom: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', elevation: 1, shadowColor: '#000', shadowOffset: {width:0, height:1}, shadowOpacity: 0.05, shadowRadius: 3 }}>
                                                                         <Pressable 
                                                                             onPress={() => toggleGroup(group)}
-                                                                            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, backgroundColor: expandedGroups[group] ? '#f8fafc' : '#ffffff' }}
+                                                                            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, backgroundColor: isGroupExpanded ? '#f8fafc' : '#ffffff' }}
                                                                         >
                                                                             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
                                                                                 <Ionicons name={isEquipment ? "cube-outline" : "checkmark-done"} size={16} color={isEquipment ? "#3b82f6" : "#10b981"} style={{ marginRight: 6 }} />
@@ -807,38 +846,85 @@ export default function OrderDetailsScreen() {
                                                                                     {isEquipment && eqData ? `${eqData.equipment_model || eqData.equipment_name || group}${eqData.equipment_serial ? ` (S/N: ${eqData.equipment_serial})` : ''}` : group}
                                                                                 </Text>
                                                                             </View>
-                                                                            <Ionicons name={expandedGroups[group] ? "chevron-up" : "chevron-down"} size={18} color="#94a3b8" />
+                                                                            <Ionicons name={isGroupExpanded ? "chevron-up" : "chevron-down"} size={18} color="#94a3b8" />
                                                                         </Pressable>
 
-                                                                        {expandedGroups[group] && (
+                                                                        {isGroupExpanded && (
                                                                             <View style={{ padding: 12, paddingTop: 4, backgroundColor: '#ffffff' }}>
                                                                                 {items.length > 0 && (
                                                                                     <View style={{ marginBottom: 8 }}>
-                                                                                        {items.map(([fullKey, val]) => {
-                                                                                            let cleanKey = fullKey.replace(/^\[.*?\]\s*-\s*/, '').replace(/_/g, ' ');
+                                                                                {items.sort((a, b) => a[0].localeCompare(b[0])).map(([fullKey, val], fieldIdx) => {
+                                                                                            let cleanKey = fullKey.replace(/^\[.*?\]\s*-\s*/, '').replace(/^\d{3}#/, '').replace(/_/g, ' ');
                                                                                             if (cleanKey.toLowerCase() === 'photos' || cleanKey.toLowerCase() === 'fotos') cleanKey = t('osAttachments');
-                                                                                            
-                                                                                            const isImageUrl = (v: any) => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image'));
-                                                                                            const isImageArray = Array.isArray(val) && val.every(v => isImageUrl(v));
-                                                                                            const isSingleImage = isImageUrl(val);
+
+                                                                                            const explicitMatch = fullKey.match(/(?:-\s*|^)(\d{3})#/);
+                                                                                            const displayIndex = explicitMatch ? explicitMatch[1] : String(fieldIdx + 1).padStart(3, '0');
+                                                                                            const displayLabel = `#${displayIndex} — ${cleanKey}`;
+
+                                                                                            const isImageUrl = (v: any) => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image') || v.startsWith('file:') || v.startsWith('content:'));
+                                                                                            const isImageArray = Array.isArray(val) && val.length > 0 && val.every((v: any) => isImageUrl(v));
+                                                                                            const isMultiSelect = Array.isArray(val) && !isImageArray;
+                                                                                            const isSingleImage = !Array.isArray(val) && isImageUrl(val);
+
+                                                                                            const isPositive = val === 'OK' || val === 'Sim' || val === 'Conforme' || val === 'Aprovado';
+                                                                                            const isNegative = val === 'Não' || val === 'Reprovado' || val === 'Não Conforme';
 
                                                                                             return (
-                                                                                                <View key={fullKey} style={{ paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
-                                                                                                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginBottom: 4 }}>{cleanKey}</Text>
+                                                                                                <View key={fullKey} style={{
+                                                                                                    marginBottom: 12,
+                                                                                                    backgroundColor: '#ffffff',
+                                                                                                    padding: 14,
+                                                                                                    borderRadius: 12,
+                                                                                                    borderWidth: 1,
+                                                                                                    borderColor: '#cbd5e1',
+                                                                                                }}>
+                                                                                                    {/* Label numbered */}
+                                                                                                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#334155', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
+                                                                                                        {displayLabel}
+                                                                                                    </Text>
+
+                                                                                                    {/* VALUE RENDERERS */}
                                                                                                     {isImageArray ? (
-                                                                                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
-                                                                                                            {val.map((uri: string, idx: number) => (
-                                                                                                                <Pressable key={idx} onPress={() => openImage(uri)}>
-                                                                                                                    <SecureImage uri={uri} style={{ width: 80, height: 80, borderRadius: 8, marginRight: 8 }} resizeMode="cover" />
+                                                                                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                                                                                            {(val as string[]).map((uri: string, idx: number) => (
+                                                                                                                <Pressable key={idx} onPress={() => openImage(uri)}
+                                                                                                                    style={{ width: 90, height: 90, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f1f5f9' }}>
+                                                                                                                    <SecureImage uri={uri} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                                                                                                                 </Pressable>
                                                                                                             ))}
-                                                                                                        </ScrollView>
+                                                                                                        </View>
                                                                                                     ) : isSingleImage ? (
-                                                                                                        <Pressable onPress={() => openImage(val)} style={{ marginTop: 4 }}>
-                                                                                                            <SecureImage uri={val} style={{ width: '100%', height: 160, borderRadius: 8 }} resizeMode="cover" />
+                                                                                                        <Pressable onPress={() => openImage(val as string)}
+                                                                                                            style={{ borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0' }}>
+                                                                                                            <SecureImage uri={val as string} style={{ width: '100%', height: 180 }} resizeMode="cover" />
                                                                                                         </Pressable>
+                                                                                                    ) : isMultiSelect ? (
+                                                                                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                                                                                            {(val as string[]).map((opt: string, oi: number) => (
+                                                                                                                <View key={oi} style={{
+                                                                                                                    flexDirection: 'row', alignItems: 'center', gap: 6,
+                                                                                                                    paddingVertical: 8, paddingHorizontal: 12,
+                                                                                                                    backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#86efac', borderRadius: 8
+                                                                                                                }}>
+                                                                                                                    <Ionicons name="checkmark" size={14} color="#16a34a" />
+                                                                                                                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#15803d' }}>{opt}</Text>
+                                                                                                                </View>
+                                                                                                            ))}
+                                                                                                        </View>
                                                                                                     ) : (
-                                                                                                        <Text style={{ fontSize: 14, color: (val === 'OK' || val === 'Sim') ? '#16a34a' : '#0f172a', fontWeight: '700' }}>{String(val)}</Text>
+                                                                                                        <View style={{
+                                                                                                            backgroundColor: isPositive ? '#f0fdf4' : isNegative ? '#fef2f2' : '#f8fafc',
+                                                                                                            borderRadius: 8, padding: 12,
+                                                                                                            borderWidth: 1,
+                                                                                                            borderColor: isPositive ? '#86efac' : isNegative ? '#fca5a5' : '#e2e8f0'
+                                                                                                        }}>
+                                                                                                            <Text style={{
+                                                                                                                fontSize: 14,
+                                                                                                                fontWeight: '700',
+                                                                                                                color: isPositive ? '#15803d' : isNegative ? '#b91c1c' : '#0f172a',
+                                                                                                                lineHeight: 20
+                                                                                                            }}>{String(val)}</Text>
+                                                                                                        </View>
                                                                                                     )}
                                                                                                 </View>
                                                                                             );
@@ -846,7 +932,7 @@ export default function OrderDetailsScreen() {
                                                                                     </View>
                                                                                 )}
 
-                                                                                {parts.length > 0 && showStockHistory && (
+                                                                                {parts.length > 0 && (
                                                                                     <View style={{ marginTop: items.length > 0 ? 8 : 0 }}>
                                                                                         <Text style={{ fontSize: 10, fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginBottom: 8 }}>{t('osPartsUsed')}</Text>
                                                                                         {parts.map((p: any, pIdx: number) => (
@@ -867,9 +953,10 @@ export default function OrderDetailsScreen() {
                                                                     </View>
                                                                 );
                                                             });
-                                                        })()}
-                                                    </View>
-                                                )}
+                                                            })()}
+                                                        </View>
+                                                    );
+                                                })()}
 
                                                 {/* Motivo do impedimento (Reposicionado) */}
                                                 {isBlocked && (fd.blockReason || visit.impediment_reason || fd.impediment_reason) && (
@@ -888,7 +975,7 @@ export default function OrderDetailsScreen() {
                                                         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                                                             {blockPhotos.map((uri, pi) => (
                                                                 <Pressable key={pi} onPress={() => openImage(uri)} style={{ marginRight: 8, borderRadius: 8, overflow: 'hidden' }}>
-                                                                    <SecureImage uri={uri} style={{ width: 220, height: 150 }} resizeMode="cover" />
+                                                                    <SecureImage uri={uri} style={{ width: 220, height: 150 }} resizeMode="cover" useThumbnail />
                                                                 </Pressable>
                                                             ))}
                                                         </ScrollView>
@@ -902,7 +989,7 @@ export default function OrderDetailsScreen() {
                                                         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                                                             {extraPhotos.map((uri, pi) => (
                                                                 <Pressable key={pi} onPress={() => openImage(uri)} style={{ marginRight: 8, borderRadius: 8, overflow: 'hidden' }}>
-                                                                    <SecureImage uri={uri} style={{ width: 220, height: 150 }} resizeMode="cover" />
+                                                                    <SecureImage uri={uri} style={{ width: 220, height: 150 }} resizeMode="cover" useThumbnail />
                                                                 </Pressable>
                                                             ))}
                                                         </ScrollView>
@@ -942,7 +1029,7 @@ export default function OrderDetailsScreen() {
                                                         {Boolean(signatureUri) && (
                                                             <View style={{ backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', padding: 4 }}>
                                                                 <Pressable onPress={() => openImage(signatureUri!)}>
-                                                                    <SecureImage uri={signatureUri!} style={{ width: '100%', height: 100 }} resizeMode="contain" />
+                                                                    <SecureImage uri={signatureUri!} style={{ width: '100%', height: 100 }} resizeMode="contain" useThumbnail />
                                                                     <Text style={{ fontSize: 9, color: '#94a3b8', textAlign: 'center', paddingBottom: 4 }}>{t('osTapToEnlarge')}</Text>
                                                                 </Pressable>
                                                             </View>
@@ -1011,7 +1098,7 @@ export default function OrderDetailsScreen() {
                                             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosContainer}>
                                                 {uniquePhotos.map((uri, index) => (
                                                     <Pressable key={index} onPress={() => openImage(uri)}>
-                                                        <SecureImage uri={uri} style={styles.photoThumbnail} resizeMode="cover" />
+                                                        <SecureImage uri={uri} style={styles.photoThumbnail} resizeMode="cover" useThumbnail />
                                                     </Pressable>
                                                 ))}
                                             </ScrollView>
@@ -1101,14 +1188,33 @@ export default function OrderDetailsScreen() {
                         )}
                         
                         {impedimentPhotoUris.length < 10 && (
-                            <Pressable
+                            <Pressable 
+                                style={{
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    backgroundColor: '#fff5f5',
+                                    borderWidth: 2,
+                                    borderColor: '#fca5a5',
+                                    borderStyle: 'dashed',
+                                    borderRadius: 10,
+                                    padding: 16,
+                                    marginBottom: 12
+                                }}
                                 onPress={handlePickBlockPhoto}
-                                style={{ borderWidth: 1, borderColor: '#fca5a5', borderStyle: 'dashed', borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 12, backgroundColor: '#fff5f5', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
                             >
-                                <Ionicons name="camera-outline" size={18} color="#e11d48" />
-                                <Text style={{ fontSize: 12, color: '#e11d48', fontWeight: '700' }}>
-                                    {impedimentPhotoUris.length > 0 ? `${t('osAddMore')} (${impedimentPhotoUris.length}/10)` : t('osPhotoImpediment')}
-                                </Text>
+                                <View style={{ backgroundColor: '#fee2e2', padding: 10, borderRadius: 50, marginRight: 14 }}>
+                                    <Ionicons name="camera" size={22} color="#e11d48" />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#be123c' }}>
+                                        Tocar para Fotografar
+                                    </Text>
+                                    <Text style={{ fontSize: 12, color: '#9f1239', marginTop: 2 }}>
+                                        {impedimentPhotoUris.length > 0 
+                                            ? `${t('osAddMore')} (${impedimentPhotoUris.length}/10)` 
+                                            : t('osPhotoImpediment')}
+                                    </Text>
+                                </View>
                             </Pressable>
                         )}
 

@@ -115,6 +115,12 @@ const nexusLock: LockFunc = _buildLock();
 // Importado via src/lib/supabase.ts pelos consumidores.
 // ---------------------------------------------------------------
 export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
+    realtime: {
+        params: { eventsPerSecond: 10 },
+        heartbeatIntervalMs: 15000,
+        timeout: 30000,
+    },
+
     auth: {
         storageKey: 'nexus-line-auth',      // Chave única revisada
         persistSession: true,               // Sessão sobrevive a reload e fechamento de aba
@@ -124,13 +130,7 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
         storage: typeof window !== 'undefined' ? window.localStorage : undefined,
     },
 
-    realtime: {
-        params: {
-            eventsPerSecond: 10,
-        },
-        heartbeatIntervalMs: 15000,
-        timeout: 30000,
-    },
+
 
     global: {
         // -------------------------------------------------------------

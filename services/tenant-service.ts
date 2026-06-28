@@ -11,6 +11,7 @@ export interface TenantSettings {
     showStockHistory: boolean;
     allowImpediment: boolean;
     showVisitHistory: boolean;
+    requireLocationForExecution: boolean;
 }
 
 const DEFAULT_SETTINGS: TenantSettings = {
@@ -20,6 +21,7 @@ const DEFAULT_SETTINGS: TenantSettings = {
     showStockHistory: true,
     allowImpediment: true,
     showVisitHistory: true,
+    requireLocationForExecution: false,
 };
 
 export class TenantService {
@@ -85,6 +87,7 @@ export class TenantService {
                 showStockHistory: tenantData?.metadata?.showStockHistory ?? true,
                 allowImpediment: tenantData?.metadata?.allowImpediment ?? true,
                 showVisitHistory: tenantData?.metadata?.showVisitHistory ?? true,
+                requireLocationForExecution: tenantData?.metadata?.requireLocationForExecution ?? false,
             };
 
             console.log(`[TenantService] ✅ Configuração final -> showStockPrice: ${settings.showStockPrice}, showClientContact: ${settings.showClientContact}, allowImpediment: ${settings.allowImpediment}, showVisitHistory: ${settings.showVisitHistory}`);

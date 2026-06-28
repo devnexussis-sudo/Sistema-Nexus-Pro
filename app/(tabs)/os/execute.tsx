@@ -1,28 +1,33 @@
 import { HeaderRightToggle } from '@/components/header-right-toggle';
 import { ImageViewerModal } from '@/components/image-viewer-modal';
 import { ThemedText } from '@/components/themed-text';
+import { NexusAlert } from '@/components/nexus-alert';
 import { ImageService } from '@/services/image-service';
 import { OrderItem, OrderService } from '@/services/order-service';
 import { StockService, TechStockItem } from '@/services/stock-service';
 import { syncService } from '@/services/sync-service';
 import { TenantService } from '@/services/tenant-service';
+import { appLifecycle } from '@/services/app-lifecycle';
 import { Ionicons } from '@expo/vector-icons';
 import { useI18n } from '@/services/i18n';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useGlobalLoading } from '@/contexts/GlobalLoadingContext';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SignatureScreen from 'react-native-signature-canvas';
 
 export default function ExecuteOSScreen() {
     const { id } = useLocalSearchParams();
     const router = useRouter();
+    const { showLoading, hideLoading } = useGlobalLoading();
     const insets = useSafeAreaInsets();
     const { t } = useI18n();
 
@@ -61,8 +66,47 @@ export default function ExecuteOSScreen() {
     const [isQuantityModalVisible, setQuantityModalVisible] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [qtyToSelect, setQtyToSelect] = useState('1');
+    const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] as any[] });
     const [showPrice, setShowPrice] = useState(false);
     const [allowImpediment, setAllowImpediment] = useState(true);
+
+    const [isScannerVisible, setIsScannerVisible] = useState(false);
+    const [scanned, setScanned] = useState(false);
+    const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+
+    const handleAddPartClick = (eqKey: string) => {
+        setActiveEquipmentKey(eqKey);
+        setIsPartSourceModalVisible(true);
+    };
+
+    const handleBarCodeScanned = ({ type, data }: { type: string, data: string }) => {
+        if (scanned) return;
+        setScanned(true);
+        setIsScannerVisible(false);
+
+        if (!myStock || myStock.length === 0) {
+            Alert.alert('Aviso', 'Você não tem peças no estoque.');
+            return;
+        }
+
+        const itemInStock = myStock.find(s => 
+            s.item?.code === data || 
+            s.stockItemId === data || 
+            s.item?.manufacturerCode === data
+        );
+
+        if (itemInStock) {
+            if (itemInStock.quantity <= 0) {
+                Alert.alert('Aviso', `A peça ${itemInStock.item?.description} está com estoque zerado.`);
+                return;
+            }
+            setSelectedPart(itemInStock);
+            setQtyToSelect('1');
+            setQuantityModalVisible(true);
+        } else {
+            Alert.alert('Não encontrada', `A peça (Código: ${data}) não está no seu estoque.`);
+        }
+    };
 
     // Video states
     const [isVideoModalVisible, setVideoModalVisible] = useState(false);
@@ -71,11 +115,13 @@ export default function ExecuteOSScreen() {
     const [myStock, setMyStock] = useState<TechStockItem[]>([]);
     const [isVideoSourceModalVisible, setIsVideoSourceModalVisible] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitProgress, setSubmitProgress] = useState({ current: 0, total: 0, label: '' });
     const [viewerVisible, setViewerVisible] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [isUploadingPhoto, setIsUploadingPhoto] = useState<string | null>(null);
     const [isPartsVisible, setIsPartsVisible] = useState(false);
     const [isPhotoSourceModalVisible, setIsPhotoSourceModalVisible] = useState(false);
+    const [isPartSourceModalVisible, setIsPartSourceModalVisible] = useState(false);
     const [photoSourceTarget, setPhotoSourceTarget] = useState<{ type: 'extra' | 'field', eqKey?: string, fieldId?: string } | null>(null);
     const signatureRef = useRef<any>(null);
     const scrollViewRef = useRef<ScrollView>(null);
@@ -94,19 +140,124 @@ export default function ExecuteOSScreen() {
     const [impedimentResponsibleName, setImpedimentResponsibleName] = useState('');
     const [impedimentSignature, setImpedimentSignature] = useState<string | null>(null);
     const [isImpedimentSignatureVisible, setIsImpedimentSignatureVisible] = useState(false);
+    const [isProcessingMedia, setIsProcessingMedia] = useState(false);
+    const [mediaProcessingLabel, setMediaProcessingLabel] = useState('');
+    
+    // v3: Track ALL background uploads to block finalize/impediment until complete
+    const [pendingUploadCount, setPendingUploadCount] = useState(0);
+    const [uploadingUris, setUploadingUris] = useState<Set<string>>(new Set());
+    const [validationAlert, setValidationAlert] = useState<{ visible: boolean; title: string; message: string }>({ visible: false, title: '', message: '' });
+
+    const showValidation = (title: string, message: string) => {
+        setValidationAlert({ visible: true, title, message });
+    };
+    // v5: Map local URI → remote URL (mantém miniatura local, resolve na hora de salvar)
+    const uploadedUrlMapRef = useRef<Map<string, string>>(new Map());
+    const hasPendingUploads = pendingUploadCount > 0 || isUploadingExtra || isUploadingVideo || isUploadingPhoto !== null || isProcessingMedia;
+
+    /** Resolve URI: se tem URL remota no mapa, usa ela; senão mantém a local */
+    const resolvePhotoUri = useCallback((uri: string) => {
+        return uploadedUrlMapRef.current.get(uri) || uri;
+    }, []);
 
 
 
     const getEquipmentKeys = () => Object.keys(formsConfig);
     const totalEquipmentPages = getEquipmentKeys().length;
-    // Pages: 0: Details, 1..N: Equipment Forms, N+1: Conclusion/Video, N+2: Validation
-    const totalPages = 1 + totalEquipmentPages + 1 + 1;
+    const eqKeysForFinancial = getEquipmentKeys();
+    const financialEqKey = eqKeysForFinancial.find(key => !!formsConfig[key]?.financialTemplate);
+    const hasFinancialPage = !!financialEqKey;
+    const totalPages = 1 + (hasFinancialPage ? 1 : 0) + totalEquipmentPages + 2; // +2: 1 for Finalization (Report/Media) and 1 for Validation (Signature/Client)
+
 
     const nextPage = () => {
-        if (currentPage < totalPages - 1) {
-            setCurrentPage(prev => prev + 1);
-            scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+        if (currentPage >= totalPages - 1) return;
+
+        const validateFields = (fields: any[], configData: any, eqDesc: string) => {
+            for (const field of fields) {
+                let isVisible = true;
+                if (field.condition?.fieldId) {
+                    const dep = (configData[field.condition.fieldId] ?? '').toString().trim().toLowerCase();
+                    const exp = (field.condition.value ?? '').toString().trim().toLowerCase();
+                    const op = (field.condition.operator || 'equals') as string;
+                    if ((op === 'equals' || op === 'equal') && dep !== exp) isVisible = false;
+                    if (op === 'not_equals' && dep === exp) isVisible = false;
+                }
+
+                if (!isVisible || !field.required) continue;
+
+                const value = configData[field.id];
+
+                if (field.type === 'PHOTO') {
+                    if (!Array.isArray(value) || value.length === 0) {
+                        showValidation(
+                            t('execRequiredField') || 'Campo obrigatório',
+                            `Adicione pelo menos 1 foto em "${field.label}" (${eqDesc}).`
+                        );
+                        return false;
+                    }
+                    continue;
+                }
+
+                if (field.type === 'SIGNATURE') {
+                    if (!value) {
+                        showValidation(
+                            t('execRequiredField') || 'Campo obrigatório',
+                            `Preencha "${field.label}" (${eqDesc}).`
+                        );
+                        return false;
+                    }
+                    continue;
+                }
+
+                if (!value || (typeof value === 'string' && !value.trim())) {
+                    showValidation(
+                        t('execRequiredField') || 'Campo obrigatório',
+                        t('execFillField')
+                            ? t('execFillField').replace('%s', field.label).replace('%s', eqDesc)
+                            : `Preencha "${field.label}" (${eqDesc}).`
+                    );
+                    return false;
+                }
+            }
+            return true;
+        };
+
+        // Validar formulário financeiro (se existir e estivermos na página 1)
+        if (hasFinancialPage && currentPage === 1) {
+            const eqKey = financialEqKey as string;
+            const config = formsConfig[eqKey];
+            if (config && config.financialTemplate) {
+                if (!validateFields(config.financialTemplate.fields, config.data, 'Financeiro')) return;
+            }
         }
+
+        // Validar formulários técnicos
+        const eqStartIndex = hasFinancialPage ? 2 : 1;
+        if (currentPage >= eqStartIndex && currentPage < eqStartIndex + totalEquipmentPages) {
+            const eqIndex = currentPage - eqStartIndex;
+            const eqKeys = getEquipmentKeys();
+            const eqKey = eqKeys[eqIndex];
+            const config = formsConfig[eqKey];
+            if (config && config.template) {
+                const eqDesc = config.equipamento?.equipment_model || config.equipamento?.equipment_name || 'equipamento';
+                if (!validateFields(config.template.fields, config.data, eqDesc)) return;
+            }
+        }
+        // Validar resumo do atendimento antes de ir para a última página (Validação)
+        if (currentPage === totalPages - 2) {
+            if (!technicalReport || !technicalReport.trim()) {
+                showValidation(
+                    t('execRequiredField') || 'Campo obrigatório',
+                    'Preencha o Resumo do Atendimento antes de prosseguir.'
+                );
+                return;
+            }
+        }
+
+
+        setCurrentPage(prev => prev + 1);
+        scrollViewRef.current?.scrollTo({ y: 0, animated: false });
     };
 
     const prevPage = () => {
@@ -118,15 +269,15 @@ export default function ExecuteOSScreen() {
 
 
 
-    const fetchTemplateForEquipment = async (orderData: any, eq: any, rules: any[], serviceTypes: any[], allTemplates: any[]) => {
-        let template: any = null;
+    const fetchTemplatesForEquipment = async (orderData: any, eq: any, rules: any[], serviceTypes: any[], allTemplates: any[]) => {
+        let technicalTemplate: any = null;
+        let financialTemplate: any = null;
+
         if (eq?.form_id && eq.form_id !== 'f-padrao') {
-            template = await OrderService.getFormTemplate(eq.form_id);
-            if (template) return template;
+            technicalTemplate = await OrderService.getFormTemplate(eq.form_id);
         }
-        if (orderData.formId && orderData.formId !== 'f-padrao') {
-            template = await OrderService.getFormTemplate(orderData.formId);
-            if (template) return template;
+        if (orderData.formId && orderData.formId !== 'f-padrao' && !technicalTemplate) {
+            technicalTemplate = await OrderService.getFormTemplate(orderData.formId);
         }
 
         const typeValue = orderData.operationType || orderData.type;
@@ -140,27 +291,46 @@ export default function ExecuteOSScreen() {
         const family = eq?.equipment_family || eq?.equipmentFamily || t('execAll');
         const typeId = matchedServiceType?.id || typeValue;
 
-        const bestRule = rules.find(r => r.serviceTypeId === typeId && r.equipmentFamily === family)
-            || rules.find(r => r.serviceTypeId === typeId && (r.equipmentFamily === t('execAll') || !r.equipmentFamily));
+        const normalizedFamily = String(family).toLowerCase().trim();
+        const normalizedTypeId = String(typeId).toLowerCase().trim();
+
+        console.log(`[ExecuteOS] Buscando regras para: typeId=${typeId} (nome=${typeValue}), family=${family}`);
+
+        const bestRule = rules.find(r => 
+            String(r.serviceTypeId || r.service_type_id).toLowerCase().trim() === normalizedTypeId && 
+            String(r.equipmentFamily || '').toLowerCase().trim() === normalizedFamily
+        ) || rules.find(r => 
+            String(r.serviceTypeId || r.service_type_id).toLowerCase().trim() === normalizedTypeId && 
+            (String(r.equipmentFamily || '').toLowerCase().trim() === 'todos' || !r.equipmentFamily)
+        );
+
+        console.log(`[ExecuteOS] Regra encontrada:`, bestRule ? { id: bestRule.id, financialFormId: bestRule.financialFormId, formId: bestRule.formId } : 'Nenhuma');
 
         if (bestRule) {
-            template = await OrderService.getFormTemplate(bestRule.formId);
-            if (template) return template;
+            if (!technicalTemplate) {
+                technicalTemplate = await OrderService.getFormTemplate(bestRule.formId);
+            }
+            if (bestRule.financialFormId) {
+                financialTemplate = await OrderService.getFormTemplate(bestRule.financialFormId);
+            }
         }
 
-        if (orderData.type) {
-            template = allTemplates.find(t =>
+        if (!technicalTemplate && orderData.type) {
+            technicalTemplate = allTemplates.find(t =>
                 t.title.toLowerCase().includes(orderData.type!.toLowerCase()) ||
                 (t.serviceTypes && t.serviceTypes.includes(orderData.type!))
             );
         }
-        return template;
+        return { technicalTemplate, financialTemplate };
     };
 
     useFocusEffect(
         React.useCallback(() => {
             let isActive = true;
+            setOrder(null);
+            setFormsConfig({});
             setIsLoading(true);
+            showLoading('Carregando execução...');
 
             const loadData = async (isBackground = false) => {
                 try {
@@ -217,10 +387,19 @@ export default function ExecuteOSScreen() {
                                 const eq = equipmentsList[i];
                                 const eqKey = eq.id || `eq_${i}`;
                                 const eqName = eq.equipment_model || eq.equipment_name || t('execEquipment');
-                                const template = await fetchTemplateForEquipment(mapped, eq, rules, serviceTypes, allTemplates);
+                                const { technicalTemplate, financialTemplate } = await fetchTemplatesForEquipment(mapped, eq, rules, serviceTypes, allTemplates);
                                 const initialData: any = {};
-                                if (template) {
-                                    template.fields.forEach((field: any) => {
+                                if (technicalTemplate) {
+                                    technicalTemplate.fields.forEach((field: any) => {
+                                        if (cache?.formsData?.[eqKey]?.[field.id] !== undefined) {
+                                            initialData[field.id] = cache.formsData[eqKey][field.id];
+                                        } else {
+                                            initialData[field.id] = '';
+                                        }
+                                    });
+                                }
+                                if (financialTemplate) {
+                                    financialTemplate.fields.forEach((field: any) => {
                                         if (cache?.formsData?.[eqKey]?.[field.id] !== undefined) {
                                             initialData[field.id] = cache.formsData[eqKey][field.id];
                                         } else {
@@ -230,7 +409,7 @@ export default function ExecuteOSScreen() {
                                 }
                                 // Restore per-equipment technical report from cache
                                 const cachedReport = cache?.formsData?.[eqKey]?._report || '';
-                                newFormsConfig[eqKey] = { equipamento: eq, template, data: { ...initialData, _report: cachedReport } };
+                                newFormsConfig[eqKey] = { equipamento: eq, template: technicalTemplate, financialTemplate, data: { ...initialData, _report: cachedReport } };
                             }
 
                             // Carregar estoque do técnico no modo offline
@@ -251,7 +430,14 @@ export default function ExecuteOSScreen() {
                     const orderData = await OrderService.getOrderById(id as string, false);
                     if (isActive && orderData) {
                         setOrder(orderData);
-                        if (!isBackground) setIsLoading(false); // Remove loading spinner ASAP
+
+                        // GARANTIA: Se entrou na tela de execução mas o status ainda não é EM ANDAMENTO, forçar
+                        if (orderData.status !== 'in_progress' && orderData.status !== 'completed' && orderData.status !== 'blocked') {
+                            console.log(`[ExecuteOS] ⚠️ Status é "${orderData.status}", forçando para EM ANDAMENTO...`);
+                            OrderService.startExecution(id as string).catch(e => 
+                                console.warn('[ExecuteOS] Falha ao forçar EM ANDAMENTO:', e)
+                            );
+                        }
 
                         const equipmentsList = (orderData.equipments && orderData.equipments.length > 0)
                             ? orderData.equipments
@@ -275,11 +461,18 @@ export default function ExecuteOSScreen() {
 
                         setExtraPhotos([]);
 
+                        // Limpar cache de regras para garantir dados frescos do servidor
+                        await AsyncStorage.removeItem('@nexus_activation_rules').catch(() => {});
+                        await AsyncStorage.removeItem('@nexus_service_types').catch(() => {});
+
                         const [rules, serviceTypes, allTemplates] = await Promise.all([
                             OrderService.getActivationRules(),
                             OrderService.getServiceTypes(),
                             OrderService.getFormTemplates()
                         ]);
+
+
+                        console.log(`[ExecuteOS] Regras carregadas: ${rules.length}. ServiceTypes: ${serviceTypes.length}. Templates: ${allTemplates.length}`);
 
                         const newFormsConfig: Record<string, any> = {};
 
@@ -288,11 +481,20 @@ export default function ExecuteOSScreen() {
                             const eqKey = eq.id || `eq_${i}`;
                             const eqName = eq.equipment_model || eq.equipment_name || t('execEquipment');
 
-                            let template = await fetchTemplateForEquipment(orderData, eq, rules, serviceTypes, allTemplates);
+                            let { technicalTemplate, financialTemplate } = await fetchTemplatesForEquipment(orderData, eq, rules, serviceTypes, allTemplates);
 
                             let initialData: any = {};
-                            if (template) {
-                                template.fields.forEach((field: any) => {
+                            if (technicalTemplate) {
+                                technicalTemplate.fields.forEach((field: any) => {
+                                    if (cache?.formsData?.[eqKey]?.[field.id] !== undefined) {
+                                        initialData[field.id] = cache.formsData[eqKey][field.id];
+                                    } else {
+                                        initialData[field.id] = '';
+                                    }
+                                });
+                            }
+                            if (financialTemplate) {
+                                financialTemplate.fields.forEach((field: any) => {
                                     if (cache?.formsData?.[eqKey]?.[field.id] !== undefined) {
                                         initialData[field.id] = cache.formsData[eqKey][field.id];
                                     } else {
@@ -306,7 +508,8 @@ export default function ExecuteOSScreen() {
 
                             newFormsConfig[eqKey] = {
                                 equipamento: eq,
-                                template: template,
+                                template: technicalTemplate,
+                                financialTemplate: financialTemplate,
                                 data: { ...initialData, _report: cachedReport },
                             };
                         }
@@ -349,9 +552,10 @@ export default function ExecuteOSScreen() {
                         }
                     });
                 }
+                hideLoading();
             });
 
-            return () => { isActive = false; };
+            return () => { isActive = false; hideLoading(); };
         }, [id])
     );
 
@@ -414,16 +618,21 @@ export default function ExecuteOSScreen() {
     const processPhotoChoice = async (source: 'camera' | 'library', callback: (uris: string[]) => void, limit = 1) => {
         try {
             const result = source === 'camera'
-                ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 })
+                ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'] })
                 : await ImagePicker.launchImageLibraryAsync({ 
                     mediaTypes: ['images'], 
-                    quality: 0.8, 
                     allowsMultipleSelection: true,
                     selectionLimit: limit
                 });
 
             if (!result.canceled && result.assets && result.assets.length > 0) {
-                callback(result.assets.map(a => a.uri));
+                // v5: INSTANT — Envia URIs originais direto para o callback.
+                // O callback (uploadExtraPhoto / uploadFieldPhoto) adiciona as URIs
+                // ao estado IMEDIATAMENTE (cards aparecem na hora), e depois roda
+                // compressão + upload em background sem travar a UI.
+                // NÃO usamos await — fire-and-forget para não bloquear.
+                const rawUris = result.assets.map(asset => asset.uri);
+                callback(rawUris);
             }
         } catch (e) {
             Alert.alert(t('alertError'), t('osCouldNotMedia'));
@@ -449,39 +658,48 @@ export default function ExecuteOSScreen() {
 
     const uploadExtraPhoto = async (uris: string[]) => {
         setIsUploadingExtra(true);
+        setPendingUploadCount(prev => prev + uris.length);
         try {
             // INSTANT PREVIEW: Mostrar imagem local imediatamente
             const localUris = [...uris];
+            setUploadingUris(prev => {
+                const next = new Set(prev);
+                localUris.forEach(u => next.add(u));
+                return next;
+            });
             setExtraPhotos(prev => [...prev, ...localUris]);
 
-            // BACKGROUND UPLOAD: Comprimir e subir silenciosamente, substituindo URI local pela pública
-            for (const uri of localUris) {
-                (async () => {
-                    try {
-                        const compressedUri = await ImageService.compressImage(uri);
-                        const netInfo = await NetInfo.fetch();
-                        let finalUri = compressedUri;
+            // BACKGROUND: Comprimir e subir TODAS em paralelo (rápido)
+            const netInfo = await NetInfo.fetch();
+            const isOnline = netInfo.isConnected && !syncService.isOfflineModeEnabled();
 
-                        if (netInfo.isConnected && !syncService.isOfflineModeEnabled()) {
-                            const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${order?.displayId || id}/extra_photos`, order?.tenantId);
-                            if (publicUrl) finalUri = publicUrl;
-                        } else {
-                            const fileName = `offline_extra_${id}_${Date.now()}.jpg`;
-                            const destPath = `${FileSystem.documentDirectory}${fileName}`;
-                            await FileSystem.copyAsync({ from: compressedUri, to: destPath });
-                            finalUri = destPath;
-                        }
+            await Promise.allSettled(localUris.map(async (uri) => {
+                try {
+                    const compressedUri = await ImageService.compressImage(uri);
+                    let finalUri = compressedUri;
 
-                        // Swap silencioso: pré-carregar a imagem nova antes de trocar para evitar flash cinza
-                        if (finalUri !== uri) {
-                            try { await Image.prefetch(finalUri); } catch { /* local files may not support prefetch */ }
-                            setExtraPhotos(prev => prev.map(p => p === uri ? finalUri : p));
-                        }
-                    } catch (e) {
-                        console.warn('[ExtraPhoto] Background upload failed, keeping local URI:', e);
+                    if (isOnline) {
+                        const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${order?.displayId || id}/extra_photos`, order?.tenantId);
+                        if (publicUrl) finalUri = publicUrl;
+                    } else {
+                        const fileName = `offline_extra_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.webp`;
+                        const destPath = `${FileSystem.documentDirectory}${fileName}`;
+                        await FileSystem.copyAsync({ from: compressedUri, to: destPath });
+                        finalUri = destPath;
                     }
-                })();
-            }
+
+                    // v5: NÃO troca a URI no estado visual — miniatura fica com arquivo local (nunca cinza)
+                    // Guarda no Map para resolver na hora de salvar a OS
+                    if (finalUri !== uri) {
+                        uploadedUrlMapRef.current.set(uri, finalUri);
+                    }
+                } catch (e) {
+                    console.warn('[ExtraPhoto] Upload failed, keeping local:', (e as Error).message);
+                } finally {
+                    setUploadingUris(prev => { const n = new Set(prev); n.delete(uri); return n; });
+                    setPendingUploadCount(prev => Math.max(0, prev - 1));
+                }
+            }));
         } finally {
             setIsUploadingExtra(false);
         }
@@ -496,7 +714,7 @@ export default function ExecuteOSScreen() {
         try {
             const result = await ImagePicker.launchCameraAsync({
                 mediaTypes: ['videos'],
-                videoQuality: 1,      // 720p — qualidade boa
+                videoQuality: 0,      // Qualidade baixa (480p) — menor tamanho sem compressor externo
                 allowsEditing: false, // sem edição manual
                 // sem videoMaxDuration — sem limite de tempo
             });
@@ -555,41 +773,35 @@ export default function ExecuteOSScreen() {
             // Começa o processamento pesado:
             setVideoProcessingStatus(t('execUploading'));
 
-            // ─── Ponto B: Compressão Cross-Platform (iOS e Android) ─────────────
-            setVideoProcessingStatus(t('execUploading'));
+            // ─── Ponto B: Compressão de Vídeo (react-native-compressor v1.x) ────
+            setVideoProcessingStatus('Comprimindo vídeo...');
             let compressedUri = localUri;
-            
+
             try {
-                // Voltando ao compressor padrão (mais robusto no mobile React Native) 
                 const { Video } = require('react-native-compressor');
-                
-                // Aplicando as especificações de Engenharia de Precisão (NASA standard):
-                // - Codec: H264 (Compatibilidade Universal)
-                // - Resolução: 480p (Otimizado para mobile/relatórios)
-                // - Target Bitrate: ~320 kbps (Garante < 4MB/min com margem operacional)
                 const compressionResult = await Video.compress(
                     localUri,
                     {
-                        compressionMethod: 'manual', 
+                        compressionMethod: 'manual',
                         maxWidth: 480,
                         maxHeight: 854,
-                        bitrate: 384000,         // Taxa de 384kbps (aprox 2.8 MB/min, com Qualidade Aceitável)
-                        fps: 24,                 // 24fps para mais bits por frame
+                        bitrate: 450000,          // 450kbps (Video ~ 3.3MB/min)
+                        fps: 24,                  // 24 FPS (Cinematic, saves 20% bitrate)
                         videoCodec: 'H264',
-                        audioBitrate: 64000,     // Áudio sem distorcer
-                        outputSampleRate: 44100, // Áudio em 44.1kHz
+                        audioBitrate: 32000,      // 32kbps (Audio ~ 0.2MB/min - if supported)
+                        audioChannels: 1,         // Mono (if supported by OS compressor)
+                        outputSampleRate: 44100,
                         minimumFileSizeForCompress: 0,
                     } as any,
-                    (progress) => {
-                        setVideoProcessingStatus(`Carregando... ${Math.round(progress * 100)}%`);
+                    (progress: number) => {
+                        setVideoProcessingStatus(`Comprimindo... ${Math.round(progress * 100)}%`);
                     }
                 );
-                
                 if (compressionResult) {
                     compressedUri = compressionResult;
                 }
             } catch (err) {
-                console.warn('[Video] Falha na compressão via react-native-compressor nativo:', err);
+                console.warn('[Video] Falha na compressão — usando vídeo original:', err);
             }
 
             // Mede a redução conseguida
@@ -633,9 +845,15 @@ export default function ExecuteOSScreen() {
 
     const uploadFieldPhoto = async (uris: string[], eqKey: string, fieldId: string) => {
         setIsUploadingPhoto(`${eqKey}_${fieldId}`);
+        setPendingUploadCount(prev => prev + uris.length);
         try {
             // INSTANT PREVIEW: Mostrar imagem local imediatamente
             const localUris = [...uris];
+            setUploadingUris(prev => {
+                const next = new Set(prev);
+                localUris.forEach(u => next.add(u));
+                return next;
+            });
             setFormsConfig(prev => {
                 const newConfig = { ...prev };
                 const currentPhotos = Array.isArray(newConfig[eqKey].data[fieldId]) ? newConfig[eqKey].data[fieldId] : [];
@@ -645,39 +863,37 @@ export default function ExecuteOSScreen() {
                 return newConfig;
             });
 
-            // BACKGROUND UPLOAD: Comprimir e subir silenciosamente
-            for (const uri of localUris) {
-                (async () => {
-                    try {
-                        const compressedUri = await ImageService.compressImage(uri);
-                        const netInfo = await NetInfo.fetch();
-                        let finalUri = compressedUri;
+            // BACKGROUND: Comprimir e subir TODAS em paralelo (rápido)
+            const netInfo = await NetInfo.fetch();
+            const isOnline = netInfo.isConnected && !syncService.isOfflineModeEnabled();
 
-                        if (netInfo.isConnected && !syncService.isOfflineModeEnabled()) {
-                            const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${order?.displayId || id}/form_photos`, order?.tenantId);
-                            if (publicUrl) finalUri = publicUrl;
-                        } else {
-                            const fileName = `offline_form_${id}_${eqKey}_${fieldId}_${Date.now()}.jpg`;
-                            const destPath = `${FileSystem.documentDirectory}${fileName}`;
-                            await FileSystem.copyAsync({ from: compressedUri, to: destPath });
-                            finalUri = destPath;
-                        }
+            await Promise.allSettled(localUris.map(async (uri) => {
+                try {
+                    const compressedUri = await ImageService.compressImage(uri);
+                    let finalUri = compressedUri;
 
-                        // Swap silencioso: pré-carregar antes de trocar para evitar flash cinza
-                        if (finalUri !== uri) {
-                            try { await Image.prefetch(finalUri); } catch { /* local files may not support prefetch */ }
-                            setFormsConfig(prev => {
-                                const newConfig = { ...prev };
-                                const photos = Array.isArray(newConfig[eqKey].data[fieldId]) ? newConfig[eqKey].data[fieldId] : [];
-                                newConfig[eqKey].data = { ...newConfig[eqKey].data, [fieldId]: photos.map((p: string) => p === uri ? finalUri : p) };
-                                return newConfig;
-                            });
-                        }
-                    } catch (e) {
-                        console.warn('[FieldPhoto] Background upload failed, keeping local URI:', e);
+                    if (isOnline) {
+                        const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${order?.displayId || id}/form_photos`, order?.tenantId);
+                        if (publicUrl) finalUri = publicUrl;
+                    } else {
+                        const fileName = `offline_form_${id}_${eqKey}_${fieldId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.webp`;
+                        const destPath = `${FileSystem.documentDirectory}${fileName}`;
+                        await FileSystem.copyAsync({ from: compressedUri, to: destPath });
+                        finalUri = destPath;
                     }
-                })();
-            }
+
+                    // v5: NÃO troca a URI no estado visual — miniatura fica com arquivo local
+                    if (finalUri !== uri) {
+                        uploadedUrlMapRef.current.set(uri, finalUri);
+                    }
+                } catch (e) {
+                    console.warn('[FieldPhoto] Upload failed, keeping local:', (e as Error).message);
+                } finally {
+                    setUploadingUris(prev => { const n = new Set(prev); n.delete(uri); return n; });
+                    setPendingUploadCount(prev => Math.max(0, prev - 1));
+                }
+            }));
+            
         } finally {
             setIsUploadingPhoto(null);
         }
@@ -693,16 +909,16 @@ export default function ExecuteOSScreen() {
 
     const handleSubmit = async () => {
         if (!signature) {
-            Alert.alert(t('alertAttention'), t('execSignatureRequired'));
+            showValidation(t('alertAttention'), t('execSignatureRequired'));
             return;
         }
         if (!clientName.trim()) {
-            Alert.alert(t('alertAttention'), t('execNameRequired'));
+            showValidation(t('alertAttention'), t('execNameRequired'));
             return;
         }
         // Validate that the general technical report is filled
         if (!technicalReport.trim()) {
-            Alert.alert(t('alertAttention'), t('execReportRequired'));
+            showValidation(t('alertAttention'), t('execReportRequired'));
             return;
         }
 
@@ -729,7 +945,7 @@ export default function ExecuteOSScreen() {
                     // 2. Se visível e obrigatório, valida resposta
                     if (isVisible && field.required && !config.data[field.id] && field.type !== 'PHOTO' && field.type !== 'SIGNATURE') {
                         const eqDesc = config.equipamento?.equipment_model || config.equipamento?.equipment_name || 'selecionado';
-                        Alert.alert(t('execRequiredField'), t('execFillField').replace('%s', field.label).replace('%s', eqDesc));
+                        showValidation(t('execRequiredField'), t('execFillField').replace('%s', field.label).replace('%s', eqDesc));
                         return;
                     }
                 }
@@ -738,61 +954,91 @@ export default function ExecuteOSScreen() {
 
         try {
             setIsSubmitting(true);
+            setSubmitProgress({ current: 0, total: 0, label: 'Verificando conexão...' });
+
             const netInfo = await NetInfo.fetch();
-            const isOffline = !netInfo.isConnected || syncService.isOfflineModeEnabled();
+            // Fallback imediato: Se o NetInfo estiver fora OU se o nosso Watchdog interno (appLifecycle)
+            // identificar que estamos numa zona zumbi, bloqueia a tentativa online instantaneamente e força sincronismo off.
+            const isOffline = !netInfo.isConnected || syncService.isOfflineModeEnabled() || 
+                (appLifecycle.globalNetworkState !== 'CONNECTED' && appLifecycle.globalNetworkState !== 'CONNECTED_IDLE');
 
             const finalFormData: Record<string, any> = {};
             let localPhotosToSync: string[] = [];
             // Aggregate per-equipment technical reports
             const allReports: string[] = [];
 
+            // ─── FASE 1: Coletar todos os arquivos locais que precisam de upload ───
+            // Em vez de uploadar um por um (sequencial), coletamos TUDO e enviamos em paralelo.
+            type PendingUpload = { uri: string; resolvedUrl?: string };
+            const pendingUploads: PendingUpload[] = [];
+
+            // Mapeamento: para cada campo do formulário, guarda os índices dos uploads pendentes
+            type FieldRef = { configKey: string; fieldLabel: string; index?: number; type: 'array' | 'single' };
+            const uploadFieldRefs: Map<number, FieldRef> = new Map();
+
             for (const key in formsConfig) {
                 const config = formsConfig[key];
-                const eqName = config.equipamento?.equipment_model || config.equipamento?.equipment_name || t('execEquipment');
+                const eqName = [config.equipamento?.equipment_name, config.equipamento?.equipment_model].filter(Boolean).join(' ') || t('execEquipment');
                 const eqSerial = config.equipamento?.equipment_serial;
-                const prefix = `[${eqName}${eqSerial ? ` S/N: ${eqSerial}` : ''}] - `;
+                const basePrefix = `[${eqName}${eqSerial ? ` S/N: ${eqSerial}` : ''} - `;
 
-                // Per-equipment technical report
-                const eqReport = (config.data._report || '').trim();
-                if (eqReport) {
-                    finalFormData[`${prefix}technical_report`] = eqReport;
-                    allReports.push(`${eqName}: ${eqReport}`);
-                }
+                let visibleCount = 1;
+                const processTemplateFields = (templateObj: any, suffix: string) => {
+                    if (!templateObj || !templateObj.fields) return;
+                    const fullPrefix = `${basePrefix}${suffix}] - `;
+                    templateObj.fields.forEach((field: any) => {
+                        if (field.condition?.fieldId) {
+                            const dep = (config.data[field.condition.fieldId] ?? '').toString().trim().toLowerCase();
+                            const exp = (field.condition.value ?? '').toString().trim().toLowerCase();
+                            const op  = (field.condition.operator || 'equals') as string;
+                            if ((op === 'equals' || op === 'equal') && dep !== exp) return;
+                            if (op === 'not_equals' && dep === exp) return;
+                        }
 
-                if (config.template) {
-                    for (const field of config.template.fields) {
-                        let value = config.data[field.id];
+                        const value = config.data[field.id];
+                        const indexStr = String(visibleCount++).padStart(3, '0');
+                        const fieldLabel = `${fullPrefix}${indexStr}#${field.label}`;
 
                         if (Array.isArray(value)) {
-                            const uploadedUrls = [];
-                            for (const item of value) {
+                            const resolvedArray: string[] = [];
+                            for (let i = 0; i < value.length; i++) {
+                                const item = value[i];
                                 if (typeof item === 'string' && (item.startsWith('file://') || item.startsWith('content://') || item.startsWith('/'))) {
-                                    if (isOffline) {
+                                    const alreadyUploaded = uploadedUrlMapRef.current.get(item);
+                                    if (alreadyUploaded && alreadyUploaded.startsWith('http')) {
+                                        resolvedArray.push(alreadyUploaded);
+                                    } else if (isOffline) {
                                         localPhotosToSync.push(item);
-                                        uploadedUrls.push(item);
+                                        resolvedArray.push(item);
                                     } else {
-                                        const url = await OrderService.uploadFile(item, `orders/${order?.displayId || id}/form_photos`, order?.tenantId);
-                                        if (url) uploadedUrls.push(url);
+                                        const idx = pendingUploads.length;
+                                        pendingUploads.push({ uri: item });
+                                        uploadFieldRefs.set(idx, { configKey: key, fieldLabel, index: i, type: 'array' });
+                                        resolvedArray.push('__PENDING__'); // placeholder
                                     }
                                 } else {
-                                    uploadedUrls.push(item);
+                                    resolvedArray.push(item);
                                 }
                             }
-                            value = uploadedUrls;
+                            finalFormData[fieldLabel] = resolvedArray;
                         } else if (typeof value === 'string' && (value.startsWith('file://') || value.startsWith('content://') || value.startsWith('/'))) {
                             if (isOffline) {
                                 localPhotosToSync.push(value);
+                                finalFormData[fieldLabel] = value;
                             } else {
-                                const url = await OrderService.uploadFile(value, `orders/${order?.displayId || id}/form_photos`, order?.tenantId);
-                                if (url) value = url;
+                                const idx = pendingUploads.length;
+                                pendingUploads.push({ uri: value });
+                                uploadFieldRefs.set(idx, { configKey: key, fieldLabel, type: 'single' });
+                                finalFormData[fieldLabel] = '__PENDING__';
                             }
+                        } else if (value !== undefined && value !== '') {
+                            finalFormData[fieldLabel] = value;
                         }
+                    });
+                };
 
-                        if (value !== undefined && value !== '') {
-                            finalFormData[`${prefix}${field.label}`] = value;
-                        }
-                    }
-                }
+                processTemplateFields(config.financialTemplate, config.financialTemplate?.title || 'Financeiro');
+                processTemplateFields(config.template, config.template?.title || 'Técnico');
             }
 
             // Consolidated report = all per-equipment reports joined
@@ -827,17 +1073,101 @@ export default function ExecuteOSScreen() {
                 });
 
                 await AsyncStorage.removeItem(`os_cache_${id}`);
-                Alert.alert(t('execSavedOffline'), t('execSavedOfflineMsg'), [
-                    { text: 'OK', onPress: () => router.replace('/') }
-                ]);
-            } else {
-                finalFormData['technical_report'] = combinedReport;
-                finalFormData['extra_photos'] = extraPhotos;
 
+                // Atualizar cache local para a OS aparecer como concluída na aba de Concluídas
+                try {
+                    const todayOrders = await syncService.getTodayOrders();
+                    const updatedOrders = todayOrders.map(o => {
+                        if (o.id === id) {
+                            return { 
+                                ...o, 
+                                status: 'CONCLUÍDO', 
+                                end_date: new Date().toISOString(),
+                                updated_at: new Date().toISOString()
+                            };
+                        }
+                        return o;
+                    });
+                    await syncService.saveTodayOrders(updatedOrders);
+                    // Notify UI to refresh offline list
+                    appLifecycle.notifyOrderChange({ orderId: id, eventType: 'UPDATE' });
+                } catch (e) {
+                    console.log('[ExecuteOS] Erro ao atualizar status offline da OS:', e);
+                }
+
+                router.replace({ pathname: '/', params: { filter: 'completed' } });
+            } else {
+                // ─── FASE 2: Upload PARALELO de todos os arquivos locais ───────────
+                const totalUploads = pendingUploads.length;
+                let completedUploads = 0;
+
+                if (totalUploads > 0) {
+                    setSubmitProgress({ current: 0, total: totalUploads, label: `Enviando 0/${totalUploads} fotos...` });
+
+                    // Upload em lotes paralelos de 3 para não sobrecarregar a rede
+                    const BATCH_SIZE = 3;
+                    for (let batch = 0; batch < totalUploads; batch += BATCH_SIZE) {
+                        const batchItems = pendingUploads.slice(batch, batch + BATCH_SIZE);
+                        const batchIndices = batchItems.map((_, j) => batch + j);
+
+                        const results = await Promise.allSettled(
+                            batchItems.map(item =>
+                                OrderService.uploadFile(item.uri, `orders/${order?.displayId || id}/form_photos`, order?.tenantId)
+                            )
+                        );
+
+                        results.forEach((result, j) => {
+                            const globalIdx = batchIndices[j];
+                            const url = result.status === 'fulfilled' ? result.value : null;
+                            pendingUploads[globalIdx].resolvedUrl = url || pendingUploads[globalIdx].uri;
+                            completedUploads++;
+                        });
+
+                        setSubmitProgress({
+                            current: completedUploads,
+                            total: totalUploads,
+                            label: `Enviando ${completedUploads}/${totalUploads} fotos...`
+                        });
+                    }
+                }
+
+                // ─── FASE 3: Substituir placeholders pelos URLs reais ──────────────
+                setSubmitProgress({ current: completedUploads, total: totalUploads, label: 'Salvando ordem...' });
+
+                for (const [idx, ref] of uploadFieldRefs.entries()) {
+                    const resolvedUrl = pendingUploads[idx].resolvedUrl || pendingUploads[idx].uri;
+                    if (ref.type === 'array' && ref.index !== undefined) {
+                        const arr = finalFormData[ref.fieldLabel];
+                        if (Array.isArray(arr)) {
+                            arr[ref.index] = resolvedUrl;
+                        }
+                    } else {
+                        finalFormData[ref.fieldLabel] = resolvedUrl;
+                    }
+                }
+
+                // Limpar quaisquer placeholders remanescentes
+                for (const key of Object.keys(finalFormData)) {
+                    const val = finalFormData[key];
+                    if (Array.isArray(val)) {
+                        finalFormData[key] = val.filter(v => v !== '__PENDING__');
+                    } else if (val === '__PENDING__') {
+                        delete finalFormData[key];
+                    }
+                }
+
+                finalFormData['technical_report'] = combinedReport;
+                // v5: Resolver URIs locais → URLs remotas via o mapa de uploads
+                const resolvedExtraPhotos = extraPhotos.map(p => resolvePhotoUri(p));
+                finalFormData['extra_photos'] = resolvedExtraPhotos;
+                // Salvar metadados dos formulários (nomes reais dos templates) para retroatividade
+                finalFormData['execution_forms'] = formsConfig;
+
+                // Passa tudo já com URLs HTTP para completeOrder — evita re-upload
                 await OrderService.completeOrder(id as string, {
                     technicalReport: combinedReport,
                     partsUsed: '',
-                    photos: extraPhotos,
+                    photos: resolvedExtraPhotos,
                     videoUrl: videoUri,
                     signature,
                     formData: finalFormData,
@@ -850,16 +1180,20 @@ export default function ExecuteOSScreen() {
                 // Clear cache on success
                 await AsyncStorage.removeItem(`os_cache_${id}`);
 
-                Alert.alert(
-                    t('alertSuccess'), t('execOSFinished'), [
-                    { text: 'OK', onPress: () => router.replace('/') }
-                ]);
+                // Navigate directly to completed tab
+                router.replace({ pathname: '/', params: { filter: 'completed' } });
             }
         } catch (error) {
             console.error(error);
-            Alert.alert(t('alertError'), t('execFailFinish'));
+            setAlertConfig({
+                visible: true,
+                title: t('alertError'),
+                message: t('execFailFinish'),
+                buttons: [{ text: 'OK', style: 'default' }]
+            });
         } finally {
             setIsSubmitting(false);
+            setSubmitProgress({ current: 0, total: 0, label: '' });
         }
     };
 
@@ -869,17 +1203,17 @@ export default function ExecuteOSScreen() {
     // formulário já preenchidos e bloqueia a OS. Nada se perde.
     const handleBlockFromForm = async () => {
         if (!impedimentReason.trim()) {
-            Alert.alert(t('alertAttention'), t('execImpedimentRequired'));
+            showValidation(t('alertAttention'), t('execImpedimentRequired'));
             return;
         }
 
         if (!clientName.trim()) {
-            Alert.alert(t('alertAttention'), t('execNameValidationRequired'));
+            showValidation(t('alertAttention'), t('execNameValidationRequired'));
             return;
         }
 
         if (!signature) {
-            Alert.alert(t('alertAttention'), t('execSignatureValidationRequired'));
+            showValidation(t('alertAttention'), t('execSignatureValidationRequired'));
             return;
         }
 
@@ -893,7 +1227,7 @@ export default function ExecuteOSScreen() {
 
             for (const key in formsConfig) {
                 const config = formsConfig[key];
-                const eqName = config.equipamento?.equipment_model || config.equipamento?.equipment_name || t('execEquipment');
+                const eqName = [config.equipamento?.equipment_name, config.equipamento?.equipment_model].filter(Boolean).join(' ') || t('execEquipment');
                 const eqSerial = config.equipamento?.equipment_serial;
                 const prefix = `[${eqName}${eqSerial ? ` S/N: ${eqSerial}` : ''}] - `;
 
@@ -904,12 +1238,26 @@ export default function ExecuteOSScreen() {
                 }
 
                 if (config.template) {
-                    for (const field of config.template.fields) {
-                        const value = config.data[field.id];
-                        if (value !== undefined && value !== '') {
-                            finalFormData[`${prefix}${field.label}`] = value;
+                    let visibleCount = 1;
+                    config.template.fields.forEach((field: any) => {
+                        if (field.condition?.fieldId) {
+                            const dep = (config.data[field.condition.fieldId] ?? '').toString().trim().toLowerCase();
+                            const exp = (field.condition.value ?? '').toString().trim().toLowerCase();
+                            const op  = (field.condition.operator || 'equals') as string;
+                            if ((op === 'equals' || op === 'equal') && dep !== exp) return;
+                            if (op === 'not_equals' && dep === exp) return;
                         }
-                    }
+
+                        let value = config.data[field.id];
+                        if (value !== undefined && value !== '') {
+                            if (field.type === 'PHOTO' && Array.isArray(value)) {
+                                value = value.map((p: string) => resolvePhotoUri(p)).filter((p: string) => p !== '__PENDING__');
+                            }
+                            const indexStr = String(visibleCount).padStart(3, '0');
+                            finalFormData[`${prefix}${indexStr}#${field.label}`] = value;
+                        }
+                        visibleCount++;
+                    });
                 }
             }
 
@@ -929,17 +1277,17 @@ export default function ExecuteOSScreen() {
             if (impedimentSignature) {
                 try {
                     const sigUrl = await OrderService.uploadFile(impedimentSignature, `orders/${order?.displayId || id}/signatures`, order?.tenantId);
-                    finalFormData['impediment_signature'] = sigUrl || impedimentSignature;
-                } catch {
-                    finalFormData['impediment_signature'] = impedimentSignature;
+                    if (sigUrl) finalFormData['impediment_signature'] = sigUrl;
+                } catch (e) {
+                    console.warn('Falha no upload da assinatura de impedimento', e);
                 }
             } else if (signature) {
                 // Use main client signature as fallback for the impediment auth
                 try {
                     const sigUrl = await OrderService.uploadFile(signature, `orders/${order?.displayId || id}/signatures`, order?.tenantId);
-                    finalFormData['impediment_signature'] = sigUrl || signature;
-                } catch {
-                    finalFormData['impediment_signature'] = signature;
+                    if (sigUrl) finalFormData['impediment_signature'] = sigUrl;
+                } catch (e) {
+                    console.warn('Falha no upload da assinatura principal para impedimento', e);
                 }
             }
 
@@ -947,14 +1295,14 @@ export default function ExecuteOSScreen() {
             if (clientName) finalFormData['clientName'] = clientName;
             if (signature) {
                 try {
-                    if (!finalFormData['impediment_signature']?.startsWith('http')) {
-                        const sigUrl = await OrderService.uploadFile(signature, `orders/${order?.displayId || id}/signatures`, order?.tenantId);
-                        finalFormData['signature'] = sigUrl || signature;
-                    } else {
+                    if (finalFormData['impediment_signature']?.startsWith('http')) {
                         finalFormData['signature'] = finalFormData['impediment_signature'];
+                    } else {
+                        const sigUrl = await OrderService.uploadFile(signature, `orders/${order?.displayId || id}/signatures`, order?.tenantId);
+                        if (sigUrl) finalFormData['signature'] = sigUrl;
                     }
-                } catch {
-                    finalFormData['signature'] = signature;
+                } catch (e) {
+                    console.warn('Falha no upload da assinatura do cliente', e);
                 }
             }
 
@@ -994,14 +1342,16 @@ export default function ExecuteOSScreen() {
             // 4. Limpar cache local desta OS
             await AsyncStorage.removeItem(`os_cache_${id}`);
 
-            Alert.alert(
-                t('execImpedimentRegistered'),
-                t('execImpedimentRegisteredMsg'),
-                [{ text: 'OK', onPress: () => router.replace('/') }]
-            );
+            // Navigate directly to blocked tab
+            router.replace({ pathname: '/', params: { filter: 'blocked' } });
         } catch (error) {
             console.error('[ExecuteOS] Error blocking from form:', error);
-            Alert.alert(t('alertError'), t('execCouldNotRegister'));
+            setAlertConfig({
+                visible: true,
+                title: t('alertError'),
+                message: t('execCouldNotRegister'),
+                buttons: [{ text: 'OK', style: 'default' }]
+            });
         } finally {
             setIsBlockingFromForm(false);
         }
@@ -1012,33 +1362,50 @@ export default function ExecuteOSScreen() {
             Alert.alert(t('alertLimit'), t('execMaxPhotosImpediment'));
             return;
         }
-        setIsUploadingImpedimentPhoto(true);
+        
         try {
+            if (source === 'library') {
+                setMediaProcessingLabel(t('execOpeningGallery') || 'Abrindo galeria...');
+                setIsProcessingMedia(true);
+            }
+            
             const options: ImagePicker.ImagePickerOptions = {
                 mediaTypes: ['images'],
                 quality: 0.8,
             };
             const result = source === 'camera'
                 ? await ImagePicker.launchCameraAsync(options)
-                : await ImagePicker.launchImageLibraryAsync({ ...options, selectionLimit: 10 - impedimentPhotos.length });
+                : await ImagePicker.launchImageLibraryAsync({ 
+                    ...options, 
+                    allowsMultipleSelection: true,
+                    selectionLimit: 10 - impedimentPhotos.length 
+                });
 
             if (!result.canceled && result.assets && result.assets.length > 0) {
-                const newUris: string[] = [];
-                for (const asset of result.assets) {
-                    try {
-                        const { ImageService } = require('@/services/image-service');
-                        const compressed = await ImageService.compressImage(asset.uri);
-                        newUris.push(compressed);
-                    } catch {
-                        newUris.push(asset.uri);
+                setMediaProcessingLabel(t('execProcessingImages') || 'Processando imagens...');
+                setIsProcessingMedia(true);
+                
+                // Pequeno delay para garantir UI
+                setTimeout(async () => {
+                    const newUris: string[] = [];
+                    for (const asset of result.assets) {
+                        try {
+                            const { ImageService } = require('@/services/image-service');
+                            const compressed = await ImageService.compressImage(asset.uri);
+                            newUris.push(compressed);
+                        } catch {
+                            newUris.push(asset.uri);
+                        }
                     }
-                }
-                setImpedimentPhotos(prev => [...prev, ...newUris].slice(0, 10));
+                    setImpedimentPhotos(prev => [...prev, ...newUris].slice(0, 10));
+                    setIsProcessingMedia(false);
+                }, 100);
+            } else {
+                setIsProcessingMedia(false);
             }
         } catch {
+            setIsProcessingMedia(false);
             Alert.alert(t('alertError'), t('osCouldNotMedia'));
-        } finally {
-            setIsUploadingImpedimentPhoto(false);
         }
     };
 
@@ -1047,7 +1414,7 @@ export default function ExecuteOSScreen() {
         try {
             for (const uri of uris) {
                 if (impedimentPhotos.length >= 10) break;
-                const compressedUri = await compressImage(uri);
+                const compressedUri = await ImageService.compressImage(uri);
                 const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${order?.displayId || id}/impediment_photos`, order?.tenantId);
                 const finalUri = publicUrl || compressedUri;
                 setImpedimentPhotos(prev => [...prev, finalUri]);
@@ -1061,14 +1428,17 @@ export default function ExecuteOSScreen() {
 
     // ──────────────────────────────────────────────────────────────────────────────
 
-    const renderDynamicField = (eqKey: string, field: any, data: any) => {
+    const renderDynamicField = (eqKey: string, field: any, data: any, fieldIndex: number) => {
+        const displayIndex = String(fieldIndex + 1).padStart(3, '0');
+        const displayLabel = `#${displayIndex} - ${field.label}`;
+
         switch (field.type) {
             case 'TEXT':
             case 'LONG_TEXT':
                 return (
                     <View key={field.id} style={styles.dynamicFieldControl}>
                         <Text style={styles.dynamicFieldLabel}>
-                            {field.label}{field.required ? <Text style={{color: '#ef4444'}}> *</Text> : ''}
+                            {displayLabel}{field.required ? <Text style={{color: '#ef4444'}}> *</Text> : ''}
                         </Text>
                         <TextInput
                             style={[styles.input, field.type === 'LONG_TEXT' && styles.textArea]}
@@ -1080,13 +1450,76 @@ export default function ExecuteOSScreen() {
                         />
                     </View>
                 );
+            case 'CHECKLIST':
+            case 'MULTI_SELECT':
+                const selectedOptions = Array.isArray(data[field.id]) ? data[field.id] : [];
+                return (
+                    <View key={field.id} style={styles.dynamicFieldControl}>
+                        <Text style={styles.dynamicFieldLabel}>
+                            {displayLabel}{field.required ? <Text style={{color: '#ef4444'}}> *</Text> : ''}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: '#94a3b8', marginBottom: 12 }}>Selecione as opções abaixo</Text>
+                        <View style={{ gap: 8 }}>
+                            {(field.options || []).map((opt: string) => {
+                                const isSelected = selectedOptions.includes(opt);
+                                return (
+                                    <Pressable
+                                        key={opt}
+                                        style={{
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            paddingVertical: 14,
+                                            paddingHorizontal: 16,
+                                            backgroundColor: isSelected ? '#f8fafc' : '#ffffff',
+                                            borderWidth: 1,
+                                            borderColor: isSelected ? '#1c2d4f' : '#e2e8f0',
+                                            borderRadius: 8,
+                                            gap: 12
+                                        }}
+                                        onPress={() => {
+                                            const current = [...selectedOptions];
+                                            if (isSelected) {
+                                                const idx = current.indexOf(opt);
+                                                if (idx > -1) current.splice(idx, 1);
+                                            } else {
+                                                current.push(opt);
+                                            }
+                                            updateFieldData(eqKey, field.id, current);
+                                        }}
+                                    >
+                                        <View style={{
+                                            width: 22,
+                                            height: 22,
+                                            borderRadius: 4,
+                                            borderWidth: 2,
+                                            borderColor: isSelected ? '#1c2d4f' : '#cbd5e1',
+                                            backgroundColor: isSelected ? '#1c2d4f' : 'transparent',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}>
+                                            {isSelected && <Ionicons name="checkmark" size={16} color="#ffffff" />}
+                                        </View>
+                                        <Text style={{
+                                            flex: 1,
+                                            fontSize: 14,
+                                            fontWeight: isSelected ? '700' : '500',
+                                            color: isSelected ? '#1c2d4f' : '#334155'
+                                        }}>
+                                            {opt}
+                                        </Text>
+                                    </Pressable>
+                                );
+                            })}
+                        </View>
+                    </View>
+                );
             case 'SELECT':
                 return (
                     <View key={field.id} style={styles.dynamicFieldControl}>
                         <Text style={styles.dynamicFieldLabel}>
-                            {field.label}{field.required ? <Text style={{color: '#ef4444'}}> *</Text> : ''}
+                            {displayLabel}{field.required ? <Text style={{color: '#ef4444'}}> *</Text> : ''}
                         </Text>
-                        <Text style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6 }}>{t('execSelectOption')}</Text>
+                        <Text style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6 }}>Selecione a opção abaixo</Text>
                         <View style={styles.pickerContainer}>
                             {(field.options || []).map((opt: string) => (
                                 <Pressable
@@ -1103,43 +1536,72 @@ export default function ExecuteOSScreen() {
             case 'PHOTO':
                 const photos = Array.isArray(data[field.id]) ? data[field.id] : (data[field.id] ? [data[field.id]] : []);
                 return (
-                    <View key={field.id} style={[styles.card, { marginTop: 8, marginBottom: 16, elevation: 0, backgroundColor: '#f8fafc', borderColor: '#e2e8f0', borderWidth: 1 }]}>
-                        <View style={styles.cardHeader}>
-                            <Ionicons name="images" size={16} color="#1c2d4f" />
-                            <Text style={styles.cardTitle}>{field.label}{field.required ? <Text style={{color: '#ef4444'}}> *</Text> : ''} ({photos.length}/7)</Text>
-                        </View>
-                        <View style={styles.cardContent}>
+                    <View key={field.id} style={styles.dynamicFieldControl}>
+                        <Text style={styles.dynamicFieldLabel}>
+                            {displayLabel}{field.required ? <Text style={{color: '#ef4444'}}> *</Text> : ''} ({photos.length}/7)
+                        </Text>
+                        <Text style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>Anexe evidências fotográficas para comprovação</Text>
                             <Pressable 
-                                style={[styles.videoRecordButton, { backgroundColor: '#059669', borderColor: '#059669', borderStyle: 'solid' }]} 
+                                style={{
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    backgroundColor: '#f8fafc',
+                                    borderWidth: 2,
+                                    borderColor: '#cbd5e1',
+                                    borderStyle: 'dashed',
+                                    borderRadius: 10,
+                                    padding: 16,
+                                    marginBottom: 8
+                                }}
                                 onPress={() => handleTakeFieldPhoto(eqKey, field.id)} 
                                 disabled={isUploadingPhoto === `${eqKey}_${field.id}`}
                             >
-                                {isUploadingPhoto === `${eqKey}_${field.id}` ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="camera" size={24} color="#fff" />}
-                                <View style={{ flex: 1, marginLeft: 12 }}>
-                                    <Text style={[styles.videoRecordTitle, { color: '#fff' }]}>{t('execAttachEvidence')}</Text>
-                                    <Text style={[styles.videoRecordSubtitle, { color: 'rgba(255,255,255,0.7)' }]}>{t('execPhotoMax7')}</Text>
+                                {isUploadingPhoto === `${eqKey}_${field.id}` ? (
+                                    <ActivityIndicator size="small" color="#1c2d4f" style={{ marginRight: 14 }} />
+                                ) : (
+                                    <View style={{ backgroundColor: '#e2e8f0', padding: 10, borderRadius: 50, marginRight: 14 }}>
+                                        <Ionicons name="camera" size={22} color="#1c2d4f" />
+                                    </View>
+                                )}
+                                <View style={{ flex: 1 }}>
+                                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#1c2d4f' }}>
+                                        Tocar para Fotografar
+                                    </Text>
+                                    <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                                        Câmera ou Galeria (Máx: 7 fotos)
+                                    </Text>
                                 </View>
                             </Pressable>
 
                             {photos.length > 0 && (
                                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 }}>
-                                    {photos.map((photoUri: string, index: number) => (
+                                    {photos.map((photoUri: string, index: number) => {
+                                        const isProcessing = uploadingUris.has(photoUri);
+                                        return (
                                         <Pressable key={index} style={{ position: 'relative', width: 100, height: 100, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#e2e8f0' }}
                                             onPress={() => { setSelectedImage(photoUri); setViewerVisible(true); }}>
                                             <Image source={{ uri: photoUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                            {isProcessing && (
+                                                <View style={{ position: 'absolute', bottom: 2, left: 2, backgroundColor: 'rgba(28,45,79,0.7)', borderRadius: 8, padding: 3 }}>
+                                                    <ActivityIndicator size="small" color="#fff" />
+                                                </View>
+                                            )}
                                             <Pressable style={{ position: 'absolute', top: 2, right: 2, backgroundColor: 'rgba(239,68,68,0.9)', padding: 6, borderRadius: 14 }}
                                                 onPress={() => {
-                                                    if (typeof photoUri === 'string' && photoUri.startsWith('http')) OrderService.deleteFile(photoUri);
-                                                    const newPhotos = [...photos]; newPhotos.splice(index, 1);
+                                                    const remoteUri = resolvePhotoUri(photoUri);
+                                                    if (typeof remoteUri === 'string' && remoteUri.startsWith('http')) {
+                                                        console.log(`[execute.tsx] 🗑️ Excluindo arquivo do Supabase: ${remoteUri}`);
+                                                        OrderService.deleteFile(remoteUri).catch((e) => console.warn(`Erro ao excluir:`, e));
+                                                    }
+                                                    const newPhotos = photos.filter((p: string) => p !== photoUri);
                                                     updateFieldData(eqKey, field.id, newPhotos);
                                                 }}>
                                                 <Ionicons name="close" size={16} color="#fff" />
                                             </Pressable>
                                         </Pressable>
-                                    ))}
-                                </View>
-                            )}
-                        </View>
+                                    )})}
+                            </View>
+                        )}
                     </View>
                 );
             default:
@@ -1149,18 +1611,17 @@ export default function ExecuteOSScreen() {
 
     if (isLoading) {
         return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#1c2d4f" />
-                <Text style={{ marginTop: 12, color: '#1c2d4f', fontWeight: '700' }}>{t('execLoadingForms')}</Text>
+            <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+                <Stack.Screen options={{ title: 'Carregando Execução' }} />
             </View>
         );
     }
 
     return (
-        <KeyboardAvoidingView style={[{ flex: 1 }, styles.container]} behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 80}>
+        <KeyboardAvoidingView style={[{ flex: 1 }, styles.container]} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
             <Stack.Screen options={{ title: `Execução - Página ${currentPage + 1}/${totalPages}` }} />
 
-            <ScrollView ref={scrollViewRef} contentContainerStyle={styles.content} scrollEnabled={true}>
+            <ScrollView ref={scrollViewRef} style={{ flex: 1 }} contentContainerStyle={styles.content} scrollEnabled={true}>
 
                 {/* PROGRESS BAR */}
                 <View style={styles.progressBarContainer}>
@@ -1206,12 +1667,67 @@ export default function ExecuteOSScreen() {
                     </View>
                 )}
 
-                {/* PAGES 1..N: EQUIPMENT FORMS */}
-                {currentPage > 0 && currentPage <= totalEquipmentPages && (() => {
-                    const eqKeys = getEquipmentKeys();
-                    const eqKey = eqKeys[currentPage - 1];
+                {/* PAGE 1: OS FINANCIAL FORM (IF EXISTS) */}
+                {hasFinancialPage && currentPage === 1 && (() => {
+                    const eqKey = financialEqKey as string;
                     const config = formsConfig[eqKey];
-                    if (!config) return null;
+                    if (!config || !config.financialTemplate) return null;
+
+                    let globalVisibleCount = 1;
+                    const renderFields = (templateObj: any, title: string, titleColor: string) => {
+                        if (!templateObj || !templateObj.fields || templateObj.fields.length === 0) return null;
+                        return (
+                            <View style={{ marginBottom: 16 }}>
+                                <Text style={{ fontSize: 13, fontWeight: '800', color: titleColor, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, paddingHorizontal: 12 }}>
+                                    {title}
+                                </Text>
+                                {templateObj.fields.map((field: any) => {
+                                    if (field.condition?.fieldId) {
+                                        const dep = (config.data[field.condition.fieldId] ?? '').toString().trim().toLowerCase();
+                                        const exp = (field.condition.value ?? '').toString().trim().toLowerCase();
+                                        const op  = (field.condition.operator || 'equals') as string;
+                                        if ((op === 'equals' || op === 'equal') && dep !== exp) return null;
+                                        if (op === 'not_equals' && dep === exp) return null;
+                                    }
+                                    const currentIndex = globalVisibleCount - 1;
+                                    globalVisibleCount++;
+                                    return renderDynamicField(eqKey, field, config.data, currentIndex);
+                                })}
+                            </View>
+                        );
+                    };
+
+                    return (
+                        <View key={`fin_${eqKey}`} style={styles.equipmentGroup}>
+                            <View style={[styles.equipmentHeader, { backgroundColor: '#059669' }]}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                                    <View style={styles.equipmentIconWrapper}>
+                                        <Ionicons name="cash-outline" size={18} color="#059669" />
+                                    </View>
+                                    <Text style={styles.equipmentTitle}>
+                                        {config.equipamento?.equipment_model || config.equipamento?.equipment_name || t('execEquipment')}
+                                        {config.equipamento?.equipment_serial ? ` - S/N: ${config.equipamento.equipment_serial}` : ''}
+                                        {config.financialTemplate?.title ? ` - ${config.financialTemplate.title}` : ' - Formulário Financeiro'}
+                                    </Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.equipmentFormsContainer}>
+                                {renderFields(config.financialTemplate, config.financialTemplate?.title || 'Formulário Financeiro', '#059669')}
+                            </View>
+                        </View>
+                    );
+                })()}
+
+                {/* PAGES 2..N: EQUIPMENT FORMS (TECHNICAL) */}
+                {(() => {
+                    const eqStartIndex = hasFinancialPage ? 2 : 1;
+                    if (currentPage >= eqStartIndex && currentPage < eqStartIndex + totalEquipmentPages) {
+                        const eqIndex = currentPage - eqStartIndex;
+                        const eqKeys = getEquipmentKeys();
+                        const eqKey = eqKeys[eqIndex];
+                        const config = formsConfig[eqKey];
+                        if (!config) return null;
 
                     return (
                         <View key={eqKey} style={styles.equipmentGroup}>
@@ -1223,67 +1739,112 @@ export default function ExecuteOSScreen() {
                                     <Text style={styles.equipmentTitle}>
                                         {config.equipamento?.equipment_model || config.equipamento?.equipment_name || t('execEquipment')}
                                         {config.equipamento?.equipment_serial ? ` - S/N: ${config.equipamento.equipment_serial}` : ''}
+                                        {config.template?.title ? ` - ${config.template.title}` : ''}
                                     </Text>
                                 </View>
                             </View>
 
                             <View style={styles.equipmentFormsContainer}>
-                                {config.template ? (
-                                    config.template.fields.map((field: any) => {
-                                        if (field.condition?.fieldId) {
-                                            const dep = (config.data[field.condition.fieldId] ?? '').toString().trim().toLowerCase();
-                                            const exp = (field.condition.value ?? '').toString().trim().toLowerCase();
-                                            const op  = (field.condition.operator || 'equals') as string;
-                                            if ((op === 'equals' || op === 'equal') && dep !== exp) return null;
-                                            if (op === 'not_equals' && dep === exp) return null;
-                                        }
-                                        return renderDynamicField(eqKey, field, config.data);
-                                    })
-                                ) : (
-                                    <View style={[styles.dynamicFieldControl, { alignItems: 'center', padding: 24, margin: 12, backgroundColor: '#f8fafc', elevation: 0 }]}>
-                                        <Ionicons name="document-text-outline" size={40} color="#cbd5e1" />
-                                        <Text style={{ color: '#94a3b8', marginTop: 10, fontWeight: '600' }}>{t('execNoForm')}</Text>
-                                    </View>
-                                )}
+                                {(() => {
+                                    let globalVisibleCount = 1;
+                                    let hasAnyForm = false;
+
+                                    const renderFields = (templateObj: any, title: string, titleColor: string, isFinancial: boolean) => {
+                                        if (!templateObj || !templateObj.fields || templateObj.fields.length === 0) return null;
+                                        hasAnyForm = true;
+                                        return (
+                                            <View style={{ marginBottom: 16 }}>
+                                                <Text style={{ fontSize: 13, fontWeight: '800', color: titleColor, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, paddingHorizontal: 12 }}>
+                                                    {title}
+                                                </Text>
+                                                {templateObj.fields.map((field: any) => {
+                                                    if (field.condition?.fieldId) {
+                                                        const dep = (config.data[field.condition.fieldId] ?? '').toString().trim().toLowerCase();
+                                                        const exp = (field.condition.value ?? '').toString().trim().toLowerCase();
+                                                        const op  = (field.condition.operator || 'equals') as string;
+                                                        if ((op === 'equals' || op === 'equal') && dep !== exp) return null;
+                                                        if (op === 'not_equals' && dep === exp) return null;
+                                                    }
+                                                    const currentIndex = globalVisibleCount - 1;
+                                                    globalVisibleCount++;
+                                                    // Wrap renderDynamicField in a view if financial to maybe add some style?
+                                                    // For now just pass it directly.
+                                                    return renderDynamicField(eqKey, field, config.data, currentIndex);
+                                                })}
+                                            </View>
+                                        );
+                                    };
+
+                                    const technicalView = renderFields(config.template, config.template?.title || 'Formulário Técnico', '#1c2d4f', false);
+
+                                    if (!hasAnyForm) {
+                                        return (
+                                            <View style={[styles.dynamicFieldControl, { alignItems: 'center', padding: 24, margin: 12, backgroundColor: '#f8fafc', elevation: 0 }]}>
+                                                <Ionicons name="document-text-outline" size={40} color="#cbd5e1" />
+                                                <Text style={{ color: '#94a3b8', marginTop: 10, fontWeight: '600' }}>{t('execNoForm')}</Text>
+                                            </View>
+                                        );
+                                    }
+
+                                    return (
+                                        <>
+                                            {technicalView}
+                                        </>
+                                    );
+                                })()}
                             </View>
 
                             {/* ── Per-equipment Technical Report was removed per user request ────── */}
                             {/* PART INCLUSION FOR THIS EQUIPMENT */}
-                            <Pressable 
-                                style={[styles.showPartsButton, { marginHorizontal: 12, marginBottom: 16 }]} 
-                                onPress={() => {
-                                    setActiveEquipmentKey(eqKey);
-                                    setIsPartPickerVisible(true);
-                                }}
-                            >
-
-                                <Ionicons name="add-circle-outline" size={20} color="#ffffff" />
-                                <Text style={styles.showPartsButtonText}>{t('execAddPart')}</Text>
-                            </Pressable>
-
-                            {/* List parts already added to this equipment */}
-                            {usedItems.filter(item => item.equipmentId === config.equipamento?.id || (config.equipamento?.id === 'single' && !item.equipmentId)).length > 0 && (
-                                <View style={{ paddingHorizontal: 12, marginBottom: 16 }}>
-                                    <Text style={[styles.infoLabel, { marginBottom: 8 }]}>PEÇAS VINCULADAS:</Text>
-                                    {usedItems
-                                        .filter(item => item.equipmentId === config.equipamento?.id || (config.equipamento?.id === 'single' && !item.equipmentId))
-                                        .map((item, idx) => (
-                                            <View key={idx} style={[styles.usedItemCard, { marginBottom: 6 }]}>
-                                                <Text style={[styles.usedItemDescription, { flex: 1 }]}>{item.description} (x{item.quantity})</Text>
-                                                <Pressable onPress={() => removeUsedItem(usedItems.indexOf(item))}>
-                                                    <Ionicons name="trash-outline" size={18} color="#ef4444" />
-                                                </Pressable>
-                                            </View>
-                                        ))
-                                    }
+                            <View style={{ marginHorizontal: 12, marginBottom: 16, backgroundColor: '#ffffff', borderRadius: 12, borderWidth: 1, borderColor: '#cbd5e1', padding: 16 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#1c2d4f', textTransform: 'uppercase', letterSpacing: 0.5 }}>Peças Vinculadas</Text>
+                                    <Pressable 
+                                        style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1c2d4f', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8, gap: 6 }} 
+                                        onPress={() => handleAddPartClick(eqKey)}
+                                    >
+                                        <Ionicons name="add" size={16} color="#ffffff" />
+                                        <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 13 }}>Adicionar</Text>
+                                    </Pressable>
                                 </View>
-                            )}
+
+                                {(() => {
+                                    const eqParts = usedItems.filter(item => item.equipmentId === config.equipamento?.id || (config.equipamento?.id === 'single' && !item.equipmentId));
+                                    
+                                    if (eqParts.length === 0) {
+                                        return (
+                                            <View style={{ backgroundColor: '#f8fafc', borderRadius: 8, padding: 20, alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0', borderStyle: 'dashed' }}>
+                                                <Ionicons name="cube-outline" size={28} color="#94a3b8" />
+                                                <Text style={{ color: '#94a3b8', fontSize: 13, marginTop: 8, fontWeight: '600' }}>Nenhuma peça adicionada</Text>
+                                            </View>
+                                        );
+                                    }
+
+                                    return (
+                                        <View style={{ gap: 8 }}>
+                                            {eqParts.map((item, idx) => (
+                                                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0' }}>
+                                                    <View style={{ flex: 1 }}>
+                                                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#334155' }}>{item.description}</Text>
+                                                        <Text style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>Qtd: <Text style={{ fontWeight: '800', color: '#1c2d4f' }}>{item.quantity}</Text></Text>
+                                                    </View>
+                                                    <Pressable onPress={() => removeUsedItem(usedItems.indexOf(item))} style={{ padding: 8, backgroundColor: '#fee2e2', borderRadius: 8 }}>
+                                                        <Ionicons name="trash" size={18} color="#dc2626" />
+                                                    </Pressable>
+                                                </View>
+                                            ))}
+                                        </View>
+                                    );
+                                })()}
+                            </View>
                         </View>
                     );
+                    }
+                    return null;
                 })()}
 
                 {/* PAGE N+1: CONCLUSÃO — RESUMO + VÍDEO + FOTOS EXTRAS */}
-                {currentPage === totalEquipmentPages + 1 && (
+                {currentPage === totalPages - 2 && (
                     <View style={[styles.globalConclusionSection, { marginTop: 4, backgroundColor: '#fdfcf0', borderColor: '#eab308' }]}>
                         <View style={[styles.conclusionHeader, { backgroundColor: '#fef9c3' }]}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -1298,14 +1859,18 @@ export default function ExecuteOSScreen() {
 
                             {/* Summary of per-equipment reports */}
                             {Object.values(formsConfig).map((config, idx) => {
-                                const eqName = config.equipamento?.equipment_model || config.equipamento?.equipment_name || `Equipamento ${idx + 1}`;
+                                const eqName = [config.equipamento?.equipment_name, config.equipamento?.equipment_model].filter(Boolean).join(' ') || `Equipamento ${idx + 1}`;
+                                const eqSerial = config.equipamento?.equipment_serial ? ` (S/N: ${config.equipamento.equipment_serial})` : '';
+                                const formName = config.template?.title ? ` - ${config.template.title}` : '';
+                                const fullTitle = `${eqName}${eqSerial}${formName}`.toUpperCase();
                                 const report = (config.data._report || '').trim();
                                 const eqParts = usedItems.filter(i => i.equipmentId === config.equipamento?.id || (config.equipamento?.id === 'single' && !i.equipmentId));
-                                if (!report && eqParts.length === 0) return null;
+                                
                                 return (
                                     <View key={idx} style={{ marginBottom: 12, backgroundColor: '#f0f9ff', borderRadius: 10, padding: 12, borderLeftWidth: 3, borderLeftColor: '#0ea5e9' }}>
-                                        <Text style={{ fontWeight: '800', fontSize: 12, color: '#1c2d4f', marginBottom: 4 }}>{eqName.toUpperCase()}</Text>
+                                        <Text style={{ fontWeight: '800', fontSize: 12, color: '#1c2d4f', marginBottom: 4 }}>{fullTitle}</Text>
                                         {!!report && <Text style={{ fontSize: 13, color: '#334155', marginBottom: 4 }}>{report}</Text>}
+                                        {!report && eqParts.length === 0 && <Text style={{ fontSize: 12, color: '#94a3b8', fontStyle: 'italic', marginBottom: 4 }}>Checklist preenchido e finalizado.</Text>}
                                         {eqParts.length > 0 && (
                                             <Text style={{ fontSize: 11, color: '#64748b' }}>{t('execParts')} {eqParts.map(p => `${p.description} (x${p.quantity})`).join(', ')}</Text>
                                         )}
@@ -1332,29 +1897,64 @@ export default function ExecuteOSScreen() {
                                     <Text style={styles.cardTitle}>{t('execExtraPhotos')}</Text>
                                 </View>
                                 <View style={styles.cardContent}>
-                                    <Pressable style={[styles.videoRecordButton, { backgroundColor: '#059669', borderColor: '#059669', borderStyle: 'solid' }]} onPress={handleTakeExtraPhoto} disabled={isUploadingExtra}>
-                                        {isUploadingExtra ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="camera" size={24} color="#fff" />}
-                                        <View style={{ flex: 1, marginLeft: 12 }}>
-                                            <Text style={[styles.videoRecordTitle, { color: '#fff' }]}>{t('execAttachExtraPhoto')}</Text>
-                                            <Text style={[styles.videoRecordSubtitle, { color: 'rgba(255,255,255,0.7)' }]}>{t('execPhotoFromCameraOrGallery')}</Text>
+                                    <Pressable 
+                                        style={{
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            backgroundColor: '#f8fafc',
+                                            borderWidth: 2,
+                                            borderColor: '#cbd5e1',
+                                            borderStyle: 'dashed',
+                                            borderRadius: 10,
+                                            padding: 16,
+                                            marginBottom: 8
+                                        }}
+                                        onPress={handleTakeExtraPhoto} 
+                                        disabled={isUploadingExtra}
+                                    >
+                                        {isUploadingExtra ? (
+                                            <ActivityIndicator size="small" color="#1c2d4f" style={{ marginRight: 14 }} />
+                                        ) : (
+                                            <View style={{ backgroundColor: '#e2e8f0', padding: 10, borderRadius: 50, marginRight: 14 }}>
+                                                <Ionicons name="images" size={22} color="#1c2d4f" />
+                                            </View>
+                                        )}
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={{ fontSize: 14, fontWeight: '700', color: '#1c2d4f' }}>
+                                                Tocar para Anexar
+                                            </Text>
+                                            <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                                                {t('execPhotoFromCameraOrGallery')}
+                                            </Text>
                                         </View>
                                     </Pressable>
 
                                     {extraPhotos.length > 0 && (
                                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 }}>
-                                            {extraPhotos.map((photoUri, index) => (
+                                            {extraPhotos.map((photoUri, index) => {
+                                                const isProcessing = uploadingUris.has(photoUri);
+                                                return (
                                                 <Pressable key={index} style={{ position: 'relative', width: 100, height: 100, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#e2e8f0' }}
                                                     onPress={() => { setSelectedImage(photoUri); setViewerVisible(true); }}>
                                                     <Image source={{ uri: photoUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                                    {isProcessing && (
+                                                        <View style={{ position: 'absolute', bottom: 2, left: 2, backgroundColor: 'rgba(28,45,79,0.7)', borderRadius: 8, padding: 3 }}>
+                                                            <ActivityIndicator size="small" color="#fff" />
+                                                        </View>
+                                                    )}
                                                     <Pressable style={{ position: 'absolute', top: 2, right: 2, backgroundColor: 'rgba(239,68,68,0.9)', padding: 6, borderRadius: 14 }}
                                                         onPress={() => {
-                                                            if (typeof photoUri === 'string' && photoUri.startsWith('http')) OrderService.deleteFile(photoUri);
-                                                            setExtraPhotos(prev => prev.filter((_, i) => i !== index));
+                                                            const remoteUri = resolvePhotoUri(photoUri);
+                                                            if (typeof remoteUri === 'string' && remoteUri.startsWith('http')) {
+                                                                console.log(`[execute.tsx] 🗑️ Excluindo arquivo do Supabase: ${remoteUri}`);
+                                                                OrderService.deleteFile(remoteUri).catch((e) => console.warn(`Erro ao excluir:`, e));
+                                                            }
+                                                            setExtraPhotos(prev => prev.filter(p => p !== photoUri));
                                                         }}>
                                                         <Ionicons name="close" size={16} color="#fff" />
                                                     </Pressable>
                                                 </Pressable>
-                                            ))}
+                                            )})}
                                         </View>
                                     )}
                                 </View>
@@ -1395,7 +1995,10 @@ export default function ExecuteOSScreen() {
                                                 <Text style={styles.videoMetaText}>{t('execVideoAttached')} {videoSizeMB ? `(${videoSizeMB}MB)` : ''}</Text>
                                                 {!isUploadingVideo && (
                                                     <Pressable style={{ padding: 8 }} onPress={() => {
-                                                        if (typeof videoUri === 'string' && videoUri.startsWith('http')) OrderService.deleteFile(videoUri);
+                                                        if (typeof videoUri === 'string' && videoUri.startsWith('http')) {
+                                                            console.log(`[execute.tsx] 🗑️ Excluindo arquivo do Supabase: ${videoUri}`);
+                                                            OrderService.deleteFile(videoUri).catch((e) => console.warn(`Erro ao excluir:`, e));
+                                                        }
                                                         setVideoUri(null);
                                                     }}>
                                                         <Ionicons name="trash-outline" size={22} color="#ef4444" />
@@ -1404,11 +2007,30 @@ export default function ExecuteOSScreen() {
                                             </View>
                                         </Pressable>
                                     ) : (
-                                        <Pressable style={[styles.videoRecordButton, { backgroundColor: '#059669', borderColor: '#059669', borderStyle: 'solid' }]} onPress={() => setIsVideoSourceModalVisible(true)}>
-                                            <Ionicons name="videocam" size={24} color="#ffffff" />
-                                            <View style={{ flex: 1, marginLeft: 12 }}>
-                                                <Text style={[styles.videoRecordTitle, { color: '#ffffff' }]}>{t('execAttachVideo')}</Text>
-                                                <Text style={[styles.videoRecordSubtitle, { color: 'rgba(255,255,255,0.8)' }]}>{t('execRecordOrGallery')}</Text>
+                                        <Pressable 
+                                            style={{
+                                                flexDirection: 'row',
+                                                alignItems: 'center',
+                                                backgroundColor: '#f8fafc',
+                                                borderWidth: 2,
+                                                borderColor: '#cbd5e1',
+                                                borderStyle: 'dashed',
+                                                borderRadius: 10,
+                                                padding: 16,
+                                                marginBottom: 8
+                                            }}
+                                            onPress={() => setIsVideoSourceModalVisible(true)}
+                                        >
+                                            <View style={{ backgroundColor: '#e2e8f0', padding: 10, borderRadius: 50, marginRight: 14 }}>
+                                                <Ionicons name="videocam" size={22} color="#1c2d4f" />
+                                            </View>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={{ fontSize: 14, fontWeight: '700', color: '#1c2d4f' }}>
+                                                    {t('execAttachVideo')}
+                                                </Text>
+                                                <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                                                    {t('execRecordOrGallery')}
+                                                </Text>
                                             </View>
                                         </Pressable>
                                     )}
@@ -1418,8 +2040,8 @@ export default function ExecuteOSScreen() {
                     </View>
                 )}
 
-                {/* PAGE N+2: VALIDATION */}
-                {currentPage === totalEquipmentPages + 2 && (
+                {/* PAGE FINAL: Validação do Cliente (Assinatura, Nome) */}
+                {currentPage === totalPages - 1 && (
                     <View style={styles.section}>
                         <Text style={{ fontSize: 14, fontWeight: '900', color: '#1c2d4f', marginBottom: 4 }}>VALIDAÇÃO DO CLIENTE</Text>
                         <Text style={[styles.fieldLabel, { marginTop: 12, marginBottom: 4 }]}>{t('execResponsibleName')}</Text>
@@ -1443,6 +2065,31 @@ export default function ExecuteOSScreen() {
                     </View>
                 )}
             </ScrollView>
+
+            {/* Modal QR Code Scanner */}
+            <Modal visible={isScannerVisible} animationType="slide" onRequestClose={() => setIsScannerVisible(false)}>
+                <View style={{ flex: 1, backgroundColor: '#000' }}>
+                    <View style={{ position: 'absolute', top: 50, right: 20, zIndex: 10 }}>
+                        <Pressable onPress={() => setIsScannerVisible(false)} style={{ padding: 10, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20 }}>
+                            <Ionicons name="close" size={30} color="#fff" />
+                        </Pressable>
+                    </View>
+                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                        <CameraView
+                            style={{ width: '100%', height: '100%' }}
+                            facing="back"
+                            barcodeScannerSettings={{
+                                barcodeTypes: ["qr", "ean13", "ean8", "code128", "code39", "upc_a", "upc_e", "pdf417"],
+                            }}
+                            onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+                        />
+                        <View style={{ position: 'absolute', width: 250, height: 250, borderWidth: 2, borderColor: '#fff', borderRadius: 10, backgroundColor: 'transparent' }} />
+                        <Text style={{ position: 'absolute', bottom: 50, color: '#fff', fontSize: 16, fontWeight: 'bold', backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 8, overflow: 'hidden' }}>
+                            Aponte para o QR Code da peça
+                        </Text>
+                    </View>
+                </View>
+            </Modal>
 
             {/* IMPEDIMENT FORM OVERLAY — shown when technician opts to block after filling forms */}
             {showImpedimentForm && (
@@ -1482,7 +2129,10 @@ export default function ExecuteOSScreen() {
                                     <Pressable
                                         key={index}
                                         onPress={() => {
-                                            if (typeof uri === 'string' && uri.startsWith('http')) OrderService.deleteFile(uri);
+                                            if (typeof uri === 'string' && uri.startsWith('http')) {
+                                                console.log(`[execute.tsx] 🗑️ Excluindo arquivo do Supabase: ${uri}`);
+                                                OrderService.deleteFile(uri).catch((e) => console.warn(`Erro ao excluir:`, e));
+                                            }
                                             setImpedimentPhotos(prev => prev.filter((_, i) => i !== index));
                                         }}
                                         style={{ marginRight: 10, position: 'relative', width: 110, height: 110, borderRadius: 10, overflow: 'hidden', backgroundColor: '#e2e8f0' }}
@@ -1497,19 +2147,38 @@ export default function ExecuteOSScreen() {
                         )}
 
                         {impedimentPhotos.length < 10 && (
-                            <Pressable
+                            <Pressable 
+                                style={{
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    backgroundColor: '#fff5f5',
+                                    borderWidth: 2,
+                                    borderColor: '#fca5a5',
+                                    borderStyle: 'dashed',
+                                    borderRadius: 10,
+                                    padding: 16,
+                                    marginBottom: 8
+                                }}
                                 onPress={() => setIsImpedimentPhotoSourceVisible(true)}
                                 disabled={isUploadingImpedimentPhoto}
-                                style={styles.impedimentPhotoBtn}
                             >
-                                {isUploadingImpedimentPhoto
-                                    ? <ActivityIndicator size="small" color="#fff" />
-                                    : <Ionicons name="camera-outline" size={20} color="#fff" />}
-                                <Text style={styles.impedimentPhotoBtnText}>
-                                    {impedimentPhotos.length > 0
-                                        ? `Adicionar mais (${impedimentPhotos.length}/10)`
-                                        : t('execPhotoImpedimentOptional')}
-                                </Text>
+                                {isUploadingImpedimentPhoto ? (
+                                    <ActivityIndicator size="small" color="#e11d48" style={{ marginRight: 14 }} />
+                                ) : (
+                                    <View style={{ backgroundColor: '#fee2e2', padding: 10, borderRadius: 50, marginRight: 14 }}>
+                                        <Ionicons name="camera" size={22} color="#e11d48" />
+                                    </View>
+                                )}
+                                <View style={{ flex: 1 }}>
+                                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#be123c' }}>
+                                        Tocar para Fotografar
+                                    </Text>
+                                    <Text style={{ fontSize: 12, color: '#9f1239', marginTop: 2 }}>
+                                        {impedimentPhotos.length > 0 
+                                            ? `Adicionar mais (${impedimentPhotos.length}/10)` 
+                                            : t('execPhotoImpedimentOptional')}
+                                    </Text>
+                                </View>
                             </Pressable>
                         )}
 
@@ -1521,7 +2190,7 @@ export default function ExecuteOSScreen() {
                         </View>
                     </ScrollView>
 
-                    <View style={[styles.impedimentFooter, { paddingBottom: Math.max(insets.bottom + 16, 24) }]}>
+                    <View style={[styles.impedimentFooter, { paddingBottom: 16 }]}>
                         <Pressable
                             style={styles.impedimentCancelBtn}
                             onPress={() => setShowImpedimentForm(false)}
@@ -1529,9 +2198,9 @@ export default function ExecuteOSScreen() {
                             <Text style={styles.impedimentCancelText}>{t('execBackToForm')}</Text>
                         </Pressable>
                         <Pressable
-                            style={[styles.impedimentConfirmBtn, isBlockingFromForm && { opacity: 0.7 }]}
+                            style={[styles.impedimentConfirmBtn, (isBlockingFromForm || hasPendingUploads) && { opacity: 0.7 }]}
                             onPress={handleBlockFromForm}
-                            disabled={isBlockingFromForm}
+                            disabled={isBlockingFromForm || hasPendingUploads}
                         >
                             {isBlockingFromForm
                                 ? <ActivityIndicator size="small" color="#fff" />
@@ -1545,10 +2214,21 @@ export default function ExecuteOSScreen() {
             )}
 
             {/* PAGINATED FOOTER */}
-            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 16, 24) }]}>
+            <View style={[styles.footer, { paddingBottom: 4 }]}>
                 {/* On the last page: show Impedir + Finalizar */}
                 {currentPage === totalPages - 1 ? (
                     <View style={{ gap: 10 }}>
+                        {/* v3: Banner de uploads pendentes — bloqueia finalização */}
+                        {hasPendingUploads && !isSubmitting && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fef3c7', padding: 10, borderRadius: 10, gap: 8, borderWidth: 1, borderColor: '#fde68a' }}>
+                                <ActivityIndicator size="small" color="#d97706" />
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: '#92400e', flex: 1 }}>
+                                    {pendingUploadCount > 0 
+                                        ? `Enviando ${pendingUploadCount} ${pendingUploadCount === 1 ? 'arquivo' : 'arquivos'}... Aguarde para finalizar.`
+                                        : 'Processando mídia... Aguarde para finalizar.'}
+                                </Text>
+                            </View>
+                        )}
                         <View style={{ flexDirection: 'row', gap: 12 }}>
                             <Pressable
                                 style={[styles.paginationButton, styles.backButton]}
@@ -1558,14 +2238,62 @@ export default function ExecuteOSScreen() {
                                 <Text style={styles.backButtonText}>{t('execBack')}</Text>
                             </Pressable>
                             <Pressable
-                                style={[styles.submitButton, { flex: 2 }, isSubmitting && { opacity: 0.7 }]}
+                                style={[styles.submitButton, { flex: 2 }, (isSubmitting || hasPendingUploads) && { opacity: 0.7 }]}
                                 onPress={handleSubmit}
-                                disabled={isSubmitting}
+                                disabled={isSubmitting || hasPendingUploads}
                             >
-                                <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                                <Text style={styles.submitButtonText}>{isSubmitting ? t('execSending') : t('execFinishOS')}</Text>
+                                {isSubmitting ? (
+                                    <ActivityIndicator size="small" color="#fff" />
+                                ) : hasPendingUploads ? (
+                                    <ActivityIndicator size="small" color="#fff" />
+                                ) : (
+                                    <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                                )}
+                                <Text style={styles.submitButtonText}>{isSubmitting ? t('execSending') : hasPendingUploads ? t('execProcessing') || 'Enviando...' : t('execFinishOS')}</Text>
                             </Pressable>
                         </View>
+
+                        {/* Overlay de progresso durante envio */}
+                        {isSubmitting && (
+                            <Modal transparent animationType="fade" visible={isSubmitting}>
+                                <View style={{ flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+                                    <View style={{ backgroundColor: '#ffffff', borderRadius: 20, padding: 32, width: '85%', alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12 }}>
+                                        <ActivityIndicator size="large" color="#1c2d4f" style={{ marginBottom: 20 }} />
+                                        <Text style={{ fontSize: 18, fontWeight: '800', color: '#0f172a', marginBottom: 8, textAlign: 'center' }}>
+                                            Finalizando OS
+                                        </Text>
+                                        <Text style={{ fontSize: 14, color: '#475569', textAlign: 'center', marginBottom: 16 }}>
+                                            {submitProgress.label || 'Preparando...'}
+                                        </Text>
+                                        {submitProgress.total > 0 && (
+                                            <View style={{ width: '100%', height: 6, backgroundColor: '#e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
+                                                <View style={{ width: `${Math.round((submitProgress.current / submitProgress.total) * 100)}%`, height: '100%', backgroundColor: '#16a34a', borderRadius: 3 }} />
+                                            </View>
+                                        )}
+                                        {submitProgress.total > 0 && (
+                                            <Text style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>
+                                                {submitProgress.current}/{submitProgress.total} arquivos enviados
+                                            </Text>
+                                        )}
+                                    </View>
+                                </View>
+                            </Modal>
+                        )}
+                        
+                        {/* Overlay de processamento de mídia (Galeria/Fotos) */}
+                        {isProcessingMedia && (
+                            <Modal transparent animationType="fade" visible={isProcessingMedia}>
+                                <View style={{ flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.7)', justifyContent: 'center', alignItems: 'center' }}>
+                                    <View style={{ backgroundColor: '#ffffff', borderRadius: 16, padding: 24, alignItems: 'center', width: '70%' }}>
+                                        <ActivityIndicator size="large" color="#1c2d4f" />
+                                        <Text style={{ marginTop: 16, fontSize: 14, fontWeight: '700', color: '#1c2d4f', textAlign: 'center' }}>
+                                            {mediaProcessingLabel}
+                                        </Text>
+                                    </View>
+                                </View>
+                            </Modal>
+                        )}
+
                         {allowImpediment && (
                         <Pressable
                             style={styles.impedimentTriggerBtn}
@@ -1609,7 +2337,7 @@ export default function ExecuteOSScreen() {
                     <SignatureScreen ref={signatureRef} onOK={handleSignature}
                         webStyle={`.m-signature-pad--footer {display: none; margin: 0px;} body,html {width: 100%; height: 100%;}`}
                     />
-                    <View style={[styles.signatureFooter, { paddingBottom: Math.max(insets.bottom + 20, 24) }]}>
+                    <View style={[styles.signatureFooter, { paddingBottom: 16 }]}>
                         <Pressable onPress={async () => {
                             await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
                             setSignatureModalVisible(false);
@@ -1630,7 +2358,7 @@ export default function ExecuteOSScreen() {
                         onOK={handleImpedimentSignature}
                         webStyle={`.m-signature-pad--footer {display: none; margin: 0px;} body,html {width: 100%; height: 100%;}`}
                     />
-                    <View style={[styles.signatureFooter, { paddingBottom: Math.max(insets.bottom + 20, 24) }]}>
+                    <View style={[styles.signatureFooter, { paddingBottom: 16 }]}>
                         <Pressable onPress={async () => {
                             await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
                             setIsImpedimentSignatureVisible(false);
@@ -1987,6 +2715,87 @@ export default function ExecuteOSScreen() {
                 </View>
             </Modal>
 
+            {/* MODAL: SELEÇÃO DE ORIGEM DA PEÇA (THEMED) */}
+            <Modal
+                visible={isPartSourceModalVisible}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setIsPartSourceModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.bottomSheet}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>{t('execAddPart') || 'Adicionar Peça'}</Text>
+                            <Pressable onPress={() => setIsPartSourceModalVisible(false)}>
+                                <Ionicons name="close" size={24} color="#666" />
+                            </Pressable>
+                        </View>
+                        
+                        <View style={{ padding: 20, gap: 12 }}>
+                            <Pressable 
+                                style={[styles.themedChoiceBtn, { backgroundColor: '#1c2d4f' }]} 
+                                onPress={async () => {
+                                    setIsPartSourceModalVisible(false);
+                                    if (!cameraPermission?.granted) {
+                                        const { granted } = await requestCameraPermission();
+                                        if (!granted) {
+                                            Alert.alert('Aviso', 'Permissão da câmera é necessária.');
+                                            return;
+                                        }
+                                    }
+                                    setScanned(false);
+                                    setIsScannerVisible(true);
+                                }}
+                            >
+                                <Ionicons name="qr-code" size={20} color="#fff" />
+                                <Text style={styles.themedChoiceText}>Escanear QR Code</Text>
+                            </Pressable>
+                            
+                            <Pressable 
+                                style={[styles.themedChoiceBtn, { backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1' }]} 
+                                onPress={() => {
+                                    setIsPartSourceModalVisible(false);
+                                    setIsPartPickerVisible(true);
+                                }}
+                            >
+                                <Ionicons name="search" size={20} color="#1c2d4f" />
+                                <Text style={[styles.themedChoiceText, { color: '#1c2d4f' }]}>Buscar no Estoque</Text>
+                            </Pressable>
+                            
+                            <Pressable 
+                                style={{ marginTop: 8, padding: 12, alignItems: 'center' }} 
+                                onPress={() => setIsPartSourceModalVisible(false)}
+                            >
+                                <Text style={{ color: '#64748b', fontWeight: '600' }}>{t('execSignatureCancel')}</Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* MODAL: CUSTOM VALIDATION ALERT */}
+            <Modal visible={validationAlert.visible} transparent animationType="fade" onRequestClose={() => setValidationAlert({ visible: false, title: '', message: '' })}>
+                <View style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+                    <View style={{ backgroundColor: '#fff', width: '100%', borderRadius: 16, padding: 24, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 15, elevation: 10 }}>
+                        <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#fee2e2', justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
+                            <Ionicons name="warning" size={32} color="#ef4444" />
+                        </View>
+                        <Text style={{ fontSize: 20, fontWeight: '800', color: '#1e293b', marginBottom: 8, textAlign: 'center' }}>
+                            {validationAlert.title}
+                        </Text>
+                        <Text style={{ fontSize: 15, color: '#64748b', textAlign: 'center', marginBottom: 24, lineHeight: 22 }}>
+                            {validationAlert.message}
+                        </Text>
+                        <Pressable 
+                            style={{ backgroundColor: '#ef4444', paddingVertical: 14, paddingHorizontal: 24, borderRadius: 12, width: '100%', alignItems: 'center' }}
+                            onPress={() => setValidationAlert({ visible: false, title: '', message: '' })}
+                        >
+                            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>Entendi</Text>
+                        </Pressable>
+                    </View>
+                </View>
+            </Modal>
+
             {/* MODAL: FOTO DO IMPEDIMENTO (câmera ou galeria) */}
             <Modal
                 visible={isImpedimentPhotoSourceVisible}
@@ -2042,12 +2851,12 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#f1f5f9' },
     content: { padding: 8, paddingBottom: 100 },
     section: { marginBottom: 14, backgroundColor: '#ffffff', padding: 12, borderRadius: 14, shadowColor: '#1c2d4f', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2, borderWidth: 1, borderColor: '#e2e8f0' },
-    dynamicFieldControl: { marginBottom: 10, backgroundColor: '#ffffff', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', shadowColor: '#64748b', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 3, elevation: 1 },
-    dynamicFieldLabel: { fontSize: 15, fontWeight: '700', color: '#334155', marginBottom: 2 },
-    input: { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, padding: 12, fontSize: 15, backgroundColor: '#f8fafc', marginTop: 6, color: '#334155' },
+    dynamicFieldControl: { marginBottom: 16, backgroundColor: '#ffffff', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#cbd5e1', shadowColor: 'transparent', elevation: 0 },
+    dynamicFieldLabel: { fontSize: 12, fontWeight: '800', color: '#334155', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+    input: { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 8, padding: 14, fontSize: 14, backgroundColor: '#f8fafc', marginTop: 8, color: '#1e293b' },
     textArea: { minHeight: 90, textAlignVertical: 'top' },
-    pickerContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-    optionBtn: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: '#cbd5e1', backgroundColor: '#f8fafc' },
+    pickerContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
+    optionBtn: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: '#cbd5e1', backgroundColor: '#f8fafc' },
     themedChoiceBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 16, borderRadius: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
     themedChoiceText: { color: '#fff', fontSize: 16, fontWeight: '700' },
     optionBtnSelected: { backgroundColor: '#1c2d4f', borderColor: '#1c2d4f' },
@@ -2060,7 +2869,7 @@ const styles = StyleSheet.create({
     signaturePreviewContainer: { alignItems: 'center', marginTop: 10 },
     signaturePreview: { width: '100%', height: 110, backgroundColor: '#ffffff', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0' },
     clearSignatureText: { color: '#e11d48', fontWeight: '700', marginTop: 8, fontSize: 12 },
-    footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#ffffff', padding: 14, borderTopWidth: 1, borderTopColor: '#f1f5f9', shadowColor: '#000', shadowOffset: { width: 0, height: -8 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 12 },
+    footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#ffffff', padding: 6, borderTopWidth: 1, borderTopColor: '#f1f5f9', shadowColor: '#000', shadowOffset: { width: 0, height: -8 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 12 },
     submitButton: { backgroundColor: '#10b981', paddingVertical: 14, borderRadius: 12, alignItems: 'center', shadowColor: '#10b981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 3 },
     submitButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '800', letterSpacing: 0.5 },
     signatureModalContainer: { flex: 1, backgroundColor: '#ffffff', paddingTop: 40 },
@@ -2136,10 +2945,10 @@ const styles = StyleSheet.create({
     videoRecordIconCircle: { backgroundColor: '#059669', width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', shadowColor: '#059669', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 3 },
     videoRecordTitle: { fontSize: 15, fontWeight: '700', color: '#334155' },
     videoRecordSubtitle: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
-    // ── Pagination Styles ──────────────────────────────────────────────────────
+    // ── Pagination / Progress Styles ───────────────────────────────────────────
     progressBarContainer: { height: 4, backgroundColor: '#e2e8f0', borderRadius: 2, marginBottom: 16, overflow: 'hidden' },
     progressBar: { height: '100%', backgroundColor: '#1c2d4f' },
-    paginationButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12, flex: 1, justifyContent: 'center', gap: 8 },
+    paginationButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20, borderRadius: 12, flex: 1, justifyContent: 'center', gap: 8 },
     backButton: { backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' },
     backButtonText: { color: '#475569', fontWeight: 'bold', fontSize: 14 },
     nextButton: { backgroundColor: '#1c2d4f' },

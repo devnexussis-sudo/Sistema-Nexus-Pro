@@ -4,7 +4,7 @@ import { ThemedView } from '@/components/themed-view';
 import { getStatusConfig, OrderStatus } from '@/constants/mock-data';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { useI18n } from '@/services/i18n';
@@ -26,14 +26,18 @@ export default function CalendarScreen() {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
   const [orders, setOrders] = useState<ExtendedServiceOrder[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  // 🛡️ Race condition guard — tracks current fetch generation
+  const fetchIdRef = useRef(0);
 
   const fetchMonthOrders = async (isBackground = false) => {
+    const thisId = ++fetchIdRef.current;
     if (!isBackground) setIsLoading(true);
     try {
       // 1. Fetch from Cache first (fast load)
       if (!isBackground) {
         const cachedData = await OrderService.getCalendarOrders(currentYear, currentMonth, false);
+        if (fetchIdRef.current !== thisId) return; // 🛡️ Stale
         if (cachedData && cachedData.length > 0) {
           setOrders(cachedData);
           setIsLoading(false); // Cache was fast, remove loader!
@@ -42,11 +46,14 @@ export default function CalendarScreen() {
 
       // 2. Fetch from Network implicitly (Background update / SWR pattern)
       const freshData = await OrderService.getCalendarOrders(currentYear, currentMonth, true);
+      if (fetchIdRef.current !== thisId) return; // 🛡️ Stale
       setOrders(freshData);
     } catch (e) {
       console.error(e);
     } finally {
-      setIsLoading(false);
+      if (fetchIdRef.current === thisId) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -103,6 +110,14 @@ export default function CalendarScreen() {
   }, [orders, selectedDate]);
 
 
+  if (isLoading && orders.length === 0) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#ffffff' }]}>
+        <ActivityIndicator size="large" color="#1c2d4f" />
+        <Text style={{ marginTop: 12, color: '#1c2d4f', fontWeight: 'bold' }}>{t('calendarDaySchedule')}...</Text>
+      </View>
+    );
+  }
 
   return (
     <ThemedView style={styles.container}>

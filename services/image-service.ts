@@ -1,19 +1,19 @@
 
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { logger } from './logger';
 
-const MAX_SIZE_BYTES = 250 * 1024; // 250KB
-const MAX_WIDTH = 1024; // Reduce resolution to ensure size target easily
-const INITIAL_QUALITY = 0.6;
+const MAX_SIZE_BYTES = 300 * 1024; // 300KB — margem para quality upgrade
+const MAX_WIDTH = 1280; // Full HD landscape width (preserva detalhes de equipamentos)
+const INITIAL_QUALITY = 0.65;
 
 export class ImageService {
     static async compressAvatar(uri: string): Promise<string> {
         try {
             logger.log(`[ImageService] Compressing avatar: ${uri}`, 'info');
-            const MAX_AVATAR_SIZE = 100 * 1024; // 100KB limit
-            let width = 400; // Small resolution for avatars
-            let quality = 0.7;
+            const MAX_AVATAR_SIZE = 120 * 1024; // 120KB limit
+            let width = 480; // Avatares em 480px (nítido em telas retina)
+            let quality = 0.75;
 
             let result = await ImageManipulator.manipulateAsync(
                 uri,
@@ -52,64 +52,31 @@ export class ImageService {
 
     static async compressImage(uri: string): Promise<string> {
         try {
-
-            // 1. Initial manipulation: Resize & Convert to WebP (Very efficient)
-            const MAX_SIZE_BYTES = 200 * 1024; // 200KB limit
-            let width = 900;
-            let quality = 0.7;
-
+            // v6: Quality upgrade — 1280px + WebP 0.55 = ~160-220KB (mais nitidez para laudos)
+            const MAX_SIZE_BYTES = 280 * 1024;
+            
             let result = await ImageManipulator.manipulateAsync(
                 uri,
-                [{ resize: { width } }],
-                { compress: quality, format: ImageManipulator.SaveFormat.WEBP }
+                [{ resize: { width: 1280 } }],
+                { compress: 0.55, format: ImageManipulator.SaveFormat.WEBP }
             );
 
-            // 2. Check size
             let fileInfo = await FileSystem.getInfoAsync(result.uri);
             if (!fileInfo.exists) throw new Error('Compressed file not found');
-
             let size = fileInfo.size;
-            let attempts = 0;
 
-            // 3. Adaptive loop: Reduce quality first, then size if needed
-            while (size > MAX_SIZE_BYTES && attempts < 5) {
-                logger.log(`Image size ${(size / 1024).toFixed(2)}KB exceeds 200KB. Re-compressing (attempt ${attempts + 1})...`, 'warn');
-
-                attempts++;
-
-                // Reduce quality aggressively
-                quality -= 0.15;
-                if (quality < 0.2) {
-                    quality = 0.5; // Reset quality but shrink dimensions drastically
-                    width = Math.floor(width * 0.7); // 30% smaller
-                }
-
-                result = await ImageManipulator.manipulateAsync(
-                    // Use the result of previous step to avoid reloading original big file if possible? 
-                    // No, manipulateAsync usually works better from source or intermediate uri. 
-                    // Using intermediate result is fine.
-                    result.uri,
-                    [{ resize: { width } }],
-                    { compress: quality, format: ImageManipulator.SaveFormat.WEBP }
-                );
-
-                fileInfo = await FileSystem.getInfoAsync(result.uri);
-                if (fileInfo.exists) {
-                    size = fileInfo.size;
-                }
-            }
-
+            // Fallback se ultrapassou (raro com WebP 1280px)
             if (size > MAX_SIZE_BYTES) {
-                logger.log(`Warning: Could not compress under 200KB after 5 attempts. Final: ${(size / 1024).toFixed(2)}KB`, 'warn');
-            } else {
-                logger.log(`Image compressed successfully. Final size: ${(size / 1024).toFixed(2)}KB`, 'info');
+                result = await ImageManipulator.manipulateAsync(
+                    result.uri,
+                    [{ resize: { width: 960 } }],
+                    { compress: 0.45, format: ImageManipulator.SaveFormat.WEBP }
+                );
             }
 
             return result.uri;
-
         } catch (error) {
             logger.log(`Error compressing image: ${error}`, 'error');
-            // Fallback: return as is if critical failure, though size will be wrong
             return uri;
         }
     }

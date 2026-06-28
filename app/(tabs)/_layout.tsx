@@ -110,6 +110,27 @@ export default function TabLayout() {
             tabBarIcon: ({ color }) => <IconSymbol size={28} name="cube.fill" color={color} />,
           }}
         />
+        <Tabs.Screen
+          name="ai"
+          options={{
+            title: 'Duno IA',
+            tabBarIcon: ({ color }) => <IconSymbol size={28} name="sparkles" color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="os/[id]"
+          options={{
+            title: 'OS',
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="os/execute"
+          options={{
+            title: t('osExecute'),
+            href: null,
+          }}
+        />
       </Tabs>
 
       <MenuModal

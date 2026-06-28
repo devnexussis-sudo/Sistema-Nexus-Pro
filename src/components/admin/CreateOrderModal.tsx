@@ -206,11 +206,19 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
       if (equip) targetFamily = equip.familyName;
     }
 
-    // Find a matching rule
-    const matchingRule = activationRules.find(r =>
-      (r.service_type_id === serviceTypeId || r.serviceTypeId === serviceTypeId) &&
-      (!r.equipmentFamily || r.equipmentFamily === targetFamily)
+    // 🧠 Nexus FormRulesEngine: Prioridade e Especificidade
+    // 1. Encontra regras compatíveis com a Modalidade (Tipo de OS)
+    const rulesForService = activationRules.filter(r => 
+      r.service_type_id === serviceTypeId || r.serviceTypeId === serviceTypeId
     );
+    
+    // 2. Busca o match EXATO (Modalidade + Família do Equipamento)
+    let matchingRule = rulesForService.find(r => r.equipmentFamily === targetFamily);
+    
+    // 3. Fallback: Se não tem regra específica para a família, busca a regra genérica 'Todos'
+    if (!matchingRule) {
+      matchingRule = rulesForService.find(r => !r.equipmentFamily || r.equipmentFamily === 'Todos');
+    }
 
     if (matchingRule) {
       setFormData(prev => ({ ...prev, formId: matchingRule.formId || matchingRule.form_id }));

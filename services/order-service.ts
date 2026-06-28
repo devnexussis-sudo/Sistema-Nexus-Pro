@@ -2,8 +2,12 @@ import { OrderStatus, ServiceOrder } from '@/constants/mock-data';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { decode } from 'base64-arraybuffer';
 import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system';
+import * as Location from 'expo-location';
+import * as LegacyFileSystem from 'expo-file-system/legacy';
 import { authService } from './auth-service';
-import { appLifecycle } from './app-lifecycle';
+// NOTE: appLifecycle is imported lazily inside functions to break the require cycle
+// (app-lifecycle → location-service → auto-checkin-service → order-service → app-lifecycle)
 import { CacheService } from './cache-service';
 import { logger } from './logger';
 import { BUCKET_NAME, supabase } from './supabase';
@@ -52,6 +56,7 @@ export interface FormTemplate {
 export interface ActivationRule {
     id: string;
     formId: string;
+    financialFormId?: string;
     serviceTypeId?: string;
     equipmentFamily?: string;
     active: boolean;
@@ -100,6 +105,8 @@ export interface ExtendedServiceOrder extends ServiceOrder {
     title?: string;
     rawDescription?: string;
     visitCount?: number;
+    customerLat?: number | null;
+    customerLng?: number | null;
 }
 
 export class OrderService {
@@ -107,6 +114,21 @@ export class OrderService {
     public static async uploadFile(uri: string, folder: string, manualTenantId?: string, contentType?: string): Promise<string | null> {
         try {
             console.log(`[OrderService] 📤 Iniciando upload. URI local: ${uri.substring(0, 60)}...`);
+
+            let processUri = uri;
+            const isVideo = contentType?.includes('video') || processUri.toLowerCase().endsWith('.mp4') || processUri.toLowerCase().endsWith('.mov');
+            
+            // 🚀 GARANTIA GLOBAL DE COMPRESSÃO WEBP (Targeted by user request)
+            // Se for imagem e NÃO for assinatura (data URI), forçamos compressão WebP
+            if (!processUri.startsWith('data:') && !isVideo) {
+                try {
+                    const { ImageService } = require('./image-service');
+                    console.log(`[OrderService] 🗜️ Forçando compressão global para WebP...`);
+                    processUri = await ImageService.compressImage(processUri);
+                } catch (compressErr) {
+                    console.warn(`[OrderService] ⚠️ Falha na compressão global, usando imagem original:`, compressErr);
+                }
+            }
 
             // 1. Obter Tenant ID para bater com a estrutura do Storage do Admix
             let tenantId = manualTenantId;
@@ -126,10 +148,22 @@ export class OrderService {
 
             // Determinar extensão pelo contentType
             let ext = 'webp';
-            if (contentType) {
-                if (contentType.includes('video/mp4')) ext = 'mp4';
-                else if (contentType.includes('image/jpeg')) ext = 'jpg';
-                else if (contentType.includes('image/png')) ext = 'png';
+            let finalContentType = contentType || 'image/webp';
+            
+            if (isVideo) {
+                ext = 'mp4';
+                finalContentType = contentType || 'video/mp4';
+            } else if (contentType && !contentType.includes('webp')) {
+                // Se o app mandou image/jpeg ou png explicitamente e passou pelo compressor, 
+                // vamos forçar a extensão webp, a menos que seja data URI de signature png
+                if (!processUri.startsWith('data:')) {
+                    finalContentType = 'image/webp';
+                    ext = 'webp';
+                } else if (contentType.includes('image/jpeg')) {
+                    ext = 'jpg';
+                } else if (contentType.includes('image/png')) {
+                    ext = 'png';
+                }
             }
 
             const fileName = `${finalFolder}/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`.replace(/\/+/g, '/');
@@ -137,16 +171,16 @@ export class OrderService {
             // 2. Obter os dados base64 (Lidando com arquivos locais ou Data URIs de assinatura)
             let base64: string;
 
-            if (uri.startsWith('data:')) {
+            if (processUri.startsWith('data:')) {
                 console.log(`[OrderService] 📝 Processando Data URI (Assinatura)...`);
-                base64 = uri.split(',')[1];
+                base64 = processUri.split(',')[1];
             } else {
-                const fileUri = (uri.startsWith('/') && !uri.startsWith('file://')) ? `file://${uri}` : uri;
-                base64 = await FileSystem.readAsStringAsync(fileUri, { encoding: 'base64' });
+                const fileUri = (processUri.startsWith('/') && !processUri.startsWith('file://')) ? `file://${processUri}` : processUri;
+                base64 = await LegacyFileSystem.readAsStringAsync(fileUri, { encoding: 'base64' });
             }
 
             if (!base64 || base64.length === 0) {
-                console.error(`[OrderService] ❌ Erro: Base64 vazio para URI: ${uri.substring(0, 50)}...`);
+                console.error(`[OrderService] ❌ Erro: Base64 vazio para URI: ${processUri.substring(0, 50)}...`);
                 return null;
             }
 
@@ -154,28 +188,40 @@ export class OrderService {
             const arrayBuffer = decode(base64);
             console.log(`[OrderService] 📦 Buffer criado: ${(arrayBuffer.byteLength / 1024).toFixed(1)} KB para ${fileName}`);
 
-            // 4. Upload para o Supabase
-            const { data, error } = await supabase.storage
-                .from(BUCKET_NAME)
-                .upload(fileName, arrayBuffer, {
-                    contentType: contentType || 'image/webp',
-                    upsert: false
-                });
+            // 4. Upload para o Cloudflare R2 via Edge Function
+            const { data: signData, error: signError } = await supabase.functions.invoke('r2-operations', {
+                body: { action: 'upload', path: fileName, bucketType: 'private', contentType: finalContentType }
+            });
 
-            if (error) {
-                console.error(`[OrderService] ❌ Erro no Upload Supabase:`, JSON.stringify(error, null, 2));
-                logger.log(`Upload error: ${error.message}`, 'error');
+            if (signError || !signData?.signedUrl) {
+                console.error(`[OrderService] ❌ Erro ao obter Signed URL da Edge Function:`, signError?.message);
+                logger.log(`Upload sign error: ${signError?.message}`, 'error');
                 return null;
             }
 
-            console.log(`[OrderService] ✅ Upload concluído com sucesso: ${fileName}`);
+            const uploadPromise = fetch(signData.signedUrl, {
+                method: 'PUT',
+                body: arrayBuffer,
+                headers: {
+                    'Content-Type': finalContentType
+                }
+            });
 
-            // 5. Gerar URL Pública Estritamente como o Admix espera
-            const { data: { publicUrl } } = supabase.storage
-                .from(BUCKET_NAME)
-                .getPublicUrl(fileName);
+            const networkTimeout = new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('NETWORK_TIMEOUT_60S')), 60000));
+            const response = await Promise.race([uploadPromise, networkTimeout]);
 
-            console.log(`[OrderService] 🔗 URL Gerada: ${publicUrl}`);
+            if (!response.ok) {
+                console.error(`[OrderService] ❌ Erro no R2 Upload: ${response.status} ${response.statusText}`);
+                logger.log(`R2 Upload failed: ${response.status}`, 'error');
+                return null;
+            }
+
+            console.log(`[OrderService/R2] ✅ Upload concluído com sucesso: ${fileName}`);
+
+            // 5. Gerar URL Pública — vem diretamente da Edge Function r2-operations
+            const publicUrl = signData.publicUrl;
+
+            console.log(`[OrderService/R2] 🔗 URL Gerada: ${publicUrl}`);
             return publicUrl;
         } catch (error) {
             console.error(`[OrderService] 💥 Exceção Fatal no Upload:`, error);
@@ -311,6 +357,7 @@ export class OrderService {
             // Quando a rede voltar, o app-lifecycle cuidará de fazer o Trash Cleanup.
             if (publicUrl) {
                console.log(`[OrderService] 📦 Escalonando exclusão órfã para a Fila Offline...`);
+               const { appLifecycle } = require('./app-lifecycle');
                appLifecycle.queueOfflineAction('CLEANUP_ORPHAN_FILE', { publicUrl }, `del_${Date.now()}`);
             }
             
@@ -402,6 +449,12 @@ export class OrderService {
                 : dbOrder.service_visits.length;
         }
 
+        // Extract customer coordinates from join
+        const customerRel = dbOrder.customers;
+        const customerData = Array.isArray(customerRel) ? customerRel[0] : customerRel;
+        const customerLat: number | null = customerData?.latitude ?? dbOrder.customer_lat ?? null;
+        const customerLng: number | null = customerData?.longitude ?? dbOrder.customer_lng ?? null;
+
         return {
             id: dbOrder.id,
             tenantId: dbOrder.tenant_id,
@@ -441,6 +494,8 @@ export class OrderService {
             title: dbOrder.title,
             rawDescription: dbOrder.description,
             visitCount: visitCount,
+            customerLat,
+            customerLng,
         };
     }
 
@@ -776,6 +831,7 @@ export class OrderService {
                     completedAt: new Date().toISOString(),
                     clientName: details.clientName,
                     clientDoc: details.clientDoc,
+                    items: details.items || [],
                     ...(details.formData || {})
                 },
                 items: details.items || [], // Save items structured list
@@ -810,6 +866,7 @@ export class OrderService {
                                 clientDoc: details.clientDoc,
                                 video_url: details.videoUrl || null,
                                 completedAt: new Date().toISOString(),
+                                items: details.items || [],
                             }
                         })
                         .eq('order_id', id)
@@ -819,6 +876,9 @@ export class OrderService {
             } catch (vErr) {
                 logger.log(`Warning: Failed to update service_visits: ${vErr}`, 'warn');
             }
+
+            // Ping milestone
+            await this.pingMilestoneLocation();
 
             logger.log(`Order ${id} completed successfully`, 'info');
 
@@ -900,6 +960,9 @@ export class OrderService {
                     .eq('id', currentVisit.id);
             }
 
+            // Ping milestone
+            await this.pingMilestoneLocation();
+
             logger.log(`Order ${id} blocked structurally`, 'info');
 
         } catch (error) {
@@ -950,6 +1013,9 @@ export class OrderService {
                 logger.log(`Warning: Failed to update service_visits displacement: ${vErr}`, 'warn');
             }
 
+            // Ping milestone
+            await this.pingMilestoneLocation(lat, lon);
+
             logger.log(`Order ${id} displacement started`, 'info');
         } catch (error) {
             logger.log(`Error starting displacement: ${error}`, 'error');
@@ -959,15 +1025,39 @@ export class OrderService {
 
     static async startExecution(id: string, lat?: number, lon?: number): Promise<void> {
         try {
-            const { error } = await supabase
+            console.log(`[OrderService] 🚀 startExecution: Setting status to EM ANDAMENTO for order ${id}`);
+            
+            const { data, error, count } = await supabase
                 .from('orders')
                 .update({
                     status: 'EM ANDAMENTO',
-                    start_date: new Date().toISOString()
+                    start_date: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
                 })
-                .eq('id', id);
+                .eq('id', id)
+                .select('id, status');
 
-            if (error) throw error;
+            if (error) {
+                console.error(`[OrderService] ❌ startExecution update error:`, error);
+                throw error;
+            }
+
+            // Verificar se o update realmente afetou a linha
+            if (!data || data.length === 0) {
+                console.warn(`[OrderService] ⚠️ startExecution: Update retornou 0 linhas. Possível bloqueio de RLS.`);
+                // Tentar forçar novamente
+                const { error: retryError } = await supabase
+                    .from('orders')
+                    .update({ 
+                        status: 'EM ANDAMENTO', 
+                        start_date: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', id);
+                if (retryError) console.error('[OrderService] ❌ Retry also failed:', retryError);
+            } else {
+                console.log(`[OrderService] ✅ startExecution: Status atualizado para "${data[0]?.status}" (order ${id})`);
+            }
 
             try {
                 const { data: userData } = await supabase.auth.getUser();
@@ -1015,10 +1105,41 @@ export class OrderService {
                 logger.log(`Warning: Failed to update service_visits: ${vErr}`, 'warn');
             }
 
+            // Ping milestone
+            await this.pingMilestoneLocation(lat, lon);
+
             logger.log(`Order ${id} execution started`, 'info');
         } catch (error) {
             logger.log(`Error starting execution: ${error}`, 'error');
             throw error;
+        }
+    }
+
+    // Helper for milestone GPS pings (Start/End Displacement/Execution)
+    private static async pingMilestoneLocation(lat?: number, lon?: number) {
+        try {
+            let finalLat = lat;
+            let finalLon = lon;
+
+            if (!finalLat || !finalLon) {
+                try {
+                    const pos = await Location.getLastKnownPositionAsync();
+                    if (pos) {
+                        finalLat = pos.coords.latitude;
+                        finalLon = pos.coords.longitude;
+                    }
+                } catch (_) {}
+            }
+
+            if (finalLat && finalLon) {
+                await supabase.from('technician_gps_pings').insert({
+                    latitude: finalLat,
+                    longitude: finalLon
+                });
+                console.log(`[OrderService] 📍 Ping Milestone Registrado: ${finalLat}, ${finalLon}`);
+            }
+        } catch (error) {
+            console.warn('[OrderService] ⚠️ Falha ao registrar ping de milestone', error);
         }
     }
 
@@ -1087,38 +1208,85 @@ export class OrderService {
 
     static async getActivationRules(): Promise<ActivationRule[]> {
         try {
+            // Obter tenant_id do usuário autenticado (necessário para o RLS do Supabase)
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                logger.log('[OrderService] getActivationRules: usuário não autenticado', 'warn');
+                return [];
+            }
+
+            // technicians.id = auth.uid (mesmo que o id do usuário de auth)
+            const { data: techProfile } = await supabase
+                .from('technicians')
+                .select('tenant_id')
+                .eq('id', user.id)
+                .maybeSingle();
+
+            const tenantId = techProfile?.tenant_id;
+            if (!tenantId) {
+                logger.log('[OrderService] getActivationRules: tenant_id não encontrado para o técnico', 'warn');
+                return [];
+            }
+
+            console.log(`[OrderService] getActivationRules: tenant=${tenantId}`);
+
             const { data, error } = await supabase
                 .from('activation_rules')
                 .select('*')
-                .eq('is_active', true);
+                .eq('tenant_id', tenantId);
 
             if (error) throw error;
+
+            console.log(`[OrderService] getActivationRules: ${data?.length || 0} regras encontradas`);
 
             const mapped = (data || []).map(r => ({
                 id: r.id,
                 formId: r.form_template_id,
+                financialFormId: (r.conditions as any)?.financial_form_id || null,
                 serviceTypeId: r.service_type_id,
-                equipmentFamily: r.conditions?.equipment_family || 'Todos',
-                active: r.is_active
+                equipmentFamily: (r.conditions as any)?.equipment_family || 'Todos',
+                active: r.active
             }));
-            await AsyncStorage.setItem(DISK_CACHE_ACTIVATION_RULES, JSON.stringify(mapped)).catch(() => { });
+
+            mapped.forEach(r => {
+                console.log(`  Regra: serviceTypeId=${r.serviceTypeId}, family=${r.equipmentFamily}, formId=${r.formId}, financialFormId=${r.financialFormId}`);
+            });
+
+            if (mapped.length > 0) {
+                await AsyncStorage.setItem(DISK_CACHE_ACTIVATION_RULES, JSON.stringify(mapped)).catch(() => { });
+            }
             return mapped;
         } catch (error) {
+            logger.log(`Error fetching activation rules: ${error}`, 'error');
             try {
                 const raw = await AsyncStorage.getItem(DISK_CACHE_ACTIVATION_RULES);
-                if (raw) return JSON.parse(raw);
+                if (raw) {
+                    console.log('[OrderService] getActivationRules: usando cache offline');
+                    return JSON.parse(raw);
+                }
             } catch (_) { }
-            logger.log(`Error fetching activation rules: ${error}`, 'error');
             return [];
         }
     }
 
     static async getServiceTypes(): Promise<any[]> {
         try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return [];
+
+            const { data: techProfile } = await supabase
+                .from('technicians')
+                .select('tenant_id')
+                .eq('id', user.id)
+                .maybeSingle();
+
+            const tenantId = techProfile?.tenant_id;
+            if (!tenantId) return [];
+
             const { data, error } = await supabase
                 .from('service_types')
                 .select('*')
-                .eq('is_active', true);
+                .eq('tenant_id', tenantId);
 
             if (error) throw error;
             const result = data || [];

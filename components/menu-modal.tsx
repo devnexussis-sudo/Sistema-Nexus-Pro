@@ -24,6 +24,14 @@ export function MenuModal({ visible, onClose, hasUnread }: MenuModalProps) {
 
     useEffect(() => {
         const fetchProfile = async () => {
+            // First load from sync cache immediately
+            const syncProfile = authService.getProfileSync();
+            if (syncProfile) {
+                setUserProfile(syncProfile);
+            }
+
+            // Fallback se não tiver no cache ainda
+            if (!syncProfile) {
                 const { data } = await supabase.auth.getUser();
                 if (data?.user?.id) {
                     const { data: techProfile } = await supabase.from('technicians').select('name, avatar').eq('id', data.user.id).single();
@@ -33,23 +41,28 @@ export function MenuModal({ visible, onClose, hasUnread }: MenuModalProps) {
                             avatar: techProfile.avatar
                         });
                     } else {
-                        // Fallback purely for email
                         setUserProfile({
                             name: data.user.email?.split('@')[0] || 'Usuário',
                             avatar: null
                         });
                     }
                 }
+            }
         };
         fetchProfile();
-    }, []);
+    }, [visible]); // Recarrega sempre que o modal abrir
 
     const handleForceSync = async () => {
         setIsSyncing(true);
-        await syncService.triggerSync(true);
-        setIsSyncing(false);
-        onClose();
-        router.replace('/');
+        try {
+            await syncService.triggerSync(true);
+            Alert.alert(t('menuSync'), 'Sincronização forçada concluída com sucesso!');
+        } catch (error) {
+            Alert.alert(t('menuSync'), 'Ocorreu um erro durante a sincronização.');
+        } finally {
+            setIsSyncing(false);
+            onClose();
+        }
     };
 
     const handleLogout = () => {

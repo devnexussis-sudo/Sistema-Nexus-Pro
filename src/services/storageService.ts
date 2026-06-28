@@ -22,7 +22,7 @@ export const StorageService = {
      * 🎛️ Nexus Image Compression Engine (WebP Optimized)
      * Reduz o peso da imagem drasticamente usando o padrão WebP.
      */
-    compressImage: async (base64: string, maxWidth = 1200, quality = 0.82): Promise<string> => {
+    compressImage: async (base64: string, maxWidth = 1440, quality = 0.85): Promise<string> => {
         return new Promise((resolve) => {
             try {
                 const img = new Image();
@@ -196,7 +196,7 @@ export const StorageService = {
      * 🎯 AGGRESSIVE INTELLIGENT COMPRESSOR (V5 - MEMORY SAFE)
      */
     processAndCompress: async (file: File, signal?: AbortSignal): Promise<Blob> => {
-        const TARGET_SIZE = 240 * 1024;
+        const TARGET_SIZE = 300 * 1024;
         const fileName = (file.name || '').toLowerCase();
         const fileType = (file.type || '').toLowerCase();
 
@@ -240,7 +240,7 @@ export const StorageService = {
             const loadTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('IMG_LOAD_TIMEOUT')), 15000));
             await Promise.race([loadPromise, loadTimeout]);
 
-            const strategies = [{ w: 1024, q: 0.7 }, { w: 800, q: 0.6 }, { w: 640, q: 0.5 }];
+            const strategies = [{ w: 1280, q: 0.75 }, { w: 960, q: 0.65 }, { w: 720, q: 0.55 }];
 
             for (const s of strategies) {
                 if (signal?.aborted) throw new Error('AbortError');

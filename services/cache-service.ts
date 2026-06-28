@@ -24,15 +24,16 @@ export class CacheService {
 
     /**
      * Get from memory, fallback to disk (AsyncStorage)
+     * Retorna { data, isStale } para sabermos se expirou mas ainda podemos usar em emergência.
      */
-    static async get<T>(key: string): Promise<T | null> {
+    static async getWithStaleInfo<T>(key: string): Promise<{ data: T | null; isStale: boolean }> {
         // 1. Memória
         const entry = this.memoryCache.get(key);
         if (entry) {
             if (Date.now() - entry.timestamp < entry.ttl) {
-                return entry.data as T;
+                return { data: entry.data as T, isStale: false };
             }
-            this.memoryCache.delete(key);
+            return { data: entry.data as T, isStale: true };
         }
 
         // 2. Disco
@@ -40,18 +41,22 @@ export class CacheService {
             const diskData = await AsyncStorage.getItem(`@cache:${key}`);
             if (diskData) {
                 const diskEntry: CacheEntry = JSON.parse(diskData);
+                this.memoryCache.set(key, diskEntry); // Sobe pra RAM de qualquer jeito
                 if (Date.now() - diskEntry.timestamp < diskEntry.ttl) {
-                    // Repopular memória
-                    this.memoryCache.set(key, diskEntry);
-                    return diskEntry.data as T;
+                    return { data: diskEntry.data as T, isStale: false };
                 }
-                await AsyncStorage.removeItem(`@cache:${key}`);
+                return { data: diskEntry.data as T, isStale: true };
             }
         } catch (e) {
             console.warn(`[Cache] Fail reading disk for ${key}`);
         }
 
-        return null;
+        return { data: null, isStale: false };
+    }
+
+    static async get<T>(key: string): Promise<T | null> {
+        const { data, isStale } = await this.getWithStaleInfo<T>(key);
+        return isStale ? null : data;
     }
 
     /**
@@ -96,12 +101,22 @@ export class CacheService {
     }
 
     /**
-     * Deduplicate fetch calls
+     * Deduplicate fetch calls e aplica STALE-IF-ERROR.
+     * Se falhar a rede total, ele tenta resgatar a versão estragada (stale) do cache para não desmanchar a tela.
      */
     static async fetcher<T>(key: string, fetchFn: () => Promise<T>): Promise<T> {
         if (this.inflight.has(key)) return this.inflight.get(key);
 
-        const promise = fetchFn().finally(() => this.inflight.delete(key));
+        const promise = fetchFn().catch(async (e) => {
+            console.warn(`[Cache] fetcher failed for ${key}, attempting STALE fallback. Error: ${e.message}`);
+            const { data } = await this.getWithStaleInfo<T>(key);
+            if (data) {
+                console.log(`[Cache] 🛡️ Fallback utilizado para ${key}! Salvando a fluidez da UI apenas como último recurso.`);
+                return data;
+            }
+            throw e; // Sem cache sujo pra salvar, repassa a bomba.
+        }).finally(() => this.inflight.delete(key));
+
         this.inflight.set(key, promise);
         return promise;
     }

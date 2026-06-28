@@ -1,6 +1,6 @@
-
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { NexusAlert } from '@/components/nexus-alert';
 import { authService } from '@/services/auth-service';
 import { ImageService } from '@/services/image-service';
 import { supabase } from '@/services/supabase';
@@ -8,15 +8,18 @@ import { syncService } from '@/services/sync-service';
 import { Ionicons } from '@expo/vector-icons';
 import { decode } from 'base64-arraybuffer';
 import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system';
+import * as LegacyFileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Platform, Pressable, StyleSheet, Text, View, TextInput, KeyboardAvoidingView, ScrollView } from 'react-native';
+import { ActivityIndicator, Alert, Image, Platform, Pressable, StyleSheet, Text, View, TextInput, KeyboardAvoidingView, ScrollView, Modal } from 'react-native';
 import { useI18n } from '@/services/i18n';
 
 export default function ProfileScreen() {
     const router = useRouter();
     const [profileImage, setProfileImage] = useState<string | null>(null);
+    const [isAvatarModalVisible, setAvatarModalVisible] = useState(false);
     const [loading, setLoading] = useState(true);
     const { t } = useI18n();
     const [user, setUser] = useState({
@@ -34,20 +37,26 @@ export default function ProfileScreen() {
     const [confirmNewPassword, setConfirmNewPassword] = useState('');
     const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
     const [showPasswords, setShowPasswords] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({ 
+        visible: false, title: '', message: '', icon: 'warning-outline' as any, iconColor: '#ff3b30', buttons: [{ text: 'OK' }] as any[] 
+    });
+
+    const showAlert = (title: string, message: string, buttons = [{ text: 'OK' }], icon = 'warning-outline' as any, iconColor = '#ff3b30') => {
+        setAlertConfig({ visible: true, title, message, buttons, icon, iconColor });
+    };
 
     const handleUpdatePassword = async () => {
         if (!oldPassword) {
-            Alert.alert(t('alertAttention'), t('profilePasswordOldRequired'));
+            showAlert(t('alertAttention'), t('profilePasswordOldRequired'));
             return;
         }
         if (newPassword !== confirmNewPassword) {
-            Alert.alert(t('alertAttention'), t('profilePasswordMismatch'));
+            showAlert(t('alertAttention'), t('profilePasswordMismatch'));
             return;
         }
 
-        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@#$%^&+=!.?_\-]).{8,}$/;
-        if (!passwordRegex.test(newPassword)) {
-            Alert.alert(t('alertAttention'), t('profilePasswordValidation'));
+        if (newPassword.length < 6) {
+            showAlert(t('alertAttention'), t('profilePasswordValidation'));
             return;
         }
         setIsUpdatingPassword(true);
@@ -60,20 +69,23 @@ export default function ProfileScreen() {
             if (signInError) throw new Error(t('profilePasswordOldIncorrect'));
 
             const { error } = await supabase.auth.updateUser({ password: newPassword });
-            if (error) throw error;
-
-            Alert.alert(t('alertSuccess'), t('profilePasswordSuccess'), [
-                {
-                    text: 'OK', 
-                    onPress: async () => {
-                        await syncService.clearAllData();
-                        await authService.logout();
-                        router.replace('/login');
+            if (!error) {
+                showAlert(t('alertSuccess'), t('profilePasswordSuccess'), [
+                    {
+                        text: 'OK',
+                        onPress: () => {
+                            setIsChangingPassword(false);
+                            setOldPassword('');
+                            setNewPassword('');
+                            setConfirmNewPassword('');
+                        }
                     }
-                }
-            ]);
+                ], 'checkmark-circle-outline', '#34c759');
+            } else {
+                throw error;
+            }
         } catch (error: any) {
-            Alert.alert(t('alertError'), t('profilePasswordError') + error.message);
+            showAlert(t('alertError'), t('profilePasswordError') + error.message);
         } finally {
             setIsUpdatingPassword(false);
             setOldPassword('');
@@ -90,7 +102,7 @@ export default function ProfileScreen() {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session?.user) {
-                Alert.alert(t('alertError'), t('profileNotAuthenticated'));
+                showAlert(t('alertError'), t('profileNotAuthenticated'));
                 return;
             }
 
@@ -135,24 +147,17 @@ export default function ProfileScreen() {
     };
 
     const handleAvatarUpload = async () => {
-        Alert.alert(
-            t('profilePhotoTitle'),
-            "Escolha a origem da imagem:",
-            [
-                { text: t('profilePhotoCamera'), onPress: async () => await takeOrPickImage(true) },
-                { text: t('profilePhotoGallery'), onPress: async () => await takeOrPickImage(false) },
-                { text: t('profilePhotoCancel'), style: "cancel" }
-            ]
-        );
+        setAvatarModalVisible(true);
     };
 
     const takeOrPickImage = async (isCamera: boolean) => {
+        setAvatarModalVisible(false);
         try {
             let result;
             if (isCamera) {
                 const permission = await ImagePicker.requestCameraPermissionsAsync();
                 if (permission.status !== "granted") {
-                    Alert.alert(t('alertPermission'), t('profilePhotoPermission'));
+                    showAlert(t('alertPermission'), t('profilePhotoPermission'));
                     return;
                 }
                 result = await ImagePicker.launchCameraAsync({
@@ -162,7 +167,7 @@ export default function ProfileScreen() {
                 });
             } else {
                 result = await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                    mediaTypes: ['images'],
                     allowsEditing: true,
                     aspect: [1, 1],
                     quality: 1,
@@ -176,7 +181,7 @@ export default function ProfileScreen() {
                 // Compress to WebP < 100KB
                 const compressedUri = await ImageService.compressAvatar(originalUri);
                 const fileUri = (compressedUri.startsWith('/') && !compressedUri.startsWith('file://')) ? `file://${compressedUri}` : compressedUri;
-                const base64 = await FileSystem.readAsStringAsync(fileUri, { encoding: 'base64' });
+                const base64 = await LegacyFileSystem.readAsStringAsync(fileUri, { encoding: 'base64' });
 
                 if (!base64) throw new Error("Base64 string was empty");
                 const arrayBuffer = decode(base64);
@@ -185,18 +190,23 @@ export default function ProfileScreen() {
                 const safeName = user.name ? user.name.replace(/[^a-zA-Z0-9\s]/g, '').trim() || user.id.substring(0, 8) : user.id.substring(0, 8);
                 const fileName = `technicians/${safeName}/avatar_${Date.now()}.webp`;
 
-                const { error: uploadError } = await supabase.storage
-                    .from('nexus-files')
-                    .upload(fileName, arrayBuffer, {
-                        contentType: 'image/webp',
-                        upsert: true
-                    });
+                const { data: signData, error: signError } = await supabase.functions.invoke('r2-operations', {
+                    body: { action: 'upload', path: fileName, bucketType: 'private', contentType: 'image/webp' }
+                });
 
-                if (uploadError) throw uploadError;
+                if (signError || !signData?.signedUrl) throw new Error(signError?.message || 'Erro ao gerar Signed URL');
 
-                const { data: { publicUrl } } = supabase.storage
-                    .from('nexus-files')
-                    .getPublicUrl(fileName);
+                const uploadPromise = fetch(signData.signedUrl, {
+                    method: 'PUT',
+                    body: arrayBuffer,
+                    headers: { 'Content-Type': 'image/webp' }
+                });
+                const networkTimeout = new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('NETWORK_TIMEOUT')), 30000));
+                const response = await Promise.race([uploadPromise, networkTimeout]);
+
+                if (!response.ok) throw new Error(`R2 Upload Falhou: ${response.status}`);
+
+                const publicUrl = signData.publicUrl;
 
                 // Appended timestamp to bust cache when updating
                 const finalUrl = `${publicUrl}?t=${Date.now()}`;
@@ -211,14 +221,16 @@ export default function ProfileScreen() {
 
                 if (updateError) throw updateError;
 
-                setProfileImage(finalUrl);
-                Alert.alert(t('alertSuccess'), t('profilePhotoSuccess'));
+                if (finalUrl) {
+                    setProfileImage(finalUrl);
+                    showAlert(t('alertSuccess'), t('profilePhotoSuccess'), [{ text: 'OK' }], 'checkmark-circle-outline', '#34c759');
+                }
             }
         } catch (error: any) {
             // Log with a simple string to avoid crashing native console if it's cyclic
             const errorMsg = error?.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
             console.error("Avatar upload error details: " + errorMsg);
-            Alert.alert(t('alertError'), `${t('profilePhotoError')}\n${errorMsg.slice(0, 150)}`);
+            showAlert(t('alertError'), `${t('profilePhotoError')}\n${errorMsg.slice(0, 150)}`);
         } finally {
             setLoading(false);
         }
@@ -343,7 +355,7 @@ export default function ProfileScreen() {
             <Pressable
                 style={styles.logoutButton}
                 onPress={() => {
-                    Alert.alert(t('profileLogout'), t('profileLogoutConfirm'), [
+                    showAlert(t('profileLogout'), t('profileLogoutConfirm'), [
                         { text: t('menuCancel'), style: 'cancel' },
                         {
                             text: t('profileLogout'), style: 'destructive',
@@ -354,12 +366,53 @@ export default function ProfileScreen() {
                                 router.replace('/login');
                             }
                         }
-                    ])
+                    ], 'exit-outline', '#ff3b30');
                 }}
             >
                 <Ionicons name="log-out-outline" size={20} color="#fff" />
                 <Text style={styles.logoutText}>{t('profileLogout')}</Text>
             </Pressable>
+
+            {/* Modal de Escolha de Foto */}
+            <Modal
+                visible={isAvatarModalVisible}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setAvatarModalVisible(false)}
+            >
+                <Pressable style={styles.modalOverlay} onPress={() => setAvatarModalVisible(false)}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Atualizar Foto</Text>
+                        <Text style={styles.modalSubtitle}>Escolha a origem da imagem</Text>
+                        
+                        <Pressable style={styles.modalOption} onPress={() => takeOrPickImage(true)}>
+                            <Ionicons name="camera-outline" size={24} color="#1c2d4f" />
+                            <Text style={styles.modalOptionText}>Câmera</Text>
+                        </Pressable>
+                        
+                        <View style={styles.modalSeparator} />
+                        
+                        <Pressable style={styles.modalOption} onPress={() => takeOrPickImage(false)}>
+                            <Ionicons name="images-outline" size={24} color="#1c2d4f" />
+                            <Text style={styles.modalOptionText}>Galeria</Text>
+                        </Pressable>
+                        
+                        <Pressable style={styles.modalCancelButton} onPress={() => setAvatarModalVisible(false)}>
+                            <Text style={styles.modalCancelText}>Cancelar</Text>
+                        </Pressable>
+                    </View>
+                </Pressable>
+            </Modal>
+            
+            <NexusAlert 
+                visible={alertConfig.visible}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                buttons={alertConfig.buttons}
+                icon={alertConfig.icon}
+                iconColor={alertConfig.iconColor}
+                onDismiss={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+            />
                 </ThemedView>
             </ScrollView>
         </KeyboardAvoidingView>
@@ -484,5 +537,68 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    modalContent: {
+        backgroundColor: '#fff',
+        borderRadius: 16,
+        padding: 24,
+        width: '100%',
+        maxWidth: 400,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 5,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#1c2d4f',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    modalSubtitle: {
+        fontSize: 14,
+        color: '#64748b',
+        marginBottom: 24,
+        textAlign: 'center',
+    },
+    modalOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 16,
+        paddingHorizontal: 12,
+        borderRadius: 12,
+        backgroundColor: '#f8fafc',
+    },
+    modalOptionText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#1c2d4f',
+        marginLeft: 12,
+    },
+    modalSeparator: {
+        height: 1,
+        backgroundColor: '#e2e8f0',
+        marginVertical: 8,
+    },
+    modalCancelButton: {
+        marginTop: 24,
+        paddingVertical: 14,
+        borderRadius: 12,
+        backgroundColor: '#f1f5f9',
+        alignItems: 'center',
+    },
+    modalCancelText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#64748b',
     }
 });

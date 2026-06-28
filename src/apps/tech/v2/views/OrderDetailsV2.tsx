@@ -781,7 +781,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
             </div>
 
             {/* ACTION BAR FIXA NO RODAPÉ */}
-            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 pb-8 z-50 shadow-[0_-5px_30px_-5px_rgba(0,0,0,0.1)]">
+            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-2 pb-4 z-50 shadow-[0_-5px_30px_-5px_rgba(0,0,0,0.1)]">
                 <div className="max-w-md mx-auto flex gap-3">
                     {/* Botão de Impedimento sempre visível se não concluído */}
                     {order.status !== OrderStatus.COMPLETED && order.status !== OrderStatus.CANCELED && (

@@ -11,6 +11,7 @@
  */
 
 import NetInfo from '@react-native-community/netinfo';
+import { isRetryableError } from './connection-diagnostics';
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 const DEFAULT_TIMEOUT_MS = 15_000;       // 15s default timeout
@@ -284,12 +285,12 @@ export const resilientCall = async <T>(
                     const msg = error?.message || '';
                     // Never retry cancelled requests
                     if (msg.includes('Cancelled')) return false;
-                    // Don't retry auth errors or client errors
-                    if (msg.includes('401') || msg.includes('403') || msg.includes('JWT')) return false;
                     // Don't retry if circuit is open
                     if (msg.includes('Circuit OPEN')) return false;
-                    // Retry network errors and timeouts
-                    return msg.includes('Timeout') || msg.includes('TypeError') || msg.includes('Net') || msg.includes('fetch');
+                    // Use Claro-aware retry detection (Section 3.2-3.3)
+                    // Retries: ECONNRESET, ETIMEDOUT, Network request failed, WebSocket 1006, 503, 504, 408, 429
+                    // Never retries: 4xx (except 408, 429), auth errors, cancelled
+                    return isRetryableError(error);
                 },
             }
         );

@@ -19,6 +19,18 @@
         "GRADLE_OPTS": "-Xmx3g -XX:MaxMetaspaceSize=768m -Dorg.gradle.daemon=false -Dkotlin.compiler.execution.strategy=in-process -Dorg.gradle.workers.max=1"
       }
     },
+    "debug-apk": {
+      "node": "20.19.4",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug"
+      },
+      "distribution": "internal",
+      "env": {
+        "NODE_ENV": "development",
+        "GRADLE_OPTS": "-Xmx3g -XX:MaxMetaspaceSize=768m -Dorg.gradle.daemon=false -Dkotlin.compiler.execution.strategy=in-process -Dorg.gradle.workers.max=1"
+      }
+    },
     "production": {
       "node": "20.19.4",
       "env": {
