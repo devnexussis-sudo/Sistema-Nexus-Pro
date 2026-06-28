@@ -16,10 +16,11 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useGlobalLoading } from '@/contexts/GlobalLoadingContext';
+import NexusCamera from '@/components/nexus-camera';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import React, { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, SafeAreaView } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SignatureScreen from 'react-native-signature-canvas';
@@ -33,6 +34,7 @@ export default function ExecuteOSScreen() {
 
     const [order, setOrder] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isCustomCameraActive, setIsCustomCameraActive] = useState(false);
 
     // Multi-equipment forms state
     // { equipmentIndex_or_id: { equipamento: any, template: any, data: any } }
@@ -711,19 +713,8 @@ export default function ExecuteOSScreen() {
     // ─────────────────────────────────────────────────────────────────────────
 
     const handleTakeVideo = async () => {
-        try {
-            const result = await ImagePicker.launchCameraAsync({
-                mediaTypes: ['videos'],
-                videoQuality: 0,      // Qualidade baixa (480p) — menor tamanho sem compressor externo
-                allowsEditing: false, // sem edição manual
-                // sem videoMaxDuration — sem limite de tempo
-            });
-            if (!result.canceled && result.assets?.[0]?.uri) {
-                startBackstageVideoProcess(result.assets[0].uri);
-            }
-        } catch {
-            Alert.alert(t('alertError'), t('execCouldNotCamera'));
-        }
+        setIsVideoSourceModalVisible(false);
+        setIsCustomCameraActive(true);
     };
 
     const handlePickVideoFromGallery = async () => {
@@ -749,7 +740,7 @@ export default function ExecuteOSScreen() {
      * - Em segundo plano, roda a compressão profunda (H265) e faz o upload
      * - Substitui a opção de play por um loader na miniatura
      */
-    const startBackstageVideoProcess = async (rawUri: string) => {
+    const startBackstageVideoProcess = async (rawUri: string, isNativeRecording: boolean = false) => {
         try {
             const localUri = rawUri.startsWith('/') ? `file://${rawUri}` : rawUri;
 
@@ -770,42 +761,43 @@ export default function ExecuteOSScreen() {
             }
 
             // A partir daqui, o card de vídeo já aparece na tela!
-            // Começa o processamento pesado:
-            setVideoProcessingStatus(t('execUploading'));
+            let finalUriToUpload = localUri;
 
-            // ─── Ponto B: Compressão de Vídeo (react-native-compressor v1.x) ────
-            setVideoProcessingStatus('Comprimindo vídeo...');
-            let compressedUri = localUri;
+            if (isNativeRecording) {
+                // BYPASS DO COMPRESSOR (Big Tech approach)
+                // Se foi gravado pelo NexusCamera, já está em 480p com compressão de hardware AVFoundation/MediaCodec.
+                setVideoProcessingStatus(t('execFinalizing'));
+                console.log('[Video] Gravação Nativa Detectada: Pulando react-native-compressor.');
+            } else {
+                // Começa o processamento pesado (Vídeo da Galeria):
+                setVideoProcessingStatus(t('execUploading'));
 
-            try {
-                const { Video } = require('react-native-compressor');
-                const compressionResult = await Video.compress(
-                    localUri,
-                    {
-                        compressionMethod: 'manual',
-                        maxWidth: 480,
-                        maxHeight: 854,
-                        bitrate: 450000,          // 450kbps (Video ~ 3.3MB/min)
-                        fps: 24,                  // 24 FPS (Cinematic, saves 20% bitrate)
-                        videoCodec: 'H264',
-                        audioBitrate: 32000,      // 32kbps (Audio ~ 0.2MB/min - if supported)
-                        audioChannels: 1,         // Mono (if supported by OS compressor)
-                        outputSampleRate: 44100,
-                        minimumFileSizeForCompress: 0,
-                    } as any,
-                    (progress: number) => {
-                        setVideoProcessingStatus(`Comprimindo... ${Math.round(progress * 100)}%`);
+                // ─── Ponto B: Compressão de Vídeo (react-native-compressor v1.x) ────
+                setVideoProcessingStatus('Comprimindo vídeo...');
+                try {
+                    const { Video } = require('react-native-compressor');
+                    const compressionResult = await Video.compress(
+                        localUri,
+                        {
+                            compressionMethod: 'manual',
+                            maxSize: 854,             // 854px no lado maior (480p vertical)
+                            bitrate: 450000,          // 450kbps de vídeo
+                            minimumFileSizeForCompress: 0,
+                        } as any,
+                        (progress: number) => {
+                            setVideoProcessingStatus(`Comprimindo... ${Math.round(progress * 100)}%`);
+                        }
+                    );
+                    if (compressionResult) {
+                        finalUriToUpload = compressionResult;
                     }
-                );
-                if (compressionResult) {
-                    compressedUri = compressionResult;
+                } catch (err) {
+                    console.warn('[Video] Falha na compressão — usando vídeo original:', err);
                 }
-            } catch (err) {
-                console.warn('[Video] Falha na compressão — usando vídeo original:', err);
             }
 
             // Mede a redução conseguida
-            const info = await FileSystem.getInfoAsync(compressedUri);
+            const info = await FileSystem.getInfoAsync(finalUriToUpload);
             const sizeMB = ((info as any).size ?? 0) / 1024 / 1024;
             setVideoSizeMB(Math.round(sizeMB * 10) / 10);
             
@@ -817,12 +809,12 @@ export default function ExecuteOSScreen() {
                 // Offline fallback
                 const fileName = `offline_video_${id}_${Date.now()}.mp4`;
                 const destPath = `${FileSystem.documentDirectory}${fileName}`;
-                await FileSystem.copyAsync({ from: compressedUri, to: destPath });
+                await FileSystem.copyAsync({ from: finalUriToUpload, to: destPath });
                 setVideoUri(destPath);
             } else {
                 // Upload normal para o Storage
                 const publicUrl = await OrderService.uploadFile(
-                    compressedUri,
+                    finalUriToUpload,
                     `orders/${order?.displayId || id}/videos`,
                     order?.tenantId,
                     'video/mp4'
@@ -1614,6 +1606,18 @@ export default function ExecuteOSScreen() {
             <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
                 <Stack.Screen options={{ title: 'Carregando Execução' }} />
             </View>
+        );
+    }
+
+    if (isCustomCameraActive) {
+        return (
+            <NexusCamera 
+                onClose={() => setIsCustomCameraActive(false)} 
+                onVideoRecorded={(uri) => {
+                    setIsCustomCameraActive(false);
+                    startBackstageVideoProcess(uri, true);
+                }} 
+            />
         );
     }
 
