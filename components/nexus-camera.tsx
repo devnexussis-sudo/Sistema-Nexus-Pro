@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ActivityIndicator } from 'react-native';
-import { CameraView, useCameraPermissions, useMicrophonePermissions, CameraType } from 'expo-camera';
+import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
+import type { CameraType } from 'expo-camera';
 import { X, FlipHorizontal, Video, Square } from 'lucide-react-native';
-import { useTranslation } from 'react-i18next';
 
 interface NexusCameraProps {
     onClose: () => void;
@@ -10,7 +10,6 @@ interface NexusCameraProps {
 }
 
 export default function NexusCamera({ onClose, onVideoRecorded }: NexusCameraProps) {
-    const { t } = useTranslation();
     const [camPermission, requestCamPermission] = useCameraPermissions();
     const [micPermission, requestMicPermission] = useMicrophonePermissions();
     
