@@ -8,11 +8,6 @@
     "icon": "./assets/images/app-icon-duno-v6.png",
     "scheme": "nexusmobile",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/images/splash-duno-v6.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nexus.mobile",
@@ -28,8 +23,9 @@
       }
     },
     "android": {
+      "newArchitectureEnabled": false,
       "package": "com.nexus.mobile",
-      "versionCode": 7,
+      "versionCode": 11,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
@@ -83,6 +79,12 @@
         "expo-build-properties",
         {
           "android": {
+            "ndk": {
+              "abiFilters": [
+                "armeabi-v7a",
+                "arm64-v8a"
+              ]
+            },
             "packagingOptions": {
               "pickFirst": [
                 "**/builddef.lst",
@@ -96,10 +98,11 @@
             }
           },
           "ios": {
-            "deploymentTarget": "15.1"
+            "deploymentTarget": "16.4"
           }
         }
-      ]
+      ],
+      "react-native-compressor"
     ],
     "experiments": {
       "typedRoutes": true
@@ -111,6 +114,7 @@
       "eas": {
         "projectId": "7caab797-5453-4704-8029-c84d7a8153a1"
       }
-    }
+    },
+    "owner": "dunoupapp"
   }
 }
