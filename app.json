@@ -73,7 +73,6 @@
           "isAndroidForegroundServiceEnabled": true
         }
       ],
-      "expo-av",
       "expo-screen-orientation",
       [
         "expo-build-properties",
