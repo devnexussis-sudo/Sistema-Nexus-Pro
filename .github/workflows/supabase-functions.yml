@@ -31,3 +31,4 @@ jobs:
           supabase functions deploy whatsapp-bot --project-ref $PROJECT_ID
           supabase functions deploy whatsapp-ai-agent --project-ref $PROJECT_ID
           supabase functions deploy whatsapp-admin-send --project-ref $PROJECT_ID
+          supabase functions deploy os-status-notify --project-ref $PROJECT_ID
