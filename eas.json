@@ -15,7 +15,6 @@
       },
       "distribution": "internal",
       "env": {
-        "NODE_ENV": "production",
         "GRADLE_OPTS": "-Xmx3g -XX:MaxMetaspaceSize=768m -Dorg.gradle.daemon=false -Dkotlin.compiler.execution.strategy=in-process -Dorg.gradle.workers.max=1"
       }
     },
@@ -34,7 +33,6 @@
     "production": {
       "node": "20.19.4",
       "env": {
-        "NODE_ENV": "production",
         "GRADLE_OPTS": "-Xmx3g -XX:MaxMetaspaceSize=768m -Dorg.gradle.daemon=false -Dkotlin.compiler.execution.strategy=in-process -Dorg.gradle.workers.max=1"
       }
     }
