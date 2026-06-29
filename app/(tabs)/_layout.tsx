@@ -1,7 +1,7 @@
 
 import { Tabs } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, View, useColorScheme as useDeviceColorScheme } from 'react-native';
+import { useState, useEffect } from 'react';
+import { Pressable, View, useColorScheme as useDeviceColorScheme, DeviceEventEmitter } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { HeaderRightToggle } from '@/components/header-right-toggle';
@@ -48,6 +48,13 @@ export default function TabLayout() {
       checkUnreadNotifications();
     }, [])
   );
+
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('refreshNotifications', () => {
+      checkUnreadNotifications();
+    });
+    return () => sub.remove();
+  }, []);
 
   return (
     <>

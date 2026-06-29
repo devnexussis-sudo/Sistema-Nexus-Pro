@@ -1076,7 +1076,11 @@ export default function OrderDetailsScreen() {
                                                                 });
 
                                                                 let displayTitle = group;
-                                                                if (isEquipment && eqData) {
+                                                                const isFinanceiroType = group.toLowerCase().includes('financeiro');
+                                                                
+                                                                if (isFinanceiroType) {
+                                                                    displayTitle = 'Financeiro Geral';
+                                                                } else if (isEquipment && eqData) {
                                                                     const eqNamePart = eqData.equipment_name || '';
                                                                     const eqModelPart = eqData.equipment_model || '';
                                                                     const fullEqName = [eqNamePart, eqModelPart].filter(Boolean).join(' ');

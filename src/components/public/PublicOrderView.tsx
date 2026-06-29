@@ -154,14 +154,17 @@ const CollapsibleFormSection: React.FC<{
               return acc;
             }, {} as Record<string, (typeof formItems[0] & { cleanKey?: string })[]>);
 
-            return Object.entries(groupedItems).map(([group, items]) => (
+            return Object.entries(groupedItems).map(([group, items]) => {
+              const isFinanceiro = group.toLowerCase().includes('financeiro');
+              const displayGroup = isFinanceiro ? 'Financeiro Geral' : group;
+              return (
               <div key={group} className="space-y-4">
                 {group !== 'Ficha Técnica' && Object.keys(groupedItems).length > 1 && (
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-md bg-emerald-50 flex items-center justify-center border border-emerald-100">
                       <CheckCircle2 size={12} className="text-emerald-600" />
                     </div>
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-[#1c2d4f]">{group}</h4>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-[#1c2d4f]">{displayGroup}</h4>
                   </div>
                 )}
                 <div className="grid gap-4">
@@ -913,7 +916,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             {/* Service description */}
             {order.description && (
               <div className="p-5 bg-[#1c2d4f]/5 rounded-xl border border-[#1c2d4f]/10">
-                <p className="text-[9px] font-black text-[#1c2d4f] uppercase tracking-widest mb-2">Descrição do Serviço Executado</p>
+                <p className="text-[9px] font-black text-[#1c2d4f] uppercase tracking-widest mb-2">Descrição do problema</p>
                 <p className="text-sm font-medium text-slate-700 leading-relaxed whitespace-pre-wrap">{order.description}</p>
               </div>
             )}

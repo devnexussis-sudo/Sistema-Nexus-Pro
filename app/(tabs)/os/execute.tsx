@@ -20,8 +20,9 @@ import NexusCamera from '@/components/nexus-camera';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import React, { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, SafeAreaView } from 'react-native';
+import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, SafeAreaView, DeviceEventEmitter } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { execute as ffmpegExecute } from 'ffmpeg-expo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SignatureScreen from 'react-native-signature-canvas';
 
@@ -520,6 +521,28 @@ export default function ExecuteOSScreen() {
                             setFormsConfig(newFormsConfig);
                         }
 
+                        // Limpar badge de notificação para esta OS
+                        try {
+                            const { data: { session } } = await supabase.auth.getSession();
+                            if (session?.user && id) {
+                                const { data: notifs } = await supabase
+                                    .from('notifications')
+                                    .select('id')
+                                    .eq('is_read', false)
+                                    .eq('data->>orderId', id as string);
+                                    
+                                if (notifs && notifs.length > 0) {
+                                    await supabase
+                                        .from('notifications')
+                                        .update({ is_read: true })
+                                        .in('id', notifs.map(n => n.id));
+                                    DeviceEventEmitter.emit('refreshNotifications');
+                                }
+                            }
+                        } catch (err) {
+                            console.warn('[ExecuteOS] Erro ao limpar notificacao', err);
+                        }
+
                         // Carregar estoque do técnico
                         try {
                             const stock = await StockService.getMyStock();
@@ -745,7 +768,6 @@ export default function ExecuteOSScreen() {
             const localUri = rawUri.startsWith('/') ? `file://${rawUri}` : rawUri;
 
             // ─── Ponto A: UI INSTANTÂNEA ──────────────────────────────────────────
-            // Seta a URI pra miniatura já ocupar o card, mas travado como "processing"
             setIsUploadingVideo(true);
             setVideoProcessingStatus(t('execThumbnail'));
             setVideoUri(localUri); 
@@ -762,38 +784,20 @@ export default function ExecuteOSScreen() {
 
             // A partir daqui, o card de vídeo já aparece na tela!
             let finalUriToUpload = localUri;
+            setVideoProcessingStatus('Comprimindo vídeo...');
 
-            if (isNativeRecording) {
-                // BYPASS DO COMPRESSOR (Big Tech approach)
-                // Se foi gravado pelo NexusCamera, já está em 480p com compressão de hardware AVFoundation/MediaCodec.
-                setVideoProcessingStatus(t('execFinalizing'));
-                console.log('[Video] Gravação Nativa Detectada: Pulando react-native-compressor.');
-            } else {
-                // Começa o processamento pesado (Vídeo da Galeria):
-                setVideoProcessingStatus(t('execUploading'));
-
-                // ─── Ponto B: Compressão de Vídeo (react-native-compressor v1.x) ────
-                setVideoProcessingStatus('Comprimindo vídeo...');
-                try {
-                    const { Video } = require('react-native-compressor');
-                    const compressionResult = await Video.compress(
-                        localUri,
-                        {
-                            compressionMethod: 'manual',
-                            maxSize: 854,             // 854px no lado maior (480p vertical)
-                            bitrate: 450000,          // 450kbps de vídeo
-                            minimumFileSizeForCompress: 0,
-                        } as any,
-                        (progress: number) => {
-                            setVideoProcessingStatus(`Comprimindo... ${Math.round(progress * 100)}%`);
-                        }
-                    );
-                    if (compressionResult) {
-                        finalUriToUpload = compressionResult;
-                    }
-                } catch (err) {
-                    console.warn('[Video] Falha na compressão — usando vídeo original:', err);
-                }
+            // ─── Ponto B: Compressão Absoluta (FFmpeg) ────
+            try {
+                const outPath = `${FileSystem.cacheDirectory}compressed_${Date.now()}.mp4`;
+                
+                // Padrão NASA: 480p, 450kbps, H264 ultrafast, Mono, 44100Hz, 32k áudio
+                // Usando mpeg4 como codec de vídeo para máxima compatibilidade
+                const ffmpegCommand = `-i "${localUri}" -vf "scale=-2:480" -c:v mpeg4 -b:v 450k -c:a aac -b:a 32k -ac 1 -ar 44100 "${outPath}"`;
+                
+                await ffmpegExecute(ffmpegCommand);
+                finalUriToUpload = outPath;
+            } catch (err) {
+                console.warn('[Video] Erro na execução FFmpeg:', err);
             }
 
             // Mede a redução conseguida
