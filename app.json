@@ -101,8 +101,7 @@
             "deploymentTarget": "16.4"
           }
         }
-      ],
-      "react-native-compressor"
+      ]
     ],
     "experiments": {
       "typedRoutes": true
