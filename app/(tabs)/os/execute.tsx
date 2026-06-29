@@ -22,7 +22,7 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import React, { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, SafeAreaView, DeviceEventEmitter } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { execute as ffmpegExecute } from 'ffmpeg-expo';
+import { FFmpegKit, ReturnCode } from 'ffmpeg-kit-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SignatureScreen from 'react-native-signature-canvas';
 
@@ -794,7 +794,11 @@ export default function ExecuteOSScreen() {
                 // Usando mpeg4 como codec de vídeo para máxima compatibilidade
                 const ffmpegCommand = `-i "${localUri}" -vf "scale=-2:480" -c:v mpeg4 -b:v 450k -c:a aac -b:a 32k -ac 1 -ar 44100 "${outPath}"`;
                 
-                await ffmpegExecute(ffmpegCommand);
+                const session = await FFmpegKit.execute(ffmpegCommand);
+                const returnCode = await session.getReturnCode();
+                if (!ReturnCode.isSuccess(returnCode)) {
+                    throw new Error(`FFmpeg failed with return code ${returnCode}`);
+                }
                 finalUriToUpload = outPath;
             } catch (err) {
                 console.warn('[Video] Erro na execução FFmpeg:', err);
