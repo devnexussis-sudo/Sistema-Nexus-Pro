@@ -56,7 +56,6 @@
     },
     "plugins": [
       "expo-router",
-      "ffmpeg-expo",
       [
         "expo-splash-screen",
         {
