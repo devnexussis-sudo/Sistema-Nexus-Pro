@@ -16,7 +16,7 @@ const isVideoUrl = (url: string | null) => {
 const SYSTEM_KEYS = new Set([
   'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
   'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
-  'impediment_reason', 'impediment_photos', 'totalValue', 'price',
+  'impediment_reason', 'impediment_photos', 'totalValue', 'price', 'execution_forms',
   'finishedAt', 'completedAt', 'technical_report', 'parts_used',
   'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
   'clientName', 'customerName', 'customerAddress', 'tenantId',
@@ -660,7 +660,7 @@ const EquipmentGroup: React.FC<{
               const cleanGroupName = groupName
                 .replace(/^.*?\]\s*-?\s*/, '') // Remove prefix like "[Eq Name S/N: xxx - "
                 .replace(/\s*-\s*(Financeiro|Técnico|Tecnico)\s*$/i, ''); // Remove suffix
-              const displayName = cleanGroupName || groupName;
+              const displayName = isFinanceiro ? 'Financeiro Geral' : (cleanGroupName || groupName);
               return (
                 <>
                   <div className="flex items-center gap-2">

@@ -41,7 +41,8 @@ import {
   ExternalLink,
   RefreshCw,
   Paperclip,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Copy
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../i18n';
@@ -127,6 +128,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [orderToEdit, setOrderToEdit] = useState<ServiceOrder | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
   const [isManualSyncing, setIsManualSyncing] = useState(false);
   const [isBatchPrinting, setIsBatchPrinting] = useState(false);
   const [ordersToPrint, setOrdersToPrint] = useState<ServiceOrder[]>([]);
@@ -1000,6 +1002,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     window.open(publicUrl, '_blank');
   };
 
+  const handleCopyPublicLink = (order: ServiceOrder, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const publicUrl = `${window.location.origin}/#/order/view/${order.publicToken || order.id}`;
+    navigator.clipboard.writeText(publicUrl).then(() => {
+      setCopiedOrderId(order.id);
+      setTimeout(() => setCopiedOrderId(null), 2500);
+    }).catch(err => {
+      console.error('Falha ao copiar:', err);
+      showAlert('Erro ao copiar o link.');
+    });
+  };
+
   const handleCancelOrder = async (order: ServiceOrder, e: React.MouseEvent) => {
     e.stopPropagation();
     if (order.status === OrderStatus.CANCELED) return;
@@ -1524,6 +1538,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       className="h-9 px-2 sm:px-4 gap-1.5 !bg-slate-50 border-primary-200 text-primary-700 hover:!bg-primary-50"
                     >
                       <Share2 size={14} /> <span className="hidden sm:inline">Visualizar</span>
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={(e) => handleCopyPublicLink(selectedOrder, e)}
+                      className={`h-9 px-2 sm:px-4 gap-1.5 transition-colors ${copiedOrderId === selectedOrder.id ? '!bg-emerald-50 border-emerald-300 text-emerald-700' : '!bg-slate-50 border-slate-300 text-slate-700 hover:!bg-slate-100'}`}
+                    >
+                      {copiedOrderId === selectedOrder.id ? <CheckCircle2 size={14} /> : <Copy size={14} />} 
+                      <span className="hidden sm:inline">{copiedOrderId === selectedOrder.id ? 'Copiado!' : 'Copiar Link'}</span>
                     </Button>
                     <Button
                       variant="secondary"

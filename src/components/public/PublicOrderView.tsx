@@ -228,7 +228,7 @@ const VisitCard: React.FC<{
             const internalSystemKeys = new Set([
               'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
               'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
-              'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price',
+              'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price', 'execution_forms',
               'finishedAt', 'completedAt', 'technical_report', 'parts_used',
               'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
               'clientName', 'customerName', 'customerAddress', 'tenantId',
@@ -267,7 +267,7 @@ const VisitCard: React.FC<{
               const isFinanceiro = groupName.toLowerCase().includes('financeiro');
               const isTecnico = groupName.toLowerCase().includes('técnico') || groupName.toLowerCase().includes('tecnico');
               const eqDisplayName = eq ? (eq.equipment_name || eq.equipmentName) : groupName.replace(/\s*-\s*(Financeiro|Técnico|Tecnico)\s*$/i, '').replace(/^.*?\]\s*-?\s*/, '');
-              let displayTitle = eqDisplayName;
+              let displayTitle = isFinanceiro ? 'Financeiro Geral' : eqDisplayName;
 
               const formTypeBadge = isFinanceiro
                 ? <span className="inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 ml-1.5">Financeiro</span>
@@ -283,7 +283,7 @@ const VisitCard: React.FC<{
                     onImageClick={onImageClick}
                     title={displayTitle}
                     titleBadge={formTypeBadge}
-                    subtitle={eq ? `S/N: ${eq.equipment_serial || eq.equipmentSerial}` : `Registros da Visita #${idx + 1}`}
+                    subtitle={(eq && !isFinanceiro) ? `S/N: ${eq.equipment_serial || eq.equipmentSerial}` : `Registros da Visita #${idx + 1}`}
                     icon={<Package size={16} />}
                     showPrices={showPrices}
                   />
@@ -480,7 +480,7 @@ const CollapsibleFormSection: React.FC<{
   const SYSTEM_KEYS = new Set([
     'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
     'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
-    'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price',
+    'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price', 'execution_forms',
     'finishedAt', 'completedAt', 'technical_report', 'parts_used',
     'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
     'clientName', 'customerName', 'customerAddress', 'tenantId',
@@ -1115,7 +1115,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   const SYSTEM_KEYS = new Set([
     'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
     'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
-    'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price',
+    'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price', 'execution_forms',
     'finishedAt', 'completedAt', 'technical_report', 'parts_used',
     'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
     'clientName', 'customerName', 'customerAddress', 'tenantId',
@@ -1256,7 +1256,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
         {order.description && (
           <div className="border border-slate-300 rounded-lg overflow-hidden print-section">
-            <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 text-[9px] uppercase tracking-wider text-slate-700 print-section-header">Relatório / Descrição do Serviço</div>
+            <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 text-[9px] uppercase tracking-wider text-slate-700 print-section-header">Descrição do problema</div>
             <div className="p-2 bg-white text-[9px] text-slate-800 whitespace-pre-wrap leading-tight">
               {order.description}
             </div>
@@ -1288,7 +1288,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           const SYS_KEYS = new Set([
             'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
             'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
-            'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price',
+            'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price', 'execution_forms',
             'finishedAt', 'completedAt', 'technical_report', 'parts_used',
             'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
             'clientName', 'customerName', 'customerAddress', 'tenantId',
@@ -1558,7 +1558,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               const internalKeys = new Set([
                 'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
                 'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
-                'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price',
+                'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price', 'execution_forms',
                 'finishedAt', 'completedAt', 'technical_report', 'parts_used',
                 'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
                 'clientName', 'customerName', 'customerAddress', 'tenantId',
@@ -2343,7 +2343,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             {/* Service description */}
             {order.description && (
               <div className="p-5 bg-[#1c2d4f]/5 rounded-xl border border-[#1c2d4f]/10">
-                <p className="text-xs text-[#1c2d4f] uppercase tracking-widest mb-2">Descrição do Serviço Executado</p>
+                <p className="text-xs text-[#1c2d4f] uppercase tracking-widest mb-2">Descrição do problema</p>
                 <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{order.description}</p>
               </div>
             )}
@@ -2400,7 +2400,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                const SYSTEM_KEYS = new Set([
                 'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
                 'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
-                'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price',
+                'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price', 'execution_forms',
                 'finishedAt', 'completedAt', 'technical_report', 'parts_used',
                 'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
                 'clientName', 'customerName', 'customerAddress', 'tenantId',
