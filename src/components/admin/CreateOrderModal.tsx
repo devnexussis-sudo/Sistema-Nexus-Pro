@@ -405,6 +405,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
       const finalData = {
         ...formData,
+        customerId: selectedClientId || undefined,
         equipmentName: selectedEquip ? selectedEquip.model : formData.equipmentName || 'Não especificado',
         equipmentModel: selectedEquip ? selectedEquip.model : formData.equipmentModel || '-',
         equipmentSerial: selectedEquip ? selectedEquip.serialNumber : formData.equipmentSerial || '-',

@@ -25,6 +25,7 @@ export const OrderService = {
         return {
             title: order.title ?? '',
             description: order.description ?? '',
+            customer_id: order.customerId,
             customer_name: order.customerName ?? '',
             customer_address: order.customerAddress ?? '',
             status: (order.status?.toUpperCase() === 'CANCELED' ? 'CANCELADO' : order.status) as DbOrderInsert['status'],
@@ -94,6 +95,7 @@ export const OrderService = {
             tenantId: data.tenant_id,
             title: data.title,
             description: data.description,
+            customerId: data.customer_id,
             customerName: data.customer_name,
             customerAddress: data.customer_address,
             status: data.status as ServiceOrder['status'],

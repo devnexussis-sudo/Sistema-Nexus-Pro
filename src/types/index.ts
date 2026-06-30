@@ -276,6 +276,7 @@ export interface ServiceOrder {
   tenantId?: string; // Multi-tenancy
   title: string;
   description: string;
+  customerId?: string;
   customerName: string;
   customerAddress: string;
   status: OrderStatus;

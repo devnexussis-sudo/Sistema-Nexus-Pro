@@ -145,6 +145,7 @@ export interface DbOrder {
     tenant_id: string;
     title: string;
     description: string;
+    customer_id?: string;
     customer_name: string;
     customer_address: string;
     status: DbOrderStatus;
