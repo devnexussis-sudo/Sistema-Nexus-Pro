@@ -264,6 +264,8 @@ export interface OrderItem {
   total: number;
   fromStock?: boolean;
   stockItemId?: string;
+  customerId?: string;
+  usedById?: string;
   equipmentId?: string;
   equipmentName?: string;
   equipmentSerial?: string;
@@ -559,6 +561,8 @@ export interface Quote {
   id: string;          // UUID interno gerado pelo Postgres (PK)
   displayId?: string;  // Identificador Soberano Nexus (ex: ORC-2926001)
   tenantId?: string;   // Multi-tenancy
+  customerId?: string;
+  createdBy?: string;
   customerName: string;
   customerAddress: string;
   title: string;
@@ -629,6 +633,8 @@ export interface Category {
 export interface CashFlowEntry {
   id: string;
   tenantId: string;
+  customerId?: string;
+  technicianId?: string;
   type: 'INCOME' | 'EXPENSE';
   category: string;
   amount: number;

@@ -32,6 +32,8 @@ export const QuoteService = {
             displayId: data.display_id || null,
             publicToken: data.public_token,
             tenantId: data.tenant_id,
+            customerId: data.customer_id,
+            createdBy: data.created_by,
             customerName: data.customer_name,
             customerAddress: data.customer_address,
             customerDocument: data.customer_document,
@@ -126,6 +128,8 @@ export const QuoteService = {
                 // public_token: gerado aqui para garantir acesso anônimo via RLS
                 public_token: crypto.randomUUID(),
                 tenant_id: tid,
+                customer_id: quote.customerId,
+                created_by: quote.createdBy,
                 customer_name: quote.customerName,
                 customer_address: quote.customerAddress,
                 title: quote.title,

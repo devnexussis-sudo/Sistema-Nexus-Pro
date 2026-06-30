@@ -136,6 +136,8 @@ export interface DbOrderItem {
     total: number;
     fromStock?: boolean;
     stockItemId?: string;
+    customer_id?: string;
+    used_by_id?: string;
 }
 
 export interface DbOrder {
@@ -359,6 +361,8 @@ export interface DbQuoteItem {
 export interface DbQuote {
     id: string;
     tenant_id: string;
+    customer_id?: string;
+    created_by?: string;
     customer_name: string;
     customer_address: string;
     title: string;
@@ -395,6 +399,8 @@ export type DbQuoteInsert = Omit<DbQuote, 'id' | 'public_token' | 'created_at' |
 export interface DbCashFlowEntry {
     id: string;
     tenant_id: string;
+    customer_id?: string;
+    technician_id?: string;
     type: DbCashFlowType;
     category: string;
     amount: number;

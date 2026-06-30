@@ -166,7 +166,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             referenceId: qOrigin.id,
                             referenceType: 'QUOTE',
                             paymentMethod: paymentMethod,
-                            entryDate: paidAt
+                            entryDate: paidAt,
+                            customerId: qOrigin.customerId || selectedItem.original?.customerId || undefined,
+                            technicianId: qOrigin.createdBy || selectedItem.original?.assignedTo || undefined
                         });
                     } catch (e) { console.warn('Cash flow error (non-blocking):', e); }
                 }
@@ -491,7 +493,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         referenceId: item.id,
                         referenceType: item.type,
                         paymentMethod: finalMethod,
-                        entryDate: paidAt
+                        entryDate: paidAt,
+                        customerId: item.original?.customerId || undefined,
+                        technicianId: item.type === 'ORDER' ? item.original?.assignedTo : (item.original?.createdBy || undefined)
                     });
                 } catch (e) { console.warn('Cash flow error (non-blocking):', e); }
             }

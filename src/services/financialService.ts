@@ -45,6 +45,8 @@ export const FinancialService = {
                 reference_type: entry.referenceType,
                 payment_method: entry.paymentMethod,
                 entry_date: entry.entryDate || new Date().toISOString(),
+                customer_id: entry.customerId,
+                technician_id: entry.technicianId,
                 created_by: createdById || 'sistema' // Fallback para 'sistema' se não conseguir obter user
             };
 
@@ -77,6 +79,8 @@ export const FinancialService = {
                 referenceType: d.reference_type,
                 paymentMethod: d.payment_method,
                 entryDate: d.entry_date,
+                customerId: d.customer_id,
+                technicianId: d.technician_id,
                 createdAt: d.created_at,
                 createdBy: d.created_by
             })) as CashFlowEntry[];

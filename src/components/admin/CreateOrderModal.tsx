@@ -540,7 +540,9 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
       unitPrice: item.unitPrice || 0,
       total: (item.quantity || 1) * (item.unitPrice || 0),
       fromStock: item.fromStock || false,
-      stockItemId: item.stockItemId
+      stockItemId: item.stockItemId,
+      customerId: selectedClientId || undefined,
+      usedById: formData.assignedTo || undefined
     };
     setItems([...items, newItem]);
   };

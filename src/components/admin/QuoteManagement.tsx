@@ -278,6 +278,8 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
             setLoading(true);
             const customer = customers.find(c => c.name === customerName);
             const payload = {
+                customerId: customer?.id || undefined,
+                createdBy: auth.user?.id || undefined,
                 customerName,
                 customerAddress: customer?.address || '',
                 customerDocument: customer?.document || '00000000000000',
