@@ -10,7 +10,9 @@ module.exports = function withProguardRules(config) {
       const rules = `
 # Fix Expo modules crash on Release (LazyKType NoClassDefFoundError)
 -keep class expo.modules.kotlin.types.** { *; }
+-keep interface expo.modules.kotlin.types.** { *; }
 -keep class expo.modules.av.** { *; }
+-keep interface expo.modules.av.** { *; }
 `;
       if (fs.existsSync(proguardPath)) {
         let content = fs.readFileSync(proguardPath, 'utf-8');
