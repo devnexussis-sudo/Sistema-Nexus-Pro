@@ -61,7 +61,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "./withProguardRules.js",
+      "./withCustomProguard.js",
       "expo-router",
       [
         "expo-splash-screen",
