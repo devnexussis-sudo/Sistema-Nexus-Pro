@@ -13,6 +13,9 @@ module.exports = function withProguardRules(config) {
 -keep interface expo.modules.kotlin.types.** { *; }
 -keep class expo.modules.av.** { *; }
 -keep interface expo.modules.av.** { *; }
+-keep class kotlin.Metadata { *; }
+-keep class kotlin.reflect.** { *; }
+-keep class kotlin.coroutines.** { *; }
 `;
       if (fs.existsSync(proguardPath)) {
         let content = fs.readFileSync(proguardPath, 'utf-8');
