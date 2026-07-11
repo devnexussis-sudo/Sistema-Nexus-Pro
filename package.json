@@ -9,7 +9,7 @@
     "web": "expo start --web",
     "test": "jest --watchAll",
     "lint": "expo lint",
-    "postinstall": "patch-package && find node_modules -type d -name local-maven-repo -exec rm -rf {} + || true"
+    "postinstall": "patch-package && node scripts/force-source.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
