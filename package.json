@@ -7,7 +7,9 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "postinstall": "patch-package"
+    "test": "jest --watchAll",
+    "lint": "expo lint",
+    "postinstall": "patch-package && find node_modules -type d -name local-maven-repo -exec rm -rf {} + || true"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
