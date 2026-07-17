@@ -352,25 +352,28 @@ const VisitCard: React.FC<{
 
                 {/* Fotos e Vídeos */}
                 {(visitPhotos.length > 0 || visitData.videoUrl || visitData.video_url) && (() => {
+                  const rawVid = visitData.videoUrl || visitData.video_url || '';
+                  const vidArr = typeof rawVid === 'string' ? rawVid.split(',').map(u => u.trim()).filter(Boolean) : [];
                   const allMedia = [
-                    ...(visitData.videoUrl || visitData.video_url ? [visitData.videoUrl || visitData.video_url] : []),
+                    ...vidArr,
                     ...visitPhotos
                   ];
                   return (
                     <div className={(visitData.technical_report || visitData.technicalReport || visit.notes || visitData.parts_used || visitData.partsUsed) ? "pt-2 border-t border-slate-200 mt-2" : ""}>
                       <p className="text-[10px] text-slate-400 uppercase tracking-widest mb-3">Anexos e Evidências</p>
                       <div className="flex flex-wrap gap-3">
-                        {(visitData.videoUrl || visitData.video_url) && (
+                        {vidArr.map((vUrl: string, vI: number) => (
                           <div
+                            key={`vid-${vI}`}
                             className="w-[80px] h-[80px] sm:w-[100px] sm:h-[100px] shrink-0 rounded-xl overflow-hidden border border-slate-200 bg-black cursor-zoom-in group hover:shadow-md transition-all active:scale-95 relative"
-                            onClick={() => onImageClick(visitData.videoUrl || visitData.video_url, allMedia)}
+                            onClick={() => onImageClick(vUrl, allMedia)}
                           >
-                            <video src={`${visitData.videoUrl || visitData.video_url}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                            <video src={`${vUrl}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
                             <div className="absolute inset-0 flex items-center justify-center">
                               <Play size={16} className="text-white fill-white group-hover:scale-110 transition-transform" />
                             </div>
                           </div>
-                        )}
+                        ))}
                         {visitPhotos.map((url: string, pIdx: number) => (
                           <div
                             key={pIdx}
@@ -1532,15 +1535,19 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             <div className="border border-slate-300 rounded-lg overflow-hidden mt-4 print-no-break">
               <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 text-xs uppercase tracking-wider text-slate-700">Evidências Fotográficas e de Conclusão</div>
               <div className="p-3 bg-white flex flex-wrap gap-3">
-                {(order.videoUrl || formDataPrint.videoUrl || formDataPrint.video_url) && (
-                  <div className="border border-slate-200 rounded-lg p-1.5 w-[220px] h-[160px] overflow-hidden flex items-center justify-center bg-black break-inside-avoid shadow-inner relative">
-                    <video src={`${order.videoUrl || formDataPrint.videoUrl || formDataPrint.video_url}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Play size={16} className="text-white opacity-80" />
+                {(() => {
+                  const rawVid = order.videoUrl || formDataPrint.videoUrl || formDataPrint.video_url || '';
+                  const vidArr = typeof rawVid === 'string' ? rawVid.split(',').map(u => u.trim()).filter(Boolean) : [];
+                  return vidArr.map((vUrl: string, vI: number) => (
+                    <div key={`pvid-${vI}`} className="border border-slate-200 rounded-lg p-1.5 w-[220px] h-[160px] overflow-hidden flex items-center justify-center bg-black break-inside-avoid shadow-inner relative">
+                      <video src={`${vUrl}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Play size={16} className="text-white opacity-80" />
+                      </div>
+                      <span className="absolute bottom-1 bg-black/60 text-white text-[8px] px-1.5 py-0.5 rounded uppercase leading-none">Vídeo</span>
                     </div>
-                    <span className="absolute bottom-1 bg-black/60 text-white text-[8px] px-1.5 py-0.5 rounded uppercase leading-none">Vídeo</span>
-                  </div>
-                )}
+                  ));
+                })()}
                 {allValidExtrasPrint.map((url: string, i: number) => (
                   <div key={i} className="border border-slate-200 rounded-lg p-1.5 w-[220px] h-[160px] overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid shadow-sm">
                     <img src={url} className="w-full h-full object-contain" alt={`Evidência Adicional ${i + 1}`} />
@@ -1835,17 +1842,21 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                             <div className={`mt-1 ${vFd.technical_report || vFd.technicalReport || v.notes || vFd.parts_used || vFd.partsUsed ? 'border-t border-slate-100 pt-2' : ''}`}>
                               <span className="uppercase text-[9px] text-slate-400 block mb-1.5">Evidências e Anexos:</span>
                               <div className="flex flex-wrap gap-2">
-                                {(vFd.videoUrl || vFd.video_url) && (
-                                  <div className="border border-slate-200 rounded p-1 w-[140px] h-[105px] overflow-hidden flex items-center justify-center bg-black relative shadow-sm">
-                                    <a href={vFd.videoUrl || vFd.video_url} target="_blank" rel="noopener noreferrer" className="w-full h-full relative flex items-center justify-center cursor-pointer">
-                                      <video src={`${vFd.videoUrl || vFd.video_url}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
-                                      <div className="absolute inset-0 flex items-center justify-center">
-                                        <Play size={10} className="text-white opacity-80" />
-                                      </div>
-                                      <span className="absolute bottom-1 bg-black/60 text-white text-[7px] px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
-                                    </a>
-                                  </div>
-                                )}
+                                {(() => {
+                                  const rawVid = vFd.videoUrl || vFd.video_url || '';
+                                  const vidArr = typeof rawVid === 'string' ? rawVid.split(',').map((u: string) => u.trim()).filter(Boolean) : [];
+                                  return vidArr.map((vUrl: string, vI: number) => (
+                                    <div key={`vid-${vI}`} className="border border-slate-200 rounded p-1 w-[140px] h-[105px] overflow-hidden flex items-center justify-center bg-black relative shadow-sm">
+                                      <a href={vUrl} target="_blank" rel="noopener noreferrer" className="w-full h-full relative flex items-center justify-center cursor-pointer">
+                                        <video src={`${vUrl}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                          <Play size={10} className="text-white opacity-80" />
+                                        </div>
+                                        <span className="absolute bottom-1 bg-black/60 text-white text-[7px] px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
+                                      </a>
+                                    </div>
+                                  ));
+                                })()}
                                 {visitPhotos.map((url: string, pIdx: number) => (
                                   <div key={pIdx} className="border border-slate-200 rounded p-1 w-[140px] h-[105px] overflow-hidden flex items-center justify-center bg-slate-50 shadow-sm">
                                     {isVideoUrl(url) ? (
