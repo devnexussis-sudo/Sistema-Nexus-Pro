@@ -1045,12 +1045,13 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         if (data) {
           // Filtra campos válidos: exclui null, undefined, string vazia e literal 'null'
           const clean = (v: any) => v && String(v).toLowerCase() !== 'null' && String(v).trim() !== '';
-          const street = [data.address, data.number].filter(clean).join(', ');
-          const neighborhood = clean(data.neighborhood) ? data.neighborhood : '';
+          const street = [data.address, data.number].filter(clean).join(', ') + (clean(data.neighborhood) ? ` - ${data.neighborhood}` : '');
+          const complement = clean(data.complement) ? `Complemento: ${data.complement}` : '';
           const city = clean(data.city) ? data.city : '';
           const state = clean(data.state) ? data.state : '';
-          const cityState = [city, state].filter(Boolean).join('/');
-          const addr = [street, neighborhood, cityState].filter(Boolean).join(' - ');
+          const cityState = [city, state].filter(Boolean).join(' - ');
+          
+          const addr = [street, complement, cityState].filter(Boolean).join('\n');
           if (addr.trim()) setFreshCustomerAddress(addr);
           
           if (clean(data.whatsapp)) setFreshCustomerPhone(data.whatsapp);
@@ -1211,7 +1212,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             <div className="col-span-7 p-2 grid grid-cols-2 gap-x-4 gap-y-2">
               <div className="col-span-2"><label className="block text-[8px] text-slate-400 uppercase">Cliente</label><div className="text-slate-900 text-xs uppercase">{order.customerName}</div></div>
               <div className="col-span-2 flex flex-col gap-1">
-                <div><label className="block text-[8px] text-slate-400 uppercase">Endereço</label><div className="text-slate-700 text-xs uppercase leading-tight">{displayAddress || 'N/A'}</div></div>
+                <div><label className="block text-[8px] text-slate-400 uppercase">Endereço</label><div className="text-slate-700 text-xs uppercase leading-tight whitespace-pre-line">{displayAddress || 'N/A'}</div></div>
                 {(freshCustomerPhone || freshCustomerEmail) && (
                   <div>
                     <label className="block text-[8px] text-slate-400 uppercase">Contato</label>
@@ -2262,7 +2263,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   {displayAddress && (
                     <div className="flex items-start gap-2.5 max-w-[300px]">
                       <MapPin size={14} className="text-slate-400 mt-0.5 shrink-0" />
-                      <p className="text-xs text-slate-500 leading-snug uppercase">{displayAddress}</p>
+                      <p className="text-xs text-slate-500 leading-snug uppercase whitespace-pre-line">{displayAddress}</p>
                     </div>
                   )}
 
