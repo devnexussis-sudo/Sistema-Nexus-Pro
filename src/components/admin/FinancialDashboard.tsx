@@ -1001,8 +1001,8 @@ ${container.innerHTML}
                 </div>
             </div>
 
-            {/* ── TABELA ── */}
-            <div className="bg-white border border-slate-200 rounded-2xl flex flex-col overflow-hidden flex-1 min-h-0 shadow-xl shadow-slate-200/30 relative">
+            {/* 💻 DESKTOP TABLE VIEW */}
+            <div className="bg-white border border-slate-200 rounded-2xl hidden md:flex flex-col overflow-hidden flex-1 min-h-0 shadow-xl shadow-slate-200/30 relative">
                 <div className="flex-1 overflow-auto">
                     <table className="w-full text-left">
                         <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md z-10 border-b border-slate-300 shadow-sm font-poppins">
@@ -1136,8 +1136,84 @@ ${container.innerHTML}
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            {/* 📱 MOBILE CARDS VIEW */}
+            <div className="md:hidden flex-1 overflow-auto custom-scrollbar bg-slate-50/50 p-2 space-y-2 pb-28">
+                {isRefreshing ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                        <Loader2 size={28} className="animate-spin text-primary-400 mb-3" />
+                        <p className="text-xs font-medium">Carregando dados...</p>
+                    </div>
+                ) : paginatedItems.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                        <DollarSign size={32} className="text-slate-300 mb-3" />
+                        <p className="text-xs font-medium uppercase tracking-widest">Nenhum lançamento encontrado</p>
+                    </div>
+                ) : (
+                    paginatedItems.map(item => (
+                        <div 
+                            key={item.id}
+                            className={`bg-white p-3 rounded-2xl shadow-sm border ${selectedIds.includes(item.id) ? 'border-primary-400 ring-1 ring-primary-100' : 'border-slate-200/60'} active:scale-[0.98] transition-all flex flex-col gap-2 relative overflow-hidden`}
+                            onClick={() => { setDetailTab('overview'); setSelectedItem(item); setEditingDueDate(''); setIsSidebarOpen(true); }}
+                        >
+                            {/* Checkbox absoluto para seleção rápida (Longo Press ou click direto) */}
+                            <div 
+                                className="absolute top-3 right-3 p-2 -m-2 z-10"
+                                onClick={(e) => { e.stopPropagation(); toggleSelect(item.id); }}
+                            >
+                                <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-[#1c2d4f]" checked={selectedIds.includes(item.id)} readOnly />
+                            </div>
+
+                            <div className="flex items-start justify-between gap-2 pr-8">
+                                <div className="flex flex-col gap-1">
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded w-max ${item.type === 'QUOTE' ? 'bg-[#1c2d4f]/10 text-[#1c2d4f]' : 'bg-slate-100 text-slate-600'}`}>
+                                        {getDocLabel(item)}
+                                    </span>
+                                    <h3 className="text-sm font-bold text-slate-800 line-clamp-1">{item.customerName}</h3>
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-2 mt-2">
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Valor</span>
+                                    <span className="text-sm font-bold text-slate-900">{formatCurrency(item.value)}</span>
+                                </div>
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Vencimento</span>
+                                    <span className="text-xs font-bold text-rose-600">{new Date(item.dueDate || item.date).toLocaleDateString('pt-BR')}</span>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                                <span className="text-[10px] text-slate-500 truncate max-w-[150px]">{item.title}</span>
+                                <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wide ${item.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${item.status === 'PAID' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+                                    {item.status === 'PAID' ? 'Faturado' : 'Pendente'}
+                                </div>
+                            </div>
+                        </div>
+                    ))
+                )}
+            </div>
+            
+            <div className="bg-white border-t border-slate-200">
                 <Pagination currentPage={currentPage} totalPages={totalPages} totalItems={filteredItems.length} itemsPerPage={ITEMS_PER_PAGE} onPageChange={setCurrentPage} />
             </div>
+
+            {/* MOBILE FAB FOR BATCH ACTIONS */}
+            {selectedIds.length > 0 && (
+                <button
+                    onClick={() => {
+                        if (can('financial', 'invoice')) handleInvoiceBatch();
+                        else showAlert("Acesso Negado: Você não tem permissão para faturar.", 'warning');
+                    }}
+                    className="md:hidden fixed bottom-24 right-4 w-14 h-14 bg-gradient-to-tr from-emerald-500 to-emerald-600 text-white rounded-full shadow-[0_8px_30px_rgba(16,185,129,0.4)] flex items-center justify-center z-50 active:scale-90 transition-transform"
+                >
+                    <DollarSign size={24} />
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-slate-900 rounded-full text-[10px] font-bold flex items-center justify-center border-2 border-white">{selectedIds.length}</span>
+                </button>
+            )}
 
 
 

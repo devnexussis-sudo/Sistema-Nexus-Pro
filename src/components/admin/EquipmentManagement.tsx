@@ -309,7 +309,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                   if (!canCreate('equipments')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para esta ação.'); return; }
                   setIsModalOpen(true);
                 }}
-                className={`h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl font-bold whitespace-nowrap text-white ${!canCreate('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                className={`hidden md:flex h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl font-bold whitespace-nowrap text-white ${!canCreate('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`}
               >
                 <Plus size={16} /> {activeTab === 'list' ? 'Novo' : 'Nova Categoria'}
               </Button>
@@ -319,25 +319,25 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
 
       <div className="bg-white border border-slate-200 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
 
-        {/* TABELA PADRONIZADA */}
-        <div className="flex-1 overflow-auto p-0 custom-scrollbar">
+        {/* 💻 DESKTOP TABLE VIEW */}
+        <div className="hidden md:block flex-1 overflow-auto p-0 custom-scrollbar">
           {activeTab === 'list' ? (
             <table className="w-full border-separate border-spacing-y-1">
               <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
                 <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center font-poppins">
-                  <th className="px-4 py-2 text-left">equipamento / modelo</th>
-                  <th className="px-4 py-2 text-center">código</th>
-                  <th className="px-4 py-2 text-center whitespace-nowrap">nº de série</th>
-                  <th className="px-4 py-2">proprietário</th>
-                  <th className="px-4 py-2 text-center">garantia</th>
-                  <th className="px-4 py-2 text-center">status</th>
-                  <th className="px-4 py-3 text-right pr-6">{t.common.actions}</th>
+                  <th className="px-3 py-1 text-left">equipamento / modelo</th>
+                  <th className="px-3 py-1 text-center hidden md:table-cell">código</th>
+                  <th className="px-3 py-1 text-center whitespace-nowrap hidden md:table-cell">nº de série</th>
+                  <th className="px-3 py-1 hidden md:table-cell">proprietário</th>
+                  <th className="px-3 py-1 text-center hidden lg:table-cell">garantia</th>
+                  <th className="px-3 py-1 text-center">status</th>
+                  <th className="px-3 py-1 text-right pr-6">{t.common.actions}</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedItems.map((e: any) => (
                   <tr key={e.id} className="bg-white hover:bg-primary-50/40 transition-all group shadow-sm hover:shadow-md cursor-pointer">
-                    <td className="px-4 py-1.5 rounded-l-[1.5rem] border border-slate-100 border-r-0 font-bold text-xs max-w-[200px]">
+                    <td className="px-3 py-1 rounded-l-[1.5rem] border border-slate-100 border-r-0 font-bold text-xs max-w-[200px]">
                       <div className="flex items-center gap-3">
                         <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-primary-400 shadow-inner group-hover:bg-primary-600 group-hover:text-white transition-all shrink-0">
                           <Box size={18} />
@@ -345,20 +345,24 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                         <div className="truncate">
                           <p className="text-slate-900 tracking-tight truncate text-[13px] font-medium">{e.model}</p>
                           <p className="text-[11px] text-primary-400 mt-1 truncate">{e.familyName}</p>
+                          <div className="md:hidden mt-1 flex flex-col gap-0.5">
+                            <span className="text-[10px] text-slate-500 font-mono">SN: {e.serialNumber}</span>
+                            <span className="text-[10px] text-slate-600 truncate">{customers.find(c => c.id === e.customerId)?.name || e.customerName || 'Não vinculado'}</span>
+                          </div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-1.5 border-y border-slate-100 text-center">
+                    <td className="px-3 py-1 border-y border-slate-100 text-center hidden md:table-cell">
                       <span className="font-mono text-[11px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2.5 py-1 rounded-lg tracking-widest border border-[#1c2d4f]/15">
                         {formatAssetCode(e.assetCode)}
                       </span>
                     </td>
-                    <td className="px-4 py-1.5 border-y border-slate-100 text-center font-mono text-[12px] text-slate-500 tracking-tighter whitespace-nowrap">#{e.serialNumber}</td>
-                    <td className="px-4 py-1.5 border-y border-slate-100 text-[12px] text-slate-600 tracking-tight truncate max-w-[150px]">
+                    <td className="px-3 py-1 border-y border-slate-100 text-center font-mono text-[12px] text-slate-500 tracking-tighter whitespace-nowrap hidden md:table-cell">#{e.serialNumber}</td>
+                    <td className="px-3 py-1 border-y border-slate-100 text-[12px] text-slate-600 tracking-tight truncate max-w-[150px] hidden md:table-cell">
                       {customers.find(c => c.id === e.customerId)?.name || e.customerName || 'Não vinculado'}
                     </td>
 
-                    <td className="px-4 py-1.5 border-y border-slate-100 text-center">
+                    <td className="px-3 py-1 border-y border-slate-100 text-center hidden lg:table-cell">
                       {e.manufactureDate && e.warrantyMonths ? (
                         <div className={`text-[9px] font-bold px-2.5 py-1 rounded-full w-max mx-auto border ${checkWarrantyStatus(e.manufactureDate, e.warrantyMonths) ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-rose-50 text-rose-600 border-rose-200'}`}>
                           {checkWarrantyStatus(e.manufactureDate, e.warrantyMonths) ? 'Em Garantia' : 'Fora de Garantia'}
@@ -370,10 +374,10 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                       )}
                     </td>
 
-                    <td className="px-4 py-1.5 border-y border-slate-100 text-center">
+                    <td className="px-3 py-1 border-y border-slate-100 text-center">
                       <StatusBadge status={e.active ? OrderStatus.COMPLETED : OrderStatus.CANCELED} />
                     </td>
-                    <td className="px-4 py-1.5 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
+                    <td className="px-3 py-1 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
                       <div className="flex items-center justify-end gap-1.5">
                           <>
                             <button onClick={(evt) => {
@@ -404,16 +408,16 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
             <table className="w-full border-separate border-spacing-y-1">
               <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
                 <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center font-poppins">
-                  <th className="px-4 py-2">nome da família</th>
-                  <th className="px-4 py-2">descrição técnica de escopo</th>
-                  <th className="px-4 py-2 text-center">status</th>
-                  <th className="px-4 py-2 text-right pr-6">ações</th>
+                  <th className="px-3 py-1">nome da família</th>
+                  <th className="px-3 py-1 hidden md:table-cell">descrição técnica de escopo</th>
+                  <th className="px-3 py-1 text-center">status</th>
+                  <th className="px-3 py-1 text-right pr-6">ações</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedItems.map((f: any) => (
                   <tr key={f.id} className="bg-white hover:bg-primary-50/30 transition-all group shadow-sm cursor-pointer">
-                    <td className="px-4 py-1.5 rounded-l-[1.5rem] border border-slate-100 border-r-0 font-bold text-xs max-w-[200px]">
+                    <td className="px-3 py-1 rounded-l-[1.5rem] border border-slate-100 border-r-0 font-bold text-xs max-w-[200px]">
                       <div className="flex items-center gap-3">
                         <div className="p-2.5 rounded-xl bg-primary-50 text-primary-600 shadow-inner group-hover:bg-primary-600 group-hover:text-white transition-all shrink-0">
                           <Layers size={18} />
@@ -421,13 +425,13 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                         <p className="text-slate-900 tracking-tight truncate text-[13px] font-medium">{f.name}</p>
                       </div>
                     </td>
-                    <td className="px-4 py-1.5 border-y border-slate-100 text-[11px] text-slate-500 max-w-sm truncate">{f.description}</td>
-                    <td className="px-4 py-1.5 border-y border-slate-100 text-center">
+                    <td className="px-3 py-1 border-y border-slate-100 text-[11px] text-slate-500 max-w-sm truncate hidden md:table-cell">{f.description}</td>
+                    <td className="px-3 py-1 border-y border-slate-100 text-center">
                       <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold   border ${f.active ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
                         {f.active ? 'Ativo' : 'Inativo'}
                       </span>
                     </td>
-                    <td className="px-4 py-1.5 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
+                    <td className="px-3 py-1 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
                       <div className="flex items-center justify-end gap-1.5">
                           <>
                             <button onClick={(evt) => {
@@ -449,6 +453,98 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
             </table>
           )}
         </div>
+
+        {/* 📱 MOBILE CARDS VIEW */}
+        <div className="md:hidden flex-1 overflow-auto custom-scrollbar bg-slate-50/50 p-2 space-y-2 pb-28">
+          {paginatedItems.length > 0 ? (
+            paginatedItems.map((item: any) => {
+              if (activeTab === 'list') {
+                return (
+                  <div 
+                    key={item.id}
+                    onClick={(e) => {
+                      if (canEdit('equipments')) {
+                        setEqFormData(item);
+                        setEditingId(item.id);
+                        const cName = customers.find(c => c.id === item.customerId)?.name || '';
+                        setClientSearch(cName);
+                        const fName = families.find(f => f.id === item.familyId)?.name || '';
+                        setFamilySearch(fName);
+                        setIsModalOpen(true);
+                      }
+                    }}
+                    className={`bg-white p-3 rounded-2xl shadow-sm border border-slate-200/60 active:scale-[0.98] transition-transform flex flex-col gap-2 ${!item.active ? 'opacity-60' : ''}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex gap-3">
+                        <div className="w-10 h-10 bg-primary-50 text-primary-600 rounded-xl flex items-center justify-center shrink-0 border border-primary-100">
+                          <Box size={18} />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-800 line-clamp-1">{item.model || item.name}</h3>
+                          <p className="text-[11px] text-slate-500 font-mono mt-0.5">SN: {item.serialNumber}</p>
+                        </div>
+                      </div>
+                      <StatusBadge status={item.active ? OrderStatus.COMPLETED : OrderStatus.CANCELED} />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase">Proprietário</span>
+                        <span className="text-xs text-slate-700 truncate">{customers.find(c => c.id === item.customerId)?.name || item.customerName || 'Não vinculado'}</span>
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase">Garantia</span>
+                        <span className="text-xs text-slate-700 truncate">
+                          {item.manufactureDate && item.warrantyMonths ? (checkWarrantyStatus(item.manufactureDate, item.warrantyMonths) ? 'Sim' : 'Não') : '---'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              } else {
+                return (
+                  <div 
+                    key={item.id}
+                    onClick={(e) => {
+                      if (canEdit('equipments')) {
+                        setFamilyFormData(item); setEditingId(item.id); setIsModalOpen(true);
+                      }
+                    }}
+                    className={`bg-white p-3 rounded-2xl shadow-sm border border-slate-200/60 active:scale-[0.98] transition-transform flex flex-col gap-2 ${!item.active ? 'opacity-60' : ''}`}
+                  >
+                     <div className="flex items-start justify-between gap-2">
+                        <div className="flex gap-3">
+                          <div className="w-10 h-10 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center shrink-0 border border-slate-200">
+                            <Layers size={18} />
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-bold text-slate-800 line-clamp-1">{item.name}</h3>
+                            <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{item.description}</p>
+                          </div>
+                        </div>
+                     </div>
+                  </div>
+                );
+              }
+            })
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+              <Search size={32} className="text-slate-300 mb-3" />
+              <p className="text-xs font-medium">Nenhum registro localizado</p>
+            </div>
+          )}
+        </div>
+
+        {/* MOBILE FAB (Floating Action Button) */}
+        {canCreate('equipments') && (
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="md:hidden fixed bottom-24 right-4 w-14 h-14 bg-gradient-to-tr from-[#1c2d4f] to-[#253a66] text-white rounded-full shadow-[0_8px_30px_rgba(28,45,79,0.4)] flex items-center justify-center z-50 active:scale-90 transition-transform"
+          >
+            <Plus size={24} />
+          </button>
+        )}
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
@@ -460,8 +556,8 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
 
       {
         isModalOpen && createPortal(
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 sm:p-8 animate-in fade-in">
-            <div className="bg-white rounded-none lg:rounded-2xl w-full max-w-[96vw] h-full lg:h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200">
+          <div className="fixed inset-0 z-[1000] flex items-end md:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 md:p-8 animate-in fade-in duration-300">
+            <div className="bg-white md:rounded-2xl w-full max-w-6xl h-full md:h-[92vh] shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-300">
 
               {/* HEADER — padrão OS */}
               <div className="px-8 py-5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
@@ -489,9 +585,9 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
               </div>
 
               {/* BODY WITH SIDEBAR */}
-              <div className="flex-1 flex overflow-hidden">
+              <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
                 {activeTab === 'list' && (
-                  <div className="w-64 bg-slate-50/50 border-r border-slate-200 p-6 flex flex-col gap-2 shrink-0">
+                  <div className="w-full md:w-64 bg-slate-50/50 border-b md:border-b-0 md:border-r border-slate-200 p-4 md:p-6 flex flex-row md:flex-col gap-2 shrink-0 overflow-x-auto">
                     <button type="button" onClick={() => setModalTab('dados')}
                       className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
                         modalTab === 'dados' ? 'bg-white text-[#1c2d4f] shadow-sm border border-slate-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'

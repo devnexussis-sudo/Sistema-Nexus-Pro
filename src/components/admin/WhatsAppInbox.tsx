@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw, X, BellRing, Bell, Volume2, ArrowRight, Sticker, FileVideo, Mic, FileText, Download, AlertCircle } from 'lucide-react';
+import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw, X, BellRing, Bell, Volume2, ArrowRight, ArrowLeft, Sticker, FileVideo, Mic, FileText, Download, AlertCircle } from 'lucide-react';
 
 interface Message {
   role: 'bot' | 'user' | 'agent';
@@ -700,7 +700,7 @@ export const WhatsAppInbox: React.FC = () => {
       )}
 
       {/* ── Coluna esquerda: lista de conversas ── */}
-      <div className="w-72 flex-shrink-0 bg-white border-r border-gray-100 flex flex-col">
+      <div className={`${selected ? 'hidden md:flex' : 'flex'} w-full md:w-80 flex-shrink-0 bg-white border-r border-gray-100 flex-col`}>
         <div className="p-3 border-b border-gray-50">
           <div className="flex items-center gap-2 mb-3">
             <MessageCircle size={18} className="text-emerald-500" />
@@ -813,55 +813,66 @@ export const WhatsAppInbox: React.FC = () => {
 
       {/* ── Coluna direita: janela de chat ── */}
       {selected ? (
-        <div className="flex-1 flex flex-col">
+        <div className={`flex-1 flex-col ${!selected ? 'hidden md:flex' : 'flex'} w-full h-full absolute md:relative z-20 md:z-auto bg-gray-50/30`}>
           {/* Header */}
-          <div className="bg-white border-b border-gray-100 p-3 flex items-center gap-3">
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-bold text-gray-800">
-                  {selected.customers?.name || formatPhone(selected.phone_number)}
-                </p>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                  selected.state === 'WAITING_HUMAN' ? 'bg-orange-50 text-orange-500 border-orange-200' :
-                  selected.state === 'HUMAN_ACTIVE'  ? 'bg-indigo-50 text-indigo-500 border-indigo-200' :
-                  selected.state.includes('FOUND') || selected.state.includes('VIEWING') ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
-                  'bg-gray-50 text-gray-400 border-gray-200'
-                }`}>
-                  {STATE_LABELS[selected.state]?.label || selected.state}
-                </span>
-                {selected.state === 'HUMAN_ACTIVE' && selected.users?.name && (
-                  <span className="text-[10px] font-medium text-slate-500 ml-1">
-                    Em atendimento pelo: <strong className="text-slate-700">{selected.users.name}</strong>
+          <div className="bg-white border-b border-gray-100 p-2 sm:p-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+            <div className="flex-1 flex items-start sm:items-center gap-2 min-w-0 w-full sm:w-auto">
+              <button 
+                className="md:hidden p-1.5 -ml-1 text-slate-500 hover:bg-slate-100 rounded-full shrink-0"
+                onClick={() => setSelected(null)}
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-bold text-gray-800 truncate">
+                    {selected.customers?.name || formatPhone(selected.phone_number)}
+                  </p>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
+                    selected.state === 'WAITING_HUMAN' ? 'bg-orange-50 text-orange-500 border-orange-200' :
+                    selected.state === 'HUMAN_ACTIVE'  ? 'bg-indigo-50 text-indigo-500 border-indigo-200' :
+                    selected.state.includes('FOUND') || selected.state.includes('VIEWING') ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
+                    'bg-gray-50 text-gray-400 border-gray-200'
+                  }`}>
+                    {STATE_LABELS[selected.state]?.label || selected.state}
                   </span>
-                )}
-                {selected.state === 'RESOLVED' && selected.users?.name && (
-                  <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full mt-1 w-fit">
-                    Finalizado por: <strong className="text-slate-700">{selected.users.name}</strong> em {new Date(selected.last_message_at).toLocaleString('pt-BR')}
-                  </span>
-                )}
+                </div>
+                <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                  <p className="text-[10px] text-gray-400 shrink-0">
+                    <Phone size={10} className="inline mr-1" />{formatPhone(selected.phone_number)}
+                    {selected.customers?.document && ` · Doc: ${selected.customers.document}`}
+                  </p>
+                  {selected.state === 'HUMAN_ACTIVE' && selected.users?.name && (
+                    <span className="text-[10px] font-medium text-slate-500 shrink-0">
+                      · Atendido por: <strong className="text-slate-700">{selected.users.name}</strong>
+                    </span>
+                  )}
+                  {selected.state === 'RESOLVED' && selected.users?.name && (
+                    <span className="text-[10px] text-slate-500 shrink-0">
+                      · Finalizado por: <strong className="text-slate-700">{selected.users.name}</strong> em {new Date(selected.last_message_at).toLocaleDateString('pt-BR')}
+                    </span>
+                  )}
+                </div>
               </div>
-              <p className="text-[10px] text-gray-400">
-                <Phone size={10} className="inline mr-1" />{formatPhone(selected.phone_number)}
-                {selected.customers?.document && ` · Doc: ${selected.customers.document}`}
-              </p>
             </div>
-            <div className="flex items-center gap-2 flex-wrap justify-end">
+            
+            <div className="flex items-center gap-2 flex-wrap sm:justify-end shrink-0 overflow-x-auto pb-1 sm:pb-0 w-full sm:w-auto">
               {(selected.state !== 'HUMAN_ACTIVE' || selected.assigned_agent_id !== currentUserId) && (
                 <button
                   onClick={handleTakeover}
                   disabled={sendingAction !== null}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1c2d4f] text-white text-[11px] font-bold rounded-xl hover:bg-[#2a4376] disabled:opacity-50 transition-all shadow-sm border border-[#1c2d4f]"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1c2d4f] text-white text-[11px] font-bold rounded-xl hover:bg-[#2a4376] disabled:opacity-50 transition-all shadow-sm border border-[#1c2d4f] whitespace-nowrap"
                 >
-                  {sendingAction === 'takeover' ? <RefreshCw size={14} className="animate-spin" /> : <UserCheck size={14} />} {selected.state === 'HUMAN_ACTIVE' ? 'Assumir p/ Mim' : 'Assumir Conversa'}
+                  {sendingAction === 'takeover' ? <RefreshCw size={14} className="animate-spin" /> : <UserCheck size={14} />} {selected.state === 'HUMAN_ACTIVE' ? 'Assumir p/ Mim' : 'Assumir'}
                 </button>
               )}
               {selected.state !== 'HUMAN_ACTIVE' && (
                 <button
                   onClick={() => setShowResetConfirm(true)}
                   disabled={sendingAction !== null}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-slate-600 text-[11px] font-bold rounded-xl hover:bg-slate-50 disabled:opacity-50 transition-all border border-slate-200 shadow-sm"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-slate-600 text-[11px] font-bold rounded-xl hover:bg-slate-50 disabled:opacity-50 transition-all border border-slate-200 shadow-sm whitespace-nowrap"
                 >
-                  {sendingAction === 'reset' ? <RefreshCw size={14} className="animate-spin" /> : <RotateCcw size={14} />} Reiniciar Bot
+                  {sendingAction === 'reset' ? <RefreshCw size={14} className="animate-spin" /> : <RotateCcw size={14} />} Reiniciar
                 </button>
               )}
               {selected.state === 'HUMAN_ACTIVE' && selected.assigned_agent_id === currentUserId && (
@@ -870,12 +881,12 @@ export const WhatsAppInbox: React.FC = () => {
                     <button
                       onClick={() => setTransferModal(transferModal === selected.id ? null : selected.id)}
                       disabled={sendingAction !== null}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 text-[11px] font-bold rounded-xl hover:bg-indigo-100 disabled:opacity-50 transition-all border border-indigo-200 shadow-sm"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 text-[11px] font-bold rounded-xl hover:bg-indigo-100 disabled:opacity-50 transition-all border border-indigo-200 shadow-sm whitespace-nowrap"
                     >
                       {sendingAction === 'transfer' ? <RefreshCw size={14} className="animate-spin" /> : <ArrowRight size={14} />} Transferir
                     </button>
                     {transferModal === selected.id && (
-                      <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-100 shadow-xl rounded-xl z-50 overflow-hidden">
+                      <div className="absolute left-0 sm:left-auto sm:right-0 mt-2 w-48 bg-white border border-gray-100 shadow-xl rounded-xl z-50 overflow-hidden">
                         <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 flex flex-col gap-2">
                           <p className="text-[10px] font-bold text-gray-500 uppercase">Selecione o agente</p>
                           <div className="relative">
@@ -912,9 +923,9 @@ export const WhatsAppInbox: React.FC = () => {
                   <button
                     onClick={handleReturnToBot}
                     disabled={sendingAction !== null}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-[11px] font-bold rounded-xl hover:bg-emerald-100 disabled:opacity-50 transition-all border border-emerald-200 shadow-sm"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-[11px] font-bold rounded-xl hover:bg-emerald-100 disabled:opacity-50 transition-all border border-emerald-200 shadow-sm whitespace-nowrap"
                   >
-                    {sendingAction === 'return_to_bot' ? <RefreshCw size={14} className="animate-spin" /> : <Bot size={14} />} Devolver ao Bot
+                    {sendingAction === 'return_to_bot' ? <RefreshCw size={14} className="animate-spin" /> : <Bot size={14} />} Devolver
                   </button>
                 </>
               )}

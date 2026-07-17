@@ -36,7 +36,7 @@ export function DisplacementTab({ visits }: DisplacementTabProps) {
           distanceText = `~${rawDistanceKm.toFixed(2)} km (Linha Reta)`;
         }
 
-        const startTimeStr = d.start_time || v.createdAt;
+        const startTimeStr = d.start_time;
         const arrivalTimeStr = d.arrival_time || v.arrivalTime;
         const departureTimeStr = d.finish_time || v.departureTime;
 
@@ -162,7 +162,7 @@ export function DisplacementTab({ visits }: DisplacementTabProps) {
   return (
     <div className="space-y-4">
       {/* SUMMARY DASHBOARD */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
         <div className="bg-[#1c2d4f] text-white p-3.5 rounded-xl shadow border border-[#1c2d4f] flex flex-col items-center text-center">
           <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center mb-2">
             <Clock size={16} className="text-blue-300" />
@@ -176,13 +176,6 @@ export function DisplacementTab({ visits }: DisplacementTabProps) {
           </div>
           <p className="text-[9px] font-black uppercase tracking-widest text-emerald-100/80 mb-0.5">Tempo Total de Trabalho</p>
           <p className="text-xl font-bold">{summary.serviceTime}</p>
-        </div>
-        <div className="bg-white p-3.5 rounded-xl shadow border border-slate-200 flex flex-col items-center text-center">
-          <div className="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center mb-2 border border-amber-100">
-            <Navigation size={16} className="text-amber-500" />
-          </div>
-          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Distância Total Percorrida</p>
-          <p className="text-xl font-bold text-slate-800">{summary.distance}</p>
         </div>
       </div>
 
@@ -198,18 +191,20 @@ export function DisplacementTab({ visits }: DisplacementTabProps) {
             
             <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5"><Activity size={14} className="text-emerald-500" /></div>
-                  <div>
-                    <p className="text-[9px] font-black tracking-widest uppercase text-slate-400">1. Início de Deslocamento</p>
-                    <p className="text-xs font-semibold text-slate-800 mt-0.5">{d.startTime}</p>
-                    {d.startLatLon !== 'N/A' && (
-                      <a href={`https://www.google.com/maps/search/?api=1&query=${d.startLatLon}`} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 font-medium hover:underline inline-flex items-center gap-1 mt-0.5">
-                        <Map size={10} /> Ver no Mapa
-                      </a>
-                    )}
-                  </div>
-                </div>
+                  {d.startTime !== 'Aguardando' && (
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5"><Activity size={14} className="text-emerald-500" /></div>
+                      <div>
+                        <p className="text-[9px] font-black tracking-widest uppercase text-slate-400">1. Início de Deslocamento</p>
+                        <p className="text-xs font-semibold text-slate-800 mt-0.5">{d.startTime}</p>
+                        {d.startLatLon !== 'N/A' && (
+                          <a href={`https://www.google.com/maps/search/?api=1&query=${d.startLatLon}`} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 font-medium hover:underline inline-flex items-center gap-1 mt-0.5">
+                            <Map size={10} /> Ver no Mapa
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                 <div className="flex items-start gap-3">
                   <div className="mt-0.5"><MapPin size={14} className="text-amber-500" /></div>

@@ -1078,11 +1078,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     <div className="p-2 sm:p-4 animate-fade-in flex flex-col h-full bg-slate-50 overflow-hidden">
       {/* Search & Filter Toolbar */}
       <div className="relative z-30 mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-[#1c2d4f]/20 bg-white/40 shadow-sm backdrop-blur-md flex flex-col gap-3">
-        {/* Top Row: Search, Fast Filters, Toggle, Actions */}
-        <div className="flex flex-col xl:flex-row flex-wrap items-stretch xl:items-center justify-between gap-3">
+        {/* Top Row: Search & Actions (Compact on Mobile) */}
+        <div className="flex items-center gap-2 w-full">
           
-          {/* Left Side: Search */}
-          <div className="relative flex-1 min-w-[240px] xl:max-w-md">
+          {/* Search */}
+          <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
               type="text"
@@ -1093,90 +1093,75 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             />
           </div>
 
-          {/* Right Side: Filters, Actions & New OS */}
-          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full xl:w-auto justify-end flex-1">
-            
-            {/* Fast Filters Group */}
-            <div className="flex items-center gap-1 bg-white border border-[#1c2d4f]/10 p-1 rounded-xl shadow-sm overflow-x-auto custom-scrollbar shrink-0">
-              {['today', 'week', 'month'].map((type) => (
-                <button
-                  key={type}
-                  onClick={() => handleFastFilter(type as any)}
-                  className="h-8 px-3 text-[10px] uppercase text-slate-500 hover:text-[#1c2d4f] rounded-lg hover:bg-slate-50 transition-all whitespace-nowrap"
-                >
-                  {type === 'today' ? 'Hoje' : type === 'week' ? '7 Dias' : '30 Dias'}
-                </button>
-              ))}
-            </div>
-
-            {/* Filter Actions */}
-            <div className="flex items-center gap-1.5 shrink-0 mr-auto sm:mr-0">
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className={`flex items-center gap-1.5 px-3 h-10 rounded-xl border transition-all text-[10px] font-medium ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-[#1c2d4f]/5 shadow-sm'}`}
-              >
-                <Filter size={14} /> <span className="hidden sm:inline">{showFilters ? 'Ocultar' : 'Avançado'}</span>
-              </button>
-              <button
-                onClick={() => {
-                  setSearchTerm(''); setStatusFilter('ALL'); setTechFilter('ALL'); setCustomerFilter('ALL'); setDateTypeFilter('scheduled');
-                  onDateChange('', '');
-                  setSelectedOrderIds([]);
-                  setCurrentPage(1);
-                }}
-                className="flex items-center gap-1.5 px-3 h-10 rounded-xl border border-rose-200 text-rose-500 hover:bg-rose-50 hover:text-rose-600 shadow-sm transition-all text-[10px] bg-white"
-                title="Limpar Todos os Filtros"
-              >
-                <X size={14} /> <span className="hidden sm:inline">Limpar</span>
-              </button>
-            </div>
-            {/* Ações em Lote (Seleção) */}
-            {selectedOrderIds.length > 0 && (
-              <div className="flex items-center gap-1.5 px-2 py-1 h-10 bg-slate-900 rounded-xl shadow-lg animate-in fade-in slide-in-from-right-4">
-                <div className="flex items-center justify-center w-6 h-6 rounded bg-slate-800 text-white text-[10px] font-semibold">{selectedOrderIds.length}</div>
-                <button onClick={handleExportExcel} className="p-1.5 text-white hover:text-emerald-400 transition-colors" title="Excel"><FileSpreadsheet size={16} /></button>
-                <button onClick={handleBatchPrint} className="p-1.5 text-white hover:text-blue-400 transition-colors" title="PDF"><FileText size={16} /></button>
-                <div className="w-px h-4 bg-slate-700 mx-0.5" />
-                <button onClick={() => setSelectedOrderIds([])} className="p-1.5 text-white hover:text-rose-400 transition-colors" title="Limpar"><X size={16} /></button>
-              </div>
-            )}
+          {/* Action Buttons (Icons only on mobile) */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center justify-center w-10 sm:w-auto sm:px-3 h-10 rounded-xl border transition-all text-[10px] font-medium shadow-sm ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-[#1c2d4f]/5'}`}
+              title="Filtros Avançados"
+            >
+              <Filter size={16} /> <span className="hidden sm:inline ml-1.5">{showFilters ? 'Ocultar' : 'Avançado'}</span>
+            </button>
 
             <button
               onClick={handleManualRefresh}
               disabled={ordersLoading || isManualSyncing}
-              className={`group h-10 px-4 flex items-center gap-2 rounded-xl border transition-all duration-300 shadow-sm active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed ${
+              className={`group flex items-center justify-center w-10 sm:w-auto sm:px-3 h-10 rounded-xl border transition-all duration-300 shadow-sm active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed ${
                 ordersLoading || isManualSyncing 
                   ? 'bg-primary-50 border-primary-200 text-primary-600' 
                   : 'bg-white hover:bg-slate-50 border-[#1c2d4f]/20 text-[#1c2d4f] hover:text-primary-600 hover:border-primary-300 hover:shadow-md'
               }`}
-              title="Atualizar todos os dados"
+              title="Atualizar dados"
             >
               <div className="relative flex items-center justify-center">
                 <RefreshCw 
                   size={16} 
                   className={`${ordersLoading || isManualSyncing ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} 
                 />
-                {(ordersLoading || isManualSyncing) && (
-                  <span className="absolute inset-0 rounded-full bg-primary-400/20 animate-ping"></span>
-                )}
               </div>
             </button>
+
             <Button
               variant="primary"
-              className={`h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl whitespace-nowrap ${!canCreate('orders') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+              className={`hidden md:flex h-10 px-5 gap-2 items-center justify-center bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[13px] font-bold rounded-xl text-white ${!canCreate('orders') ? 'opacity-50 !cursor-not-allowed' : ''}`}
               onClick={(e) => {
                 if (!canCreate('orders')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para criar ordens.'); return; }
                 setOrderToEdit(null); setIsCreateModalOpen(true);
               }}
+              title="Novo Atendimento"
             >
-              <Plus size={16} /> Nova OS
+              <Plus size={18} /> Novo Atendimento
             </Button>
           </div>
         </div>
 
+        {/* Batch Actions (Appears below when items are selected) */}
+        {selectedOrderIds.length > 0 && (
+          <div className="flex items-center gap-1.5 px-2 py-1 h-10 bg-slate-900 rounded-xl shadow-lg animate-in fade-in slide-in-from-top-2 w-max">
+            <div className="flex items-center justify-center w-6 h-6 rounded bg-slate-800 text-white text-[10px] font-semibold">{selectedOrderIds.length}</div>
+            <button onClick={handleExportExcel} className="p-1.5 text-white hover:text-emerald-400 transition-colors" title="Excel"><FileSpreadsheet size={16} /></button>
+            <button onClick={handleBatchPrint} className="p-1.5 text-white hover:text-blue-400 transition-colors" title="PDF"><FileText size={16} /></button>
+            <div className="w-px h-4 bg-slate-700 mx-0.5" />
+            <button onClick={() => setSelectedOrderIds([])} className="p-1.5 text-white hover:text-rose-400 transition-colors" title="Limpar"><X size={16} /></button>
+          </div>
+        )}
+
         {/* Collapsible Filters Row */}
         {showFilters && (
           <div className="relative z-20 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-3 p-3 bg-white/60 rounded-xl border border-[#1c2d4f]/10 animate-in fade-in slide-in-from-top-2 duration-200">
+            {/* Fast Filters Group */}
+            <div className="flex items-center gap-1 bg-white border border-[#1c2d4f]/10 p-1 rounded-xl shadow-sm overflow-x-auto custom-scrollbar xl:col-span-12">
+              {['today', 'week', 'month'].map((type) => (
+                <button
+                  key={type}
+                  onClick={() => handleFastFilter(type as any)}
+                  className="h-8 px-4 text-xs font-medium text-slate-600 hover:text-[#1c2d4f] rounded-lg hover:bg-slate-100 transition-all whitespace-nowrap"
+                >
+                  {type === 'today' ? 'Hoje' : type === 'week' ? 'Últimos 7 Dias' : 'Últimos 30 Dias'}
+                </button>
+              ))}
+            </div>
+
             <div className="flex flex-col gap-1 md:col-span-2 xl:col-span-6">
               <label className="text-xs font-medium text-slate-500 px-1">Período</label>
               <div className="flex items-center gap-1 bg-white border border-[#1c2d4f]/20 p-1 rounded-xl shadow-sm h-10 hover:border-[#1c2d4f]/40 transition-colors focus-within:ring-2 focus-within:ring-primary-500/20">
@@ -1213,7 +1198,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {isStatusDropdownOpen && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2">
                     <button 
-                      className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${statusFilter === 'ALL' ? 'font-medium text-primary-600 bg-primary-50/50' : 'text-slate-600'}`}
+                      className={`w-full text-left px-2 py-1 text-xs hover:bg-slate-50 transition-colors ${statusFilter === 'ALL' ? 'font-medium text-primary-600 bg-primary-50/50' : 'text-slate-600'}`}
                       onClick={() => { setStatusFilter('ALL'); setIsStatusDropdownOpen(false); setCurrentPage(1); }}
                     >
                       Todos Status
@@ -1221,7 +1206,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     {Object.values(OrderStatus).map(s => (
                       <button 
                         key={s} 
-                        className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${statusFilter === s ? 'font-medium text-primary-600 bg-primary-50/50' : 'text-slate-600'}`}
+                        className={`w-full text-left px-2 py-1 text-xs hover:bg-slate-50 transition-colors ${statusFilter === s ? 'font-medium text-primary-600 bg-primary-50/50' : 'text-slate-600'}`}
                         onClick={() => { setStatusFilter(s); setIsStatusDropdownOpen(false); setCurrentPage(1); }}
                       >
                         {s}
@@ -1249,7 +1234,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {isTechDropdownOpen && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2">
                     <button 
-                      className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${techFilter === 'ALL' ? 'font-medium text-primary-600 bg-primary-50/50' : 'text-slate-600'}`}
+                      className={`w-full text-left px-2 py-1 text-xs hover:bg-slate-50 transition-colors ${techFilter === 'ALL' ? 'font-medium text-primary-600 bg-primary-50/50' : 'text-slate-600'}`}
                       onClick={() => { setTechFilter('ALL'); setIsTechDropdownOpen(false); setCurrentPage(1); }}
                     >
                       Técnicos
@@ -1257,7 +1242,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     {techs.map(t => (
                       <button 
                         key={t.id} 
-                        className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${techFilter === t.id ? 'font-medium text-primary-600 bg-primary-50/50' : 'text-slate-600'}`}
+                        className={`w-full text-left px-2 py-1 text-xs hover:bg-slate-50 transition-colors ${techFilter === t.id ? 'font-medium text-primary-600 bg-primary-50/50' : 'text-slate-600'}`}
                         onClick={() => { setTechFilter(t.id); setIsTechDropdownOpen(false); setCurrentPage(1); }}
                       >
                         {t.name}
@@ -1296,11 +1281,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           </div>
         )}
-        <div className="flex-1 overflow-auto custom-scrollbar os-table-container">
+        {/* 💻 DESKTOP TABLE VIEW */}
+        <div className="hidden md:block flex-1 overflow-auto custom-scrollbar os-table-container">
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm font-poppins">
               <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center">
-                <th className="px-3 py-2 w-12 text-center text-slate-400">
+                <th className="px-2 py-1 w-12 text-center text-slate-400">
                   <input
                     type="checkbox"
                     className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
@@ -1309,34 +1295,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     title="Selecionar página atual"
                   />
                 </th>
-                <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('id')}>
+                <th className="px-2 py-1 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('id')}>
                   <div className="flex items-center justify-center gap-1">Protocolo {getSortIcon('displayId')}</div>
                 </th>
-                <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('operationType')}>
+                <th className="px-2 py-1 text-center cursor-pointer group hover:text-primary-600 transition-colors hidden md:table-cell" onClick={() => requestSort('operationType')}>
                   <div className="flex items-center justify-center gap-1">Modalidade {getSortIcon('operationType')}</div>
                 </th>
-                <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('customerName')}>
+                <th className="px-2 py-1 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('customerName')}>
                   <div className="flex items-center justify-center gap-1">Cliente {getSortIcon('customerName')}</div>
                 </th>
-                <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('assignedTo')}>
+                <th className="px-2 py-1 text-center cursor-pointer group hover:text-primary-600 transition-colors hidden md:table-cell" onClick={() => requestSort('assignedTo')}>
                   <div className="flex items-center justify-center gap-1">Técnico {getSortIcon('assignedTo')}</div>
                 </th>
-                <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('createdAt')}>
+                <th className="px-2 py-1 text-center cursor-pointer group hover:text-primary-600 transition-colors hidden md:table-cell" onClick={() => requestSort('createdAt')}>
                   <div className="flex items-center justify-center gap-1">Abertura {getSortIcon('createdAt')}</div>
                 </th>
-                <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('scheduledDate')}>
+                <th className="px-2 py-1 text-center cursor-pointer group hover:text-primary-600 transition-colors hidden lg:table-cell" onClick={() => requestSort('scheduledDate')}>
                   <div className="flex items-center justify-center gap-1">Agendamento {getSortIcon('scheduledDate')}</div>
                 </th>
-                <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('endDate')}>
+                <th className="px-2 py-1 text-center cursor-pointer group hover:text-primary-600 transition-colors hidden lg:table-cell" onClick={() => requestSort('endDate')}>
                   <div className="flex items-center justify-center gap-1">Conclusão {getSortIcon('endDate')}</div>
                 </th>
-                <th className="px-3 py-2 text-center">
+                <th className="px-2 py-1 text-center hidden xl:table-cell">
                   <div className="flex items-center justify-center gap-1">Visitas</div>
                 </th>
-                <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('status')}>
+                <th className="px-2 py-1 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('status')}>
                   <div className="flex items-center justify-center gap-1">Status {getSortIcon('status')}</div>
                 </th>
-                <th className="px-3 py-2 text-center pr-4">{t.common.actions}</th>
+                <th className="px-2 py-1 text-center pr-4">{t.common.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -1358,7 +1344,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     className={`transition-all border-b border-slate-100 hover:border-slate-200 group cursor-pointer ${isSelected ? 'bg-indigo-50/40' : 'bg-white hover:bg-slate-50'}`}
                     onClick={() => setSelectedOrder(order)}
                   >
-                    <td className="px-3 py-2 text-center shrink-0 w-12" onClick={(e) => { e.stopPropagation(); setSelectedOrderIds(prev => prev.includes(order.id) ? prev.filter(id => id !== order.id) : [...prev, order.id]); }}>
+                    <td className="px-2 py-1 text-center shrink-0 w-12" onClick={(e) => { e.stopPropagation(); setSelectedOrderIds(prev => prev.includes(order.id) ? prev.filter(id => id !== order.id) : [...prev, order.id]); }}>
                       <input
                         type="checkbox"
                         className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
@@ -1366,18 +1352,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         readOnly
                       />
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-2 py-1">
                       <span className="font-medium text-slate-700 text-[12px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 group-hover:bg-white group-hover:border-slate-300 transition-colors">
                         {order.displayId || order.id}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-[11px] text-slate-500 tracking-wide whitespace-nowrap">
+                    <td className="px-2 py-1 text-[11px] text-slate-500 tracking-wide whitespace-nowrap hidden md:table-cell">
                       {order.operationType || '---'}
                     </td>
-                    <td className="px-3 py-2 text-[13px] text-slate-800 tracking-tight truncate max-w-[160px]">
-                      {order.customerName}
+                    <td className="px-2 py-1">
+                      <div className="text-[13px] text-slate-800 font-semibold tracking-tight truncate max-w-[120px] md:max-w-[160px]">
+                        {order.customerName}
+                      </div>
+                      <div className="md:hidden mt-1 flex flex-col gap-0.5">
+                        <span className="text-[10px] text-slate-500">{order.operationType || 'Sem Modalidade'}</span>
+                        {assignedTech ? (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <img src={assignedTech.avatar} className="w-3.5 h-3.5 rounded-full object-cover" />
+                            <span className="text-[10px] text-slate-600 truncate max-w-[80px]">{assignedTech.name.split(' ')[0]}</span>
+                          </div>
+                        ) : <span className="text-[10px] text-slate-400">Sem Técnico</span>}
+                      </div>
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-2 py-1 hidden md:table-cell">
                       <div className="flex justify-center">
                         {assignedTech ? (
                           <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-50 border border-slate-200 group-hover:bg-white inset-shadow-lg shadow-slate-200/50 transition-all shrink-0">
@@ -1387,18 +1384,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         ) : <span className="text-[11px] text-slate-300 tracking-widest">-</span>}
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-[12px] text-slate-500 tracking-wide whitespace-nowrap">
+                    <td className="px-2 py-1 text-[12px] text-slate-500 tracking-wide whitespace-nowrap hidden md:table-cell">
                       {order.createdAt ? new Date(order.createdAt).toLocaleDateString('pt-BR') : '---'}
                     </td>
-                    <td className="px-3 py-2 text-[12px] text-slate-700 whitespace-nowrap">
+                    <td className="px-2 py-1 text-[12px] text-slate-700 whitespace-nowrap hidden lg:table-cell">
                       {formatDateDisplay(order.scheduledDate)}
                     </td>
-                    <td className="px-3 py-2 text-[12px] text-slate-700 whitespace-nowrap">
+                    <td className="px-2 py-1 text-[12px] text-slate-700 whitespace-nowrap hidden lg:table-cell">
                       {order.endDate ? new Date(order.endDate).toLocaleDateString('pt-BR') : '---'}
                     </td>
-                    <td className="px-3 py-2 align-middle"><VisitCountCell order={order} /></td>
-                    <td className="px-3 py-2 whitespace-nowrap"><StatusBadge status={order.status} /></td>
-                    <td className="px-3 py-2 text-right pr-4">
+                    <td className="px-2 py-1 align-middle hidden xl:table-cell"><VisitCountCell order={order} /></td>
+                    <td className="px-2 py-1 whitespace-nowrap"><StatusBadge status={order.status} /></td>
+                    <td className="px-2 py-1 text-right pr-4">
                       <div className="flex items-center justify-end gap-1.5 transition-opacity opacity-90 group-hover:opacity-100">
                         <button
                           onClick={(e) => {
@@ -1428,6 +1425,69 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </tbody>
           </table>
         </div>
+        
+        {/* 📱 MOBILE CARDS VIEW */}
+        <div className="md:hidden flex-1 overflow-auto custom-scrollbar bg-slate-50/50 p-2 space-y-2 pb-28">
+          {ordersLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+               <Loader2 size={28} className="animate-spin text-primary-400 mb-2" />
+               <span className="text-xs uppercase tracking-widest">Carregando...</span>
+            </div>
+          ) : sortedPageOrders.length > 0 ? (
+            sortedPageOrders.map(order => {
+              const assignedTech = techs.find(t => t.id === order.assignedTo);
+              return (
+                <div 
+                  key={order.id}
+                  onClick={() => setSelectedOrder(order)}
+                  className="bg-white p-3 rounded-2xl shadow-sm border border-slate-200/60 active:scale-[0.98] transition-transform flex flex-col gap-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
+                      #{order.displayId || order.id}
+                    </span>
+                    <StatusBadge status={order.status} />
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-800 line-clamp-1">{order.customerName}</h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5">{order.operationType || 'Sem Modalidade'}</p>
+                  </div>
+
+                  <div className="flex items-center justify-between mt-1 pt-2 border-t border-slate-100">
+                    <div className="flex flex-col">
+                      <span className="text-[9px] text-slate-400 font-semibold uppercase">Agendamento</span>
+                      <span className="text-xs text-slate-700 font-medium">{formatDateDisplay(order.scheduledDate) || '---'}</span>
+                    </div>
+                    {assignedTech ? (
+                      <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-full border border-slate-100">
+                        <img src={assignedTech.avatar} className="w-5 h-5 rounded-full object-cover" />
+                        <span className="text-[10px] font-semibold text-slate-600 max-w-[80px] truncate">{assignedTech.name.split(' ')[0]}</span>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-medium">Sem Técnico</span>
+                    )}
+                  </div>
+                </div>
+              )
+            })
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+              <Search size={32} className="text-slate-300 mb-3" />
+              <p className="text-xs font-medium">Nenhuma OS encontrada</p>
+            </div>
+          )}
+        </div>
+
+        {/* MOBILE FAB (Floating Action Button) */}
+        {canCreate('orders') && (
+          <button
+            onClick={() => { setOrderToEdit(null); setIsCreateModalOpen(true); }}
+            className="md:hidden fixed bottom-24 right-4 w-14 h-14 bg-gradient-to-tr from-[#1c2d4f] to-[#253a66] text-white rounded-full shadow-[0_8px_30px_rgba(28,45,79,0.4)] flex items-center justify-center z-50 active:scale-90 transition-transform"
+          >
+            <Plus size={40} />
+          </button>
+        )}
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
@@ -1463,8 +1523,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       )}
 
       {selectedOrder && createPortal(
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-0 lg:p-4 animate-in fade-in">
-          <div className="bg-white rounded-none lg:rounded-xl w-full max-w-6xl h-full lg:h-auto lg:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200">
+        <div className="fixed inset-0 z-[1000] flex items-end md:items-center justify-center bg-slate-900/50 backdrop-blur-sm p-0 md:p-4 animate-in fade-in duration-300">
+          <div className="bg-white w-full h-full md:h-auto md:max-h-[92vh] md:rounded-2xl max-w-6xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-300">
 
             {/* HEADER */}
             <div className={`px-3 sm:px-6 py-3 sm:py-5 border-b border-slate-100 flex justify-between items-start sm:items-center shrink-0 transition-colors ${isEditing ? 'bg-blue-50' : 'bg-white'}`}>
@@ -1623,7 +1683,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       }
                       setActiveTab(tab.id as any);
                     }}
-                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all w-full text-left font-poppins
+                    className={`flex items-center gap-2.5 px-2 py-1.5 rounded-xl text-xs font-medium transition-all w-full text-left font-poppins
                       ${activeTab === tab.id 
                         ? 'bg-[#1c2d4f] text-white shadow-md ring-1 ring-[#1c2d4f]' 
                         : 'text-slate-500 hover:bg-white hover:text-[#1c2d4f] hover:shadow-sm'}`}
@@ -1635,7 +1695,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               {/* MOBILE TABS */}
-              <div className="md:hidden border-b border-slate-200 bg-white p-3 flex gap-2 overflow-x-auto custom-scrollbar shrink-0">
+              <div className="md:hidden border-b border-slate-200 bg-white p-3 flex gap-2 overflow-x-auto custom-scrollbar shrink-0 snap-x snap-mandatory hide-scrollbar">
                 {[
                   { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
                   { id: 'internal_notes', label: 'Obs Internas', icon: FileText },
@@ -1657,9 +1717,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       }
                       setActiveTab(tab.id as any);
                     }}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap font-poppins
+                    className={`shrink-0 snap-start flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap font-poppins
                       ${activeTab === tab.id 
-                        ? 'bg-[#1c2d4f] text-white shadow-md' 
+                        ? 'bg-[#1c2d4f] text-white shadow-lg' 
                         : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
                   >
                     <tab.icon size={14} className={activeTab === tab.id ? 'text-white' : 'text-slate-400'} /> 
@@ -1738,7 +1798,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <div className="space-y-1.5 md:col-span-2">
                                 <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Endereço de Atendimento / Principal</label>
                                 {isEditing
-                                  ? <input className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all" value={editDraft.customerAddress ?? ''} onChange={e => setEditDraft(d => ({ ...d, customerAddress: e.target.value }))} />
+                                  ? <input className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-2 py-1 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all" value={editDraft.customerAddress ?? ''} onChange={e => setEditDraft(d => ({ ...d, customerAddress: e.target.value }))} />
                                   : (
                                     <div className="text-sm text-slate-600 font-medium leading-relaxed">
                                       {rawAddress || 'Não informado'}
@@ -1756,7 +1816,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <div className="space-y-1.5 md:col-span-2">
                           <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Título do Atendimento</label>
                           {isEditing ? (
-                            <input className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all" value={editDraft.title ?? ''} onChange={e => setEditDraft(d => ({ ...d, title: e.target.value }))} />
+                            <input className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-2 py-1 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all" value={editDraft.title ?? ''} onChange={e => setEditDraft(d => ({ ...d, title: e.target.value }))} />
                           ) : (
                             <div className="text-sm text-slate-900 font-medium leading-relaxed">{selectedOrder.title || 'Não informado'}</div>
                           )}
@@ -1764,7 +1824,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <div className="space-y-1.5 md:col-span-2">
                           <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Descrição Técnico-Operacional</label>
                           {isEditing ? (
-                            <textarea rows={3} className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all resize-none" value={editDraft.description ?? ''} onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))} />
+                            <textarea rows={3} className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-2 py-1 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all resize-none" value={editDraft.description ?? ''} onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))} />
                           ) : (
                             <div className="text-sm text-slate-600 font-medium leading-relaxed whitespace-pre-wrap">{selectedOrder.description || 'Não informado'}</div>
                           )}
@@ -1774,7 +1834,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           {isEditing
                             ? (
                               <select
-                                className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all cursor-pointer"
+                                className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-2 py-1 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all cursor-pointer"
                                 value={editDraft.operationType || ''}
                                 onChange={e => setEditDraft(d => ({ ...d, operationType: e.target.value }))}
                               >
@@ -1795,7 +1855,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           {isEditing
                             ? (
                               <select
-                                className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all cursor-pointer"
+                                className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-2 py-1 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all cursor-pointer"
                                 value={editDraft.priority || 'MÉDIA'}
                                 onChange={e => setEditDraft(d => ({ ...d, priority: e.target.value as any }))}
                               >
@@ -1827,7 +1887,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <div className="space-y-2">
                           <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Notas Internas</label>
                           {isEditing
-                            ? <textarea rows={3} className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2.5 text-sm text-slate-700 font-medium outline-none focus:ring-2 focus:ring-blue-300 transition-all resize-none" placeholder="Notas opcionais..." value={editDraft.notes ?? ''} onChange={e => setEditDraft(d => ({ ...d, notes: e.target.value }))} />
+                            ? <textarea rows={3} className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-2 py-1.5 text-sm text-slate-700 font-medium outline-none focus:ring-2 focus:ring-blue-300 transition-all resize-none" placeholder="Notas opcionais..." value={editDraft.notes ?? ''} onChange={e => setEditDraft(d => ({ ...d, notes: e.target.value }))} />
                             : selectedOrder.notes && (
                               <div className="p-4 bg-primary-50 border border-primary-100 rounded-md">
                                 <label className="text-[11px] font-medium text-[#1c2d4f] uppercase tracking-wider flex items-center gap-2 mb-2">
@@ -2124,7 +2184,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       {isEditing && (
                         <div className="flex gap-2">
                           <select
-                            className="text-xs font-semibold bg-white border border-slate-200 text-slate-600 rounded-lg px-3 py-2 outline-none max-w-[280px] shadow-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-300 transition-all cursor-pointer"
+                            className="text-xs font-semibold bg-white border border-slate-200 text-slate-600 rounded-lg px-2 py-1 outline-none max-w-[280px] shadow-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-300 transition-all cursor-pointer"
                             onChange={(e) => {
                               if (e.target.value) {
                                 handleAddEquipment(e.target.value);
@@ -3008,7 +3068,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <label className="text-[11px] font-semibold text-slate-500 uppercase">Data de Agendamento *</label>
                           <input
                             type="date"
-                            className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
                             value={newVisitDraft.scheduledDate}
                             onChange={e => setNewVisitDraft(d => ({ ...d, scheduledDate: e.target.value }))}
                           />
@@ -3017,7 +3077,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <label className="text-[11px] font-semibold text-slate-500 uppercase">Horário (opcional)</label>
                           <input
                             type="time"
-                            className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
                             value={newVisitDraft.scheduledTime}
                             onChange={e => setNewVisitDraft(d => ({ ...d, scheduledTime: e.target.value }))}
                           />
@@ -3030,7 +3090,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <textarea
                             rows={3}
                             placeholder="Descreva o motivo da visita, equipamentos a verificar, histórico do problema ou qualquer instrução importante para o técnico..."
-                            className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all resize-none"
+                            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all resize-none"
                             value={newVisitDraft.notes}
                             onChange={e => setNewVisitDraft(d => ({ ...d, notes: e.target.value }))}
                           />
@@ -3361,13 +3421,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <table className="w-full text-left border-collapse text-[10px]">
               <thead>
                 <tr className="bg-[#1C2D4F] text-white uppercase tracking-wider">
-                  <th className="px-3 py-2 border border-slate-300 font-bold">Protocolo (ID)</th>
-                  <th className="px-3 py-2 border border-slate-300 font-bold">Data de Abertura</th>
-                  <th className="px-3 py-2 border border-slate-300 font-bold">Data de Conclusão</th>
-                  <th className="px-3 py-2 border border-slate-300 font-bold">Cliente</th>
-                  <th className="px-3 py-2 border border-slate-300 font-bold">Técnico</th>
-                  <th className="px-3 py-2 border border-slate-300 font-bold">Modalidade</th>
-                  <th className="px-3 py-2 border border-slate-300 font-bold">Status</th>
+                  <th className="px-2 py-1 border border-slate-300 font-bold">Protocolo (ID)</th>
+                  <th className="px-2 py-1 border border-slate-300 font-bold">Data de Abertura</th>
+                  <th className="px-2 py-1 border border-slate-300 font-bold">Data de Conclusão</th>
+                  <th className="px-2 py-1 border border-slate-300 font-bold">Cliente</th>
+                  <th className="px-2 py-1 border border-slate-300 font-bold">Técnico</th>
+                  <th className="px-2 py-1 border border-slate-300 font-bold">Modalidade</th>
+                  <th className="px-2 py-1 border border-slate-300 font-bold">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -3378,13 +3438,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   
                   return (
                     <tr key={order.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                      <td className="px-3 py-2 border border-slate-200 font-mono text-[9px] font-semibold">{order.displayId || order.id}</td>
-                      <td className="px-3 py-2 border border-slate-200 font-medium">{dataAbertura}</td>
-                      <td className="px-3 py-2 border border-slate-200 font-medium">{dataConclusao}</td>
-                      <td className="px-3 py-2 border border-slate-200 font-bold text-slate-700">{order.customerName || 'N/A'}</td>
-                      <td className="px-3 py-2 border border-slate-200">{techName}</td>
-                      <td className="px-3 py-2 border border-slate-200">{order.operationType || 'N/A'}</td>
-                      <td className="px-3 py-2 border border-slate-200 uppercase font-bold text-[#1C2D4F]">{order.status}</td>
+                      <td className="px-2 py-1 border border-slate-200 font-mono text-[9px] font-semibold">{order.displayId || order.id}</td>
+                      <td className="px-2 py-1 border border-slate-200 font-medium">{dataAbertura}</td>
+                      <td className="px-2 py-1 border border-slate-200 font-medium">{dataConclusao}</td>
+                      <td className="px-2 py-1 border border-slate-200 font-bold text-slate-700">{order.customerName || 'N/A'}</td>
+                      <td className="px-2 py-1 border border-slate-200">{techName}</td>
+                      <td className="px-2 py-1 border border-slate-200">{order.operationType || 'N/A'}</td>
+                      <td className="px-2 py-1 border border-slate-200 uppercase font-bold text-[#1C2D4F]">{order.status}</td>
                     </tr>
                   );
                 })}

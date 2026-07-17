@@ -13,6 +13,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import SessionStorage from './lib/sessionStorage';
 import { DataService } from './services/dataService';
 import { PwaInstallPrompt } from './components/pwa/PwaInstallPrompt';
+import { PwaNotificationPrompt } from './components/pwa/PwaNotificationPrompt';
 import { NetworkStatusIndicator } from './components/common/NetworkStatusIndicator';
 import { GlobalAlertProvider } from './components/common/GlobalAlert';
 import { GlobalSpinnerProvider } from './components/common/GlobalSpinner';
@@ -141,6 +142,7 @@ const App: React.FC = () => {
           <DialogProvider>
             <AppRoutes />
             <PwaInstallPromptConditional />
+            <PwaNotificationPrompt />
             <NetworkStatusIndicator />
             <GlobalAlertProvider />
             <GlobalSpinnerProvider />

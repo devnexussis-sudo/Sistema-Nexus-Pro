@@ -1062,7 +1062,7 @@ export const StockManagement: React.FC = () => {
                         {activeTab === 'items' && (
                             <Button
                                 onClick={() => setIsRestockModalOpen(true)}
-                                className="h-10 px-3 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white text-[10px] shadow-lg shadow-[#1c2d4f]/20 flex items-center gap-1.5 transition-all rounded-xl"
+                                className="hidden sm:flex h-10 px-3 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white text-[10px] shadow-lg shadow-[#1c2d4f]/20 items-center gap-1.5 transition-all rounded-xl"
                             >
                                 <Scale size={14} /> Entrada
                             </Button>
@@ -1074,7 +1074,7 @@ export const StockManagement: React.FC = () => {
                                     if (!canCreate('stock')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para esta ação.'); return; }
                                     activeTab === 'items' ? handleOpenModal() : handleOpenCategoryModal()
                                 }}
-                                className={`h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl ${!canCreate('stock') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                                className={`hidden sm:flex h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] shadow-lg shadow-[#10b981]/20 items-center gap-1.5 whitespace-nowrap transition-all rounded-xl ${!canCreate('stock') ? 'opacity-50 !cursor-not-allowed' : ''}`}
                             >
                                 <Plus size={14} /> {activeTab === 'items' ? 'Novo Cadastro' : 'Nova Categoria'}
                             </Button>
@@ -1127,7 +1127,7 @@ export const StockManagement: React.FC = () => {
             <div className="bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col flex-1 ring-1 ring-slate-200/80">
                 {activeTab === 'items' ? (
                     <>
-                        <div className="flex-1 overflow-auto custom-scrollbar">
+                        <div className="hidden md:block flex-1 overflow-auto custom-scrollbar">
                             <table className="w-full border-collapse">
                                 <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm">
                                     <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center">
@@ -1272,6 +1272,79 @@ export const StockManagement: React.FC = () => {
                                             })}
                                 </tbody>
                             </table>
+                        </div>
+
+                        {/* 📱 MOBILE CARDS VIEW - ITEMS */}
+                        <div className="md:hidden flex-1 overflow-auto custom-scrollbar bg-slate-50/50 p-2 space-y-2 pb-32">
+                            {error ? (
+                                <div className="py-10 text-center px-4">
+                                    <AlertTriangle size={32} className="mx-auto text-rose-500 mb-4 animate-pulse" />
+                                    <p className="text-xs font-bold text-slate-500 mb-4">{error}</p>
+                                    <button onClick={() => loadAll()} className="px-6 py-2 bg-[#1c2d4f] text-white text-[10px] font-black uppercase rounded-xl hover:bg-[#253a66] transition-all flex items-center gap-2 mx-auto">
+                                        <RefreshCw size={14} /> Tentar Reconectar
+                                    </button>
+                                </div>
+                            ) : loading ? (
+                                <div className="py-16 text-center">
+                                    <RefreshCw size={32} className="mx-auto text-primary-600 animate-spin mb-4" />
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sincronizando Estoque...</p>
+                                </div>
+                            ) : items.length === 0 ? (
+                                <div className="py-16 text-center">
+                                    <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-slate-100">
+                                        <Package size={24} className="text-slate-300" />
+                                    </div>
+                                    <p className="text-[10px] font-black tracking-widest uppercase text-slate-400">Nenhum item localizado</p>
+                                </div>
+                            ) : items.map(item => {
+                                const margin = calculateMargin(item);
+                                return (
+                                <div 
+                                    key={item.id}
+                                    className={`bg-white p-3 rounded-2xl shadow-sm border ${selectedItems.has(item.id) ? 'border-primary-400 ring-1 ring-primary-100' : 'border-slate-200/60'} active:scale-[0.98] transition-all flex flex-col gap-2 relative overflow-hidden`}
+                                    onClick={() => handleOpenModal(item)}
+                                >
+                                    <div className="absolute top-3 right-3 p-2 -m-2 z-10" onClick={(e) => { 
+                                        e.stopPropagation(); 
+                                        const next = new Set(selectedItems);
+                                        if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
+                                        setSelectedItems(next);
+                                    }}>
+                                        <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-primary-600" checked={selectedItems.has(item.id)} readOnly />
+                                    </div>
+
+                                    <div className="flex items-start justify-between gap-2 pr-8">
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-[11px] font-bold text-primary-600 tracking-tighter bg-primary-50 px-2 py-0.5 rounded w-max">
+                                                {item.code || '---'}
+                                            </span>
+                                            <h3 className="text-sm font-bold text-slate-800 line-clamp-1">{item.description || 'Item sem descrição'}</h3>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2 mt-1">
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Saldo</span>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className={`text-sm font-bold tracking-tight ${(item.quantity || 0) <= (item.minQuantity || 0) ? 'text-rose-500' : 'text-slate-900'}`}>{item.quantity || 0} {item.unit || 'UN'}</span>
+                                                {(item.quantity || 0) <= (item.minQuantity || 0) && <AlertTriangle size={12} className="text-rose-500 shrink-0" />}
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Preço Público</span>
+                                            <span className="text-sm font-bold text-emerald-600">R$ {(item.sellPrice || 0).toFixed(2)}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                                        <span className="text-[10px] text-slate-500 truncate max-w-[120px]">{item.category || '-'}</span>
+                                        <div className={`flex items-center gap-1 text-[10px] font-bold ${margin >= 30 ? 'text-emerald-500' : (margin > 0 ? 'text-amber-500' : 'text-rose-500')}`}>
+                                            {margin >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                                            {margin.toFixed(1)}%
+                                        </div>
+                                    </div>
+                                </div>
+                            )})}
                         </div>
                         <Pagination
                             currentPage={currentPage}
@@ -2628,6 +2701,32 @@ export const StockManagement: React.FC = () => {
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* MOBILE FABS */}
+            {activeTab === 'items' && canCreate('stock') && (
+                <div className="md:hidden fixed bottom-24 right-4 flex flex-col gap-3 z-50">
+                    <button
+                        onClick={() => setIsRestockModalOpen(true)}
+                        className="w-12 h-12 bg-white text-[#1c2d4f] border border-[#1c2d4f]/20 rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.1)] flex items-center justify-center active:scale-90 transition-transform"
+                    >
+                        <Scale size={20} />
+                    </button>
+                    <button
+                        onClick={handleOpenModal}
+                        className="w-14 h-14 bg-gradient-to-tr from-[#10b981] to-[#059669] text-white rounded-full shadow-[0_8px_30px_rgba(16,185,129,0.4)] flex items-center justify-center active:scale-90 transition-transform"
+                    >
+                        <Plus size={24} />
+                    </button>
+                </div>
+            )}
+            {activeTab === 'categories' && canCreate('stock') && (
+                <button
+                    onClick={() => handleOpenCategoryModal()}
+                    className="md:hidden fixed bottom-24 right-4 w-14 h-14 bg-gradient-to-tr from-[#10b981] to-[#059669] text-white rounded-full shadow-[0_8px_30px_rgba(16,185,129,0.4)] flex items-center justify-center z-50 active:scale-90 transition-transform"
+                >
+                    <Plus size={24} />
+                </button>
             )}
         </div>
     );

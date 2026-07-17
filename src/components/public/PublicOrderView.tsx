@@ -2,7 +2,7 @@ import {
   Box,
   Calendar,
   CheckCircle2,
-  ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   ClipboardList,
   Clock,
   DollarSign,
@@ -140,7 +140,7 @@ const VisitCard: React.FC<{
   linkedEquipments: any[];
   formTemplates: Record<string, string[]>;
   showPrices: boolean;
-  onImageClick: (url: string) => void;
+  onImageClick: (url: string, contextUrls?: string[]) => void;
 }> = ({ visit, idx, order, linkedEquipments, formTemplates, showPrices, onImageClick }) => {
   const [isOpen, setIsOpen] = React.useState(false);
   
@@ -351,42 +351,48 @@ const VisitCard: React.FC<{
                 )}
 
                 {/* Fotos e Vídeos */}
-                {(visitPhotos.length > 0 || visitData.videoUrl || visitData.video_url) && (
-                  <div className={(visitData.technical_report || visitData.technicalReport || visit.notes || visitData.parts_used || visitData.partsUsed) ? "pt-2 border-t border-slate-200 mt-2" : ""}>
-                    <p className="text-[10px] text-slate-400 uppercase tracking-widest mb-3">Anexos e Evidências</p>
-                    <div className="flex flex-wrap gap-3">
-                      {(visitData.videoUrl || visitData.video_url) && (
-                        <div
-                          className="w-[80px] h-[80px] sm:w-[100px] sm:h-[100px] shrink-0 rounded-xl overflow-hidden border border-slate-200 bg-black cursor-zoom-in group hover:shadow-md transition-all active:scale-95 relative"
-                          onClick={() => onImageClick(visitData.videoUrl || visitData.video_url)}
-                        >
-                          <video src={`${visitData.videoUrl || visitData.video_url}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <Play size={16} className="text-white fill-white group-hover:scale-110 transition-transform" />
-                          </div>
-                        </div>
-                      )}
-                      {visitPhotos.map((url: string, pIdx: number) => (
-                        <div
-                          key={pIdx}
-                          className="w-[80px] h-[80px] sm:w-[100px] sm:h-[100px] shrink-0 rounded-xl overflow-hidden border border-slate-200 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95 relative"
-                          onClick={() => onImageClick(url)}
-                        >
-                          {isVideoUrl(url) ? (
-                            <div className="w-full h-full bg-black relative flex items-center justify-center">
-                              <video src={`${url}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <Play size={16} className="text-white fill-white group-hover:scale-110 transition-transform" />
-                              </div>
+                {(visitPhotos.length > 0 || visitData.videoUrl || visitData.video_url) && (() => {
+                  const allMedia = [
+                    ...(visitData.videoUrl || visitData.video_url ? [visitData.videoUrl || visitData.video_url] : []),
+                    ...visitPhotos
+                  ];
+                  return (
+                    <div className={(visitData.technical_report || visitData.technicalReport || visit.notes || visitData.parts_used || visitData.partsUsed) ? "pt-2 border-t border-slate-200 mt-2" : ""}>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-widest mb-3">Anexos e Evidências</p>
+                      <div className="flex flex-wrap gap-3">
+                        {(visitData.videoUrl || visitData.video_url) && (
+                          <div
+                            className="w-[80px] h-[80px] sm:w-[100px] sm:h-[100px] shrink-0 rounded-xl overflow-hidden border border-slate-200 bg-black cursor-zoom-in group hover:shadow-md transition-all active:scale-95 relative"
+                            onClick={() => onImageClick(visitData.videoUrl || visitData.video_url, allMedia)}
+                          >
+                            <video src={`${visitData.videoUrl || visitData.video_url}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <Play size={16} className="text-white fill-white group-hover:scale-110 transition-transform" />
                             </div>
-                          ) : (
-                            <img src={url} className="w-full h-full object-cover" alt={`Anexo ${pIdx + 1}`} />
-                          )}
-                        </div>
-                      ))}
+                          </div>
+                        )}
+                        {visitPhotos.map((url: string, pIdx: number) => (
+                          <div
+                            key={pIdx}
+                            className="w-[80px] h-[80px] sm:w-[100px] sm:h-[100px] shrink-0 rounded-xl overflow-hidden border border-slate-200 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95 relative"
+                            onClick={() => onImageClick(url, allMedia)}
+                          >
+                            {isVideoUrl(url) ? (
+                              <div className="w-full h-full bg-black relative flex items-center justify-center">
+                                <video src={`${url}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <Play size={16} className="text-white fill-white group-hover:scale-110 transition-transform" />
+                                </div>
+                              </div>
+                            ) : (
+                              <img src={url} className="w-full h-full object-cover group-hover:scale-105 transition-transform" alt={`Anexo ${pIdx + 1}`} />
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             </div>
           )}
@@ -467,7 +473,7 @@ const resolvePublicLabel = (key: string) => {
 const CollapsibleFormSection: React.FC<{
   formData: Record<string, any>;
   order: ServiceOrder;
-  onImageClick: (url: string) => void;
+  onImageClick: (url: string, contextUrls?: string[]) => void;
   title?: string;
   titleBadge?: React.ReactNode;
   subtitle?: string;
@@ -663,7 +669,7 @@ const CollapsibleFormSection: React.FC<{
                                       <div
                                         key={i}
                                         className="w-[60px] h-[60px] sm:w-[80px] sm:h-[80px] rounded-lg overflow-hidden bg-slate-200 border border-slate-200 cursor-zoom-in group hover:shadow-md transition-all shrink-0"
-                                        onClick={() => onImageClick(url)}
+                                        onClick={() => onImageClick(url, photos)}
                                       >
                                         {isVideoUrl(url) ? (
                                           <div className="w-full h-full relative flex items-center justify-center bg-black">
@@ -781,7 +787,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   // Se false: exibe apenas a visita de conclusão (a última com status 'completed')
   const showAllVisitsInPublicLink = tenant?.metadata?.showVisitHistoryInPublicLink !== false;
   const showVisitHistory = tenant?.metadata?.showVisitHistory !== false;
-  const [fullscreenImage, setFullscreenImage] = React.useState<string | null>(null);
+  const [lightboxState, setLightboxState] = React.useState<{ images: string[], currentIndex: number } | null>(null);
+  
+  const openLightbox = (url: string, contextUrls?: string[]) => {
+    let images = contextUrls && contextUrls.length > 0 ? contextUrls : [url];
+    if (!images.includes(url)) images = [url, ...images];
+    const startIndex = images.indexOf(url);
+    setLightboxState({ images, currentIndex: startIndex >= 0 ? startIndex : 0 });
+  };
   const [linkedEquipments, setLinkedEquipments] = React.useState<any[]>([]);
   // Endereço fresco do cadastro do cliente (pode ter sido atualizado após a OS)
   const [freshCustomerAddress, setFreshCustomerAddress] = React.useState<string | null>(null);
@@ -2512,7 +2525,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                       key={groupName}
                       formData={groupData}
                       order={{ ...order, templateFields: tplFields } as any}
-                      onImageClick={setFullscreenImage}
+                      onImageClick={openLightbox}
                       title={title}
                       icon={<Box size={16} />}
                       subtitle={`${fam ? fam + ' · ' : ''}${serial ? 'S/N: ' + serial : 'Checklist do Atendimento'}`}
@@ -2547,7 +2560,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   linkedEquipments={linkedEquipments}
                   formTemplates={formTemplates}
                   showPrices={showPrices}
-                  onImageClick={setFullscreenImage}
+                  onImageClick={openLightbox}
                 />
               ))}
             </div>
@@ -2669,7 +2682,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     {clientSig ? (
                       <div
                         className="w-full h-28 flex items-center justify-center bg-white rounded-xl border border-slate-200 cursor-zoom-in hover:border-[#3e5b99]/30 transition-colors"
-                        onClick={() => setFullscreenImage(clientSig)}
+                        onClick={() => openLightbox(clientSig)}
                       >
                         <img
                           src={clientSig}
@@ -2711,29 +2724,61 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
         </footer>
 
-        {/* ── LIGHTBOX ── */}
-        {fullscreenImage && (
+        {/* ── LIGHTBOX CAROUSEL ── */}
+        {lightboxState && (
           <div
-            className="fixed inset-0 z-[9999] bg-white/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-10 animate-fade-in cursor-zoom-out"
-            onClick={() => setFullscreenImage(null)}
+            className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-10 animate-fade-in"
           >
-            {isVideoUrl(fullscreenImage) ? (
-              <video
-                src={fullscreenImage}
-                controls
-                autoPlay
-                className="max-w-full max-h-full rounded-3xl shadow-2xl"
-              />
-            ) : (
-              <img
-                src={fullscreenImage}
-                className="max-w-full max-h-full object-contain rounded-3xl shadow-2xl"
-                alt="Visualização"
-              />
+            <div className="absolute inset-0 cursor-zoom-out" onClick={() => setLightboxState(null)} />
+            
+            <div className="relative z-10 w-full h-full flex items-center justify-center pointer-events-none">
+              {isVideoUrl(lightboxState.images[lightboxState.currentIndex]) ? (
+                <video
+                  key={lightboxState.images[lightboxState.currentIndex]}
+                  src={lightboxState.images[lightboxState.currentIndex]}
+                  controls
+                  autoPlay
+                  className="max-w-full max-h-full rounded-3xl shadow-2xl pointer-events-auto"
+                />
+              ) : (
+                <img
+                  key={lightboxState.images[lightboxState.currentIndex]}
+                  src={lightboxState.images[lightboxState.currentIndex]}
+                  className="max-w-full max-h-full object-contain rounded-3xl shadow-2xl pointer-events-auto"
+                  alt="Visualização"
+                />
+              )}
+            </div>
+
+            {lightboxState.images.length > 1 && (
+              <>
+                <button
+                  className="absolute left-4 sm:left-10 top-1/2 -translate-y-1/2 p-3 sm:p-4 bg-white/10 hover:bg-white/20 rounded-full text-white shadow-xl transition-all active:scale-95 z-20"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightboxState(prev => prev ? { ...prev, currentIndex: (prev.currentIndex - 1 + prev.images.length) % prev.images.length } : null);
+                  }}
+                >
+                  <ChevronLeft size={28} />
+                </button>
+                <button
+                  className="absolute right-4 sm:right-10 top-1/2 -translate-y-1/2 p-3 sm:p-4 bg-white/10 hover:bg-white/20 rounded-full text-white shadow-xl transition-all active:scale-95 z-20"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightboxState(prev => prev ? { ...prev, currentIndex: (prev.currentIndex + 1) % prev.images.length } : null);
+                  }}
+                >
+                  <ChevronRight size={28} />
+                </button>
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full text-white text-xs font-medium tracking-widest uppercase z-20">
+                  {lightboxState.currentIndex + 1} / {lightboxState.images.length}
+                </div>
+              </>
             )}
+
             <button
-              className="absolute top-6 right-6 p-3 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-800 transition-colors shadow-sm"
-              onClick={() => setFullscreenImage(null)}
+              className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors shadow-sm z-20"
+              onClick={() => setLightboxState(null)}
             >
               <XIcon size={22} />
             </button>

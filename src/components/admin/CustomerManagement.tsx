@@ -440,7 +440,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                     if (!canCreate('customers')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para esta ação.'); return; }
                     setIsModalOpen(true);
                   }}
-                  className={`h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl font-bold whitespace-nowrap ${!canCreate('customers') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                  className={`hidden md:flex h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl font-bold whitespace-nowrap ${!canCreate('customers') ? 'opacity-50 !cursor-not-allowed' : ''}`}
                 >
                   <Plus size={16} /> Novo Cliente
                </Button>
@@ -480,14 +480,14 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
       </div>
 
       <div className="bg-white border border-slate-200 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
-        {/* TABELA PADRONIZADA */}
-        <div className="flex-1 overflow-auto p-0 custom-scrollbar">
+        {/* 💻 DESKTOP TABLE VIEW */}
+        <div className="hidden md:block flex-1 overflow-auto p-0 custom-scrollbar">
           <table className="w-full border-separate border-spacing-y-1">
             <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
               <tr className="text-[10px] font-bold text-slate-400  tracking-[0.3em] text-center lowercase">
                 <th className="px-4 py-2 text-left">cliente / documento</th>
-                <th className="px-4 py-2">contato principal</th>
-                <th className="px-4 py-2">localização</th>
+                <th className="px-4 py-2 hidden md:table-cell">contato principal</th>
+                <th className="px-4 py-2 hidden lg:table-cell">localização</th>
                 <th className="px-4 py-2 text-center">status</th>
                 <th className="px-4 py-2 text-right pr-6">ações</th>
               </tr>
@@ -505,18 +505,21 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                             {c.type === 'PJ' ? <Building2 size={16} /> : <User size={16} />}
                           </div>
                           <div className="truncate">
-                            <p className="text-slate-800 tracking-tight truncate max-w-[180px] text-[13px] font-medium">{c.name}</p>
+                            <p className="text-slate-800 tracking-tight truncate max-w-[150px] md:max-w-[180px] text-[13px] font-medium">{c.name}</p>
                             <p className="text-[11px] text-slate-400 mt-0.5 truncate">{c.document}</p>
+                            <div className="md:hidden mt-0.5 flex items-center gap-1 text-[10px] text-emerald-500 font-medium">
+                              <Phone size={10} /> {c.whatsapp || c.phone}
+                            </div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-1.5 border-y border-slate-100">
+                      <td className="px-4 py-1.5 border-y border-slate-100 hidden md:table-cell">
                         <div className="space-y-0.5">
                           <p className="text-[11px] text-slate-600 flex items-center gap-1.5 truncate max-w-[150px]"><Mail size={12} className="text-primary-400" /> {c.email}</p>
                           <p className="text-[11px] text-emerald-500 flex items-center gap-1.5 tracking-tighter"><Phone size={12} /> {c.whatsapp || c.phone}</p>
                         </div>
                       </td>
-                      <td className="px-4 py-1.5 border-y border-slate-100 text-[11px] text-slate-500 truncate max-w-[120px]">
+                      <td className="px-4 py-1.5 border-y border-slate-100 text-[11px] text-slate-500 truncate max-w-[120px] hidden lg:table-cell">
                         <div className="flex items-center gap-1.5">
                           <MapPin size={14} className="text-primary-400" />
                           <span className="truncate">{c.city} • {c.state}</span>
@@ -562,6 +565,62 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
             </tbody>
           </table>
         </div>
+
+        {/* 📱 MOBILE CARDS VIEW */}
+        <div className="md:hidden flex-1 overflow-auto custom-scrollbar bg-slate-50/50 p-2 space-y-2 pb-28">
+          {paginatedCustomers.length > 0 ? (
+            paginatedCustomers.map(c => (
+              <div 
+                key={c.id}
+                onClick={(e) => {
+                  if (canEdit('customers')) handleEdit(c, e);
+                }}
+                className={`bg-white p-3 rounded-2xl shadow-sm border border-slate-200/60 active:scale-[0.98] transition-transform flex flex-col gap-2 ${!c.active ? 'opacity-60' : ''}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${c.type === 'PJ' ? 'bg-primary-50 text-primary-600' : 'bg-slate-100 text-slate-500'}`}>
+                      {c.type === 'PJ' ? <Building2 size={18} /> : <User size={18} />}
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-800 line-clamp-1">{c.name}</h3>
+                      <p className="text-[11px] text-slate-500 font-mono mt-0.5">{c.document}</p>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${c.active ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                    {c.active ? 'Ativo' : 'Suspenso'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                    <Phone size={12} className="text-emerald-500" />
+                    <span className="truncate">{c.whatsapp || c.phone || '---'}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                    <MapPin size={12} className="text-primary-400" />
+                    <span className="truncate">{c.city || '---'}</span>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+              <Search size={32} className="text-slate-300 mb-3" />
+              <p className="text-xs font-medium">Nenhum cliente localizado</p>
+            </div>
+          )}
+        </div>
+
+        {/* MOBILE FAB (Floating Action Button) */}
+        {canCreate('customers') && (
+          <button
+            onClick={() => { setFormData({ type: 'PJ', state: '', city: '', address: '', active: true }); setEditingId(null); setIsModalOpen(true); }}
+            className="md:hidden fixed bottom-24 right-4 w-14 h-14 bg-gradient-to-tr from-[#1c2d4f] to-[#253a66] text-white rounded-full shadow-[0_8px_30px_rgba(28,45,79,0.4)] flex items-center justify-center z-50 active:scale-90 transition-transform"
+          >
+            <Plus size={24} />
+          </button>
+        )}
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
@@ -573,8 +632,8 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
 
       {
         isModalOpen && createPortal(
-          <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
-            <div className="bg-white rounded-xl w-full max-w-[96vw] h-[92vh] shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up">
+          <div className="fixed inset-0 z-[160] flex items-end md:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 md:p-8 overflow-hidden animate-in fade-in duration-300">
+            <div className="bg-white md:rounded-2xl w-full max-w-6xl h-full md:h-[92vh] shadow-2xl md:border border-slate-200 overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-300">
 
               {/* HEADER */}
               <div className="px-8 py-5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
@@ -597,9 +656,9 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
               </div>
 
               {/* BODY WITH SIDEBAR */}
-              <div className="flex-1 flex overflow-hidden">
+              <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
                 {/* SIDEBAR MENU */}
-                <div className="w-64 bg-slate-50/50 border-r border-slate-200 p-6 flex flex-col gap-2 shrink-0">
+                <div className="w-full md:w-64 bg-slate-50/50 border-b md:border-b-0 md:border-r border-slate-200 p-4 md:p-6 flex flex-row md:flex-col gap-2 shrink-0 overflow-x-auto">
                   <button type="button" onClick={() => setModalTab('dados')}
                     className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
                       modalTab === 'dados' ? 'bg-white text-[#1c2d4f] shadow-sm border border-slate-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
@@ -675,7 +734,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                           <Input label="Bairro" required className="rounded-xl py-3 font-medium border-slate-200" value={formData.neighborhood || ''} onChange={e => setFormData({ ...formData, neighborhood: e.target.value })} />
                         </div>
                         <Input label="Complemento / Referência" icon={<Info size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={formData.complement || ''} onChange={e => setFormData({ ...formData, complement: e.target.value })} />
-                        <div className="grid grid-cols-2 gap-5 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 bg-slate-50 p-4 rounded-xl border border-slate-100">
                           <div className="col-span-full">
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Geolocalização</p>
                             <p className="text-[10px] text-slate-500 mt-1">

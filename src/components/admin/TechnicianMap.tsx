@@ -266,17 +266,23 @@ export const TechnicianMap: React.FC = () => {
 
     const mappedOrders = orders.map(o => {
         const c = customers.find(cust => cust.id === o.customerId || cust.name === o.customerName);
+        
         return { ...o, latitude: c?.latitude, longitude: c?.longitude };
     }).filter(o => {
         const hasCoords = o.latitude && o.longitude;
         if (!hasCoords) return false;
 
-        // Filtro por Data (Dia exato selecionado)
-        if (o.scheduledDate) {
-            const orderDateStr = parseISO(o.scheduledDate).toISOString().split('T')[0];
-            return orderDateStr === selectedDate;
+        if (!selectedDate) return true;
+
+        let dateMatched = false;
+        if (o.scheduledDate && String(o.scheduledDate).includes(selectedDate)) {
+            dateMatched = true;
         }
-        return false;
+        if (o.createdAt && String(o.createdAt).includes(selectedDate)) {
+            dateMatched = true;
+        }
+
+        return dateMatched;
     });
 
     const tileLayerUrl = mapType === 'SATELLITE'
@@ -559,173 +565,7 @@ export const TechnicianMap: React.FC = () => {
                         );
                     })}
 
-                    {/* --- TECHS HISTORY RENDERING --- */}
-                    {isHistoryMode && routedPath.length > 0 && (() => {
-                        const totalSegs = routedPath.length;
-                        const getSegmentColors = (idx: number) => {
-                            const t = totalSegs <= 1 ? 0 : idx / (totalSegs - 1);
-                            if (t < 0.25) return { core: '#3b82f6', border: '#1e40af', highlight: '#93c5fd' };
-                            if (t < 0.50) return { core: '#06b6d4', border: '#0e7490', highlight: '#a5f3fc' };
-                            if (t < 0.75) return { core: '#10b981', border: '#047857', highlight: '#6ee7b7' };
-                            return { core: '#f97316', border: '#c2410c', highlight: '#fed7aa' };
-                        };
 
-                        // Verifica se um segmento está próximo da parada selecionada
-                        const isSegmentNearStop = (segment: [number, number][], stopIdx: number | null): boolean => {
-                            if (stopIdx === null || !historyStops[stopIdx]) return false;
-                            const stop = historyStops[stopIdx];
-                            const distM = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-                                const R = 6371e3;
-                                const p1 = lat1*Math.PI/180, p2 = lat2*Math.PI/180;
-                                const dp = (lat2-lat1)*Math.PI/180, dl = (lon2-lon1)*Math.PI/180;
-                                const a = Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
-                                return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-                            };
-                            // Checa se algum ponto do segmento está dentro de 300m da parada
-                            const first = segment[0];
-                            const last = segment[segment.length - 1];
-                            return distM(first[0], first[1], stop.latitude, stop.longitude) < 300 ||
-                                   distM(last[0], last[1], stop.latitude, stop.longitude) < 300;
-                        };
-
-                        return (
-                            <>
-                                {/* ROTAS COM GRADIENTE + HIGHLIGHT VERMELHO NA PARADA SELECIONADA */}
-                                {routedPath.map((segment, idx) => {
-                                    const nearSelected = isSegmentNearStop(segment, selectedStopIdx);
-                                    const colors = nearSelected
-                                        ? { core: '#ef4444', border: '#991b1b', highlight: '#fca5a5' }
-                                        : getSegmentColors(idx);
-                                    const dimmed = selectedStopIdx !== null && !nearSelected;
-                                    return (
-                                        <React.Fragment key={`seg-${idx}`}>
-                                            <Polyline positions={segment as any} color="#000000" weight={nearSelected ? 12 : 10} opacity={dimmed ? 0.03 : 0.08} lineCap="round" lineJoin="round" />
-                                            <Polyline positions={segment as any} color={colors.border} weight={nearSelected ? 8 : 6} opacity={dimmed ? 0.3 : 0.9} lineCap="round" lineJoin="round" />
-                                            <Polyline positions={segment as any} color={colors.core} weight={nearSelected ? 5 : 3.5} opacity={dimmed ? 0.4 : 1} lineCap="round" lineJoin="round" />
-                                            <Polyline positions={segment as any} color={colors.highlight} weight={nearSelected ? 2 : 1.2} opacity={dimmed ? 0.2 : 0.5} lineCap="round" lineJoin="round" />
-                                        </React.Fragment>
-                                    );
-                                })}
-
-                                {/* Marcador de INÍCIO — bandeira verde */}
-                                {startPoint && (
-                                    <Marker 
-                                        position={[startPoint.latitude, startPoint.longitude] as any}
-                                        icon={L.divIcon({
-                                            className: '',
-                                            html: `<div style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:#10b981;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:14px;">🚩</div>`,
-                                            iconSize: [32, 32],
-                                            iconAnchor: [16, 16]
-                                        })}
-                                    >
-                                        <Popup>
-                                            <div className="p-3 min-w-[180px]">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                                                    <span className="font-black text-xs text-emerald-700 uppercase">Início do Dia</span>
-                                                </div>
-                                                <div className="bg-emerald-50 rounded-lg p-2 text-center">
-                                                    <span className="text-lg font-black text-emerald-600">{format(new Date(startPoint.recorded_at), "HH:mm", { locale: ptBR })}</span>
-                                                    <p className="text-[9px] text-emerald-500 font-bold mt-0.5">Primeiro registro GPS</p>
-                                                </div>
-                                            </div>
-                                        </Popup>
-                                    </Marker>
-                                )}
-
-                                {/* PONTOS DE PARADA — ícone diferenciado com card detalhado */}
-                                {historyStops.map((stop, idx) => {
-                                    const isSelected = selectedStopIdx === idx;
-                                    const pinColor = isSelected ? '#ef4444' : '#f59e0b';
-                                    return (
-                                    <Marker
-                                        key={`stop-${idx}`}
-                                        position={[stop.latitude, stop.longitude] as any}
-                                        icon={L.divIcon({
-                                            className: '',
-                                            html: `<div style="position:relative;display:flex;flex-direction:column;align-items:center;cursor:pointer;">
-                                                <div style="width:${isSelected ? 34 : 28}px;height:${isSelected ? 34 : 28}px;background:${pinColor};border:3px solid #fff;border-radius:50%;box-shadow:0 2px 12px rgba(0,0,0,${isSelected ? '0.5' : '0.3'});display:flex;align-items:center;justify-content:center;font-size:${isSelected ? 14 : 12}px;font-weight:900;color:#fff;transition:all 0.2s;">${idx + 1}</div>
-                                                <div style="width:3px;height:8px;background:${pinColor};border-radius:0 0 2px 2px;"></div>
-                                            </div>`,
-                                            iconSize: [isSelected ? 34 : 28, isSelected ? 42 : 36],
-                                            iconAnchor: [isSelected ? 17 : 14, isSelected ? 42 : 36]
-                                        })}
-                                        eventHandlers={{
-                                            click: () => setSelectedStopIdx(prev => prev === idx ? null : idx)
-                                        }}
-                                    >
-                                        <Popup>
-                                            <div className="p-3 min-w-[220px] max-w-[260px]">
-                                                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-amber-100">
-                                                    <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white font-black text-sm">{idx + 1}</div>
-                                                    <div>
-                                                        <p className="font-black text-xs text-amber-700 uppercase">Parada #{idx + 1}</p>
-                                                        <p className="text-[9px] text-slate-400 font-bold">{stop.pointCount} registros GPS</p>
-                                                    </div>
-                                                </div>
-                                                
-                                                {/* Timeline de entrada/saída */}
-                                                <div className="space-y-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-200"></div>
-                                                        <div className="flex-1 flex justify-between items-center">
-                                                            <span className="text-[10px] text-slate-500 font-bold">Chegada</span>
-                                                            <span className="text-xs font-black text-emerald-600">{format(new Date(stop.startTime), "HH:mm:ss", { locale: ptBR })}</span>
-                                                        </div>
-                                                    </div>
-                                                    <div className="ml-[3px] w-0.5 h-3 bg-amber-200"></div>
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-2 h-2 rounded-full bg-red-500 ring-2 ring-red-200"></div>
-                                                        <div className="flex-1 flex justify-between items-center">
-                                                            <span className="text-[10px] text-slate-500 font-bold">Saída</span>
-                                                            <span className="text-xs font-black text-red-600">{format(new Date(stop.endTime), "HH:mm:ss", { locale: ptBR })}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="mt-3 bg-amber-50 rounded-lg p-2 text-center border border-amber-100">
-                                                    <span className="text-[9px] text-amber-500 font-bold uppercase">Tempo parado</span>
-                                                    <p className="text-lg font-black text-amber-600">
-                                                        {stop.durationMins >= 60 
-                                                            ? `${Math.floor(stop.durationMins/60)}h ${stop.durationMins%60}min`
-                                                            : `${stop.durationMins} min`
-                                                        }
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </Popup>
-                                    </Marker>
-                                    );
-                                })}
-
-                                {/* Marcador de FIM — bandeira vermelha */}
-                                {endPoint && endPoint !== startPoint && (
-                                    <Marker
-                                        position={[endPoint.latitude, endPoint.longitude] as any}
-                                        icon={L.divIcon({
-                                            className: '',
-                                            html: `<div style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:#ef4444;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:14px;">📍</div>`,
-                                            iconSize: [32, 32],
-                                            iconAnchor: [16, 16]
-                                        })}
-                                    >
-                                        <Popup>
-                                            <div className="p-3 min-w-[180px]">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                                                    <span className="font-black text-xs text-red-700 uppercase">Último Registro</span>
-                                                </div>
-                                                <div className="bg-red-50 rounded-lg p-2 text-center">
-                                                    <span className="text-lg font-black text-red-600">{format(new Date(endPoint.recorded_at), "HH:mm", { locale: ptBR })}</span>
-                                                    <p className="text-[9px] text-red-400 font-bold mt-0.5">Último ponto GPS do dia</p>
-                                                </div>
-                                            </div>
-                                        </Popup>
-                                    </Marker>
-                                )}
-                            </>
-                        );
-                    })()}
                 </MapContainer>
             </div>
             {/* Custom Map Control Styles adjustments */}

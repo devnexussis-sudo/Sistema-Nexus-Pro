@@ -554,12 +554,39 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                             {activeItem?.label || 'dashboard'}
                         </h2>
                     </div>
-                    <div className="flex-1 overflow-y-auto relative custom-scrollbar print:overflow-visible print:block">
+                    <div className="flex-1 overflow-y-auto relative custom-scrollbar print:overflow-visible print:block pb-16 lg:pb-0">
                         {children}
                     </div>
                 </main>
             </div>
             
+            {/* Bottom Tab Bar (Mobile) */}
+            <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] flex items-center justify-around z-[150] pb-safe print:hidden px-2">
+                <Link to="/admin" className={`flex flex-col items-center justify-center gap-1 w-16 h-full transition-colors ${location.pathname === '/admin' ? 'text-primary-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                    <LayoutDashboard size={20} className={location.pathname === '/admin' ? 'fill-primary-50 text-primary-600' : ''} />
+                    <span className="text-[9px] font-semibold tracking-wide">Início</span>
+                </Link>
+                
+                {menuVisible('orders') && (
+                <Link to="/admin/orders" className={`flex flex-col items-center justify-center gap-1 w-16 h-full transition-colors ${location.pathname.startsWith('/admin/orders') ? 'text-primary-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                    <ClipboardList size={20} className={location.pathname.startsWith('/admin/orders') ? 'fill-primary-50 text-primary-600' : ''} />
+                    <span className="text-[9px] font-semibold tracking-wide">Ordens</span>
+                </Link>
+                )}
+                
+                {menuVisible('customers') && (
+                <Link to="/admin/customers" className={`flex flex-col items-center justify-center gap-1 w-16 h-full transition-colors ${location.pathname.startsWith('/admin/customers') ? 'text-primary-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                    <Users size={20} className={location.pathname.startsWith('/admin/customers') ? 'fill-primary-50 text-primary-600' : ''} />
+                    <span className="text-[9px] font-semibold tracking-wide">Clientes</span>
+                </Link>
+                )}
+                
+                <button onClick={() => setIsMobileSidebarOpen(true)} className="flex flex-col items-center justify-center gap-1 w-16 h-full text-slate-400 hover:text-slate-600 transition-colors">
+                    <Menu size={20} />
+                    <span className="text-[9px] font-semibold tracking-wide">Menu</span>
+                </button>
+            </nav>
+
             <GlobalChatBot />
         </div>
     );

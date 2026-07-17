@@ -75,9 +75,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 return;
             }
 
-            // Leitura passiva (não chama getSession na rede, lê do localStorage)
-            // O Singleton já vai disparar NEXUS_AUTH_EVENT quando o SDK inicializar
-            // Apenas libera a UI após 1s de segurança
+            // Limpa o cache local pois a sessão Supabase não existe mais (ex: expirou no reload)
+            setAuth({ user: null, isAuthenticated: false });
+            SessionStorage.clear();
+            GlobalStorage.remove('persistent_user');
+
+            // Leitura passiva
             const safetyTimer = setTimeout(() => {
                 if (isMounted.current) setIsAuthLoading(false);
             }, 1500);
@@ -97,7 +100,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setSession(newSession);
             setIsAuthLoading(false);
 
-            if (event === 'SIGNED_IN' && newSession?.user) {
+            if (!newSession) {
+                // Se não há sessão válida (expirou silenciosamente ou INITIAL_SESSION veio nulo)
+                // Precisamos forçar o logoff local para a rota redirecionar ao /login
+                setAuth({ user: null, isAuthenticated: false });
+                SessionStorage.clear();
+                GlobalStorage.remove('persistent_user');
+            } else if (event === 'SIGNED_IN' && newSession?.user) {
                 // Apenas no login inicial — carrega o perfil Nexus do usuário
                 if (!isRefreshingUser.current) {
                     isRefreshingUser.current = true;
@@ -109,10 +118,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 }
             } else if (event === 'TOKEN_REFRESHED' && newSession?.user) {
                 // Token renovado: atualiza sessão sem re-buscar perfil do banco
-                // (o usuário não mudou, só o JWT expirou e foi renovado)
                 setAuth(prev => prev.isAuthenticated ? prev : { user: null, isAuthenticated: false });
-            } else if (event === 'SIGNED_OUT') {
-                setAuth({ user: null, isAuthenticated: false });
             }
         };
 

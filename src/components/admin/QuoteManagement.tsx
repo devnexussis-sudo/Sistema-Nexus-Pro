@@ -558,7 +558,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                 if (!canCreate('quotes')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para esta ação.'); return; }
                                 resetForm(); setIsModalOpen(true);
                             }}
-                            className={`h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl ${!canCreate('quotes') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                            className={`hidden md:flex h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] shadow-lg shadow-[#10b981]/20 items-center gap-1.5 whitespace-nowrap transition-all rounded-xl ${!canCreate('quotes') ? 'opacity-50 !cursor-not-allowed' : ''}`}
                         >
                             <Plus size={14} /> Novo Orçamento
                         </button>
@@ -647,7 +647,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         </div>
                     </div>
                 )}
-                <div className="flex-1 overflow-auto custom-scrollbar">
+                <div className="hidden md:block flex-1 overflow-auto custom-scrollbar">
                     <table className="w-full border-separate border-spacing-y-0 text-left">
                         <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md z-10 text-[11px] font-semibold text-slate-600 border-b border-slate-300 font-poppins">
                             <tr className="border-b border-slate-200">
@@ -765,6 +765,90 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         </tbody>
                     </table>
                 </div>
+
+                {/* 📱 MOBILE CARDS VIEW */}
+                <div className="md:hidden flex-1 overflow-auto custom-scrollbar bg-slate-50/50 p-2 space-y-2 pb-28">
+                    {quotesLoading ? (
+                        <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                            <Loader2 size={28} className="animate-spin text-primary-400 mb-3" />
+                            <p className="text-[10px] font-semibold uppercase tracking-widest">Carregando...</p>
+                        </div>
+                    ) : pagedQuotes.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                            <FileText size={32} className="text-slate-300 mb-3" />
+                            <p className="text-[10px] font-semibold uppercase tracking-widest">Nenhum orçamento</p>
+                        </div>
+                    ) : (
+                        pagedQuotes.map(quote => (
+                            <div 
+                                key={quote.id}
+                                className={`bg-white p-3 rounded-2xl shadow-sm border ${selectedQuoteIds.includes(quote.id) ? 'border-primary-400 ring-1 ring-primary-100' : 'border-slate-200/60'} active:scale-[0.98] transition-all flex flex-col gap-2 relative overflow-hidden`}
+                                onClick={() => { setViewQuote(quote); setIsViewModalOpen(true); }}
+                            >
+                                <div 
+                                    className="absolute top-3 right-3 p-2 -m-2 z-10"
+                                    onClick={(e) => { 
+                                        e.stopPropagation(); 
+                                        setSelectedQuoteIds(prev => prev.includes(quote.id) ? prev.filter(id => id !== quote.id) : [...prev, quote.id]);
+                                    }}
+                                >
+                                    <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-primary-600" checked={selectedQuoteIds.includes(quote.id)} readOnly />
+                                </div>
+
+                                <div className="flex items-start justify-between gap-2 pr-8">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-[13px] font-bold text-primary-600 tracking-tighter w-max">
+                                            {getQuoteDisplayId(quote)}
+                                        </span>
+                                        <h3 className="text-sm font-bold text-slate-800 line-clamp-1">{quote.customerName}</h3>
+                                    </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-2 mt-2">
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Valor</span>
+                                        <span className="text-sm font-bold text-emerald-600">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Criado em</span>
+                                        <span className="text-xs font-bold text-slate-600">{new Date(quote.createdAt).toLocaleDateString()}</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                                    <span className="text-[10px] text-slate-500 truncate max-w-[150px]">{quote.title}</span>
+                                    {quote.billingStatus === 'PAID' ? (
+                                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-medium bg-emerald-900 text-emerald-300 border border-emerald-700">
+                                            <span className="w-1 h-1 rounded-full bg-emerald-400" />
+                                            Faturado
+                                        </div>
+                                    ) : (
+                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-medium ${quote.status === 'ABERTO' ? 'bg-primary-50 text-primary-600 border border-primary-100' :
+                                            quote.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                                quote.status === 'CONVERTIDO' ? 'bg-slate-900 text-emerald-400 border border-slate-700' :
+                                                    'bg-rose-50 text-rose-500 border border-rose-100'
+                                            }`}>
+                                            <span className={`w-1 h-1 rounded-full animate-pulse ${quote.status === 'ABERTO' ? 'bg-primary-600' : quote.status === 'APROVADO' ? 'bg-emerald-600' : quote.status === 'CONVERTIDO' ? 'bg-emerald-400' : 'bg-rose-500'}`} />
+                                            {quote.status}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                {/* MOBILE FAB (Floating Action Button) */}
+                {canCreate('quotes') && (
+                    <button
+                        onClick={(e) => {
+                            resetForm(); setIsModalOpen(true);
+                        }}
+                        className="md:hidden fixed bottom-24 right-4 w-14 h-14 bg-gradient-to-tr from-[#10b981] to-[#059669] text-white rounded-full shadow-[0_8px_30px_rgba(16,185,129,0.4)] flex items-center justify-center z-50 active:scale-90 transition-transform"
+                    >
+                        <Plus size={24} />
+                    </button>
+                )}
                 <Pagination
                     currentPage={currentPage}
                     totalPages={totalPages}
@@ -776,8 +860,8 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
             {/* Modal Editor de Orçamento */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
-                    <div className="bg-white rounded-xl w-full max-w-[96vw] h-[92vh] shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up">
+                <div className="fixed inset-0 z-[1200] flex items-end md:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 md:p-8 overflow-hidden animate-in fade-in duration-300">
+                    <div className="bg-white md:rounded-2xl w-full max-w-6xl h-full md:h-[92vh] shadow-2xl md:border border-slate-200 overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-300">
                         <div className="px-8 py-5 border-b border-slate-200 flex justify-between items-center bg-white">
                             <div className="flex items-center gap-4">
                                 <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center text-[#1c2d4f] border border-slate-200">
