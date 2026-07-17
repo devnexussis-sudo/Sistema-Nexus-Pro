@@ -1354,10 +1354,10 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               grps[gName].forEach((item: any, idx: number) => item.originalIdx = idx);
               
               grps[gName].sort((a, b) => {
-                const matchA = a.key.replace(/^\[.*?\]\s*-\s*/, '').match(/^(\d{3})#/);
-                const matchB = b.key.replace(/^\[.*?\]\s*-\s*/, '').match(/^(\d{3})#/);
+                const matchA = a.key.replace(/^\[.*?\]\s*-\s*/, '').match(/(?:#\s*(\d+)|^(\d+)\s*#)/);
+                const matchB = b.key.replace(/^\[.*?\]\s*-\s*/, '').match(/(?:#\s*(\d+)|^(\d+)\s*#)/);
                 if (matchA && matchB) {
-                  return parseInt(matchA[1], 10) - parseInt(matchB[1], 10);
+                  return parseInt(matchA[1] || matchA[2], 10) - parseInt(matchB[1] || matchB[2], 10);
                 }
 
                 const cleanA = normalizeForSort(a.key.replace(/^\[.*?\]\s*-\s*/, ''));
@@ -1699,9 +1699,9 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                               </div>
                               <div className="flex flex-col gap-1.5 p-2 bg-white">
                                 {Object.entries(gData).sort((a, b) => {
-                                  const matchA = a[0].replace(/^\[.*?\]\s*-\s*/, '').match(/^(\d{3})#/);
-                                  const matchB = b[0].replace(/^\[.*?\]\s*-\s*/, '').match(/^(\d{3})#/);
-                                  if (matchA && matchB) return parseInt(matchA[1], 10) - parseInt(matchB[1], 10);
+                                  const matchA = a[0].replace(/^\[.*?\]\s*-\s*/, '').match(/(?:#\s*(\d+)|^(\d+)\s*#)/);
+                                  const matchB = b[0].replace(/^\[.*?\]\s*-\s*/, '').match(/(?:#\s*(\d+)|^(\d+)\s*#)/);
+                                  if (matchA && matchB) return parseInt(matchA[1] || matchA[2], 10) - parseInt(matchB[1] || matchB[2], 10);
                                   return 0;
                                 }).map(([key, val], idx) => {
                                   let text: string | null = null;
