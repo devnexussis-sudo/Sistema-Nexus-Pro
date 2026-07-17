@@ -2489,7 +2489,6 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                    // Nexus Stability: Mantém a ordem de criação/gravação para campos extras
                    return a.originalIdx - b.originalIdx;
                  });
-               }
                
                // Reconstrói o groupData garantindo interatividade no mobile
                const orderedEntries = entries.map(e => [e.key, e.val]);
