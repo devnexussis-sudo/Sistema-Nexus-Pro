@@ -531,28 +531,36 @@ const CollapsibleFormSection: React.FC<{
     })
     .filter(({ text, photos }) => text !== null || photos.length > 0);
 
-  // 🎯 ORDENAÇÃO CIRÚRGICA: Usa o templateFields se disponível
-  if (templateFields.length > 0) {
-    const normalize = (s: string) => s.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/^[\d\s.]*/, '').replace(/[^a-z0-9]/g, '');
-    const normalizedTemplate = templateFields.map(normalize);
+  // 🎯 ORDENAÇÃO CIRÚRGICA: Tenta via #001 primeiro, depois usa templateFields
+  const normalize = (s: string) => s.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/^[\d\s.]*/, '').replace(/[^a-z0-9]/g, '');
+  const normalizedTemplate = (templateFields || []).map(normalize);
+  
+  // Garante estabilidade anotando índice original
+  formItems.forEach((item, idx) => { (item as any).originalIdx = idx; });
+
+  formItems.sort((a, b) => {
+    const matchA = a.key.replace(/^\[.*?\]\s*-\s*/, '').match(/(?:#\s*(\d+)|^(\d+)\s*#)/);
+    const matchB = b.key.replace(/^\[.*?\]\s*-\s*/, '').match(/(?:#\s*(\d+)|^(\d+)\s*#)/);
+    if (matchA && matchB) {
+      return parseInt(matchA[1] || matchA[2], 10) - parseInt(matchB[1] || matchB[2], 10);
+    }
+
+    const cleanA = normalize(a.key.replace(/^\[.*?\]\s*-\s*/, ''));
+    const cleanB = normalize(b.key.replace(/^\[.*?\]\s*-\s*/, ''));
     
-    formItems.sort((a, b) => {
-      const cleanA = normalize(a.key.replace(/^\[.*?\]\s*-\s*/, ''));
-      const cleanB = normalize(b.key.replace(/^\[.*?\]\s*-\s*/, ''));
-      
-      let idxA = normalizedTemplate.indexOf(cleanA);
-      let idxB = normalizedTemplate.indexOf(cleanB);
-      
-      // Fallback para "starts with" caso o label tenha mudado levemente
-      if (idxA === -1) idxA = normalizedTemplate.findIndex(t => cleanA.startsWith(t) || t.startsWith(cleanA));
-      if (idxB === -1) idxB = normalizedTemplate.findIndex(t => cleanB.startsWith(t) || t.startsWith(cleanB));
-      
-      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-      if (idxA !== -1) return -1;
-      if (idxB !== -1) return 1;
-      return 0;
-    });
-  }
+    let idxA = normalizedTemplate.indexOf(cleanA);
+    let idxB = normalizedTemplate.indexOf(cleanB);
+    
+    // Fallback para "starts with" caso o label tenha mudado levemente
+    if (idxA === -1) idxA = normalizedTemplate.findIndex(t => cleanA.startsWith(t) || t.startsWith(cleanA));
+    if (idxB === -1) idxB = normalizedTemplate.findIndex(t => cleanB.startsWith(t) || t.startsWith(cleanB));
+    
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+    
+    return ((a as any).originalIdx || 0) - ((b as any).originalIdx || 0);
+  });
 
   if (formItems.length === 0) return null;
 
