@@ -209,12 +209,16 @@ const VisitCard: React.FC<{
                   <InfoPill label="Técnico" value={visitorName} />
                   <InfoPill label="Check-in" value={effArrival ? safeFmtTime(effArrival) : '—'} />
                   <InfoPill label="Check-out" value={effDeparture ? safeFmtTime(effDeparture) : '—'} />
-                  {effDeparture && effArrival && (
-                    <InfoPill 
-                      label="Duração" 
-                      value={`${Math.max(0, Math.floor((new Date(effDeparture).getTime() - new Date(effArrival).getTime()) / 60000))} min`} 
-                    />
-                  )}
+                  {effDeparture && effArrival && (() => {
+                    const totalMins = Math.max(0, Math.floor((new Date(effDeparture).getTime() - new Date(effArrival).getTime()) / 60000));
+                    let durationStr = `${totalMins} min`;
+                    if (totalMins > 59) {
+                      const hrs = Math.floor(totalMins / 60);
+                      const mins = totalMins % 60;
+                      durationStr = mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
+                    }
+                    return <InfoPill label="Duração" value={durationStr} />;
+                  })()}
                 </>
               );
             })()}
