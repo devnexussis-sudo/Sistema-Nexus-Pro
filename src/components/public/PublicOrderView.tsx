@@ -1347,35 +1347,33 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             const specificOrder = eqMatch?.form_id ? (formTemplates[eqMatch.form_id] || []) : [];
             const combinedOrder = Array.from(new Set([...templateOrder, ...specificOrder]));
 
-            if (combinedOrder.length > 0) {
-              const normalizedOrder = combinedOrder.map(normalizeForSort);
-              
-              // Garante estabilidade usando índice original
-              grps[gName].forEach((item: any, idx: number) => item.originalIdx = idx);
-              
-              grps[gName].sort((a, b) => {
-                const matchA = a.key.replace(/^\[.*?\]\s*-\s*/, '').match(/(?:#\s*(\d+)|^(\d+)\s*#)/);
-                const matchB = b.key.replace(/^\[.*?\]\s*-\s*/, '').match(/(?:#\s*(\d+)|^(\d+)\s*#)/);
-                if (matchA && matchB) {
-                  return parseInt(matchA[1] || matchA[2], 10) - parseInt(matchB[1] || matchB[2], 10);
-                }
+            const normalizedOrder = combinedOrder.map(normalizeForSort);
+            
+            // Garante estabilidade usando índice original
+            grps[gName].forEach((item: any, idx: number) => item.originalIdx = idx);
+            
+            grps[gName].sort((a, b) => {
+              const matchA = a.key.replace(/^\[.*?\]\s*-\s*/, '').match(/(?:#\s*(\d+)|^(\d+)\s*#)/);
+              const matchB = b.key.replace(/^\[.*?\]\s*-\s*/, '').match(/(?:#\s*(\d+)|^(\d+)\s*#)/);
+              if (matchA && matchB) {
+                return parseInt(matchA[1] || matchA[2], 10) - parseInt(matchB[1] || matchB[2], 10);
+              }
 
-                const cleanA = normalizeForSort(a.key.replace(/^\[.*?\]\s*-\s*/, ''));
-                const cleanB = normalizeForSort(b.key.replace(/^\[.*?\]\s*-\s*/, ''));
-                
-                let idxA = normalizedOrder.indexOf(cleanA);
-                let idxB = normalizedOrder.indexOf(cleanB);
-                
-                if (idxA === -1) idxA = normalizedOrder.findIndex(label => cleanA === label || cleanA.startsWith(label));
-                if (idxB === -1) idxB = normalizedOrder.findIndex(label => cleanB === label || cleanB.startsWith(label));
-                
-                if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-                if (idxA !== -1) return -1;
-                if (idxB !== -1) return 1;
-                
-                return (a.originalIdx || 0) - (b.originalIdx || 0);
-              });
-            }
+              const cleanA = normalizeForSort(a.key.replace(/^\[.*?\]\s*-\s*/, ''));
+              const cleanB = normalizeForSort(b.key.replace(/^\[.*?\]\s*-\s*/, ''));
+              
+              let idxA = normalizedOrder.indexOf(cleanA);
+              let idxB = normalizedOrder.indexOf(cleanB);
+              
+              if (idxA === -1) idxA = normalizedOrder.findIndex(label => cleanA === label || cleanA.startsWith(label));
+              if (idxB === -1) idxB = normalizedOrder.findIndex(label => cleanB === label || cleanB.startsWith(label));
+              
+              if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+              if (idxA !== -1) return -1;
+              if (idxB !== -1) return 1;
+              
+              return (a.originalIdx || 0) - (b.originalIdx || 0);
+            });
           });
 
           const grpEntries = Object.entries(grps);
@@ -2463,21 +2461,19 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                  val: e[1], 
                  originalIdx: i 
                }));
+               const normalizedOrder = combinedOrder.map(normalizeForSort);
 
-               if (combinedOrder.length > 0) {
-                 const normalizedOrder = combinedOrder.map(normalizeForSort);
+               entries.sort((a, b) => {
+                 const matchA = a.key.replace(/^\[.*?\]\s*-\s*/, '').match(/(?:#\s*(\d+)|^(\d+)\s*#)/);
+                 const matchB = b.key.replace(/^\[.*?\]\s*-\s*/, '').match(/(?:#\s*(\d+)|^(\d+)\s*#)/);
+                 if (matchA && matchB) {
+                   return parseInt(matchA[1] || matchA[2], 10) - parseInt(matchB[1] || matchB[2], 10);
+                 }
+
+                 const cleanA = normalizeForSort(a.key.replace(/^\[.*?\]\s*-\s*/, ''));
+                 const cleanB = normalizeForSort(b.key.replace(/^\[.*?\]\s*-\s*/, ''));
                  
-                 entries.sort((a, b) => {
-                   const matchA = a.key.replace(/^\[.*?\]\s*-\s*/, '').match(/^(\d{3})#/);
-                   const matchB = b.key.replace(/^\[.*?\]\s*-\s*/, '').match(/^(\d{3})#/);
-                   if (matchA && matchB) {
-                     return parseInt(matchA[1], 10) - parseInt(matchB[1], 10);
-                   }
-
-                   const cleanA = normalizeForSort(a.key.replace(/^\[.*?\]\s*-\s*/, ''));
-                   const cleanB = normalizeForSort(b.key.replace(/^\[.*?\]\s*-\s*/, ''));
-                   
-                   // 🏃‍♂️ Nexus Engine: Prioridade para match exato
+                 // 🏃‍♂️ Nexus Engine: Prioridade para match exato
                    let idxA = normalizedOrder.indexOf(cleanA);
                    let idxB = normalizedOrder.indexOf(cleanB);
                    
