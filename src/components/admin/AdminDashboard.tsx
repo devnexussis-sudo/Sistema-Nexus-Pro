@@ -1763,18 +1763,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             else if (p.length === 10) formattedPhone = p.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
                           }
                           
-                          let rawAddress = selectedOrder.customerAddress;
-                          if (c && (c.street || c.city || c.neighborhood)) {
-                            const p = [];
-                            if (c.street) p.push(c.street);
-                            if (c.number) p.push(c.number);
-                            if (c.complement) p.push(`- ${c.complement}`);
-                            if (c.neighborhood) p.push(`- ${c.neighborhood}`);
-                            if (c.city) p.push(c.city);
-                            if (c.state) p.push(c.state);
-                            rawAddress = p.join(', ').replace(', -,', ' -').replace(', - ,', ' - ');
+                          let addressBlock = null;
+                          if (c && (c.street || c.city || c.neighborhood || c.number)) {
+                            const line1 = [c.street, c.number].filter(Boolean).join(', ') + (c.neighborhood ? ` - ${c.neighborhood}` : '');
+                            const line2 = c.complement ? `Complemento: ${c.complement}` : '';
+                            const line3 = [c.city, c.state].filter(Boolean).join(', ');
+                            const cepDisplay = c?.zip ? `CEP: ${c.zip}` : '';
+
+                            addressBlock = (
+                              <div className="text-sm text-slate-600 font-medium leading-relaxed">
+                                {line1 && <span className="block">{line1}</span>}
+                                {line2 && <span className="block text-slate-500 italic">{line2}</span>}
+                                {line3 && <span className="block mt-0.5">{line3} {cepDisplay && `- ${cepDisplay}`}</span>}
+                              </div>
+                            );
+                          } else {
+                            const rawAddress = selectedOrder.customerAddress;
+                            const cepDisplay = c?.zip ? `CEP: ${c.zip}` : '';
+                            addressBlock = (
+                              <div className="text-sm text-slate-600 font-medium leading-relaxed">
+                                <span className="block">{rawAddress || 'Não informado'}</span>
+                                {cepDisplay && <span className="block mt-0.5">{cepDisplay}</span>}
+                              </div>
+                            );
                           }
-                          const cepDisplay = c?.zip ? `CEP: ${c.zip}` : '';
 
                           return (
                             <>
@@ -1799,12 +1811,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Endereço de Atendimento / Principal</label>
                                 {isEditing
                                   ? <input className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-2 py-1 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all" value={editDraft.customerAddress ?? ''} onChange={e => setEditDraft(d => ({ ...d, customerAddress: e.target.value }))} />
-                                  : (
-                                    <div className="text-sm text-slate-600 font-medium leading-relaxed">
-                                      {rawAddress || 'Não informado'}
-                                      {cepDisplay && <span className="block mt-0.5">{cepDisplay}</span>}
-                                    </div>
-                                  )
+                                  : addressBlock
                                 }
                               </div>
                             </>
