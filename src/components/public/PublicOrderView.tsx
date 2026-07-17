@@ -576,7 +576,7 @@ const CollapsibleFormSection: React.FC<{
       {/* Collapsible Toggle */}
       <button
         onClick={() => setIsOpen(v => !v)}
-        className="w-full flex items-center justify-between px-6 sm:px-8 py-5 hover:bg-slate-50 transition-all group"
+        className="w-full flex items-center justify-between px-4 sm:px-8 py-4 sm:py-5 hover:bg-slate-50 transition-all group"
       >
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -601,7 +601,7 @@ const CollapsibleFormSection: React.FC<{
 
       {/* Expanded content — cada item do formulário com texto + fotos juntos */}
       {isOpen && (
-        <div className="border-t border-slate-200 px-6 sm:px-8 py-6 space-y-8 animate-fade-in">
+        <div className="border-t border-slate-200 px-3 sm:px-8 py-5 sm:py-6 space-y-6 sm:space-y-8 animate-fade-in">
           {(() => {
             const groupedItems = formItems.reduce((acc, item) => {
               const match = item.key.match(/^\[(.*?)\]\s*(?:-|$)/);
@@ -659,13 +659,13 @@ const CollapsibleFormSection: React.FC<{
                           <div key={key} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                             <div className="grid grid-cols-2 divide-x divide-slate-200">
                               {/* Pergunta */}
-                              <div className="p-4 bg-slate-50/50 flex items-center">
+                              <div className="p-3 sm:p-4 bg-slate-50/50 flex items-center">
                                 <p className="text-xs text-slate-800 uppercase tracking-wide">
                                   {resolvePublicLabel(key)}
                                 </p>
                               </div>
                               {/* Resposta */}
-                              <div className="p-4 flex flex-col justify-center">
+                              <div className="p-3 sm:p-4 flex flex-col justify-center">
                                 {text !== null && (
                                   <p className={`text-sm leading-snug flex items-center gap-1.5 ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok'
                                     ? 'text-emerald-600'
@@ -2228,7 +2228,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         </div>
 
         {/* ── MAIN CONTENT ── */}
-        <main className="max-w-6xl mx-auto px-4 sm:px-8 py-8 sm:py-12 flex flex-col gap-10 print:hidden">
+        <main className="max-w-6xl mx-auto px-2 sm:px-8 py-6 sm:py-12 flex flex-col gap-6 sm:gap-10 print:hidden">
 
           {/* ── ROW 1: Cliente + Localização ── */}
           <div className="flex flex-col gap-4 lg:gap-6">
