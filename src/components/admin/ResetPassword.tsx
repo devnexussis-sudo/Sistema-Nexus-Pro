@@ -36,6 +36,7 @@ export const ResetPassword: React.FC = () => {
                 const code = url.match(/[?&]code=([^&#]*)/)?.[1];
 
                 let authSession = null;
+                let localError = '';
 
                 if (access) {
                     logger.info('[ResetPassword] Injetando tokens de recuperação...');
