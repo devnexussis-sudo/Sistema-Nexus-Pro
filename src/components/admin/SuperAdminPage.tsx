@@ -254,6 +254,10 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
       }
 
       await loadTenants();
+      try {
+        const { queryClient } = await import('../../hooks/useQuery');
+        queryClient.clearAll();
+      } catch(e) {}
       closeModal();
     } catch (e: any) {
       console.error("DETAILED ERROR FROM SUPABASE:", e);

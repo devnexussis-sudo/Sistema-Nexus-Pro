@@ -278,6 +278,10 @@ export const queryClient = {
         }
         window.dispatchEvent(new CustomEvent('NEXUS_QUERY_INVALIDATE', { detail: { key: keyPrefix } }));
     },
+    clearAll: () => {
+        queryCache.clear();
+        window.dispatchEvent(new CustomEvent('NEXUS_QUERY_INVALIDATE', { detail: { key: '' } }));
+    },
     setQueryData: (key: string, data: any) => {
         queryCache.set(key, { data, timestamp: Date.now() });
     },
