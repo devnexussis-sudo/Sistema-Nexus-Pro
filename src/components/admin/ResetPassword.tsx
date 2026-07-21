@@ -81,7 +81,7 @@ export const ResetPassword: React.FC = () => {
                 }
             } catch (err: any) {
                 console.error('[ResetPassword] Erro de inicialização:', err);
-                if (mounted) setError('Erro ao validar credenciais de recuperação.');
+                if (mounted) setError(`Erro interno: ${err.message || 'Falha ao validar credenciais'}`);
             } finally {
                 if (mounted) {
                     // Pequeno delay para estética da UI
