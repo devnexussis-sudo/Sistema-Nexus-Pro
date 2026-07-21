@@ -324,6 +324,7 @@ export const TenantService = {
             if (!data) throw new Error("Não foi possível localizar o registro da empresa para atualização.");
 
             CacheManager.invalidate('master_tenants_list');
+            CacheManager.clearAll(); // Limpa cache global para forçar reload de dados se módulos foram alterados
             return data as any;
         }
         return tenant as any;
