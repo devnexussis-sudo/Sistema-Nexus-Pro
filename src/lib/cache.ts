@@ -53,7 +53,15 @@ export class CacheManager {
      * Útil para invalidar cache quando um novo registro é criado.
      */
     /**
-     * Remove itens do cache que correspondam a um padrão (ex: 'techs_').
+     * Limpa todo o cache
+     */
+    static clearAll(): void {
+        this.storage.clear();
+        console.log(`🧹 CacheManager: Todo o cache foi limpo.`);
+    }
+
+    /**
+     * Invalida todas as chaves que contêm o padrão fornecido.
      * Útil quando um registro é criado/atualizado.
      */
     static invalidate(pattern: string): void {
