@@ -57,15 +57,20 @@ const AppRoutes: React.FC = () => {
   const navigate = useNavigate();
   useEffect(() => {
     const hash = window.location.hash;
+    const search = window.location.search;
 
-    // Se o hash contém tokens de recovery mas não estamos na rota certa
+    // Se o hash contém tokens de recovery (Implicit Flow)
     if (hash.includes('type=recovery') && !hash.includes('reset-password')) {
       console.log('[RecoveryInterceptor] Detectado lander de recuperação. Redirecionando para /reset-password...');
-      // Nós recriamos a URL do hash para o router entender
       const newHash = '#/reset-password' + hash.replace('#', '&');
       window.location.hash = newHash;
     }
-  }, []);
+    // Se a query string contém PKCE code (Novo Padrão)
+    else if (search.includes('code=') && !hash.includes('reset-password')) {
+      console.log('[RecoveryInterceptor] Detectado lander PKCE. Redirecionando para /reset-password...');
+      navigate('/reset-password', { replace: true });
+    }
+  }, [navigate]);
 
   // Rendeiza logo a UI, confiando no splashscreen do index.html para cobrir o carregamento inicial
 
