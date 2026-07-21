@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { DataService } from '../../services/dataService';
 import { NexusQueryClient, useTenant } from '../../hooks/nexusHooks';
+import SessionStorage from '../../lib/sessionStorage';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import {
@@ -73,6 +74,7 @@ interface WhatsAppConfig {
   zapi_client_token?: string;
   bot_enabled: boolean;
   bot_name: string;
+  bot_gender?: string;
   greeting_message: string;
   human_keyword: string;
   phone_number_display: string;
@@ -88,17 +90,25 @@ export const SettingsPage: React.FC = () => {
   const { isAdmin, permissions } = usePermissions();
   const { showAlert, showConfirm } = useDialog();
 
+  // 📡 Nexus Resilient Hook (Big Tech standard)
+  const { data: data, isLoading: tenantLoading, isError: tenantError, error: queryError, refetch: refetchTenant } = useTenant();
+
   // Determina quais abas o usuário pode acessar
+  const tenantModules = data?.enabled_modules || (data as any)?.enabledModules || {};
+
+  const isImpersonating = SessionStorage.get('is_impersonating') === true;
+
   const tabAccess = {
-    company: isAdmin || permissions?.settingsTabs?.company === true,
-    system: isAdmin || permissions?.settingsTabs?.system === true,
-    app: isAdmin || permissions?.settingsTabs?.app === true,
-    dashboard: isAdmin || permissions?.settingsTabs?.dashboard === true,
+    company: isImpersonating || ((isAdmin || permissions?.settingsTabs?.company === true) && tenantModules.settings_company !== false),
+    system: isImpersonating || ((isAdmin || permissions?.settingsTabs?.system === true) && tenantModules.settings_system !== false),
+    app: isImpersonating || ((isAdmin || permissions?.settingsTabs?.app === true) && tenantModules.settings_app !== false),
+    dashboard: isImpersonating || ((isAdmin || permissions?.settingsTabs?.dashboard === true) && tenantModules.settings_dashboard !== false),
+    whatsapp: isImpersonating || (isAdmin && tenantModules.settings_whatsapp !== false),
   };
 
   // Primeira aba acessível como default
   const firstAvailable = (['company', 'system', 'app', 'dashboard', 'whatsapp'] as const).find(k =>
-    k === 'whatsapp' ? isAdmin : tabAccess[k as keyof typeof tabAccess]
+    tabAccess[k as keyof typeof tabAccess]
   ) || 'company';
 
   const [activeTab, setActiveTab] = useState<'company' | 'system' | 'app' | 'dashboard' | 'whatsapp'>(firstAvailable as any);
@@ -115,6 +125,7 @@ export const SettingsPage: React.FC = () => {
     zapi_client_token: '',
     bot_enabled: false,
     bot_name: '',
+    bot_gender: 'Feminino',
     greeting_message: '',
     human_keyword: 'ATENDENTE',
     phone_number_display: '',
@@ -179,9 +190,6 @@ export const SettingsPage: React.FC = () => {
   // Ref para evitar que o Realtime apague os dados recém-salvos
   const wppSyncedRef = React.useRef(false);
 
-  // 📡 Nexus Resilient Hook (Big Tech standard)
-  const { data: data, isLoading: tenantLoading, isError: tenantError, error: queryError, refetch: refetchTenant } = useTenant();
-
   // Sincroniza estado local com dados do banco quando carregados
   useEffect(() => {
     if (data) {
@@ -245,6 +253,7 @@ export const SettingsPage: React.FC = () => {
             zapi_client_token: ws.zapi_client_token || '',
             bot_enabled: ws.bot_enabled ?? false,
             bot_name: ws.bot_name || '',
+            bot_gender: ws.bot_gender || 'Feminino',
             greeting_message: ws.greeting_message || '',
             human_keyword: ws.human_keyword || 'ATENDENTE',
             phone_number_display: ws.phone_number_display || '',
@@ -579,7 +588,7 @@ export const SettingsPage: React.FC = () => {
               <PieChart size={14} /> {t.settings.tabs.dashboard}
             </button>
           )}
-          {isAdmin && (
+          {tabAccess.whatsapp && (isImpersonating || data?.enabled_modules?.ai !== false) && (isImpersonating || (data as any)?.enabledModules?.ai !== false) && (
             <button
               type="button"
               onClick={() => setActiveTab('whatsapp')}
@@ -1212,7 +1221,7 @@ export const SettingsPage: React.FC = () => {
           </form>
 
             {/* ═══ WHATSAPP BOT TAB ═══ */}
-            {activeTab === 'whatsapp' && isAdmin && (
+            {activeTab === 'whatsapp' && tabAccess.whatsapp && (isImpersonating || data?.enabled_modules?.ai !== false) && (isImpersonating || (data as any)?.enabledModules?.ai !== false) && (
               <div className="space-y-4 animate-fade-in py-2">
                 <section className="bg-white p-4 rounded-xl border border-gray-100 shadow-xl space-y-4">
                   <div className="flex items-center justify-between border-b border-gray-50 pb-3">
@@ -1458,7 +1467,7 @@ export const SettingsPage: React.FC = () => {
                       </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Nome do Bot (ex: Assistente TechCool)</label>
                         <input
@@ -1470,14 +1479,23 @@ export const SettingsPage: React.FC = () => {
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Palavra para chamar humano</label>
-                        <input
-                          type="text"
-                          value={whatsapp.human_keyword}
-                          onChange={e => setWhatsapp({ ...whatsapp, human_keyword: e.target.value })}
-                          placeholder="ATENDENTE"
-                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-emerald-100 outline-none"
-                        />
+                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Gênero da IA</label>
+                        <div className="flex items-center bg-gray-50 p-1 rounded-xl border border-gray-200">
+                          <button
+                            type="button"
+                            onClick={() => setWhatsapp({ ...whatsapp, bot_gender: 'Feminino' })}
+                            className={`flex-1 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all ${(!whatsapp.bot_gender || whatsapp.bot_gender === 'Feminino') ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}
+                          >
+                            Feminino
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setWhatsapp({ ...whatsapp, bot_gender: 'Masculino' })}
+                            className={`flex-1 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all ${(whatsapp.bot_gender === 'Masculino') ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'}`}
+                          >
+                            Masculino
+                          </button>
+                        </div>
                       </div>
                     </div>
                     <div>

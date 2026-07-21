@@ -35,21 +35,29 @@ export const ResetPassword: React.FC = () => {
                 const refresh = url.match(/refresh_token=([^&#]*)/)?.[1];
                 const code = url.match(/[?&]code=([^&#]*)/)?.[1];
 
+                let authSession = null;
+
                 if (access) {
                     logger.info('[ResetPassword] Injetando tokens de recuperação...');
-                    const { error: sessionUpdateError } = await supabase.auth.setSession({
+                    const { error: sessionUpdateError, data } = await supabase.auth.setSession({
                         access_token: access,
                         refresh_token: refresh || '',
                     });
 
                     if (sessionUpdateError) {
                         console.error('[ResetPassword] Erro ao injetar sessão:', sessionUpdateError);
+                        if (mounted) setError(`Erro na sessão: ${sessionUpdateError.message}`);
+                    } else {
+                        authSession = data.session;
                     }
                 } else if (code) {
                     logger.info('[ResetPassword] Trocando código por sessão (PKCE)...');
-                    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+                    const { error: exchangeError, data } = await supabase.auth.exchangeCodeForSession(code);
                     if (exchangeError) {
                         console.error('[ResetPassword] Erro na troca do código:', exchangeError);
+                        if (mounted) setError(`Link expirado ou navegador diferente (Erro: ${exchangeError.message}). Por segurança, abra o link no mesmo navegador onde solicitou a troca.`);
+                    } else {
+                        authSession = data.session;
                     }
                 }
 
@@ -60,24 +68,24 @@ export const ResetPassword: React.FC = () => {
                     window.history.replaceState(null, '', cleanUrl);
                 }
 
-                // Verifica se temos uma sessão ativa (seja automática ou injetada)
-                const { data: { session } } = await supabase.auth.getSession();
+                // Verifica se temos uma sessão ativa (seja automática, injetada ou já existente)
+                if (!authSession) {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    authSession = session;
+                }
 
-                if (!session && mounted) {
-                    // Só mostra erro se não tinha token/code e nem sessão prévia
-                    if (!access && !code) {
-                        setError('O link de recuperação parece inválido ou expirado. Por favor, solicite um novo e-mail.');
-                    }
+                if (!authSession && mounted && !error) {
+                    setError('Não foi possível iniciar a sessão de recuperação segura. Por favor, solicite um novo link e abra no mesmo navegador.');
                 }
             } catch (err: any) {
                 console.error('[ResetPassword] Erro de inicialização:', err);
                 if (mounted) setError('Erro ao validar credenciais de recuperação.');
             } finally {
                 if (mounted) {
-                    // Pequeno delay para garantir que o Supabase processou a sessão
+                    // Pequeno delay para estética da UI
                     setTimeout(() => {
                         if (mounted) setIsChecking(false);
-                    }, 1000);
+                    }, 800);
                 }
             }
         };

@@ -1,3 +1,4 @@
+import './handoff'; // DEVE SER A PRIMEIRA LINHA!
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './styles/admin.css';
@@ -9,6 +10,7 @@ import './lib/telemetry'; // 📡 Initialize global logging system
 // ⛔ REMOVIDO: import './lib/idleLogout'
 // O timer de inatividade (12h) é gerenciado EXCLUSIVAMENTE pelo AuthContext.
 // Ter dois sistemas concorrentes causava race conditions e duplo signOut.
+
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

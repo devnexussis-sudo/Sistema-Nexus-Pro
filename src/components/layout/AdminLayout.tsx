@@ -150,32 +150,46 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     };
 
     const isModuleEnabled = (moduleId: string): boolean => {
+        // 0. SE FOR MASTER OVERRIDE (IMPERSONATING), LIBERA TUDO ABSOLUTAMENTE
+        if (SessionStorage.get('is_impersonating') === true || user?.id === 'master-override') {
+            return true;
+        }
+
+        // 1. REGRA MASTER (Prioridade Máxima): A empresa (Tenant) tem este módulo habilitado pelo SuperAdmin?
+        const tenantModules = tenant?.enabled_modules || tenant?.enabledModules;
+        if (tenantModules && tenantModules[moduleId] === false) {
+            return false; // Bloqueado pelo Master (SuperAdmin). NINGUÉM do tenant acessa.
+        }
+
+        // 2. Se a empresa tem acesso, e o usuário logado for ADMIN, libera o acesso para ele.
         if (isAdmin) return true;
+
+        // 3. Se não for admin, verifica se há restrições específicas para este usuário
         if (!user || !(user as any).enabledModules) return true;
         return (user as any).enabledModules[moduleId] !== false;
     };
 
     const menuItems = [
         { path: '/admin', id: 'dashboard', label: t.nav.dashboard, icon: LayoutDashboard, visible: menuVisible('dashboard'), enabled: isModuleEnabled('dashboard') },
-        { path: '/admin/ai', id: 'ai', label: 'Duno IA', icon: Bot, visible: true, enabled: true },
-        { path: '/admin/docs', id: 'docs', label: 'Docs / FAQ', icon: BookOpen, visible: true, enabled: true },
-        { path: '/admin/whatsapp', id: 'whatsapp', label: 'WhatsApp Inbox', icon: MessageCircle, visible: isAdmin, enabled: true, badge: whatsappWaitingCount },
-        { path: '/admin/solicitacoes', id: 'solicitacoes', label: 'Solicitações', icon: ClipboardCheck, visible: isAdmin, enabled: true, badge: solicitacoesCount },
+        { path: '/admin/ai', id: 'ai', label: 'Duno IA', icon: Bot, visible: menuVisible('settings'), enabled: isModuleEnabled('ai') },
+        { path: '/admin/docs', id: 'docs', label: 'Docs / FAQ', icon: BookOpen, visible: true, enabled: isModuleEnabled('docs') },
+        { path: '/admin/whatsapp', id: 'whatsapp', label: 'WhatsApp Inbox', icon: MessageCircle, visible: isAdmin, enabled: isModuleEnabled('ai'), badge: whatsappWaitingCount },
+        { path: '/admin/solicitacoes', id: 'solicitacoes', label: 'Solicitações', icon: ClipboardCheck, visible: isAdmin, enabled: isModuleEnabled('ai'), badge: solicitacoesCount },
         { path: '/admin/orders', id: 'orders', label: t.nav.orders, icon: ClipboardList, visible: menuVisible('orders'), enabled: isModuleEnabled('orders') },
-        { path: '/admin/calendar', id: 'calendar', label: t.nav.calendar, icon: Calendar, visible: menuVisible('calendar'), enabled: isModuleEnabled('orders') },
+        { path: '/admin/calendar', id: 'calendar', label: t.nav.calendar, icon: Calendar, visible: menuVisible('calendar'), enabled: isModuleEnabled('calendar') },
         { path: '/admin/map', id: 'map', label: t.nav.map, icon: Navigation, visible: menuVisible('map'), enabled: isModuleEnabled('map') },
         { path: '/admin/financial', id: 'financial', label: t.nav.financial, icon: DollarSign, visible: menuVisible('financial'), enabled: isModuleEnabled('financial') },
         { path: '/admin/quotes', id: 'quotes', label: t.nav.quotes, icon: FileText, visible: menuVisible('quotes'), enabled: isModuleEnabled('quotes') },
         { path: '/admin/stock', id: 'stock', label: t.nav.stock, icon: Package, visible: menuVisible('stock'), enabled: isModuleEnabled('stock') },
         { path: '/admin/contracts', id: 'contracts', label: t.nav.contracts, icon: CalendarClock, visible: menuVisible('contracts'), enabled: isModuleEnabled('contracts') },
-        { path: '/admin/customers', id: 'clients', label: t.nav.customers, icon: Users, visible: menuVisible('customers'), enabled: isModuleEnabled('clients') },
-        { path: '/admin/equipments', id: 'equip', label: t.nav.equipments, icon: Box, visible: menuVisible('equipments'), enabled: isModuleEnabled('equip') },
+        { path: '/admin/customers', id: 'clients', label: t.nav.customers, icon: Users, visible: menuVisible('customers'), enabled: isModuleEnabled('customers') },
+        { path: '/admin/equipments', id: 'equip', label: t.nav.equipments, icon: Box, visible: menuVisible('equipments'), enabled: isModuleEnabled('equipments') },
         { path: '/admin/forms', id: 'forms', label: t.nav.forms, icon: Workflow, visible: menuVisible('forms'), enabled: isModuleEnabled('forms') },
-        { path: '/admin/technicians', id: 'techs', label: t.nav.technicians, icon: Wrench, visible: menuVisible('technicians'), enabled: isModuleEnabled('techs') },
+        { path: '/admin/technicians', id: 'techs', label: t.nav.technicians, icon: Wrench, visible: menuVisible('technicians'), enabled: isModuleEnabled('technicians') },
         { path: '/admin/regions', id: 'regions', label: 'Gestão de Regiões', icon: MapPin, visible: menuVisible('regions'), enabled: isModuleEnabled('regions') },
         { path: '/admin/users', id: 'users', label: t.nav.users, icon: ShieldAlert, visible: menuVisible('users'), enabled: isModuleEnabled('users') },
         { path: '/admin/settings', id: 'settings', label: t.nav.settings, icon: Settings, visible: menuVisible('settings'), enabled: isModuleEnabled('settings') },
-        { path: '/admin/integrations', id: 'integrations', label: 'Integrações', icon: Code2, visible: menuVisible('settings'), enabled: isModuleEnabled('settings') },
+        { path: '/admin/integrations', id: 'integrations', label: 'Integrações', icon: Code2, visible: menuVisible('settings'), enabled: isModuleEnabled('integrations') },
     ];
 
     const activeItem = menuItems.find(item =>
@@ -567,14 +581,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     <span className="text-[9px] font-semibold tracking-wide">Início</span>
                 </Link>
                 
-                {menuVisible('orders') && (
+                {menuVisible('orders') && isModuleEnabled('orders') && (
                 <Link to="/admin/orders" className={`flex flex-col items-center justify-center gap-1 w-16 h-full transition-colors ${location.pathname.startsWith('/admin/orders') ? 'text-primary-600' : 'text-slate-400 hover:text-slate-600'}`}>
                     <ClipboardList size={20} className={location.pathname.startsWith('/admin/orders') ? 'fill-primary-50 text-primary-600' : ''} />
                     <span className="text-[9px] font-semibold tracking-wide">Ordens</span>
                 </Link>
                 )}
                 
-                {menuVisible('customers') && (
+                {menuVisible('customers') && isModuleEnabled('customers') && (
                 <Link to="/admin/customers" className={`flex flex-col items-center justify-center gap-1 w-16 h-full transition-colors ${location.pathname.startsWith('/admin/customers') ? 'text-primary-600' : 'text-slate-400 hover:text-slate-600'}`}>
                     <Users size={20} className={location.pathname.startsWith('/admin/customers') ? 'fill-primary-50 text-primary-600' : ''} />
                     <span className="text-[9px] font-semibold tracking-wide">Clientes</span>

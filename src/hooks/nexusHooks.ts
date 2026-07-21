@@ -265,6 +265,9 @@ export const useTenant = (enabled = true) => {
 // ------------------------------------------------------------------
 
 export const NexusQueryClient = {
+    invalidateCurrentTenant: () => {
+        queryClient.invalidateQueries('current_tenant');
+    },
     invalidateOrders: () => {
         queryClient.invalidateQueries('orders');
         CacheManager.invalidate('orders');

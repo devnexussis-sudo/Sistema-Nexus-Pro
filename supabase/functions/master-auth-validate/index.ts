@@ -1,15 +1,21 @@
 /**
  * master-auth-validate — Supabase Edge Function
  *
- * Validates master login (email + password + TOTP) entirely server-side.
- * Secrets NEVER reach the browser. Stored in Supabase Dashboard → Edge Functions → Secrets.
+ * Big Tech Identity Provider Pattern (Auth0 / Firebase Auth / Google Cloud IAP)
  *
- * Required secrets (set in Supabase Dashboard):
+ * Validates master login (email + password + TOTP) entirely server-side.
+ * After 3FA validation, provisions the user in Supabase Auth (if needed)
+ * and returns real JWT session tokens so the frontend has a valid
+ * authenticated session for RLS to work correctly.
+ *
+ * Required secrets (set in Supabase Dashboard → Edge Functions → Secrets):
  *   MASTER_EMAIL          → e-mail do super admin
  *   MASTER_PASSWORD       → senha forte do super admin
  *   MASTER_TOTP_SECRET    → segredo Base32 para TOTP (RFC 6238)
  *   MASTER_SESSION_TOKEN  → token aleatório retornado ao browser após login com sucesso
  */
+
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -103,6 +109,89 @@ function clearAttempts(ip: string): void {
   attempts.delete(ip);
 }
 
+// ─── Identity Provisioning (Big Tech Pattern) ─────────────────────────────────
+
+/**
+ * Ensures the master user exists in Supabase Auth with the correct password
+ * and role metadata. This is the equivalent of Auth0's "Management API" or
+ * Firebase Admin SDK's createUser/updateUser.
+ * 
+ * Returns a valid session (access_token + refresh_token) for the master user.
+ */
+async function provisionMasterSession(masterEmail: string, masterPassword: string) {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+  // Admin client — bypasses RLS, can manage auth users
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  // 1. Check if the master user already exists in auth.users
+  const { data: existingUsers } = await adminClient.auth.admin.listUsers({ 
+    page: 1, 
+    perPage: 1000 
+  });
+  
+  const existingUser = existingUsers?.users?.find(
+    (u: any) => u.email?.toLowerCase() === masterEmail.toLowerCase()
+  );
+
+  let userId: string;
+
+  if (existingUser) {
+    // 2a. User exists — sync password and role metadata
+    await adminClient.auth.admin.updateUserById(existingUser.id, {
+      password: masterPassword,
+      user_metadata: { 
+        ...existingUser.user_metadata,
+        role: 'moros_admin' 
+      },
+      email_confirm: true,
+    });
+    userId = existingUser.id;
+  } else {
+    // 2b. User doesn't exist — create with confirmed email
+    const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
+      email: masterEmail,
+      password: masterPassword,
+      email_confirm: true,
+      user_metadata: { role: 'moros_admin' },
+    });
+    if (createError || !newUser?.user) {
+      throw new Error(`Failed to create master user: ${createError?.message}`);
+    }
+    userId = newUser.user.id;
+  }
+
+  // 3. Ensure user is in global_admins table (IAM Pattern)
+  await adminClient.from('global_admins').upsert(
+    { user_id: userId },
+    { onConflict: 'user_id' }
+  );
+
+  // 4. Sign in as the user using a fresh client (NOT admin) to get real JWT tokens
+  const authClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  
+  const { data: signInData, error: signInError } = await authClient.auth.signInWithPassword({
+    email: masterEmail,
+    password: masterPassword,
+  });
+
+  if (signInError || !signInData?.session) {
+    throw new Error(`Failed to create session: ${signInError?.message}`);
+  }
+
+  return {
+    access_token: signInData.session.access_token,
+    refresh_token: signInData.session.refresh_token,
+    expires_in: signInData.session.expires_in,
+    user_id: userId,
+  };
+}
+
 // ─── Main Handler ─────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
@@ -152,16 +241,37 @@ Deno.serve(async (req: Request) => {
     const passOk = typeof password === 'string' && password === masterPassword;
     const totpOk = typeof totp === 'string' && totp.length === 6 && await verifyTOTP(masterTotpSecret, totp);
 
-    await minDelay();
-
     if (emailOk && passOk && totpOk) {
       clearAttempts(ip);
-      return new Response(JSON.stringify({
-        success: true,
-        sessionToken: masterSessionToken, // Opaque token returned to browser — never the secrets
-      }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+      // ─── Big Tech Pattern: Provision Identity & Issue Tokens ───
+      // Like Auth0's /oauth/token or Firebase's createCustomToken
+      try {
+        const session = await provisionMasterSession(masterEmail, masterPassword);
+        
+        await minDelay();
+        return new Response(JSON.stringify({
+          success: true,
+          sessionToken: masterSessionToken, // Legacy opaque token for backward compat
+          // Real JWT session tokens for Supabase Auth (the actual fix)
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+          expires_in: session.expires_in,
+        }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      } catch (provisionError: any) {
+        // 3FA passed but identity provisioning failed — return success with warning
+        console.error('[master-auth-validate] Identity provisioning error:', provisionError.message);
+        await minDelay();
+        return new Response(JSON.stringify({
+          success: true,
+          sessionToken: masterSessionToken,
+          // No JWT tokens — frontend will work in degraded mode
+          provision_error: provisionError.message,
+        }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
     } else {
       registerFailedAttempt(ip);
+      await minDelay();
       return new Response(JSON.stringify({
         success: false,
         error: 'Credenciais inválidas ou código TOTP incorreto.',

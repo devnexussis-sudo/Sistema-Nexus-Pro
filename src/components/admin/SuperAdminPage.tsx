@@ -312,17 +312,19 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
       }
     };
 
-    // 3. Define flags de estado (isolados nesta aba)
-    SessionStorage.set('user', masterAdminUser);
-    SessionStorage.set('is_impersonating', true);
+    // 3. Sistema de Handoff (Cross-Tab Impersonation)
+    const token = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    
+    // Armazena temporariamente no localStorage para a nova aba capturar
+    localStorage.setItem(`nexus_handoff_${token}`, JSON.stringify({
+      user: masterAdminUser,
+      is_impersonating: true,
+      current_tenant: tenant.id,
+      supabase_auth: localStorage.getItem('nexus-line-auth') || sessionStorage.getItem('nexus-line-auth')
+    }));
 
-    // 4. Limpa o hash para evitar loops de redirecionamento no App.tsx
-    window.location.hash ="";
-
-    // 5. Redirecionamento forçado para a raiz para sair do modo Master UI
-    setTimeout(() => {
-      window.location.href = '/';
-    }, 100);
+    // 4. Abre a nova aba passando o token pela URL
+    window.open(`/#/?handoff=${token}`, '_blank');
   };
 
   const handleDeleteTenant = async () => {
@@ -562,26 +564,28 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                   {/* Actions */}
                   <div className="flex items-center gap-2 shrink-0">
                     <button
-                      onClick={() => {
-                        setEditingTenant(tenant);
+                      onClick={async () => {
+                        const fullTenant = await DataService.getTenantById(tenant.id);
+                        const mergedTenant = fullTenant || tenant;
+                        setEditingTenant(mergedTenant);
                         setFormData({
-                          ...tenant,
-                          companyName: tenant.company_name || tenant.name || tenant.companyName,
-                          tradingName: tenant.trading_name || tenant.company_name || tenant.name || tenant.tradingName,
-                          adminEmail: tenant.admin_email || tenant.email || tenant.adminEmail,
-                          cnpj: tenant.cnpj || tenant.document || tenant.cnpj,
-                          id: tenant.slug || tenant.id,
-                          street: (tenant as any).street || (tenant as any).metadata?.street,
-                          number: (tenant as any).number || (tenant as any).metadata?.number,
-                          complement: (tenant as any).complement || (tenant as any).metadata?.complement,
-                          neighborhood: (tenant as any).neighborhood || (tenant as any).metadata?.neighborhood,
-                          city: (tenant as any).city || (tenant as any).metadata?.city,
-                          state: (tenant as any).state || (tenant as any).metadata?.state,
-                          cep: (tenant as any).cep || (tenant as any).metadata?.cep,
-                          website: (tenant as any).website || (tenant as any).metadata?.website || '',
-                          stateRegistration: (tenant as any).state_registration || (tenant as any).stateRegistration || 'ISENTO',
-                          logoUrl: (tenant as any).logo_url || (tenant as any).logoUrl || null,
-                          enabled_modules: tenant.enabled_modules || (tenant as any).enabledModules || {
+                          ...mergedTenant,
+                          companyName: mergedTenant.company_name || mergedTenant.name || mergedTenant.companyName,
+                          tradingName: mergedTenant.trading_name || mergedTenant.company_name || mergedTenant.name || mergedTenant.tradingName,
+                          adminEmail: mergedTenant.admin_email || mergedTenant.email || mergedTenant.adminEmail,
+                          cnpj: mergedTenant.cnpj || mergedTenant.document || mergedTenant.cnpj,
+                          id: mergedTenant.slug || mergedTenant.id,
+                          street: (mergedTenant as any).street || (mergedTenant as any).metadata?.street,
+                          number: (mergedTenant as any).number || (mergedTenant as any).metadata?.number,
+                          complement: (mergedTenant as any).complement || (mergedTenant as any).metadata?.complement,
+                          neighborhood: (mergedTenant as any).neighborhood || (mergedTenant as any).metadata?.neighborhood,
+                          city: (mergedTenant as any).city || (mergedTenant as any).metadata?.city,
+                          state: (mergedTenant as any).state || (mergedTenant as any).metadata?.state,
+                          cep: (mergedTenant as any).cep || (mergedTenant as any).metadata?.cep,
+                          website: (mergedTenant as any).website || (mergedTenant as any).metadata?.website || '',
+                          stateRegistration: (mergedTenant as any).state_registration || (mergedTenant as any).stateRegistration || 'ISENTO',
+                          logoUrl: (mergedTenant as any).logo_url || (mergedTenant as any).logoUrl || null,
+                          enabled_modules: mergedTenant.enabled_modules || (mergedTenant as any).enabledModules || {
                             dashboard: true, orders: true, quotes: true, contracts: true,
                             customers: true, equipments: true, stock: true, technicians: true,
                             forms: true, users: true, settings: true
@@ -1000,6 +1004,46 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                               }}
                             />
                             <div className={`w-8 h-4 rounded-full transition-colors flex items-center relative ${isEnabled ? 'bg-amber-500' : 'bg-[#1c1c1e]'}`}>
+                              <div className={`w-3 h-3 bg-white rounded-full shadow transition-transform absolute top-0.5 ${isEnabled ? 'translate-x-4' : 'translate-x-0.5 opacity-30'}`} />
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  <p className="text-[9px] font-medium text-violet-400 uppercase tracking-widest mt-3">─ Sub-Páginas de Configurações ─</p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mt-2">
+                    {[
+                      { id: 'settings_company', label: 'Aba: Empresa', icon: Settings },
+                      { id: 'settings_system', label: 'Aba: Sistema', icon: Settings },
+                      { id: 'settings_app', label: 'Aba: App', icon: Settings },
+                      { id: 'settings_dashboard', label: 'Aba: Dashboard', icon: Settings },
+                      { id: 'settings_whatsapp', label: 'Aba: WhatsApp Bot', icon: Settings },
+                    ].map(module => {
+                      const isEnabled = !!(formData.enabled_modules?.[module.id] ?? (formData as any).enabledModules?.[module.id] ?? true);
+                      return (
+                        <label
+                          key={module.id}
+                          className={`flex justify-between items-center p-3 rounded-lg border transition-all cursor-pointer select-none
+                            ${isEnabled
+                              ? 'bg-[#161618] border-violet-500/40 text-white'
+                              : 'bg-black/30 border-white/5 text-gray-400 hover:border-white/20'}`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 pr-4">
+                            <span className={isEnabled ? 'text-violet-400' : 'text-gray-700'}>
+                              <module.icon size={14} />
+                            </span>
+                            <span className="text-[9px] font-normal uppercase tracking-tight truncate">{module.label}</span>
+                          </div>
+                          <div className="shrink-0">
+                            <input type="checkbox" className="hidden" checked={isEnabled}
+                              onChange={(e) => {
+                                const newModules = { ...(formData.enabled_modules || {}), [module.id]: e.target.checked };
+                                setFormData({ ...formData, enabled_modules: newModules });
+                              }}
+                            />
+                            <div className={`w-8 h-4 rounded-full transition-colors flex items-center relative ${isEnabled ? 'bg-violet-500' : 'bg-[#1c1c1e]'}`}>
                               <div className={`w-3 h-3 bg-white rounded-full shadow transition-transform absolute top-0.5 ${isEnabled ? 'translate-x-4' : 'translate-x-0.5 opacity-30'}`} />
                             </div>
                           </div>

@@ -57,6 +57,7 @@ const AppRoutes: React.FC = () => {
   const navigate = useNavigate();
   useEffect(() => {
     const hash = window.location.hash;
+
     // Se o hash contém tokens de recovery mas não estamos na rota certa
     if (hash.includes('type=recovery') && !hash.includes('reset-password')) {
       console.log('[RecoveryInterceptor] Detectado lander de recuperação. Redirecionando para /reset-password...');

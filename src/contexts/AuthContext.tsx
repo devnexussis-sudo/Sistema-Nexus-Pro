@@ -52,6 +52,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // ── Inicialização: sincroniza com o estado atual do Singleton ──
         const bootstrap = async () => {
+            // 🛡️ IMPERSONATION GUARD (Big Tech Pattern: AWS STS / GCP IAM)
+            // Se esta aba foi aberta via Handoff do Master Panel, a sessão
+            // virtual já está montada no SessionStorage pelo handoff.ts.
+            // NÃO podemos chamar refreshUser (sobrescreveria o user virtual)
+            // NÃO podemos limpar o SessionStorage (destruiria a sessão).
+            if (window.__NEXUS_IMPERSONATION) {
+                console.log('[AuthContext] 🛡️ Impersonation mode — bootstrap protegido.');
+                setIsAuthLoading(false);
+                return;
+            }
+
             // Se o Singleton já tem sessão no "bolso", usa direto (zero latência)
             if (globalSessionOk && globalSession) {
                 setSession(globalSession);
@@ -101,12 +112,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setIsAuthLoading(false);
 
             if (!newSession) {
+                // 🛡️ IMPERSONATION GUARD: Não destruir sessão virtual
+                if (window.__NEXUS_IMPERSONATION || SessionStorage.get('is_impersonating')) {
+                    console.log('[AuthContext] 🛡️ Impersonation ativa — ignorando SIGNED_OUT/null session.');
+                    return;
+                }
                 // Se não há sessão válida (expirou silenciosamente ou INITIAL_SESSION veio nulo)
                 // Precisamos forçar o logoff local para a rota redirecionar ao /login
                 setAuth({ user: null, isAuthenticated: false });
                 SessionStorage.clear();
                 GlobalStorage.remove('persistent_user');
             } else if (event === 'SIGNED_IN' && newSession?.user) {
+                // 🛡️ IMPERSONATION GUARD: Não sobrescrever user virtual com user real do DB
+                if (window.__NEXUS_IMPERSONATION || SessionStorage.get('is_impersonating')) {
+                    console.log('[AuthContext] 🛡️ Impersonation ativa — ignorando refreshUser no SIGNED_IN.');
+                    return;
+                }
                 // Apenas no login inicial — carrega o perfil Nexus do usuário
                 if (!isRefreshingUser.current) {
                     isRefreshingUser.current = true;

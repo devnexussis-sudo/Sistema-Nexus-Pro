@@ -4,6 +4,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { ShieldCheck, Lock, Mail, ArrowRight, KeyRound, AlertTriangle, Timer } from 'lucide-react';
 import SessionStorage from '../../lib/sessionStorage';
+import { supabase } from '../../lib/supabase';
 import { NexusBranding } from '../ui/NexusBranding';
 
 // Supabase project URL for Edge Function calls
@@ -87,6 +88,20 @@ export const MasterLogin: React.FC<MasterLoginProps> = ({ onLogin, onCancel }) =
       }
 
       if (result.success && result.sessionToken) {
+        // ─── Big Tech Pattern: Set session using server-issued JWT tokens ───
+        // The Edge Function (Identity Provider) validates 3FA and issues 
+        // real Supabase Auth tokens. We use setSession() to establish the
+        // authenticated session locally — like Auth0's handleRedirectCallback.
+        if (result.access_token && result.refresh_token) {
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: result.access_token,
+            refresh_token: result.refresh_token,
+          });
+          if (sessionError) {
+            console.error('[MasterLogin] Session establishment failed:', sessionError.message);
+          }
+        }
+
         // Store the opaque session token — server confirmed identity
         SessionStorage.set('master_session_v2', true);
         SessionStorage.set('master_session_token', result.sessionToken);

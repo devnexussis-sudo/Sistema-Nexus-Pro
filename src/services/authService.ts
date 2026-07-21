@@ -169,11 +169,38 @@ export const AuthService = {
 
         // 1. Verificação de Identidade na Camada de Gestão (Tabela 'users')
         // Se o usuário não existir nesta tabela, ele pode ser um Técnico, mas NÃO tem acesso ao portal administrativo.
-        const { data: dbUser, error } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', authId)
-            .single();
+        let dbUser = null;
+        let error = null;
+        const maxRetries = 3;
+        const baseDelayMs = 300; // Base delay for Exponential Backoff
+        const maxDelayMs = 2000; // Maximum delay limit
+
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            const res = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', authId)
+                .single();
+                
+            dbUser = res.data;
+            error = res.error;
+
+            // Fail fast on success or deterministic errors
+            // PGRST116: Not Found (Deterministic)
+            if (!error || error.code === 'PGRST116') break;
+            
+            // Se for o último request e falhou, saia do loop
+            if (attempt === maxRetries) break;
+
+            // 🚀 Big Tech Standard: Exponential Backoff with Full Jitter
+            // Previne o "Thundering Herd Problem" espalhando requests concorrentes
+            const exponentialDelay = Math.min(maxDelayMs, baseDelayMs * Math.pow(2, attempt));
+            const jitterDelay = Math.floor(Math.random() * exponentialDelay);
+            
+            console.warn(`[AuthService] Transient error (Attempt ${attempt + 1}/${maxRetries}): ${error.message}. Backoff: ${jitterDelay}ms`);
+            
+            await new Promise(r => setTimeout(r, jitterDelay));
+        }
 
         if (error) {
             if (error.code === 'PGRST116') {

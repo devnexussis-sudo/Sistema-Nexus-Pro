@@ -67,30 +67,47 @@ function extractPhoneNumber(payload: any): string {
   return String(phoneVal).replace(/[^0-9]/g, '');
 }
 
+function unwrapMessage(msg: any): any {
+  if (!msg || typeof msg !== 'object') return msg;
+  if (msg.ephemeralMessage) return unwrapMessage(msg.ephemeralMessage.message);
+  if (msg.viewOnceMessage) return unwrapMessage(msg.viewOnceMessage.message);
+  if (msg.viewOnceMessageV2) return unwrapMessage(msg.viewOnceMessageV2.message);
+  if (msg.viewOnceMessageV2Extension) return unwrapMessage(msg.viewOnceMessageV2Extension.message);
+  if (msg.documentWithCaptionMessage) return unwrapMessage(msg.documentWithCaptionMessage.message);
+  if (msg.editedMessage) return unwrapMessage(msg.editedMessage.message?.protocolMessage?.editedMessage || msg.editedMessage.message);
+  return msg;
+}
+
 function extractText(payload: any): string | null {
-  const msgObj = payload.data?.messages?.[0] || payload.data;
+  // Formatos simples e Z-API
   const content = payload.content || 
                   payload.message?.content ||
                   payload.text?.message || 
-                  payload.body || 
-                  msgObj?.message?.conversation ||
-                  msgObj?.message?.extendedTextMessage?.text;
+                  payload.body;
 
-  // Em alguns payloads da UAZAPI, 'content' é um objeto quando é mídia.
   if (typeof content === 'string') return content;
-  if (typeof content === 'object' && content !== null) {
-    return content.caption || null;
+  if (typeof content === 'object' && content !== null && content.caption) {
+    return content.caption;
   }
+
+  // Evolution API / UAZAPI (usando o objeto desempacotado)
+  const actualMsg = getActualMessageObj(payload);
+  const textMsg = actualMsg?.conversation || 
+                  actualMsg?.extendedTextMessage?.text;
+
+  if (typeof textMsg === 'string') return textMsg;
+
   return null;
 }
 
 // Retorna o objeto interno da mensagem (remove os wrappers da UAZAPI/Evolution API)
 function getActualMessageObj(payload: any): any {
-  return payload.data?.messages?.[0]?.message || 
-         payload.data?.message?.message || 
-         payload.data?.message || 
-         payload.message || 
-         {};
+  const rawMsg = payload.data?.messages?.[0]?.message || 
+                 payload.data?.message?.message || 
+                 payload.data?.message || 
+                 payload.message || 
+                 {};
+  return unwrapMessage(rawMsg);
 }
 
 // Tenta extrair a melhor representação da mídia do payload (UAZAPI/Z-API)
@@ -463,42 +480,7 @@ serve(async (req: Request) => {
       });
     }
 
-    // ── Verificar palavra-chave para chamar humano manualmente
-    const humanKeyword = settings.human_keyword || "ATENDENTE";
-    if (safeText.toUpperCase().includes(humanKeyword.toUpperCase())) {
-      const isOnline = isWithinBusinessHours(settings);
-      
-      if (!isOnline) {
-        // Se fora do horário comercial, avisa o cliente e MANTÉM a IA ativa (não muda o state para WAITING_HUMAN)
-        const outMsg = settings.out_of_office_msg || "Nosso horário de atendimento com humanos é de Seg a Sex das 08h às 18h. Posso continuar te ajudando por aqui!";
-        
-        await sendWhatsAppMessage(settings, phone, outMsg);
-        
-        // Adiciona a mensagem ao histórico em memória para a IA e para o banco mais abaixo
-        conversation.history.push({ role: "bot", content: outMsg, timestamp: new Date().toISOString() });
-        
-        // E NÃO RETORNA! Deixa o fluxo prosseguir para o whatsapp-ai-agent processar a mensagem atual.
-      } else {
-        // Se dentro do horário, vai para fila humana
-        const agentMsg = "🙋 Entendido! Estou notificando nossa equipe agora. Um atendente assumirá a conversa em instantes. Aguarde... ⏳";
-        let updatedHistory = [
-          ...conversation.history,
-          { role: "user", content: safeText, timestamp: new Date().toISOString() },
-          { role: "bot", content: agentMsg, timestamp: new Date().toISOString() },
-        ];
-        if (updatedHistory.length > 100) updatedHistory = updatedHistory.slice(-100);
-        await supabase.from("whatsapp_conversations").update({
-          state: "WAITING_HUMAN",
-          history: updatedHistory,
-          last_message_at: new Date().toISOString(),
-        }).eq("id", conversation.id);
-
-        await sendWhatsAppMessage(settings, phone, agentMsg);
-        return new Response(JSON.stringify({ ok: true, state: "WAITING_HUMAN" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    }
+    // ── O agente IA lidará naturalmente com intenções de falar com humano.
 
     // ── Chamar o agente IA
     console.log("[WPP Bot] Chamando whatsapp-ai-agent...");
