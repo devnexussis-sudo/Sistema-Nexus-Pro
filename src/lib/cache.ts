@@ -1,4 +1,4 @@
-/**
+c/**
  * 🚀 Nexus Smart Cache Layer
  * 
  * Gerenciador de cache inteligente para otimizar requisições e reduzir custo de banda/banco.

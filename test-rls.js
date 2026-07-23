@@ -2,11 +2,10 @@ import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_SERVICE_ROLE_KEY);
 
 async function test() {
-  console.log("Teste de conexão...");
+  const { data: tenants } = await supabase.from('tenants').select('id, enabled_modules').limit(1);
+  console.log("Tenant:", tenants[0]);
 }
 test();

@@ -280,6 +280,14 @@ export const queryClient = {
     },
     clearAll: () => {
         queryCache.clear();
+        try {
+            const keysToRemove: string[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k && k.startsWith('NEXUS_CACHE_')) keysToRemove.push(k);
+            }
+            keysToRemove.forEach(k => localStorage.removeItem(k));
+        } catch(e) {}
         window.dispatchEvent(new CustomEvent('NEXUS_QUERY_INVALIDATE', { detail: { key: '' } }));
     },
     setQueryData: (key: string, data: any) => {
