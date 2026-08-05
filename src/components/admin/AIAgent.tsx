@@ -292,13 +292,19 @@ export const AIAgent: React.FC = () => {
             </button>
           )}
           
-          <button onClick={() => {
-            fileInputRef.current?.click();
-          }} className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all border shadow-sm hover:shadow text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 border-slate-200/60 bg-white">
-            <GraduationCap size={13} /> Enviar Instruções
+          <button 
+            disabled={isLoading}
+            onClick={() => {
+              if (isLoading) return;
+              fileInputRef.current?.click();
+            }} 
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all border shadow-sm hover:shadow ${isLoading ? 'opacity-50 cursor-not-allowed bg-slate-100 text-slate-400' : 'text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 border-slate-200/60 bg-white'}`}
+          >
+            {isLoading ? <Loader2 size={13} className="animate-spin text-emerald-600" /> : <GraduationCap size={13} />}
+            {isLoading ? 'Processando...' : 'Enviar Instruções'}
           </button>
 
-          <input type="file" accept=".pdf,.doc,.docx,.txt,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+          <input type="file" disabled={isLoading} accept=".pdf,.doc,.docx,.txt,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
 
           <button onClick={() => setMode('memories')} className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all border shadow-sm hover:shadow ${mode === 'memories' ? 'bg-violet-50 border-violet-200 text-violet-600' : 'text-slate-500 hover:text-violet-600 hover:bg-violet-50 border-slate-200/60 bg-white'}`}>
             <Database size={13} /> Memórias

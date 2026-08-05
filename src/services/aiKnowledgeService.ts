@@ -77,6 +77,11 @@ export const aiKnowledgeService = {
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;
     const numPages = pdf.numPages;
+
+    // REGRA 2: Limite de páginas por PDF (máx 300)
+    if (numPages > 300) {
+      throw new Error(`O PDF possui muitas páginas (${numPages}). O limite máximo permitido por documento é de 300 páginas.`);
+    }
     
     let fullText = '';
     
@@ -207,6 +212,20 @@ export const aiKnowledgeService = {
   async ingestDocument(file: File, onProgress?: (status: string) => void): Promise<void> {
     const tenantId = getCurrentTenantId();
     if (!tenantId) throw new Error('Tenant não identificado');
+
+    // REGRA 1: Limite de tamanho por arquivo (máx 20MB)
+    const MAX_SIZE_MB = 20;
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      throw new Error(`O arquivo "${file.name}" excede o tamanho máximo de ${MAX_SIZE_MB}MB.`);
+    }
+
+    // REGRA 3: Cota máxima de documentos por empresa (máx 50 manuais)
+    const MAX_DOCS_PER_TENANT = 50;
+    const existingDocs = await this.listDocuments();
+    const isOverwriting = existingDocs.some(d => d.source_name === file.name);
+    if (!isOverwriting && existingDocs.length >= MAX_DOCS_PER_TENANT) {
+      throw new Error(`Limite de ${MAX_DOCS_PER_TENANT} manuais atingido para a sua empresa. Apague um manual antigo no painel "Memórias" para enviar um novo.`);
+    }
 
     // 1. Extrair texto
     if (onProgress) onProgress('Extraindo texto do PDF...');
