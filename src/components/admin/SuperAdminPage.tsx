@@ -57,6 +57,7 @@ interface Tenant {
   enabled_modules?: Record<string, boolean>;
   enabledModules?: Record<string, boolean>;
   max_technicians?: number; // Limite de licenças de técnicos
+  max_ai_manuals?: number; // Cota de manuais de IA por empresa (0 = ilimitado)
   metadata?: any;
 }
 
@@ -230,7 +231,8 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
         cep: formData.cep,
         logo_url: formData.logoUrl,
         enabled_modules: formData.enabled_modules || (formData as any).enabledModules,
-        max_technicians: formData.max_technicians ?? 0
+        max_technicians: formData.max_technicians ?? 0,
+        max_ai_manuals: (formData as any).max_ai_manuals !== undefined ? Number((formData as any).max_ai_manuals) : 50
       };
 
       if (editingTenant) {
@@ -561,6 +563,15 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                       <p className="text-[7px] font-normal text-amber-400 uppercase">Licenças</p>
                       <p className="text-sm font-medium text-amber-300">
                         {(tenant as any).max_technicians > 0 ? (tenant as any).max_technicians : '∞'}
+                      </p>
+                    </div>
+                    <div className="w-px h-6 bg-white/10" />
+                    <div className="text-center" title="Cota de Manuais Duno IA">
+                      <p className="text-[7px] font-normal text-violet-400 uppercase">Manuais IA</p>
+                      <p className="text-sm font-medium text-violet-300">
+                        {(tenant as any).max_ai_manuals !== undefined && (tenant as any).max_ai_manuals !== null
+                          ? ((tenant as any).max_ai_manuals === 0 ? '∞' : (tenant as any).max_ai_manuals)
+                          : '50'}
                       </p>
                     </div>
                   </div>
@@ -912,6 +923,43 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                             }`}
                           >
                             {n === 0 ? '∞' : n} — {p}
+                          </button>
+                        ))}
+                  </div>
+                </div>
+
+                {/* ─── Cota de Manuais Duno IA ─── */}
+                <div className="bg-violet-500/5 p-5 rounded-xl border border-violet-500/20 space-y-4">
+                  <h3 className="text-sm font-medium text-white uppercase tracking-widest flex items-center gap-2">
+                    <GraduationCap size={14} className="text-violet-400" /> 4.5. Cota de Manuais Duno IA
+                  </h3>
+                  <p className="text-gray-400 text-xs leading-relaxed">
+                    Define o número máximo de manuais em PDF que esta empresa pode enviar para o aprendizado da Duno IA.
+                    Deixe <strong className="text-white">0</strong> para ilimitado (Enterprise). Padrão: <strong>50</strong>.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <NexusInput
+                      label="Cota de Manuais IA (PDFs)"
+                      type="number"
+                      placeholder="Ex: 50 (0 = ilimitado)"
+                      value={(formData as any).max_ai_manuals ?? 50}
+                      onChange={e => setFormData({ ...formData, max_ai_manuals: Number(e.target.value) || 0 } as any)}
+                      className="bg-white/5 border-violet-500/20 text-white rounded-xl py-4"
+                      icon={<GraduationCap size={16} className="text-violet-400" />}
+                    />
+                    <div className="flex flex-col justify-center gap-1 px-2">
+                      <p className="text-xs text-violet-400 font-medium">Presets Rápidos</p>
+                      <div className="space-y-1">
+                        {[{n:10,p:'10 Manuais'},{n:30,p:'30 Manuais'},{n:50,p:'50 (Padrão)'},{n:100,p:'100 Manuais'},{n:0,p:'Ilimitado (∞)'}].map(({n,p}) => (
+                          <button key={n} type="button"
+                            onClick={() => setFormData({ ...formData, max_ai_manuals: n } as any)}
+                            className={`text-[9px] font-medium px-2 py-0.5 rounded border transition-all mr-1 ${
+                              (formData as any).max_ai_manuals === n
+                                ? 'bg-violet-500/20 border-violet-500/40 text-violet-300'
+                                : 'bg-white/5 border-white/10 text-gray-400 hover:border-violet-500/30'
+                            }`}
+                          >
+                            {p}
                           </button>
                         ))}
                       </div>

@@ -3,6 +3,7 @@ import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
 import { supabase } from '../lib/supabase';
 import { getCurrentTenantId } from '../lib/tenantContext';
 import { KNOWLEDGE_BASE } from '../data/dunoKnowledge';
+import { TenantService } from './tenantService';
 
 // Set the worker source
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -219,12 +220,26 @@ export const aiKnowledgeService = {
       throw new Error(`O arquivo "${file.name}" excede o tamanho máximo de ${MAX_SIZE_MB}MB.`);
     }
 
-    // REGRA 3: Cota máxima de documentos por empresa (máx 50 manuais)
-    const MAX_DOCS_PER_TENANT = 50;
+    // REGRA 3: Cota máxima de documentos por empresa (definida dinamicamente no Painel Super Admin)
+    let MAX_DOCS_PER_TENANT = 50; // Padrão
+    try {
+      const tenant = await TenantService.getTenantById(tenantId);
+      if (tenant) {
+        const configuredMax = (tenant as any).max_ai_manuals ?? (tenant as any).metadata?.max_ai_manuals;
+        if (configuredMax !== undefined && configuredMax !== null) {
+          MAX_DOCS_PER_TENANT = Number(configuredMax);
+        }
+      }
+    } catch (_err) {
+      console.warn('[aiKnowledgeService] Não foi possível consultar cota do tenant, usando padrão 50.');
+    }
+
     const existingDocs = await this.listDocuments();
     const isOverwriting = existingDocs.some(d => d.source_name === file.name);
-    if (!isOverwriting && existingDocs.length >= MAX_DOCS_PER_TENANT) {
-      throw new Error(`Limite de ${MAX_DOCS_PER_TENANT} manuais atingido para a sua empresa. Apague um manual antigo no painel "Memórias" para enviar um novo.`);
+    
+    // Se MAX_DOCS_PER_TENANT === 0, significa ILIMITADO (Enterprise)
+    if (MAX_DOCS_PER_TENANT > 0 && !isOverwriting && existingDocs.length >= MAX_DOCS_PER_TENANT) {
+      throw new Error(`Limite de ${MAX_DOCS_PER_TENANT} manuais atingido para a sua empresa. Apague um manual antigo no painel "Memórias" ou solicite um aumento de cota ao suporte.`);
     }
 
     // 1. Extrair texto
