@@ -3310,6 +3310,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         onChange={e => setEditVisitTechSearch(e.target.value)}
                                         className="w-full bg-white border border-blue-200 rounded-lg pl-8 pr-3 py-1.5 text-xs font-medium text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue-300 transition-all"
                                       />
+                                    </div>
                                     {/* Lista de técnicos */}
                                     <div className="max-h-36 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
                                       <button
