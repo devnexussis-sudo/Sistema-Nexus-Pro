@@ -5,7 +5,7 @@ import { useI18n } from '../../i18n';
 import { useDialog } from '../../contexts/DialogContext';
 import {
   UserPlus, Info, ChevronLeft, AtSign, Building2, Edit3, Laptop, UserMinus, Plus, Box,
-  DollarSign, Trash2, Eye, EyeOff, Package, ShoppingCart, ChevronRight, Save, X, Search, CheckCircle2, Hash, RefreshCw, Clock, FileText, Link2, Unlink, ChevronDown
+  DollarSign, Trash2, Eye, EyeOff, Package, ShoppingCart, ChevronRight, Save, X, Search, CheckCircle2, Hash, RefreshCw, Clock, FileText, Link2, Unlink, ChevronDown, MapPin
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
@@ -528,9 +528,39 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
     return Array.from(techIds);
   }, [selectedClientId, clients, regions]);
 
-  const filteredTechs = technicians.filter(t => {
-    return t.name.toLowerCase().includes(techSearch.toLowerCase());
-  });
+  // 📍 Geofencing Auto-Suggest: Sugere/Pre-seleciona automaticamente o técnico da região quando Geofencing está ativo
+  useEffect(() => {
+    if (isGeofencingEnabled && allowedTechIds && allowedTechIds.length > 0 && !initialData) {
+      if (!formData.assignedTo || !allowedTechIds.includes(formData.assignedTo)) {
+        const firstAllowed = technicians.find(t => allowedTechIds.includes(t.id));
+        if (firstAllowed) {
+          setFormData(prev => ({
+            ...prev,
+            assignedTo: firstAllowed.id,
+            status: OrderStatus.ASSIGNED
+          }));
+        }
+      }
+    }
+  }, [allowedTechIds, isGeofencingEnabled, initialData, technicians]);
+
+  const filteredTechs = React.useMemo(() => {
+    const filtered = technicians.filter(t => {
+      const q = techSearch.toLowerCase();
+      return t.name.toLowerCase().includes(q) || (t.email || '').toLowerCase().includes(q);
+    });
+
+    if (!isGeofencingEnabled || allowedTechIds === null) return filtered;
+
+    // Coloca os técnicos designados para a área PRIMEIRO na lista!
+    return [...filtered].sort((a, b) => {
+      const aAllowed = allowedTechIds.includes(a.id);
+      const bAllowed = allowedTechIds.includes(b.id);
+      if (aAllowed && !bAllowed) return -1;
+      if (!aAllowed && bAllowed) return 1;
+      return 0;
+    });
+  }, [technicians, techSearch, allowedTechIds, isGeofencingEnabled]);
 
   const addItem = (item: Partial<OrderItem>) => {
     const newItem: OrderItem = {
@@ -907,10 +937,34 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 flex flex-col h-full">
                     <h3 className="text-sm font-bold text-slate-900 border-l-4 border-emerald-500 pl-3 mb-6">responsável técnico</h3>
 
+                    {/* Banner de Geofencing Habilitado */}
+                    {isGeofencingEnabled && allowedTechIds !== null && (
+                      <div className="mb-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-between animate-in fade-in">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-md bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                            <MapPin size={13} />
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-bold text-emerald-950">Geofencing Ativo</p>
+                            <p className="text-[9px] font-medium text-emerald-800">
+                              {allowedTechIds.length > 0
+                                ? `${allowedTechIds.length} técnico(s) designado(s) exibido(s) no topo da lista`
+                                : 'Endereço fora das regiões demarcadas'}
+                            </p>
+                          </div>
+                        </div>
+                        {allowedTechIds.length > 0 && (
+                          <span className="text-[8px] font-bold text-emerald-800 bg-emerald-200/80 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            ★ Designados
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     <div className="relative mb-4">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                       <input
-                        placeholder="Pesquisar técnico..."
+                        placeholder={isGeofencingEnabled && allowedTechIds !== null ? "Pesquisar técnico (designados no topo)..." : "Pesquisar técnico..."}
                         value={techSearch}
                         onChange={e => setTechSearch(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] transition-all"
@@ -938,6 +992,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
                       {filteredTechs.map(t => {
                         const isAllowed = allowedTechIds === null || allowedTechIds.includes(t.id);
+                        const isDesignated = allowedTechIds !== null && allowedTechIds.includes(t.id);
                         const isSelected = formData.assignedTo === t.id;
                         return (
                           <button
@@ -955,19 +1010,32 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                                 ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-100'
                                 : isSelected
                                 ? 'border-[#1c2d4f] bg-[#1c2d4f05] shadow-sm'
+                                : isDesignated
+                                ? 'border-emerald-300 bg-emerald-50/40 hover:border-emerald-400 hover:bg-emerald-50'
                                 : 'border-slate-50 bg-slate-50/50 hover:border-slate-200 hover:bg-white'
                               }`}
                           >
                             <div className="relative">
                               <img src={t.avatar} className="w-9 h-9 rounded-lg object-cover border border-slate-200" alt={t.name} />
-                              {!isAllowed && (
+                              {!isAllowed ? (
                                 <div className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 rounded-full flex items-center justify-center" title="Fora da região">
                                   <span className="text-white text-[8px] font-bold">✕</span>
+                                </div>
+                              ) : isDesignated && (
+                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center shadow-sm" title="Designado para esta área">
+                                  <span className="text-white text-[9px] font-bold">★</span>
                                 </div>
                               )}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-[11px] font-bold text-slate-800 truncate">{t.name}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-[11px] font-bold text-slate-800 truncate">{t.name}</p>
+                                {isDesignated && (
+                                  <span className="inline-flex items-center gap-0.5 text-[8px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-300">
+                                    <MapPin size={8} className="text-emerald-600" /> Região
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-[9px] font-medium truncate">
                                 {!isAllowed
                                   ? <span className="text-rose-400">Fora da área demarcada</span>
@@ -1375,8 +1443,17 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                         t.name.toLowerCase().includes(visitTechSearch.toLowerCase()) ||
                         t.email?.toLowerCase().includes(visitTechSearch.toLowerCase())
                       )
+                      .sort((a, b) => {
+                        if (!isGeofencingEnabled || allowedTechIds === null) return 0;
+                        const aAllowed = allowedTechIds.includes(a.id);
+                        const bAllowed = allowedTechIds.includes(b.id);
+                        if (aAllowed && !bAllowed) return -1;
+                        if (!aAllowed && bAllowed) return 1;
+                        return 0;
+                      })
                       .map(t => {
                         const isAllowed = allowedTechIds === null || allowedTechIds.includes(t.id);
+                        const isDesignated = allowedTechIds !== null && allowedTechIds.includes(t.id);
                         const isSelected = newVisitData.assignedTo === t.id;
                         return (
                           <button
@@ -1393,20 +1470,33 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                               !isAllowed
                                 ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-100'
                                 : isSelected
-                                ? 'border-[#1c2d4f] bg-[#1c2d4f]/5 shadow-sm'
+                                ? 'border-[#1c2d4f] bg-[#1c2d4f]/5 shadow-sm font-semibold'
+                                : isDesignated
+                                ? 'border-emerald-300 bg-emerald-50/40 hover:border-emerald-400 hover:bg-emerald-50'
                                 : 'border-slate-100 bg-slate-50 hover:border-slate-300 hover:bg-white'
                             }`}
                           >
                             <div className="relative shrink-0">
-                              <img src={t.avatar} className="w-8 h-8 rounded-lg object-cover border border-slate-200" alt={t.name} />
-                              {!isAllowed && (
-                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 rounded-full flex items-center justify-center">
-                                  <span className="text-white text-[8px] font-bold">✕</span>
+                              <img src={t.avatar} className="w-7 h-7 rounded-lg object-cover border border-slate-200" alt={t.name} />
+                              {!isAllowed ? (
+                                <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 rounded-full flex items-center justify-center">
+                                  <span className="text-white text-[7px] font-bold">✕</span>
+                                </div>
+                              ) : isDesignated && (
+                                <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full flex items-center justify-center shadow-sm">
+                                  <span className="text-white text-[8px] font-bold">★</span>
                                 </div>
                               )}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-[11px] font-bold text-slate-800 truncate">{t.name}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-[11px] font-bold text-slate-800 truncate">{t.name}</p>
+                                {isDesignated && (
+                                  <span className="inline-flex items-center gap-0.5 text-[8px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-300">
+                                    <MapPin size={8} className="text-emerald-600" /> Região
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-[9px] font-medium truncate">
                                 {!isAllowed
                                   ? <span className="text-rose-400">Fora da área demarcada</span>
@@ -1414,7 +1504,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                                 }
                               </p>
                             </div>
-                            {isSelected && <CheckCircle2 size={14} className="text-[#1c2d4f] shrink-0" />}
+                            {isSelected && <CheckCircle2 size={12} className="text-[#1c2d4f] shrink-0" />}
                           </button>
                         );
                       })
