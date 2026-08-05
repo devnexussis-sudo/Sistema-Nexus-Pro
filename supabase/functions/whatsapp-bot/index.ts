@@ -404,27 +404,30 @@ serve(async (req: Request) => {
     if (existingConv) {
       conversation = existingConv as Conversation;
 
-      // --- AUTO-FINALIZE INATIVAS POR > 6 HORAS ---
+      // --- AUTO-FINALIZE INATIVAS POR > 8 HORAS ---
       const lastMsgTime = conversation.last_message_at ? new Date(conversation.last_message_at).getTime() : 0;
-      if (Date.now() - lastMsgTime > 6 * 60 * 60 * 1000 && conversation.state !== 'RESOLVED') {
+      if (Date.now() - lastMsgTime > 8 * 60 * 60 * 1000 && conversation.state !== 'RESOLVED') {
         conversation.assigned_agent_id = null;
         
-        // Salva o encerramento no banco SEM apagar o histórico
+        // Salva o encerramento no banco limpando o histórico
         await supabase
           .from("whatsapp_conversations")
           .update({
             state: "RESOLVED",
+            history: [],
             assigned_agent_id: null,
           })
           .eq("id", conversation.id);
 
-        // Atualiza apenas o state local para o fluxo continuar normalmente com a nova mensagem
+        // Atualiza o state local para recomeçar
         conversation.state = "GREETING";
+        conversation.history = [];
       }
 
-      // Se o cliente enviar mensagem para uma conversa que estava encerrada, ela volta a ser GREETING
+      // Se o cliente enviar mensagem para uma conversa que estava encerrada, ela volta a ser GREETING do zero
       if (conversation.state === 'RESOLVED') {
         conversation.state = "GREETING";
+        conversation.history = [];
       }
     } else {
       const { data: newConv, error: createErr } = await supabase
