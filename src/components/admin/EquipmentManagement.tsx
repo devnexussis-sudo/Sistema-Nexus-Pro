@@ -330,7 +330,6 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                   <th className="px-3 py-1 text-center whitespace-nowrap hidden md:table-cell">nº de série</th>
                   <th className="px-3 py-1 hidden md:table-cell">proprietário</th>
                   <th className="px-3 py-1 text-center hidden lg:table-cell">garantia</th>
-                  <th className="px-3 py-1 text-center">status</th>
                   <th className="px-3 py-1 text-right pr-6">{t.common.actions}</th>
                 </tr>
               </thead>
@@ -374,9 +373,6 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                       )}
                     </td>
 
-                    <td className="px-3 py-1 border-y border-slate-100 text-center">
-                      <StatusBadge status={e.active ? OrderStatus.COMPLETED : OrderStatus.CANCELED} />
-                    </td>
                     <td className="px-3 py-1 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
                       <div className="flex items-center justify-end gap-1.5">
                           <>
@@ -485,7 +481,6 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                           <p className="text-[11px] text-slate-500 font-mono mt-0.5">SN: {item.serialNumber}</p>
                         </div>
                       </div>
-                      <StatusBadge status={item.active ? OrderStatus.COMPLETED : OrderStatus.CANCELED} />
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100">
