@@ -32,13 +32,13 @@ serve(async (req) => {
     }
 
     // ══════════════════════════════════════════════════════
-    // CHAVE OPENAI
+    // CHAVE DEEPSEEK
     // ══════════════════════════════════════════════════════
-    const openAiApiKey = Deno.env.get("OPENAI_API_KEY");
+    const openAiApiKey = Deno.env.get("DEEPSEEK_API_KEY");
 
     if (!openAiApiKey) {
       return new Response(JSON.stringify({
-        error: "A chave OPENAI_API_KEY não foi configurada nos Secrets do Supabase."
+        error: "A chave DEEPSEEK_API_KEY não foi configurada nos Secrets do Supabase."
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500,
@@ -75,18 +75,18 @@ LEMBRETE: Responda EXCLUSIVAMENTE em PORTUGUÊS DO BRASIL. Seja completo e útil
       : systemPrompt;
 
     // ══════════════════════════════════════════════════════
-    // CHAMADA OPENAI — gpt-4o-mini
+    // CHAMADA DEEPSEEK — deepseek-chat
     // ══════════════════════════════════════════════════════
-    console.log("[Duno AI] Chamando OpenAI gpt-4o-mini...");
+    console.log("[Duno AI] Chamando DeepSeek-chat...");
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch("https://api.deepseek.com/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${openAiApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "deepseek-chat",
         messages: [
           { role: "system", content: finalSystemPrompt },
           { role: "user", content: query },
@@ -99,9 +99,9 @@ LEMBRETE: Responda EXCLUSIVAMENTE em PORTUGUÊS DO BRASIL. Seja completo e útil
     const json = await response.json();
 
     if (!response.ok || json.error) {
-      const errMsg = json.error?.message || JSON.stringify(json.error) || "Erro desconhecido na OpenAI";
-      console.error("[Duno AI] OpenAI erro:", errMsg);
-      return new Response(JSON.stringify({ error: `OpenAI: ${errMsg}` }), {
+      const errMsg = json.error?.message || JSON.stringify(json.error) || "Erro desconhecido na DeepSeek API";
+      console.error("[Duno AI] DeepSeek erro:", errMsg);
+      return new Response(JSON.stringify({ error: `DeepSeek: ${errMsg}` }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500,
       });
@@ -109,7 +109,7 @@ LEMBRETE: Responda EXCLUSIVAMENTE em PORTUGUÊS DO BRASIL. Seja completo e útil
 
     const answer = json.choices?.[0]?.message?.content;
     if (!answer) {
-      return new Response(JSON.stringify({ error: "OpenAI retornou resposta vazia." }), {
+      return new Response(JSON.stringify({ error: "DeepSeek retornou resposta vazia." }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500,
       });
