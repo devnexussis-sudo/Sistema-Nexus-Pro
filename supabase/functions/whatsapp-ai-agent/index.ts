@@ -294,10 +294,10 @@ serve(async (req: Request) => {
   try {
     debugLogs.length = 0;
 
-    const openAiApiKey = Deno.env.get("OPENAI_API_KEY");
+    const openAiApiKey = Deno.env.get("DEEPSEEK_API_KEY");
     if (!openAiApiKey) {
       return new Response(JSON.stringify({
-        reply: "⚙️ A chave OPENAI_API_KEY não está configurada nos Secrets do Supabase.",
+        reply: "⚙️ A chave DEEPSEEK_API_KEY não está configurada nos Secrets do Supabase.",
         debugLogs
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -410,17 +410,17 @@ ESTADO ATUAL: ${newState}`,
     let reply = "";
 
     // ══════════════════════════════════════════════════════
-    // LOOP DE TOOL CALLING — OpenAI gpt-4o-mini
+    // LOOP DE TOOL CALLING — DeepSeek Chat
     // ══════════════════════════════════════════════════════
     for (let i = 0; i < 5; i++) {
-      const openAiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+      const openAiResponse = await fetch("https://api.deepseek.com/chat/completions", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${openAiApiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-4o-mini",
+          model: "deepseek-chat",
           messages: llmMessages,
           tools: TOOLS,
           tool_choice: "auto",
@@ -430,7 +430,7 @@ ESTADO ATUAL: ${newState}`,
 
       if (!openAiResponse.ok) {
         const errObj = await openAiResponse.json();
-        throw new Error(`OpenAI API error: ${JSON.stringify(errObj)}`);
+        throw new Error(`DeepSeek API error: ${JSON.stringify(errObj)}`);
       }
 
       const data = await openAiResponse.json();
