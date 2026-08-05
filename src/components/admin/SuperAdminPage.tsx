@@ -920,11 +920,12 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                               formData.max_technicians === n
                                 ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
                                 : 'bg-white/5 border-white/10 text-gray-400 hover:border-amber-500/30'
-                            }`}
                           >
                             {n === 0 ? '∞' : n} — {p}
                           </button>
                         ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
