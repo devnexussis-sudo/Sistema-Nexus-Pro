@@ -331,17 +331,39 @@ export const aiKnowledgeService = {
     }));
   },
 
-  async deleteDocument(sourceName: string): Promise<void> {
+  async deleteDocument(sourceName: string): Promise<number> {
     const tenantId = getCurrentTenantId();
-    if (!tenantId) return;
+    if (!tenantId) throw new Error('Tenant não identificado para exclusão.');
 
-    const { error } = await supabase
+    console.log(`[aiKnowledgeService] 🗑️ Excluindo permanentemente todas as linhas do documento "${sourceName}" para o tenant "${tenantId}"...`);
+
+    // 1. Executa o DELETE físico no PostgreSQL para remover todos os chunks do manual
+    const { error, count } = await supabase
       .from('ai_knowledge_base')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('tenant_id', tenantId)
       .eq('source_name', sourceName);
 
-    if (error) throw new Error(`Erro ao excluir documento: ${error.message}`);
+    if (error) {
+      console.error('[aiKnowledgeService] Erro ao excluir do banco:', error);
+      throw new Error(`Erro ao excluir documento do banco de dados: ${error.message}`);
+    }
+
+    // 2. Se nenhuma linha foi deletada com o nome exato (ex: case sensitivity ou espaço), tenta ilike como garantia
+    if (count === 0) {
+      const { error: retryError, count: retryCount } = await supabase
+        .from('ai_knowledge_base')
+        .delete({ count: 'exact' })
+        .eq('tenant_id', tenantId)
+        .ilike('source_name', sourceName);
+
+      if (retryError) throw new Error(`Erro ao excluir documento: ${retryError.message}`);
+      console.log(`[aiKnowledgeService] ✓ Remoção concluída via ilike: ${retryCount || 0} chunks eliminados.`);
+      return retryCount || 0;
+    }
+
+    console.log(`[aiKnowledgeService] ✓ Remoção física concluída: ${count} chunks eliminados do banco de dados com sucesso.`);
+    return count || 0;
   },
 
   async searchKnowledge(query: string, tenantId: string, topK: number = 7, persona?: string): Promise<string | null> {
