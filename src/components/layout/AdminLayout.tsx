@@ -231,9 +231,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                                 </div>
                                 {(item.badge || 0) > 0 && (
                                     isSidebarCollapsed && !onItemClick ? (
-                                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-orange-500 rounded-full border border-[#1c2d4f] animate-pulse" />
+                                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-400 rounded-full border border-[#1c2d4f] shadow-sm shadow-amber-400/50" />
                                     ) : (
-                                        <span className="bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">
+                                        <span className="min-w-[20px] h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-amber-400 text-slate-950 text-[10px] font-black leading-none shadow-sm shadow-amber-400/40 border border-amber-300/50 shrink-0">
                                             {item.badge}
                                         </span>
                                     )

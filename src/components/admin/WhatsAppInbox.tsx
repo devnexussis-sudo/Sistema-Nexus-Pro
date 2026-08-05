@@ -710,7 +710,7 @@ export const WhatsAppInbox: React.FC = () => {
               <span className="text-[9px] text-gray-400 font-medium">{realtimeOk ? 'Ao vivo' : 'Polling'}</span>
             </div>
             {waitingCount > 0 && (
-              <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">
+              <span className="min-w-[20px] h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-amber-400 text-slate-950 text-[10px] font-black leading-none shadow-sm shadow-amber-400/40 border border-amber-300/50 shrink-0">
                 {waitingCount}
               </span>
             )}
