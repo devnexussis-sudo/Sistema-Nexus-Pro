@@ -290,76 +290,30 @@ export const WhatsAppInbox: React.FC = () => {
         return;
       }
 
-      // Verificar se conversa já existe no DB
-      const { data: existingConv } = await supabase
-        .from('whatsapp_conversations')
-        .select('id, history, customer_id')
-        .eq('tenant_id', tenantId)
-        .eq('phone_number', cleaned)
-        .maybeSingle();
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke('whatsapp-admin-send', {
+        body: {
+          action: 'start_conversation',
+          phone_number: cleaned,
+          customer_id: selectedCustomer?.id || null,
+          initial_message: initialMessage.trim(),
+          tenant_id: tenantId,
+          agent_name: currentUserName
+        },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
 
-      let targetConvId = existingConv?.id;
-
-      if (existingConv) {
-        let history = existingConv.history || [];
-        if (initialMessage.trim()) {
-          const msg: Message = {
-            role: 'agent',
-            content: initialMessage.trim(),
-            timestamp: new Date().toISOString(),
-            agent_id: currentUserId || undefined,
-            agent_name: currentUserName,
-          };
-          history = [...history, msg];
-        }
-
-        await supabase
-          .from('whatsapp_conversations')
-          .update({
-            state: 'HUMAN_ACTIVE',
-            assigned_agent_id: currentUserId,
-            customer_id: selectedCustomer?.id || existingConv.customer_id,
-            history: history.slice(-100),
-            last_message_at: new Date().toISOString(),
-          })
-          .eq('id', existingConv.id);
-
-        targetConvId = existingConv.id;
-      } else {
-        const initialHistory: Message[] = initialMessage.trim() ? [{
-          role: 'agent',
-          content: initialMessage.trim(),
-          timestamp: new Date().toISOString(),
-          agent_id: currentUserId || undefined,
-          agent_name: currentUserName,
-        }] : [];
-
-        const { data: created, error: insertError } = await supabase
-          .from('whatsapp_conversations')
-          .insert([{
-            tenant_id: tenantId,
-            phone_number: cleaned,
-            customer_id: selectedCustomer?.id || null,
-            assigned_agent_id: currentUserId,
-            state: 'HUMAN_ACTIVE',
-            history: initialHistory,
-            last_message_at: new Date().toISOString(),
-          }])
-          .select('id')
-          .single();
-
-        if (insertError) throw new Error(insertError.message);
-        targetConvId = created?.id;
+      if (error) {
+        let msg = error.message;
+        try { msg = (await (error as any).context?.json())?.error || error.message; } catch {}
+        throw new Error(msg);
       }
 
-      // Se houver mensagem inicial, enviar via Edge Function whatsapp-admin-send
-      if (initialMessage.trim() && targetConvId) {
-        const { data: { session } } = await supabase.auth.getSession();
-        await supabase.functions.invoke('whatsapp-admin-send', {
-          body: { conversation_id: targetConvId, action: 'send', message: initialMessage.trim(), agent_name: currentUserName },
-          headers: { Authorization: `Bearer ${session?.access_token}` },
-        });
+      if (data && !data.ok) {
+        throw new Error(data.error || 'Falha ao iniciar conversa.');
       }
+
+      const targetConvId = data?.conversation_id;
 
       setIsNewChatOpen(false);
       triggerNavUpdate();

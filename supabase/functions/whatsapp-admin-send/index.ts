@@ -35,7 +35,113 @@ serve(async (req: Request) => {
     const { data: { user }, error: authErr } = await supabase.auth.getUser();
     if (authErr || !user) throw new Error("Sessão inválida");
 
-    const { conversation_id, action, message, ...extra } = await req.json();
+    const body = await req.json();
+    const { conversation_id, action, message, ...extra } = body;
+
+    // ── Ação: Iniciar Nova Conversa (Outbound) ──
+    if (action === "start_conversation") {
+      const { phone_number, customer_id, initial_message, tenant_id } = extra;
+
+      if (!phone_number) throw new Error("Número de telefone é obrigatório");
+
+      let targetTenantId = tenant_id;
+      if (!targetTenantId) {
+        const { data: userProfile } = await supabaseAdmin
+          .from("users")
+          .select("tenant_id")
+          .eq("id", user.id)
+          .single();
+        targetTenantId = userProfile?.tenant_id;
+      }
+
+      if (!targetTenantId) throw new Error("Tenant não localizado");
+
+      const { data: agentData } = await supabaseAdmin
+        .from("users")
+        .select("name")
+        .eq("id", user.id)
+        .single();
+      const agentName = agentData?.name || extra.agent_name || "Agente";
+
+      // Verificar se a conversa já existe
+      const { data: existingConv } = await supabaseAdmin
+        .from("whatsapp_conversations")
+        .select("*")
+        .eq("tenant_id", targetTenantId)
+        .eq("phone_number", phone_number)
+        .maybeSingle();
+
+      let convId = existingConv?.id;
+
+      if (existingConv) {
+        let history = existingConv.history || [];
+        if (initial_message && initial_message.trim()) {
+          history = [
+            ...history,
+            {
+              role: "agent",
+              content: initial_message.trim().substring(0, 2000),
+              timestamp: new Date().toISOString(),
+              agent_id: user.id,
+              agent_name: agentName,
+            },
+          ];
+        }
+
+        await supabaseAdmin
+          .from("whatsapp_conversations")
+          .update({
+            state: "HUMAN_ACTIVE",
+            assigned_agent_id: user.id,
+            customer_id: customer_id || existingConv.customer_id,
+            history: history.slice(-100),
+            last_message_at: new Date().toISOString(),
+          })
+          .eq("id", existingConv.id);
+
+        convId = existingConv.id;
+      } else {
+        const initialHistory = initial_message && initial_message.trim() ? [{
+          role: "agent",
+          content: initial_message.trim().substring(0, 2000),
+          timestamp: new Date().toISOString(),
+          agent_id: user.id,
+          agent_name: agentName,
+        }] : [];
+
+        const { data: created, error: createErr } = await supabaseAdmin
+          .from("whatsapp_conversations")
+          .insert([{
+            tenant_id: targetTenantId,
+            phone_number: phone_number,
+            customer_id: customer_id || null,
+            assigned_agent_id: user.id,
+            state: "HUMAN_ACTIVE",
+            history: initialHistory,
+            last_message_at: new Date().toISOString(),
+          }])
+          .select("id")
+          .single();
+
+        if (createErr) throw new Error(createErr.message);
+        convId = created?.id;
+      }
+
+      // Se houver mensagem inicial, disparar via UAIZAP / Z-API
+      if (initial_message && initial_message.trim()) {
+        const { data: tenant } = await supabaseAdmin
+          .from("tenants")
+          .select("whatsapp_settings")
+          .eq("id", targetTenantId)
+          .single();
+        const settings = (tenant?.whatsapp_settings || {}) as Record<string, string>;
+        await sendWhatsAppMessage(settings, phone_number, initial_message.trim());
+      }
+
+      return new Response(JSON.stringify({ ok: true, action: "start_conversation", conversation_id: convId }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Carregar conversa
     const { data: conv, error: convErr } = await supabaseAdmin
