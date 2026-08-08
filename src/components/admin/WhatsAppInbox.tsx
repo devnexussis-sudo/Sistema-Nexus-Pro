@@ -290,30 +290,110 @@ export const WhatsAppInbox: React.FC = () => {
         return;
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
-      const { data, error } = await supabase.functions.invoke('whatsapp-admin-send', {
-        body: {
-          action: 'start_conversation',
-          phone_number: cleaned,
-          customer_id: selectedCustomer?.id || null,
-          initial_message: initialMessage.trim(),
-          tenant_id: tenantId,
-          agent_name: currentUserName
-        },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
+      let targetConvId: string | null = null;
+      let usedEdgeFunction = false;
 
-      if (error) {
-        let msg = error.message;
-        try { msg = (await (error as any).context?.json())?.error || error.message; } catch {}
-        throw new Error(msg);
+      // 1. Tentar pela Edge Function de servidor
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const { data, error } = await supabase.functions.invoke('whatsapp-admin-send', {
+          body: {
+            action: 'start_conversation',
+            phone_number: cleaned,
+            customer_id: selectedCustomer?.id || null,
+            initial_message: initialMessage.trim(),
+            tenant_id: tenantId,
+            agent_name: currentUserName
+          },
+          headers: { Authorization: `Bearer ${session?.access_token}` },
+        });
+
+        if (!error && data?.ok && data?.conversation_id) {
+          targetConvId = data.conversation_id;
+          usedEdgeFunction = true;
+        }
+      } catch (e) {
+        console.warn('[NewChat] Edge function start_conversation ainda não ativa, usando fallback no DB...', e);
       }
 
-      if (data && !data.ok) {
-        throw new Error(data.error || 'Falha ao iniciar conversa.');
-      }
+      // 2. Fallback resiliente no DB caso a Edge Function remota ainda esteja no formato anterior
+      if (!usedEdgeFunction) {
+        // Verificar se conversa já existe no DB
+        const { data: existingConv } = await supabase
+          .from('whatsapp_conversations')
+          .select('id, history, customer_id')
+          .eq('tenant_id', tenantId)
+          .eq('phone_number', cleaned)
+          .maybeSingle();
 
-      const targetConvId = data?.conversation_id;
+        if (existingConv) {
+          let history = existingConv.history || [];
+          if (initialMessage.trim()) {
+            const msg: Message = {
+              role: 'agent',
+              content: initialMessage.trim(),
+              timestamp: new Date().toISOString(),
+              agent_id: currentUserId || undefined,
+              agent_name: currentUserName,
+            };
+            history = [...history, msg];
+          }
+
+          const { error: updateErr } = await supabase
+            .from('whatsapp_conversations')
+            .update({
+              state: 'HUMAN_ACTIVE',
+              assigned_agent_id: currentUserId,
+              customer_id: selectedCustomer?.id || existingConv.customer_id,
+              history: history.slice(-100),
+              last_message_at: new Date().toISOString(),
+            })
+            .eq('id', existingConv.id);
+
+          if (updateErr) throw new Error(updateErr.message);
+          targetConvId = existingConv.id;
+        } else {
+          // Criar nova conversa no DB
+          const initialHistory: Message[] = initialMessage.trim() ? [{
+            role: 'agent',
+            content: initialMessage.trim(),
+            timestamp: new Date().toISOString(),
+            agent_id: currentUserId || undefined,
+            agent_name: currentUserName,
+          }] : [];
+
+          const { data: created, error: insertError } = await supabase
+            .from('whatsapp_conversations')
+            .insert([{
+              tenant_id: tenantId,
+              phone_number: cleaned,
+              customer_id: selectedCustomer?.id || null,
+              assigned_agent_id: currentUserId,
+              state: 'HUMAN_ACTIVE',
+              history: initialHistory,
+              last_message_at: new Date().toISOString(),
+            }])
+            .select('id')
+            .single();
+
+          if (insertError) throw new Error(insertError.message);
+          targetConvId = created?.id;
+        }
+
+        // Se houver mensagem inicial, disparar via envio de mensagem padrão da Edge Function
+        if (initialMessage.trim() && targetConvId) {
+          const { data: { session } } = await supabase.auth.getSession();
+          await supabase.functions.invoke('whatsapp-admin-send', {
+            body: {
+              conversation_id: targetConvId,
+              action: 'send',
+              message: initialMessage.trim(),
+              agent_name: currentUserName
+            },
+            headers: { Authorization: `Bearer ${session?.access_token}` },
+          });
+        }
+      }
 
       setIsNewChatOpen(false);
       triggerNavUpdate();
