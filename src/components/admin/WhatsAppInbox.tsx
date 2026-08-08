@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw, X, BellRing, Bell, Volume2, ArrowRight, ArrowLeft, Sticker, FileVideo, Mic, FileText, Download, AlertCircle } from 'lucide-react';
+import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw, X, BellRing, Bell, Volume2, ArrowRight, ArrowLeft, Sticker, FileVideo, Mic, FileText, Download, AlertCircle, Plus, Search, Loader2, CheckCircle2 } from 'lucide-react';
+import { Customer } from '../../types';
+import { getCurrentTenantId } from '../../lib/tenantContext';
 
 interface Message {
   role: 'bot' | 'user' | 'agent';
@@ -192,6 +194,185 @@ export const WhatsAppInbox: React.FC = () => {
   const isOptimisticPending = useRef(false);
   const actionInitiatedConvId = useRef<string | null>(null);
   const stickerRef = useRef<HTMLDivElement>(null);
+
+  // ── Modal de Nova Conversa ──
+  const [isNewChatOpen, setIsNewChatOpen] = useState(false);
+  const [newChatTab, setNewChatTab] = useState<'customer' | 'manual'>('customer');
+  const [customerQuery, setCustomerQuery] = useState('');
+  const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [manualPhone, setManualPhone] = useState('');
+  const [initialMessage, setInitialMessage] = useState('');
+  const [startingChat, setStartingChat] = useState(false);
+  const [newChatError, setNewChatError] = useState<string | null>(null);
+
+  const fetchCustomersList = async () => {
+    setLoadingCustomers(true);
+    try {
+      const tenantId = getCurrentTenantId();
+      if (!tenantId) return;
+      const { data } = await supabase
+        .from('customers')
+        .select('id, name, document, phone, whatsapp, city, state, address')
+        .eq('tenant_id', tenantId)
+        .eq('active', true)
+        .order('name', { ascending: true })
+        .limit(150);
+      if (data) {
+        setAllCustomers(data as Customer[]);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar clientes para nova conversa:', err);
+    } finally {
+      setLoadingCustomers(false);
+    }
+  };
+
+  const filteredSearchCustomers = allCustomers.filter(c => {
+    if (!customerQuery.trim()) return true;
+    const q = customerQuery.toLowerCase();
+    const qClean = q.replace(/\D/g, '');
+
+    const nameMatch = (c.name || '').toLowerCase().includes(q);
+
+    const docRaw = ((c as any).document || (c as any).cpf || (c as any).cnpj || '').replace(/\D/g, '');
+    const docMatch = qClean.length > 0 && docRaw.includes(qClean);
+
+    const phoneRaw = (c.phone || '').replace(/\D/g, '');
+    const waRaw = (c.whatsapp || '').replace(/\D/g, '');
+    const phoneMatch = qClean.length > 0 && (phoneRaw.includes(qClean) || waRaw.includes(qClean));
+
+    return nameMatch || docMatch || phoneMatch;
+  });
+
+  const handleStartNewChat = async () => {
+    setNewChatError(null);
+
+    let targetRaw = '';
+    if (newChatTab === 'customer') {
+      if (!selectedCustomer) {
+        setNewChatError('Selecione um cliente da lista.');
+        return;
+      }
+      targetRaw = selectedCustomer.whatsapp && selectedCustomer.whatsapp.trim()
+        ? selectedCustomer.whatsapp.trim()
+        : selectedCustomer.phone || '';
+    } else {
+      targetRaw = manualPhone;
+    }
+
+    if (!targetRaw.trim()) {
+      setNewChatError('O cliente selecionado não possui número de WhatsApp ou telefone cadastrado.');
+      return;
+    }
+
+    let cleaned = targetRaw.replace(/\D/g, '');
+    if (cleaned.startsWith('0') && (cleaned.length === 11 || cleaned.length === 12)) {
+      cleaned = cleaned.slice(1);
+    }
+    if (cleaned.length === 10 || cleaned.length === 11) {
+      cleaned = '55' + cleaned;
+    }
+
+    if (cleaned.length < 12) {
+      setNewChatError('Número de WhatsApp inválido. Informe DDD + Número (ex: 11999998888).');
+      return;
+    }
+
+    setStartingChat(true);
+
+    try {
+      const tenantId = getCurrentTenantId();
+      if (!tenantId) {
+        setNewChatError('Tenant não localizado. Atualize a página e tente novamente.');
+        setStartingChat(false);
+        return;
+      }
+
+      // Verificar se conversa já existe no DB
+      const { data: existingConv } = await supabase
+        .from('whatsapp_conversations')
+        .select('id, history, customer_id')
+        .eq('tenant_id', tenantId)
+        .eq('phone_number', cleaned)
+        .maybeSingle();
+
+      let targetConvId = existingConv?.id;
+
+      if (existingConv) {
+        let history = existingConv.history || [];
+        if (initialMessage.trim()) {
+          const msg: Message = {
+            role: 'agent',
+            content: initialMessage.trim(),
+            timestamp: new Date().toISOString(),
+            agent_id: currentUserId || undefined,
+            agent_name: currentUserName,
+          };
+          history = [...history, msg];
+        }
+
+        await supabase
+          .from('whatsapp_conversations')
+          .update({
+            state: 'HUMAN_ACTIVE',
+            assigned_agent_id: currentUserId,
+            customer_id: selectedCustomer?.id || existingConv.customer_id,
+            history: history.slice(-100),
+            last_message_at: new Date().toISOString(),
+          })
+          .eq('id', existingConv.id);
+
+        targetConvId = existingConv.id;
+      } else {
+        const initialHistory: Message[] = initialMessage.trim() ? [{
+          role: 'agent',
+          content: initialMessage.trim(),
+          timestamp: new Date().toISOString(),
+          agent_id: currentUserId || undefined,
+          agent_name: currentUserName,
+        }] : [];
+
+        const { data: created, error: insertError } = await supabase
+          .from('whatsapp_conversations')
+          .insert([{
+            tenant_id: tenantId,
+            phone_number: cleaned,
+            customer_id: selectedCustomer?.id || null,
+            assigned_agent_id: currentUserId,
+            state: 'HUMAN_ACTIVE',
+            history: initialHistory,
+            last_message_at: new Date().toISOString(),
+          }])
+          .select('id')
+          .single();
+
+        if (insertError) throw new Error(insertError.message);
+        targetConvId = created?.id;
+      }
+
+      // Se houver mensagem inicial, enviar via Edge Function whatsapp-admin-send
+      if (initialMessage.trim() && targetConvId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        await supabase.functions.invoke('whatsapp-admin-send', {
+          body: { conversation_id: targetConvId, action: 'send', message: initialMessage.trim(), agent_name: currentUserName },
+          headers: { Authorization: `Bearer ${session?.access_token}` },
+        });
+      }
+
+      setIsNewChatOpen(false);
+      triggerNavUpdate();
+      await fetchConversations(true);
+      if (targetConvId) setSelectedId(targetConvId);
+      setToast('✅ Conversa iniciada com sucesso!');
+      setTimeout(() => setToast(null), 4000);
+    } catch (err: any) {
+      setNewChatError(err.message || 'Erro ao iniciar conversa.');
+    } finally {
+      setStartingChat(false);
+    }
+  };
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -715,6 +896,23 @@ export const WhatsAppInbox: React.FC = () => {
               </span>
             )}
           </div>
+
+          {/* Botão Nova Conversa */}
+          <button
+            onClick={() => {
+              setIsNewChatOpen(true);
+              setNewChatTab('customer');
+              setCustomerQuery('');
+              setSelectedCustomer(null);
+              setManualPhone('');
+              setInitialMessage('');
+              setNewChatError(null);
+              fetchCustomersList();
+            }}
+            className="w-full mb-3 flex items-center justify-center gap-2 py-2 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 active:scale-95 cursor-pointer"
+          >
+            <Plus size={16} /> Nova Conversa
+          </button>
           <div className="flex gap-1">
             {(['all', 'waiting', 'mine', 'active'] as const).map(f => (
               <button
@@ -1199,6 +1397,225 @@ export const WhatsAppInbox: React.FC = () => {
                   <RotateCcw size={14} /> Confirmar Reinício
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal de Nova Conversa ── */}
+      {isNewChatOpen && (
+        <div className="fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-[#1c2d4f] px-6 py-5 flex items-center justify-between text-white shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-emerald-500/20 border border-emerald-400/30 rounded-2xl flex items-center justify-center text-emerald-400">
+                  <MessageCircle size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold tracking-tight">Iniciar Nova Conversa</h3>
+                  <p className="text-[11px] text-slate-300">WhatsApp Outbound • Atendimento direto</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsNewChatOpen(false)}
+                className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Alternador de Abas */}
+            <div className="p-4 bg-slate-50 border-b border-slate-200 flex gap-2 shrink-0">
+              <button
+                onClick={() => { setNewChatTab('customer'); setNewChatError(null); }}
+                className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                  newChatTab === 'customer'
+                    ? 'bg-[#1c2d4f] text-white shadow-md'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <User size={15} /> Cliente Cadastrado
+              </button>
+              <button
+                onClick={() => { setNewChatTab('manual'); setNewChatError(null); setSelectedCustomer(null); }}
+                className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                  newChatTab === 'manual'
+                    ? 'bg-[#1c2d4f] text-white shadow-md'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <Phone size={15} /> Digitar Número
+              </button>
+            </div>
+
+            {/* Corpo do Modal */}
+            <div className="p-6 overflow-y-auto space-y-5 flex-1 custom-scrollbar">
+              {newChatError && (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-rose-700 text-xs font-medium animate-in fade-in">
+                  <AlertCircle size={18} className="shrink-0 text-rose-500" />
+                  <span>{newChatError}</span>
+                </div>
+              )}
+
+              {newChatTab === 'customer' ? (
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    Buscar Cliente por Nome, CPF, CNPJ ou Telefone
+                  </label>
+                  <div className="relative">
+                    <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Digite o nome, CPF/CNPJ ou telefone..."
+                      value={customerQuery}
+                      onChange={e => setCustomerQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all"
+                    />
+                  </div>
+
+                  {/* Lista de Clientes */}
+                  <div className="max-h-52 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                    {loadingCustomers ? (
+                      <div className="p-6 text-center text-slate-400 flex items-center justify-center gap-2 text-xs">
+                        <Loader2 size={16} className="animate-spin text-emerald-600" />
+                        <span>Carregando lista de clientes...</span>
+                      </div>
+                    ) : filteredSearchCustomers.length > 0 ? (
+                      filteredSearchCustomers.map(c => {
+                        const isSelected = selectedCustomer?.id === c.id;
+                        const targetWA = c.whatsapp && c.whatsapp.trim() ? c.whatsapp.trim() : c.phone || '';
+                        const docStr = (c as any).document || (c as any).cpf || (c as any).cnpj;
+
+                        return (
+                          <div
+                            key={c.id}
+                            onClick={() => {
+                              setSelectedCustomer(c);
+                              setNewChatError(null);
+                            }}
+                            className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                              isSelected
+                                ? 'bg-emerald-50/80 border-emerald-500 shadow-sm'
+                                : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80'
+                            }`}
+                          >
+                            <div className="space-y-1 min-w-0 flex-1 pr-3">
+                              <div className="flex items-center gap-2">
+                                <p className="text-xs font-bold text-slate-900 truncate">{c.name}</p>
+                                {docStr && (
+                                  <span className="text-[10px] font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-semibold shrink-0">
+                                    {docStr}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3 text-[11px]">
+                                <span className={`font-mono font-bold flex items-center gap-1 ${targetWA ? 'text-emerald-700' : 'text-slate-400'}`}>
+                                  <MessageCircle size={12} className={targetWA ? 'text-emerald-600' : 'text-slate-400'} />
+                                  {targetWA ? formatPhone(targetWA) : 'Sem WhatsApp'}
+                                </span>
+                                {c.city && (
+                                  <span className="text-slate-400 text-[10px] truncate">• {c.city} - {c.state}</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="shrink-0">
+                              {isSelected ? (
+                                <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-sm">
+                                  <CheckCircle2 size={16} />
+                                </div>
+                              ) : (
+                                <div className="w-6 h-6 rounded-full border border-slate-300 bg-slate-50" />
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="p-8 text-center text-slate-400 space-y-1">
+                        <User size={24} className="mx-auto text-slate-300 mb-2" />
+                        <p className="text-xs font-bold text-slate-600">Nenhum cliente localizado</p>
+                        <p className="text-[11px]">Tente buscar por outro termo ou use a aba "Digitar Número".</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedCustomer && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-xs text-emerald-800 font-bold">
+                      <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                      <span>
+                        Selecionado: {selectedCustomer.name} (WhatsApp: {selectedCustomer.whatsapp || selectedCustomer.phone})
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    Número de WhatsApp com DDD
+                  </label>
+                  <div className="relative">
+                    <Phone size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Ex: (11) 99999-8888 ou 5511999998888"
+                      value={manualPhone}
+                      onChange={e => {
+                        setManualPhone(e.target.value);
+                        setNewChatError(null);
+                      }}
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                    💡 O código do país (55 para Brasil) será adicionado automaticamente caso você digite apenas o DDD e número.
+                  </p>
+                </div>
+              )}
+
+              {/* Mensagem Inicial */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Mensagem Inicial de Abertura (Opcional)
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Ex: Olá! Sou da equipe de suporte da Nexus Pro. Como posso ajudar com sua ordem de serviço?"
+                  value={initialMessage}
+                  onChange={e => setInitialMessage(e.target.value)}
+                  className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all custom-scrollbar resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsNewChatOpen(false)}
+                disabled={startingChat}
+                className="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold rounded-xl transition-all shadow-sm disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleStartNewChat}
+                disabled={startingChat || (newChatTab === 'customer' && !selectedCustomer) || (newChatTab === 'manual' && !manualPhone.trim())}
+                className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 disabled:opacity-40 disabled:hover:from-emerald-600 disabled:hover:to-teal-600 active:scale-95 cursor-pointer"
+              >
+                {startingChat ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Iniciando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send size={15} />
+                    <span>Iniciar Conversa</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
