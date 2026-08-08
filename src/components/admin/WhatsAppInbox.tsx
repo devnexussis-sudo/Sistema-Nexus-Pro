@@ -293,27 +293,45 @@ export const WhatsAppInbox: React.FC = () => {
       let targetConvId: string | null = null;
       let usedEdgeFunction = false;
 
-      // 1. Tentar pela Edge Function de servidor
+      // 1. Tentar primeiro via RPC Security Definer (bypassa RLS 100% no Postgres)
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const { data, error } = await supabase.functions.invoke('whatsapp-admin-send', {
-          body: {
-            action: 'start_conversation',
-            phone_number: cleaned,
-            customer_id: selectedCustomer?.id || null,
-            initial_message: initialMessage.trim(),
-            tenant_id: tenantId,
-            agent_name: currentUserName
-          },
-          headers: { Authorization: `Bearer ${session?.access_token}` },
+        const { data: rpcData, error: rpcErr } = await supabase.rpc('start_whatsapp_chat' as any, {
+          p_phone_number: cleaned,
+          p_customer_id: selectedCustomer?.id || null,
+          p_initial_message: initialMessage.trim() || null
         });
 
-        if (!error && data?.ok && data?.conversation_id) {
-          targetConvId = data.conversation_id;
+        if (!rpcErr && rpcData?.ok && rpcData?.conversation_id) {
+          targetConvId = rpcData.conversation_id;
           usedEdgeFunction = true;
         }
       } catch (e) {
-        console.warn('[NewChat] Edge function start_conversation ainda não ativa, usando fallback no DB...', e);
+        console.warn('[NewChat] RPC start_whatsapp_chat indisponível, tentando Edge Function...', e);
+      }
+
+      // 2. Tentar pela Edge Function de servidor
+      if (!usedEdgeFunction) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const { data, error } = await supabase.functions.invoke('whatsapp-admin-send', {
+            body: {
+              action: 'start_conversation',
+              phone_number: cleaned,
+              customer_id: selectedCustomer?.id || null,
+              initial_message: initialMessage.trim(),
+              tenant_id: tenantId,
+              agent_name: currentUserName
+            },
+            headers: { Authorization: `Bearer ${session?.access_token}` },
+          });
+
+          if (!error && data?.ok && data?.conversation_id) {
+            targetConvId = data.conversation_id;
+            usedEdgeFunction = true;
+          }
+        } catch (e) {
+          console.warn('[NewChat] Edge function start_conversation ainda não ativa, usando fallback no DB...', e);
+        }
       }
 
       // 2. Fallback resiliente no DB caso a Edge Function remota ainda esteja no formato anterior
