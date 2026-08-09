@@ -278,7 +278,7 @@ export default function DunoAIScreen() {
       <ScrollView
         ref={scrollRef}
         style={styles.chatArea}
-        contentContainerStyle={styles.chatContent}
+        contentContainerStyle={[styles.chatContent, messages.length <= 1 && { flexGrow: 1, justifyContent: 'center' }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -287,7 +287,7 @@ export default function DunoAIScreen() {
           <View style={styles.welcomeHeroContainer}>
             <View style={styles.welcomeIconRing}>
               <View style={styles.welcomeIconInner}>
-                <Ionicons name="sparkles" size={32} color="#ffffff" />
+                <Ionicons name="sparkles" size={22} color="#ffffff" />
               </View>
             </View>
             <Text style={[styles.welcomeTitle, isDark && styles.welcomeTitleDark]}>
@@ -574,48 +574,47 @@ const styles = StyleSheet.create({
   welcomeHeroContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 32,
-    paddingHorizontal: 20,
-    marginTop: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
   welcomeIconRing: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: 'rgba(28, 45, 79, 0.05)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
   },
   welcomeIconInner: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#1c2d4f',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#1c2d4f',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
   },
   welcomeTitle: {
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: '800',
     color: '#1c2d4f',
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: 6,
   },
   welcomeTitleDark: {
     color: '#ffffff',
   },
   welcomeSubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#64748b',
     textAlign: 'center',
-    lineHeight: 19,
-    paddingHorizontal: 10,
+    lineHeight: 18,
+    paddingHorizontal: 12,
   },
   welcomeSubtitleDark: {
     color: '#94a3b8',
