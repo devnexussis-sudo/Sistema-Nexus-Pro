@@ -20,7 +20,9 @@ export enum FormFieldType {
     TEXT = 'TEXT',
     LONG_TEXT = 'LONG_TEXT',
     SELECT = 'SELECT',
+    MULTI_SELECT = 'MULTI_SELECT',
     PHOTO = 'PHOTO',
+    VIDEO = 'VIDEO',
     SIGNATURE = 'SIGNATURE'
 }
 

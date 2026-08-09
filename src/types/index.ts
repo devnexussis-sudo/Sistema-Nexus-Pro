@@ -171,6 +171,7 @@ export enum FormFieldType {
   SELECT = 'SELECT',
   MULTI_SELECT = 'MULTI_SELECT',
   PHOTO = 'PHOTO',
+  VIDEO = 'VIDEO',
   SIGNATURE = 'SIGNATURE'
 }
 

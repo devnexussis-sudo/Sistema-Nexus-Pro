@@ -29,6 +29,19 @@ export const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ fields, an
         }
     };
 
+    const handleVideoUpload = async (fieldId: string, file: File) => {
+        setUploading(prev => ({ ...prev, [fieldId]: true }));
+        try {
+            const url = await DataService.uploadBlob(file, `checklist_videos/${Date.now()}_${fieldId}`);
+            onAnswerChange(fieldId, url);
+        } catch (e) {
+            console.error("Erro upload video checklist:", e);
+            alert("Erro ao enviar vídeo. Tente novamente.");
+        } finally {
+            setUploading(prev => ({ ...prev, [fieldId]: false }));
+        }
+    };
+
     return (
         <div className="space-y-6">
             {fields.map((field, index) => {
@@ -168,6 +181,55 @@ export const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ fields, an
                                 ) : (
                                     <div className="flex flex-col items-center justify-center aspect-video rounded-lg border-2 border-dashed border-slate-200 bg-slate-50">
                                         <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Sem foto anexada</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* VÍDEO - Integrado diretamente no checklist */}
+                        {field.type === FormFieldType.VIDEO && (
+                            <div>
+                                {answers[field.id] ? (
+                                    <div className="relative aspect-video rounded-lg overflow-hidden border border-primary-500/30 group bg-black">
+                                        <video src={answers[field.id]} controls className="w-full h-full object-contain" />
+                                        {!readOnly && (
+                                            <button
+                                                onClick={() => onAnswerChange(field.id, null)}
+                                                className="absolute top-2 right-2 bg-rose-500/90 p-2 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                        )}
+                                        <div className="absolute bottom-2 left-2 bg-primary-500/90 px-3 py-1.5 rounded-lg text-[9px] text-white font-black uppercase tracking-widest flex items-center gap-2 pointer-events-none">
+                                            <Check size={12} /> Vídeo Salvo
+                                        </div>
+                                    </div>
+                                ) : !readOnly ? (
+                                    <label className="flex flex-col items-center justify-center aspect-video rounded-lg border-2 border-dashed border-slate-200 bg-white active:bg-slate-100 transition-all cursor-pointer">
+                                        {uploading[field.id] ? (
+                                            <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full" />
+                                        ) : (
+                                            <>
+                                                <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 mb-2 border border-slate-100">
+                                                    <Camera size={24} />
+                                                </div>
+                                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Gravar ou Anexar Vídeo</span>
+                                            </>
+                                        )}
+                                        <input
+                                            type="file"
+                                            accept="video/*"
+                                            capture="environment"
+                                            className="hidden"
+                                            disabled={readOnly}
+                                            onChange={(e) => {
+                                                if (e.target.files?.[0]) handleVideoUpload(field.id, e.target.files[0]);
+                                            }}
+                                        />
+                                    </label>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center aspect-video rounded-lg border-2 border-dashed border-slate-200 bg-slate-50">
+                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Sem vídeo anexado</span>
                                     </div>
                                 )}
                             </div>

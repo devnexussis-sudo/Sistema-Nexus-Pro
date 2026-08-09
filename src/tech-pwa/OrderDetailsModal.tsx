@@ -814,6 +814,23 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                               );
                             })()}
                           </div>
+                        ) : field.type === FormFieldType.VIDEO ? (
+                          <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-[2rem] p-4 text-center">
+                            {(() => {
+                              const val = answers[field.id] || answers[field.label];
+                              return (
+                                <div>
+                                  {val ? (
+                                    <div className="relative aspect-video rounded-2xl overflow-hidden border border-slate-100 bg-black">
+                                      <video src={typeof val === 'string' ? val : (Array.isArray(val) ? val[0] : '')} controls className="w-full h-full object-contain" />
+                                    </div>
+                                  ) : (
+                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest py-4">Nenhum vídeo anexado</p>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
                         ) : (
                           <Input
                             readOnly={localStatus === OrderStatus.COMPLETED}

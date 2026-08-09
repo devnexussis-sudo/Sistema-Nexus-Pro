@@ -171,6 +171,7 @@ export const FormManagement: React.FC = () => {
     { value: FormFieldType.SELECT, label: 'Múltipla Escolha' },
     { value: FormFieldType.MULTI_SELECT, label: 'Múltipla Seleção (Checklist)' },
     { value: FormFieldType.PHOTO, label: 'Upload de Foto' },
+    { value: FormFieldType.VIDEO, label: 'Upload de Vídeo' },
   ];
 
   // Handlers para Tipos (Cloud)
