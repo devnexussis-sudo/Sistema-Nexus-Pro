@@ -37,7 +37,8 @@ interface PublicOrderViewProps {
 const isVideoUrl = (url: string | null) => {
   if (!url) return false;
   const videoExtensions = ['.mp4', '.mov', '.avi', '.wmv', '.flv', '.webm', '.mkv', '.3gp'];
-  return videoExtensions.some(ext => url.toLowerCase().includes(ext)) || url.toLowerCase().startsWith('data:video/');
+  const lower = url.toLowerCase();
+  return videoExtensions.some(ext => lower.includes(ext)) || lower.startsWith('data:video/') || lower.includes('/form_videos/') || lower.includes('/videos/');
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
