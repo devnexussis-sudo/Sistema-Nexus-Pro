@@ -675,3 +675,40 @@ ${contextText}`;
     return fb;
   }
 }
+
+// ══════════════════════════════════════════════════════════════
+// 📚 BUSCA LISTA DE MANUAIS / MEMÓRIA DISPONÍVEIS NO TENANT
+// ══════════════════════════════════════════════════════════════
+
+export interface ManualSummary {
+  name: string;
+  chunksCount: number;
+}
+
+export async function getAvailableManuals(): Promise<ManualSummary[]> {
+  const tid = await requireTid();
+  if (!tid) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from('ai_knowledge_base')
+      .select('source_name')
+      .eq('tenant_id', tid);
+
+    if (error || !data) return [];
+
+    const counts: Record<string, number> = {};
+    for (const item of data) {
+      const src = (item.source_name || 'Manual Técnico').trim();
+      counts[src] = (counts[src] || 0) + 1;
+    }
+
+    return Object.entries(counts).map(([name, chunksCount]) => ({
+      name,
+      chunksCount
+    })).sort((a, b) => a.name.localeCompare(b.name));
+  } catch (err) {
+    console.error('[DunoIA Mobile] Error loading manuals list:', err);
+    return [];
+  }
+}

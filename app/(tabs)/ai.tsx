@@ -11,10 +11,11 @@ import {
   Platform,
   Keyboard,
   useColorScheme,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/services/supabase';
-import { searchKnowledgeBase } from '@/services/duno-ai/dunoQueryService';
+import { searchKnowledgeBase, getAvailableManuals, ManualSummary } from '@/services/duno-ai/dunoQueryService';
 
 // ── Types ──
 interface Message {
@@ -125,11 +126,14 @@ export default function DunoAIScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [manualsModalVisible, setManualsModalVisible] = useState(false);
+  const [manuals, setManuals] = useState<ManualSummary[]>([]);
+  const [isLoadingManuals, setIsLoadingManuals] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const lastResponseId = useRef<string | null>(null);
   const messageYPositions = useRef<Record<string, number>>({});
 
-  // Carrega o nome do técnico
+  // Carrega o nome do técnico e contagem inicial de manuais
   useEffect(() => {
     const loadUser = async () => {
       try {
@@ -147,8 +151,21 @@ export default function DunoAIScreen() {
         console.log('[DunoIA] Error loading user:', e);
       }
     };
+    const loadInitialManuals = async () => {
+      const data = await getAvailableManuals();
+      setManuals(data);
+    };
     loadUser();
+    loadInitialManuals();
   }, []);
+
+  const handleOpenManuals = async () => {
+    setManualsModalVisible(true);
+    setIsLoadingManuals(true);
+    const data = await getAvailableManuals();
+    setManuals(data);
+    setIsLoadingManuals(false);
+  };
 
   // Inicializa mensagem de boas-vindas refinada
   useEffect(() => {
@@ -241,6 +258,16 @@ export default function DunoAIScreen() {
         </View>
 
         <View style={styles.headerRight}>
+          <Pressable style={styles.manualsButton} onPress={handleOpenManuals}>
+            <Ionicons name="book-outline" size={16} color="#ffffff" />
+            <Text style={styles.manualsButtonText}>Manuais</Text>
+            {manuals.length > 0 && (
+              <View style={styles.manualsBadge}>
+                <Text style={styles.manualsBadgeText}>{manuals.length}</Text>
+              </View>
+            )}
+          </Pressable>
+
           <Pressable style={styles.resetButton} onPress={handleReset}>
             <Ionicons name="refresh" size={18} color="#ffffff" />
           </Pressable>
@@ -356,6 +383,74 @@ export default function DunoAIScreen() {
           Duno IA • Respostas geradas estritamente a partir de manuais técnicos.
         </Text>
       </View>
+
+      {/* ── Modal de Manuais Disponíveis ── */}
+      <Modal
+        visible={manualsModalVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setManualsModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                <View style={styles.modalHeaderIcon}>
+                  <Ionicons name="book" size={20} color="#10b981" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalTitle}>Manuais na Memória da IA</Text>
+                  <Text style={styles.modalSubtitle}>Documentos salvos para consulta instantânea</Text>
+                </View>
+              </View>
+              <Pressable style={styles.modalCloseButton} onPress={() => setManualsModalVisible(false)}>
+                <Ionicons name="close" size={22} color="#94a3b8" />
+              </Pressable>
+            </View>
+
+            <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={{ gap: 10, paddingVertical: 12 }}>
+              {isLoadingManuals ? (
+                <View style={{ padding: 30, alignItems: 'center' }}>
+                  <ActivityIndicator size="small" color="#10b981" />
+                  <Text style={{ color: '#94a3b8', fontSize: 13, marginTop: 10 }}>Carregando manuais...</Text>
+                </View>
+              ) : manuals.length === 0 ? (
+                <View style={{ padding: 24, alignItems: 'center' }}>
+                  <Ionicons name="folder-open-outline" size={44} color="#64748b" />
+                  <Text style={{ color: '#0f172a', fontSize: 15, fontWeight: '700', marginTop: 12 }}>Nenhum manual cadastrado</Text>
+                  <Text style={{ color: '#64748b', fontSize: 12, textAlign: 'center', marginTop: 6, lineHeight: 18 }}>
+                    Importe manuais técnicos e PDFs no painel administrativo para que a Duno IA possa responder sobre eles.
+                  </Text>
+                </View>
+              ) : (
+                manuals.map((m, idx) => (
+                  <Pressable
+                    key={idx}
+                    style={styles.manualCard}
+                    onPress={() => {
+                      setManualsModalVisible(false);
+                      setInput(`Me passe um resumo geral sobre o manual: ${m.name}`);
+                    }}
+                  >
+                    <View style={styles.manualCardIcon}>
+                      <Ionicons name="document-text" size={22} color="#1c2d4f" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.manualCardName} numberOfLines={2}>{m.name}</Text>
+                      <Text style={styles.manualCardMeta}>⚡ {m.chunksCount} blocos de conhecimento aprendidos</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+                  </Pressable>
+                ))
+              )}
+            </ScrollView>
+
+            <Pressable style={styles.modalFooterButton} onPress={() => setManualsModalVisible(false)}>
+              <Text style={styles.modalFooterButtonText}>Fechar</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -717,5 +812,124 @@ const styles = StyleSheet.create({
     marginTop: 10,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+
+  // Manuals Button Header
+  manualsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  manualsButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  manualsBadge: {
+    backgroundColor: '#10b981',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  manualsBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 18,
+  },
+  modalContent: {
+    width: '100%',
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 15,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  modalHeaderIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  modalSubtitle: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 1,
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  manualCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#f8fafc',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
+  manualCardIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#e0f2fe',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  manualCardName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  manualCardMeta: {
+    fontSize: 11,
+    color: '#059669',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  modalFooterButton: {
+    marginTop: 14,
+    backgroundColor: '#1c2d4f',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalFooterButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
