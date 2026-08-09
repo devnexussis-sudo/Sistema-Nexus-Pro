@@ -501,12 +501,13 @@ function extractKeywords(text: string): string[] {
 
 export async function searchKnowledgeBase(
   query: string, 
-  history: Array<{ role: 'user' | 'assistant', content: string }> = []
+  history: Array<{ role: 'user' | 'assistant', content: string }> = [],
+  userLang: 'pt' | 'en' | 'es' = 'pt'
 ): Promise<string | null> {
   const tid = await requireTid();
   if (!tid) return null;
 
-  console.log('[AI Search Mobile] Iniciando busca com contexto para query:', query);
+  console.log('[AI Search Mobile] Iniciando busca com contexto para query:', query, 'lang:', userLang);
   
   // 🎯 ACÚMULO DE CONTEXTO MULTI-TURN:
   // Se for uma pergunta de acompanhamento ("e a pressão de alta dele?"),
@@ -613,16 +614,18 @@ export async function searchKnowledgeBase(
       .map((c: any, i: number) => `Trecho ${i + 1} (Fonte: ${c.source_name || "Manual"}):\n"${c.content}"`)
       .join("\n\n---\n\n");
 
-    const systemPrompt = `IDIOMA OBRIGATÓRIO: Português do Brasil (pt-BR). Responda SEMPRE em português. NUNCA em inglês.
+    const targetLangName = userLang === 'en' ? 'English (en)' : userLang === 'es' ? 'Español (es)' : 'Português do Brasil (pt-BR)';
 
-Você é a Duno IA, assistente inteligente oficial do sistema de gestão **Duno**. Sua missão é dar respostas COMPLETAS, RICAS e PRECISAS baseadas nos manuais fornecidos.
+    const systemPrompt = `MANDATORY LANGUAGE: Respond strictly in ${targetLangName}.
+
+Você é a Duno IA, assistente inteligente oficial do sistema de gestão **Duno**. Sua missão é dar respostas COMPLETAS, RICAS e PRECISAS no idioma (${targetLangName}) baseadas nos manuais fornecidos.
 
 DIRETRIZES:
 1. RACIOCÍNIO SEMÂNTICO & CONTEXTO DE CONVERSA: Mantenha o contexto dos equipamentos e termos mencionados anteriormente pelo usuário na conversa.
 2. SÍNTESE COMPLETA: Leia TODOS os trechos dos manuais antes de responder.
 3. RESPOSTAS DETALHADAS: Inclua passo a passo completo, avisos de segurança, e informações que complementem a dúvida.
 4. FORMATO PROFISSIONAL: Use listas numeradas para passos, negrito para termos importantes, organize em seções se necessário.
-5. HONESTIDADE: Se os trechos não tiverem a informação, diga: "Não encontrei nos manuais disponíveis. Pode detalhar melhor?"
+5. HONESTIDADE: Se os trechos não tiverem a informação, responda de forma clara no idioma (${targetLangName}) que não encontrou a informação nos manuais.
 6. CONTEXTO DUNO: O sistema se chama DUNO (nunca Nexus).
 7. PERSONALIDADE: Você está conversando no chat de suporte direto com o técnico. Seja EXTREMAMENTE bem-humorado, amigável, acolhedor e use BASTANTE emojis!
 

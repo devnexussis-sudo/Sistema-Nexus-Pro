@@ -16,6 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/services/supabase';
 import { searchKnowledgeBase, getAvailableManuals, ManualSummary } from '@/services/duno-ai/dunoQueryService';
+import { useLanguage } from '@/services/i18n';
 
 // ── Types ──
 interface Message {
@@ -118,6 +119,7 @@ const renderMarkdown = (text: string, isUser: boolean, isDark: boolean) => {
 };
 
 export default function DunoAIScreen() {
+  const { t, language } = useLanguage();
   const colorScheme = useColorScheme();
   const isDark = false; // Forced light theme as requested
 
@@ -169,12 +171,13 @@ export default function DunoAIScreen() {
 
   // Inicializa mensagem de boas-vindas refinada
   useEffect(() => {
+    const welcomeMsg = (t('aiWelcomeGreeting') || '').replace('%s', firstName);
     setMessages([{
       id: 'welcome',
       role: 'assistant',
-      content: `Olá, **${firstName}**! 👋 Sou a **Duno IA**, sua assistente técnica.\n\nEstou pronta para responder qualquer dúvida técnica com base nos **manuais e PDFs** cadastrados.\n\nComo posso ajudar você hoje?`,
+      content: welcomeMsg,
     }]);
-  }, [firstName]);
+  }, [firstName, language, t]);
 
   const scrollToEnd = useCallback(() => {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
@@ -201,35 +204,36 @@ export default function DunoAIScreen() {
       if (personal) {
         response = personal;
       } else {
-        // 2️⃣ Busca no RAG de manuais e PDFs carregados com contexto conversacional
+        // 2️⃣ Busca no RAG de manuais e PDFs carregados com contexto conversacional e idioma
         const conversationHistory = messages
           .filter(m => m.id !== 'welcome' && !m.isTyping)
           .map(m => ({ role: m.role, content: m.content }));
 
-        const kbResponse = await searchKnowledgeBase(userMsg.content, conversationHistory);
+        const kbResponse = await searchKnowledgeBase(userMsg.content, conversationHistory, language);
         if (kbResponse) {
           response = kbResponse;
         } else {
           // Fallback restrito de escopo
-          response = `Desculpe, **${firstName}**. Não encontrei informações sobre este procedimento ou erro nos manuais e PDFs de aprendizado salvos no meu sistema. Pode tentar reformular a pergunta ou verificar se o manual correspondente foi importado no painel?`;
+          response = (t('aiNotFoundFallback') || '').replace('%s', firstName);
         }
       }
     } catch (err) {
       console.error('[Duno IA] Error:', err);
-      response = `${firstName}, desculpe, tive um problema de comunicação com a minha base de dados. Pode tentar enviar sua pergunta novamente? 🔄`;
+      response = (t('aiErrorFallback') || '').replace('%s', firstName);
     }
 
     const newResponseId = Date.now().toString();
     lastResponseId.current = newResponseId;
     setMessages(p => p.map(m => m.id === typingId ? { id: newResponseId, role: 'assistant', content: response } : m));
     setIsLoading(false);
-  }, [input, isLoading, firstName, fullName, messages, scrollToEnd]);
+  }, [input, isLoading, firstName, fullName, messages, scrollToEnd, language, t]);
 
   const handleReset = () => {
+    const welcomeMsg = (t('aiWelcomeGreeting') || '').replace('%s', firstName);
     setMessages([{
       id: 'welcome',
       role: 'assistant',
-      content: `Olá, **${firstName}**! 👋 Sou a **Duno IA**, sua assistente técnica.\n\nEstou pronta para responder qualquer dúvida técnica com base nos **manuais e PDFs** cadastrados.\n\nComo posso ajudar você hoje?`,
+      content: welcomeMsg,
     }]);
   };
 
@@ -247,20 +251,20 @@ export default function DunoAIScreen() {
           </View>
           <View>
             <View style={styles.headerTitleRow}>
-              <Text style={styles.headerTitle}>Duno IA</Text>
+              <Text style={styles.headerTitle}>{t('aiHeaderTitle')}</Text>
               <View style={styles.statusContainer}>
                 <View style={styles.statusDot} />
-                <Text style={styles.statusText}>ATIVO</Text>
+                <Text style={styles.statusText}>{t('aiHeaderStatus')}</Text>
               </View>
             </View>
-            <Text style={styles.headerSubtitle}>Suporte Técnico & Manuais</Text>
+            <Text style={styles.headerSubtitle}>{t('aiHeaderSubtitle')}</Text>
           </View>
         </View>
 
         <View style={styles.headerRight}>
           <Pressable style={styles.manualsButton} onPress={handleOpenManuals}>
             <Ionicons name="book-outline" size={16} color="#ffffff" />
-            <Text style={styles.manualsButtonText}>Manuais</Text>
+            <Text style={styles.manualsButtonText}>{t('aiManualsBtn')}</Text>
             {manuals.length > 0 && (
               <View style={styles.manualsBadge}>
                 <Text style={styles.manualsBadgeText}>{manuals.length}</Text>
@@ -291,10 +295,10 @@ export default function DunoAIScreen() {
               </View>
             </View>
             <Text style={[styles.welcomeTitle, isDark && styles.welcomeTitleDark]}>
-              Como posso te ajudar hoje?
+              {t('aiWelcomeTitle')}
             </Text>
             <Text style={[styles.welcomeSubtitle, isDark && styles.welcomeSubtitleDark]}>
-              Tire dúvidas sobre códigos de erro, especificações técnicas e procedimentos operacionais baseados nos manuais aprendidos.
+              {t('aiWelcomeSubtitle')}
             </Text>
           </View>
         )}
@@ -333,7 +337,7 @@ export default function DunoAIScreen() {
               {msg.isTyping ? (
                 <View style={styles.typingContainer}>
                   <ActivityIndicator size="small" color="#60a5fa" />
-                  <Text style={styles.typingText}>Analisando manuais...</Text>
+                  <Text style={styles.typingText}>{t('aiAnalyzingText')}</Text>
                 </View>
               ) : (
                 <View>{renderMarkdown(msg.content, msg.role === 'user', isDark)}</View>
@@ -356,7 +360,7 @@ export default function DunoAIScreen() {
             style={[styles.textInput, isDark && styles.textInputDark]}
             value={input}
             onChangeText={setInput}
-            placeholder={`Tire sua dúvida técnica, ${firstName}...`}
+            placeholder={(t('aiInputPlaceholder') || '').replace('%s', firstName)}
             placeholderTextColor={isDark ? '#64748b' : '#94a3b8'}
             multiline
             maxLength={1000}
@@ -380,7 +384,7 @@ export default function DunoAIScreen() {
           </Pressable>
         </View>
         <Text style={styles.disclaimer}>
-          Duno IA • Respostas geradas estritamente a partir de manuais técnicos.
+          {t('aiDisclaimer')}
         </Text>
       </View>
 
@@ -399,8 +403,8 @@ export default function DunoAIScreen() {
                   <Ionicons name="book" size={20} color="#10b981" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.modalTitle}>Manuais na Memória da IA</Text>
-                  <Text style={styles.modalSubtitle}>Documentos salvos para consulta instantânea</Text>
+                  <Text style={styles.modalTitle}>{t('aiManualsModalTitle')}</Text>
+                  <Text style={styles.modalSubtitle}>{t('aiManualsModalSubtitle')}</Text>
                 </View>
               </View>
               <Pressable style={styles.modalCloseButton} onPress={() => setManualsModalVisible(false)}>
@@ -412,14 +416,14 @@ export default function DunoAIScreen() {
               {isLoadingManuals ? (
                 <View style={{ padding: 30, alignItems: 'center' }}>
                   <ActivityIndicator size="small" color="#10b981" />
-                  <Text style={{ color: '#94a3b8', fontSize: 13, marginTop: 10 }}>Carregando manuais...</Text>
+                  <Text style={{ color: '#94a3b8', fontSize: 13, marginTop: 10 }}>{t('aiManualsModalLoading')}</Text>
                 </View>
               ) : manuals.length === 0 ? (
                 <View style={{ padding: 24, alignItems: 'center' }}>
                   <Ionicons name="folder-open-outline" size={44} color="#64748b" />
-                  <Text style={{ color: '#0f172a', fontSize: 15, fontWeight: '700', marginTop: 12 }}>Nenhum manual cadastrado</Text>
+                  <Text style={{ color: '#0f172a', fontSize: 15, fontWeight: '700', marginTop: 12 }}>{t('aiManualsModalEmptyTitle')}</Text>
                   <Text style={{ color: '#64748b', fontSize: 12, textAlign: 'center', marginTop: 6, lineHeight: 18 }}>
-                    Importe manuais técnicos e PDFs no painel administrativo para que a Duno IA possa responder sobre eles.
+                    {t('aiManualsModalEmptyDesc')}
                   </Text>
                 </View>
               ) : (
@@ -429,7 +433,8 @@ export default function DunoAIScreen() {
                     style={styles.manualCard}
                     onPress={() => {
                       setManualsModalVisible(false);
-                      setInput(`Me passe um resumo geral sobre o manual: ${m.name}`);
+                      const promptText = (t('aiAskAboutManualPrompt') || '').replace('%s', m.name);
+                      setInput(promptText);
                     }}
                   >
                     <View style={styles.manualCardIcon}>
@@ -437,7 +442,7 @@ export default function DunoAIScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.manualCardName} numberOfLines={2}>{m.name}</Text>
-                      <Text style={styles.manualCardMeta}>⚡ {m.chunksCount} blocos de conhecimento aprendidos</Text>
+                      <Text style={styles.manualCardMeta}>{(t('aiManualsModalMeta') || '').replace('%s', String(m.chunksCount))}</Text>
                     </View>
                     <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
                   </Pressable>
@@ -446,7 +451,7 @@ export default function DunoAIScreen() {
             </ScrollView>
 
             <Pressable style={styles.modalFooterButton} onPress={() => setManualsModalVisible(false)}>
-              <Text style={styles.modalFooterButtonText}>Fechar</Text>
+              <Text style={styles.modalFooterButtonText}>{t('aiManualsModalFooterBtn')}</Text>
             </Pressable>
           </View>
         </View>
