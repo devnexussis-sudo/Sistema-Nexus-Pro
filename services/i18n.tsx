@@ -1061,5 +1061,11 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useI18n() {
-  return useContext(I18nContext);
+  const ctx = useContext(I18nContext);
+  return {
+    ...ctx,
+    language: ctx.lang,
+  };
 }
+
+export const useLanguage = useI18n;
