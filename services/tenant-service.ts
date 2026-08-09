@@ -57,17 +57,19 @@ export class TenantService {
         console.log(`[TenantService] ⚡ Iniciando Supabase Realtime para o tenant: ${tenantId}`);
 
         this.realtimeChannel = supabase
-            .channel(`tenant_settings_${tenantId}`)
+            .channel(`tenant_settings_${tenantId}_${Date.now()}`)
             .on(
                 'postgres_changes',
                 {
-                    event: 'UPDATE',
+                    event: '*',
                     schema: 'public',
                     table: 'tenants',
-                    filter: `id=eq.${tenantId}`,
                 },
-                async (payload) => {
-                    console.log('[TenantService] 🔔 Alteração de configurações da empresa detectada em tempo real!', payload.new);
+                async (payload: any) => {
+                    const updatedId = payload.new?.id || payload.old?.id;
+                    if (updatedId && tenantId && updatedId !== tenantId) return;
+
+                    console.log('[TenantService] 🔔 Alteração de configurações da empresa detectada em tempo real!', payload);
                     this.clearCache();
                     const newSettings = await this.getSettings(true);
                     this.activeListeners.forEach((listener) => {

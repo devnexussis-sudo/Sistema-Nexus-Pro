@@ -621,6 +621,7 @@ export default function HomeScreen() {
         <FlatList
           ref={flatListRef}
           data={orders}
+          extraData={[allowOsSharing, showClientContact]}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <OrderCard
