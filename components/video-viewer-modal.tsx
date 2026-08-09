@@ -1,9 +1,9 @@
 /**
- * VideoViewerModal — Visualizador de Vídeo Customizado e Universal (v2)
+ * VideoViewerModal — Visualizador de Vídeo Customizado e Universal (v3)
  *
- * Utiliza o WebView nativo com HTML5 Video Player, evitando dependência
- * do módulo descontinuado ExponentAV/expo-av e eliminando crashes nativos.
- * Suporta arquivos locais (file://) e URLs remotas assinadas do Supabase.
+ * Enquadramento perfeito com Safe Area Insets (Top Notch & Bottom Navigation Bar).
+ * Evita que o player ou os controles fiquem atrás da barra de status, notch
+ * ou botões/barra de navegação inferior do Android e iPhone.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getSignedUrl } from '@/components/secure-image';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -29,8 +30,12 @@ interface VideoViewerModalProps {
 }
 
 export function VideoViewerModal({ visible, videoUri, onClose }: VideoViewerModalProps) {
+    const insets = useSafeAreaInsets();
     const [resolvedUri, setResolvedUri] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+
+    const topInset = Math.max(insets.top, 24);
+    const bottomInset = Math.max(insets.bottom, 24);
 
     useEffect(() => {
         let active = true;
@@ -77,8 +82,24 @@ export function VideoViewerModal({ visible, videoUri, onClose }: VideoViewerModa
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <style>
             * { box-sizing: border-box; }
-            body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000000; display: flex; justify-content: center; align-items: center; overflow: hidden; }
-            video { width: 100vw; height: 100vh; object-fit: contain; background: #000000; }
+            body, html { 
+                margin: 0; 
+                padding: 0; 
+                width: 100%; 
+                height: 100%; 
+                background-color: #000000; 
+                display: flex; 
+                justify-content: center; 
+                align-items: center; 
+                overflow: hidden; 
+            }
+            video { 
+                width: 100vw; 
+                height: 100vh; 
+                max-height: calc(100vh - ${bottomInset + 20}px);
+                object-fit: contain; 
+                background: #000000; 
+            }
         </style>
     </head>
     <body>
@@ -95,13 +116,15 @@ export function VideoViewerModal({ visible, videoUri, onClose }: VideoViewerModa
             animationType="fade" 
             statusBarTranslucent
         >
-            <View style={styles.container}>
-                {/* Botão de Fechar */}
-                <Pressable style={styles.closeButton} onPress={onClose} hitSlop={20}>
-                    <View style={styles.closeButtonBg}>
-                        <Ionicons name="close" size={26} color="#ffffff" />
-                    </View>
-                </Pressable>
+            <View style={[styles.container, { paddingTop: topInset, paddingBottom: bottomInset }]}>
+                {/* Header Bar com Botão de Fechar */}
+                <View style={[styles.headerBar, { top: topInset + 6 }]}>
+                    <Pressable style={styles.closeButton} onPress={onClose} hitSlop={20}>
+                        <View style={styles.closeButtonBg}>
+                            <Ionicons name="close" size={24} color="#ffffff" />
+                        </View>
+                    </Pressable>
+                </View>
 
                 {/* Carregando URL */}
                 {isLoading && (
@@ -111,9 +134,9 @@ export function VideoViewerModal({ visible, videoUri, onClose }: VideoViewerModa
                     </View>
                 )}
 
-                {/* Player Nativo Universal HTML5 via WebView */}
+                {/* Player Nativo Universal HTML5 via WebView dentro da Área Segura */}
                 {!isLoading && resolvedUri && (
-                    <View style={styles.videoWrapper}>
+                    <View style={[styles.videoWrapper, { marginTop: 50, marginBottom: 10 }]}>
                         <WebView
                             source={{ html: htmlContent, baseUrl: '' }}
                             style={styles.webview}
@@ -139,6 +162,15 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    headerBar: {
+        position: 'absolute',
+        left: 20,
+        right: 20,
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        zIndex: 999,
+    },
     centerContent: {
         justifyContent: 'center',
         alignItems: 'center',
@@ -151,24 +183,22 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     videoWrapper: {
+        flex: 1,
         width: SCREEN_W,
-        height: SCREEN_H,
         backgroundColor: '#000000',
+        overflow: 'hidden',
     },
     webview: {
         flex: 1,
         backgroundColor: '#000000',
     },
     closeButton: {
-        position: 'absolute',
-        top: 50,
-        right: 20,
-        zIndex: 999,
+        padding: 4,
     },
     closeButtonBg: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
         backgroundColor: 'rgba(30, 41, 59, 0.85)',
         alignItems: 'center',
         justifyContent: 'center',
