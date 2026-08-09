@@ -10,6 +10,7 @@ import { authService } from './auth-service';
 // (app-lifecycle → location-service → auto-checkin-service → order-service → app-lifecycle)
 import { CacheService } from './cache-service';
 import { logger } from './logger';
+import { syncService } from './sync-service';
 import { BUCKET_NAME, supabase } from './supabase';
 
 const DISK_CACHE_FORM_TEMPLATES = '@nexus_form_templates';
@@ -24,7 +25,9 @@ export enum FormFieldType {
     TEXT = 'TEXT',
     LONG_TEXT = 'LONG_TEXT',
     SELECT = 'SELECT',
+    MULTI_SELECT = 'MULTI_SELECT',
     PHOTO = 'PHOTO',
+    VIDEO = 'VIDEO',
     SIGNATURE = 'SIGNATURE'
 }
 
@@ -1024,6 +1027,22 @@ export class OrderService {
     }
 
     static async startExecution(id: string, lat?: number, lon?: number): Promise<void> {
+        if (syncService.isOfflineModeEnabled()) {
+            console.log(`[OrderService] ⚠️ Offline Mode: Optimistically setting status to EM ANDAMENTO for ${id}`);
+            try {
+                const orderData = await syncService.getOrderDetail(id);
+                if (orderData) {
+                    orderData.status = 'EM ANDAMENTO';
+                    orderData.start_date = new Date().toISOString();
+                    await syncService.saveOrderDetail(id, orderData);
+                }
+                const todayOrders = await syncService.getTodayOrders();
+                const updatedOrders = todayOrders.map(o => o.id === id ? { ...o, status: 'EM ANDAMENTO', start_date: new Date().toISOString() } : o);
+                await syncService.saveTodayOrders(updatedOrders);
+            } catch(e) {}
+            return;
+        }
+
         try {
             console.log(`[OrderService] 🚀 startExecution: Setting status to EM ANDAMENTO for order ${id}`);
             
@@ -1144,6 +1163,14 @@ export class OrderService {
     }
 
     static async getFormTemplates(): Promise<FormTemplate[]> {
+        if (syncService.isOfflineModeEnabled()) {
+            try {
+                const raw = await AsyncStorage.getItem(DISK_CACHE_FORM_TEMPLATES);
+                if (raw) return JSON.parse(raw);
+            } catch (_) { }
+            return [];
+        }
+
         try {
             const { data, error } = await supabase
                 .from('form_templates')
@@ -1207,6 +1234,17 @@ export class OrderService {
     }
 
     static async getActivationRules(): Promise<ActivationRule[]> {
+        if (syncService.isOfflineModeEnabled()) {
+            try {
+                const raw = await AsyncStorage.getItem(DISK_CACHE_ACTIVATION_RULES);
+                if (raw) {
+                    console.log('[OrderService] getActivationRules: usando cache offline (bypass de timeout)');
+                    return JSON.parse(raw);
+                }
+            } catch (_) { }
+            return [];
+        }
+
         try {
             // Obter tenant_id do usuário autenticado (necessário para o RLS do Supabase)
             const { data: { user } } = await supabase.auth.getUser();
@@ -1270,6 +1308,14 @@ export class OrderService {
     }
 
     static async getServiceTypes(): Promise<any[]> {
+        if (syncService.isOfflineModeEnabled()) {
+            try {
+                const raw = await AsyncStorage.getItem(DISK_CACHE_SERVICE_TYPES);
+                if (raw) return JSON.parse(raw);
+            } catch (_) { }
+            return [];
+        }
+
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return [];

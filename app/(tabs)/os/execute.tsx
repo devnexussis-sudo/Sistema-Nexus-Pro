@@ -6,6 +6,7 @@ import { ImageService } from '@/services/image-service';
 import { OrderItem, OrderService } from '@/services/order-service';
 import { StockService, TechStockItem } from '@/services/stock-service';
 import { syncService } from '@/services/sync-service';
+import { resilientUpload } from '@/services/upload-resilient';
 import { TenantService } from '@/services/tenant-service';
 import { appLifecycle } from '@/services/app-lifecycle';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,7 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
-import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { Tabs, useFocusEffect, useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { useGlobalLoading } from '@/contexts/GlobalLoadingContext';
 import NexusCamera from '@/components/nexus-camera';
 import * as VideoThumbnails from 'expo-video-thumbnails';
@@ -22,9 +23,16 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import React, { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, SafeAreaView, DeviceEventEmitter } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { FFmpegKit, ReturnCode } from 'ffmpeg-kit-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SignatureScreen from 'react-native-signature-canvas';
+
+export interface VideoAsset {
+    uri: string;
+    thumbUri: string | null;
+    sizeMB: number | null;
+    status: string | null;
+    isProcessing: boolean;
+}
 
 export default function ExecuteOSScreen() {
     const { id } = useLocalSearchParams();
@@ -36,6 +44,7 @@ export default function ExecuteOSScreen() {
     const [order, setOrder] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isCustomCameraActive, setIsCustomCameraActive] = useState(false);
+    const navigation = useNavigation();
 
     // Multi-equipment forms state
     // { equipmentIndex_or_id: { equipamento: any, template: any, data: any } }
@@ -55,9 +64,7 @@ export default function ExecuteOSScreen() {
     const [usedItems, setUsedItems] = useState<OrderItem[]>([]); // Structured parts
     const [extraPhotos, setExtraPhotos] = useState<string[]>([]);
     const [isUploadingExtra, setIsUploadingExtra] = useState(false);
-    const [videoUri, setVideoUri] = useState<string | null>(null);
-    const [videoThumbUri, setVideoThumbUri] = useState<string | null>(null);
-    const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+    const [videos, setVideos] = useState<VideoAsset[]>([]);
 
     const [selectedPart, setSelectedPart] = useState<TechStockItem | null>(null);
     const [signature, setSignature] = useState<string | null>(null);
@@ -126,6 +133,7 @@ export default function ExecuteOSScreen() {
     const [isPhotoSourceModalVisible, setIsPhotoSourceModalVisible] = useState(false);
     const [isPartSourceModalVisible, setIsPartSourceModalVisible] = useState(false);
     const [photoSourceTarget, setPhotoSourceTarget] = useState<{ type: 'extra' | 'field', eqKey?: string, fieldId?: string } | null>(null);
+    const [videoSourceTarget, setVideoSourceTarget] = useState<{ type: 'global' | 'field', eqKey?: string, fieldId?: string } | null>(null);
     const signatureRef = useRef<any>(null);
     const scrollViewRef = useRef<ScrollView>(null);
 
@@ -156,7 +164,7 @@ export default function ExecuteOSScreen() {
     };
     // v5: Map local URI → remote URL (mantém miniatura local, resolve na hora de salvar)
     const uploadedUrlMapRef = useRef<Map<string, string>>(new Map());
-    const hasPendingUploads = pendingUploadCount > 0 || isUploadingExtra || isUploadingVideo || isUploadingPhoto !== null || isProcessingMedia;
+    const hasPendingUploads = pendingUploadCount > 0 || isUploadingExtra || videos.some(v => v.isProcessing) || isUploadingPhoto !== null || isProcessingMedia;
 
     /** Resolve URI: se tem URL remota no mapa, usa ela; senão mantém a local */
     const resolvePhotoUri = useCallback((uri: string) => {
@@ -196,6 +204,17 @@ export default function ExecuteOSScreen() {
                         showValidation(
                             t('execRequiredField') || 'Campo obrigatório',
                             `Adicione pelo menos 1 foto em "${field.label}" (${eqDesc}).`
+                        );
+                        return false;
+                    }
+                    continue;
+                }
+
+                if (field.type === 'VIDEO') {
+                    if (!value) {
+                        showValidation(
+                            t('execRequiredField') || 'Campo obrigatório',
+                            `Adicione pelo menos 1 vídeo em "${field.label}" (${eqDesc}).`
                         );
                         return false;
                     }
@@ -330,10 +349,21 @@ export default function ExecuteOSScreen() {
     useFocusEffect(
         React.useCallback(() => {
             let isActive = true;
+            // 🧹 RESET ALL GLOBAL CACHED STATES
             setOrder(null);
             setFormsConfig({});
+            setCurrentPage(0); // Garante que a OS abre sempre no início, mesmo após voltar do background
             setIsLoading(true);
+            setTechnicalReport('');
+            setUsedItems([]);
+            setExtraPhotos([]);
+            setVideos([]);
+            setSignature(null);
+            setClientName('');
+            setClientDoc('');
+            
             showLoading('Carregando execução...');
+            const startTime = Date.now();
 
             const loadData = async (isBackground = false) => {
                 try {
@@ -368,9 +398,7 @@ export default function ExecuteOSScreen() {
                                 if (cache.signature) setSignature(cache.signature);
                                 if (cache.clientName) setClientName(cache.clientName);
                                 if (cache.clientDoc) setClientDoc(cache.clientDoc);
-                                if (cache.videoUri) setVideoUri(cache.videoUri);
-                                if (cache.videoThumbUri) setVideoThumbUri(cache.videoThumbUri);
-                                if (cache.videoSizeMB) setVideoSizeMB(cache.videoSizeMB);
+                                if (cache.videos) setVideos(cache.videos);
                             }
 
 
@@ -457,9 +485,7 @@ export default function ExecuteOSScreen() {
                             if (cache.signature) setSignature(cache.signature);
                             if (cache.clientName) setClientName(cache.clientName);
                             if (cache.clientDoc) setClientDoc(cache.clientDoc);
-                            if (cache.videoUri) setVideoUri(cache.videoUri);
-                            if (cache.videoThumbUri) setVideoThumbUri(cache.videoThumbUri);
-                            if (cache.videoSizeMB) setVideoSizeMB(cache.videoSizeMB);
+                            if (cache.videos) setVideos(cache.videos);
                         } 
 
                         setExtraPhotos([]);
@@ -567,7 +593,7 @@ export default function ExecuteOSScreen() {
                 }
             };
 
-            loadData().then(() => {
+            loadData().then(async () => {
                 if (isActive) {
                     // 2. Fetch from Network implicitly (SWR Background Update)
                     // We only update Order data, NOT form data to prevent overwriting user input!
@@ -577,6 +603,13 @@ export default function ExecuteOSScreen() {
                         }
                     });
                 }
+                
+                const elapsed = Date.now() - startTime;
+                const remaining = Math.max(0, 1000 - elapsed);
+                if (remaining > 0) {
+                    await new Promise(resolve => setTimeout(resolve, remaining));
+                }
+                
                 hideLoading();
             });
 
@@ -587,7 +620,7 @@ export default function ExecuteOSScreen() {
     // Auto-save to cache effect
     React.useEffect(() => {
         const saveToCache = async () => {
-            if (!id || isLoading || !order) return;
+            if (!id || isLoading || !order || order.id !== id) return;
             try {
                 const cacheData = {
                     formsData: Object.keys(formsConfig).reduce((acc, key) => {
@@ -599,9 +632,7 @@ export default function ExecuteOSScreen() {
                     signature,
                     clientName,
                     clientDoc,
-                    videoUri,
-                    videoThumbUri,
-                    videoSizeMB,
+                    videos,
                     timestamp: Date.now(),
                 };
                 await AsyncStorage.setItem(`os_cache_${id}`, JSON.stringify(cacheData));
@@ -611,7 +642,7 @@ export default function ExecuteOSScreen() {
         };
         const t = setTimeout(saveToCache, 1000);
         return () => clearTimeout(t);
-    }, [id, formsConfig, usedItems, extraPhotos, signature, clientName, clientDoc, videoUri, videoThumbUri, videoSizeMB, isLoading, order]);
+    }, [id, formsConfig, usedItems, extraPhotos, signature, clientName, clientDoc, videos, isLoading, order]);
 
 
     const addUsedItem = (stockItem: TechStockItem, quantity: number, equipmentId?: string, equipmentName?: string, equipmentSerial?: string) => {
@@ -694,32 +725,27 @@ export default function ExecuteOSScreen() {
             });
             setExtraPhotos(prev => [...prev, ...localUris]);
 
-            // BACKGROUND: Comprimir e subir TODAS em paralelo (rápido)
-            const netInfo = await NetInfo.fetch();
-            const isOnline = netInfo.isConnected && !syncService.isOfflineModeEnabled();
-
+            // ── BACKGROUND QUEUE (v6 — Big Tech Pattern) ──────────────────────
+            // resilientUpload.enqueue() decide automaticamente:
+            //   ▸ Online  → sobe na hora, retry exponencial se falhar
+            //   ▸ Offline → salva local, sobe quando voltar a conexão
+            // O callback onProgress atualiza o mapa de URLs quando o upload completa.
             await Promise.allSettled(localUris.map(async (uri) => {
                 try {
                     const compressedUri = await ImageService.compressImage(uri);
-                    let finalUri = compressedUri;
+                    const remotePath    = `orders/${order?.displayId || id}/extra_photos/${Date.now()}_${Math.random().toString(36).slice(2,6)}.webp`;
 
-                    if (isOnline) {
-                        const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${order?.displayId || id}/extra_photos`, order?.tenantId);
-                        if (publicUrl) finalUri = publicUrl;
-                    } else {
-                        const fileName = `offline_extra_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.webp`;
-                        const destPath = `${FileSystem.documentDirectory}${fileName}`;
-                        await FileSystem.copyAsync({ from: compressedUri, to: destPath });
-                        finalUri = destPath;
-                    }
+                    const taskId = await resilientUpload.enqueue(compressedUri, remotePath, 'image/webp');
 
-                    // v5: NÃO troca a URI no estado visual — miniatura fica com arquivo local (nunca cinza)
-                    // Guarda no Map para resolver na hora de salvar a OS
-                    if (finalUri !== uri) {
-                        uploadedUrlMapRef.current.set(uri, finalUri);
-                    }
+                    // Ouvir conclusão desta task específica para atualizar o mapa de URLs
+                    const unsub = resilientUpload.onProgress(task => {
+                        if (task.id === taskId && task.status === 'completed' && task.resultUrl) {
+                            uploadedUrlMapRef.current.set(uri, task.resultUrl);
+                            unsub();
+                        }
+                    });
                 } catch (e) {
-                    console.warn('[ExtraPhoto] Upload failed, keeping local:', (e as Error).message);
+                    console.warn('[ExtraPhoto] Enqueue failed:', (e as Error).message);
                 } finally {
                     setUploadingUris(prev => { const n = new Set(prev); n.delete(uri); return n; });
                     setPendingUploadCount(prev => Math.max(0, prev - 1));
@@ -742,13 +768,31 @@ export default function ExecuteOSScreen() {
 
     const handlePickVideoFromGallery = async () => {
         try {
+            const limit = 4 - videos.length;
+            if (limit <= 0) {
+                Alert.alert('Limite atingido', 'Você pode adicionar no máximo 4 vídeos.');
+                return;
+            }
+            
             const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ['videos'],
-                allowsEditing: false,
+                allowsMultipleSelection: true,
+                selectionLimit: limit,
             });
-            if (!result.canceled && result.assets?.[0]?.uri) {
+            if (!result.canceled && result.assets && result.assets.length > 0) {
                 setIsVideoSourceModalVisible(false);
-                startBackstageVideoProcess(result.assets[0].uri);
+                result.assets.forEach(asset => {
+                    if (asset.duration && asset.duration > 90000) {
+                        setAlertConfig({
+                            visible: true,
+                            title: 'Vídeo muito longo',
+                            message: 'Você selecionou um vídeo com mais de 90 segundos. Por favor, escolha vídeos mais curtos (limite de 1m30s).',
+                            buttons: [{ text: 'OK', onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
+                        });
+                        return;
+                    }
+                    startBackstageVideoProcess(asset.uri, false, true);
+                });
             }
         } catch {
             Alert.alert(t('alertError'), t('execCouldNotGallery'));
@@ -763,82 +807,133 @@ export default function ExecuteOSScreen() {
      * - Em segundo plano, roda a compressão profunda (H265) e faz o upload
      * - Substitui a opção de play por um loader na miniatura
      */
-    const startBackstageVideoProcess = async (rawUri: string, isNativeRecording: boolean = false) => {
+    const startBackstageVideoProcess = async (rawUri: string, isNativeRecording: boolean = false, bypassLimit: boolean = false) => {
         try {
+            // 🎯 Suporte a Vídeo em Pergunta de Formulário Dinâmico
+            if (videoSourceTarget?.type === 'field' && videoSourceTarget.eqKey && videoSourceTarget.fieldId) {
+                const { eqKey, fieldId } = videoSourceTarget;
+                const uploadKey = `${eqKey}_${fieldId}`;
+                setIsUploadingPhoto(uploadKey);
+                try {
+                    const localUri = rawUri.startsWith('/') ? `file://${rawUri}` : rawUri;
+                    let finalUriToUpload = localUri;
+                    try {
+                        const { Video } = require('react-native-compressor');
+                        if (Video && Video.compress) {
+                            finalUriToUpload = await Video.compress(localUri, {
+                                compressionMethod: 'manual',
+                                maxSize: 576,
+                                bitrate: 420000
+                            });
+                        }
+                    } catch (err) {
+                        console.log('[VideoField] Compressão nativa ignorada:', err);
+                    }
+
+                    const uploadedUrl = await OrderService.uploadFile(finalUriToUpload, `orders/${order?.displayId || id}/form_videos`, order?.tenantId, 'video/mp4');
+                    const finalUrl = uploadedUrl || finalUriToUpload;
+                    updateFieldData(eqKey, fieldId, finalUrl);
+                } catch (err) {
+                    console.error('[VideoField] Erro no processamento do vídeo do campo:', err);
+                    Alert.alert(t('alertError'), t('execVideoError'));
+                } finally {
+                    setIsUploadingPhoto(null);
+                    setVideoSourceTarget(null);
+                }
+                return;
+            }
+
+            if (!bypassLimit && videos.length >= 4) {
+                Alert.alert('Limite atingido', 'Você pode adicionar no máximo 4 vídeos.');
+                return;
+            }
+
             const localUri = rawUri.startsWith('/') ? `file://${rawUri}` : rawUri;
-
-            // ─── Ponto A: UI INSTANTÂNEA ──────────────────────────────────────────
-            setIsUploadingVideo(true);
-            setVideoProcessingStatus(t('execThumbnail'));
-            setVideoUri(localUri); 
-            setVideoThumbUri(null);
-            setVideoSizeMB(null);
-
-            // Thumbnail extraído nativamente (leva ms)
+            
+            const newVideo: VideoAsset = {
+                uri: localUri,
+                thumbUri: null,
+                sizeMB: null,
+                status: t('execThumbnail'),
+                isProcessing: true
+            };
+            
+            setVideos(prev => [...prev, newVideo]);
+            
+            let thumb = null;
             try {
-                const { uri: thumb } = await VideoThumbnails.getThumbnailAsync(localUri, { time: 500, quality: 0.7 });
-                setVideoThumbUri(thumb);
+                const result = await VideoThumbnails.getThumbnailAsync(localUri, { time: 500, quality: 0.7 });
+                thumb = result.uri;
+                setVideos(prev => prev.map(v => v.uri === localUri ? { ...v, thumbUri: thumb, status: 'Enviando vídeo...' } : v));
             } catch (err) {
                 console.warn('[Video] Falha na thumbnail:', err);
+                setVideos(prev => prev.map(v => v.uri === localUri ? { ...v, status: 'Enviando vídeo...' } : v));
             }
 
-            // A partir daqui, o card de vídeo já aparece na tela!
             let finalUriToUpload = localUri;
-            setVideoProcessingStatus('Comprimindo vídeo...');
-
-            // ─── Ponto B: Compressão Absoluta (FFmpeg) ────
+            
             try {
-                const outPath = `${FileSystem.cacheDirectory}compressed_${Date.now()}.mp4`;
-                
-                // Padrão NASA: 480p, 450kbps, H264 ultrafast, Mono, 44100Hz, 32k áudio
-                // Usando mpeg4 como codec de vídeo para máxima compatibilidade
-                const ffmpegCommand = `-i "${localUri}" -vf "scale=-2:480" -c:v mpeg4 -b:v 450k -c:a aac -b:a 32k -ac 1 -ar 44100 "${outPath}"`;
-                
-                const session = await FFmpegKit.execute(ffmpegCommand);
-                const returnCode = await session.getReturnCode();
-                if (!ReturnCode.isSuccess(returnCode)) {
-                    throw new Error(`FFmpeg failed with return code ${returnCode}`);
+                // Importamos dinamicamente para não quebrar o app no Expo Go (faltam NitroModules)
+                const { Video } = require('react-native-compressor');
+                if (Video && Video.compress) {
+                    const compressedUri = await Video.compress(
+                        localUri, 
+                        {
+                            compressionMethod: 'manual',
+                            maxSize: 576,
+                            bitrate: 420000,
+                            progressDivider: 10
+                        },
+                        (progress: number) => {
+                            setVideos(prev => prev.map(v => v.uri === localUri ? { ...v, status: `Comprimindo... ${Math.round(progress * 100)}%` } : v));
+                        }
+                    );
+                    finalUriToUpload = compressedUri;
                 }
-                finalUriToUpload = outPath;
             } catch (err) {
-                console.warn('[Video] Erro na execução FFmpeg:', err);
+                console.log('[Video] Compressão nativa ignorada (Provavelmente rodando no Expo Go):', err);
+                finalUriToUpload = localUri;
             }
 
-            // Mede a redução conseguida
             const info = await FileSystem.getInfoAsync(finalUriToUpload);
-            const sizeMB = ((info as any).size ?? 0) / 1024 / 1024;
-            setVideoSizeMB(Math.round(sizeMB * 10) / 10);
-            
-            // ─── Ponto C: UPLOAD BACKGROUND ─────────────────────────────────────
-            setVideoProcessingStatus(t('execFinalizing'));
-            const netInfo = await NetInfo.fetch();
-            
-            if (!netInfo.isConnected || syncService.isOfflineModeEnabled()) {
-                // Offline fallback
-                const fileName = `offline_video_${id}_${Date.now()}.mp4`;
-                const destPath = `${FileSystem.documentDirectory}${fileName}`;
-                await FileSystem.copyAsync({ from: finalUriToUpload, to: destPath });
-                setVideoUri(destPath);
-            } else {
-                // Upload normal para o Storage
-                const publicUrl = await OrderService.uploadFile(
-                    finalUriToUpload,
-                    `orders/${order?.displayId || id}/videos`,
-                    order?.tenantId,
-                    'video/mp4'
-                );
+            const sizeMB = Math.round((((info as any).size ?? 0) / 1024 / 1024) * 10) / 10;
+            setVideos(prev => prev.map(v => v.uri === localUri ? { ...v, sizeMB, status: 'Enviando para nuvem...' } : v));
 
-                if (publicUrl) {
-                    setVideoUri(publicUrl); // Troca a URL local pela URL Pública da CDN
+            // ── BACKGROUND QUEUE (v6 — Big Tech Pattern) ──────────────────────────
+            // resilientUpload decide: Online → sobe agora | Offline → salva, sobe ao reconectar
+            const remotePath = `orders/${order?.displayId || id}/videos/${Date.now()}.mp4`;
+            const taskId     = await resilientUpload.enqueue(finalUriToUpload, remotePath, 'video/mp4');
+
+            // Ouvir conclusão para atualizar URI do vídeo com URL pública
+            const unsub = resilientUpload.onProgress(task => {
+                if (task.id === taskId) {
+                    if (task.status === 'completed' && task.resultUrl) {
+                        setVideos(prev => prev.map(v =>
+                            v.uri === localUri ? { ...v, uri: task.resultUrl!, status: null, isProcessing: false } : v
+                        ));
+                        unsub();
+                    } else if (task.status === 'failed') {
+                        setVideos(prev => prev.map(v =>
+                            v.uri === localUri ? { ...v, status: null, isProcessing: false } : v
+                        ));
+                        unsub();
+                    } else if (task.status === 'offline_pending') {
+                        setVideos(prev => prev.map(v =>
+                            v.uri === localUri ? { ...v, status: '📦 Salvo offline', isProcessing: false } : v
+                        ));
+                        unsub();
+                    }
                 }
-            }
+            });
+
+            // Estado inicial após enqueue (já não está mais processando localmente)
+            setVideos(prev => prev.map(v =>
+                v.uri === localUri ? { ...v, status: null, isProcessing: false } : v
+            ));
         } catch (error) {
             console.error('[Video] Erro backstage fatal:', error);
             Alert.alert(t('alertError'), t('execVideoError'));
-        } finally {
-            // Libera o Play Button e remove spinners
-            setIsUploadingVideo(false);
-            setVideoProcessingStatus(null);
+            setVideos(prev => prev.filter(v => v.uri !== rawUri && v.uri !== `file://${rawUri}`));
         }
     };
 
@@ -863,37 +958,29 @@ export default function ExecuteOSScreen() {
                 return newConfig;
             });
 
-            // BACKGROUND: Comprimir e subir TODAS em paralelo (rápido)
-            const netInfo = await NetInfo.fetch();
-            const isOnline = netInfo.isConnected && !syncService.isOfflineModeEnabled();
-
+            // ── BACKGROUND QUEUE (v6 — Big Tech Pattern) ──────────────────────
             await Promise.allSettled(localUris.map(async (uri) => {
                 try {
                     const compressedUri = await ImageService.compressImage(uri);
-                    let finalUri = compressedUri;
+                    const remotePath    = `orders/${order?.displayId || id}/form_photos/${eqKey}_${fieldId}_${Date.now()}_${Math.random().toString(36).slice(2,6)}.webp`;
 
-                    if (isOnline) {
-                        const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${order?.displayId || id}/form_photos`, order?.tenantId);
-                        if (publicUrl) finalUri = publicUrl;
-                    } else {
-                        const fileName = `offline_form_${id}_${eqKey}_${fieldId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.webp`;
-                        const destPath = `${FileSystem.documentDirectory}${fileName}`;
-                        await FileSystem.copyAsync({ from: compressedUri, to: destPath });
-                        finalUri = destPath;
-                    }
+                    const taskId = await resilientUpload.enqueue(compressedUri, remotePath, 'image/webp');
 
-                    // v5: NÃO troca a URI no estado visual — miniatura fica com arquivo local
-                    if (finalUri !== uri) {
-                        uploadedUrlMapRef.current.set(uri, finalUri);
-                    }
+                    // Ouvir conclusão desta task para atualizar o mapa de URLs
+                    const unsub = resilientUpload.onProgress(task => {
+                        if (task.id === taskId && task.status === 'completed' && task.resultUrl) {
+                            uploadedUrlMapRef.current.set(uri, task.resultUrl);
+                            unsub();
+                        }
+                    });
                 } catch (e) {
-                    console.warn('[FieldPhoto] Upload failed, keeping local:', (e as Error).message);
+                    console.warn('[FieldPhoto] Enqueue failed:', (e as Error).message);
                 } finally {
                     setUploadingUris(prev => { const n = new Set(prev); n.delete(uri); return n; });
                     setPendingUploadCount(prev => Math.max(0, prev - 1));
                 }
             }));
-            
+
         } finally {
             setIsUploadingPhoto(null);
         }
@@ -943,7 +1030,7 @@ export default function ExecuteOSScreen() {
                     }
 
                     // 2. Se visível e obrigatório, valida resposta
-                    if (isVisible && field.required && !config.data[field.id] && field.type !== 'PHOTO' && field.type !== 'SIGNATURE') {
+                    if (isVisible && field.required && !config.data[field.id] && field.type !== 'PHOTO' && field.type !== 'VIDEO' && field.type !== 'SIGNATURE') {
                         const eqDesc = config.equipamento?.equipment_model || config.equipamento?.equipment_name || 'selecionado';
                         showValidation(t('execRequiredField'), t('execFillField').replace('%s', field.label).replace('%s', eqDesc));
                         return;
@@ -1052,7 +1139,9 @@ export default function ExecuteOSScreen() {
                     if (photo.startsWith('file://')) localPhotosToSync.push(photo);
                 }
                 if (signature) localPhotosToSync.push(signature);
-                if (videoUri && videoUri.startsWith('file://')) localPhotosToSync.push(videoUri);
+                videos.forEach(v => {
+                    if (v.uri.startsWith('file://')) localPhotosToSync.push(v.uri);
+                });
 
                 await syncService.addToQueue({
                     type: 'complete_os',
@@ -1067,7 +1156,7 @@ export default function ExecuteOSScreen() {
                         clientName,
                         clientDoc,
                         tenantId: order?.tenantId,
-                        videoUrl: videoUri,
+                        videoUrl: videos.map(v => v.uri).join(','),
                     },
                     localPhotos: localPhotosToSync
                 });
@@ -1168,7 +1257,7 @@ export default function ExecuteOSScreen() {
                     technicalReport: combinedReport,
                     partsUsed: '',
                     photos: resolvedExtraPhotos,
-                    videoUrl: videoUri,
+                    videoUrl: videos.map(v => v.uri).join(','),
                     signature,
                     formData: finalFormData,
                     clientName,
@@ -1237,9 +1326,11 @@ export default function ExecuteOSScreen() {
                     allReports.push(`${eqName}: ${eqReport}`);
                 }
 
-                if (config.template) {
-                    let visibleCount = 1;
-                    config.template.fields.forEach((field: any) => {
+                let visibleCount = 1;
+                const processTemplateFields = (templateObj: any, suffix: string) => {
+                    if (!templateObj || !templateObj.fields) return;
+                    const fullPrefix = `[${eqName}${eqSerial ? ` S/N: ${eqSerial}` : ''} - ${suffix}] - `;
+                    templateObj.fields.forEach((field: any) => {
                         if (field.condition?.fieldId) {
                             const dep = (config.data[field.condition.fieldId] ?? '').toString().trim().toLowerCase();
                             const exp = (field.condition.value ?? '').toString().trim().toLowerCase();
@@ -1254,11 +1345,14 @@ export default function ExecuteOSScreen() {
                                 value = value.map((p: string) => resolvePhotoUri(p)).filter((p: string) => p !== '__PENDING__');
                             }
                             const indexStr = String(visibleCount).padStart(3, '0');
-                            finalFormData[`${prefix}${indexStr}#${field.label}`] = value;
+                            finalFormData[`${fullPrefix}${indexStr}#${field.label}`] = value;
                         }
                         visibleCount++;
                     });
-                }
+                };
+
+                processTemplateFields(config.financialTemplate, config.financialTemplate?.title || 'Financeiro');
+                processTemplateFields(config.template, config.template?.title || 'Técnico');
             }
 
             if (allReports.length > 0) {
@@ -1267,6 +1361,9 @@ export default function ExecuteOSScreen() {
             if (extraPhotos.length > 0) {
                 finalFormData['extra_photos'] = extraPhotos;
             }
+
+            // Garante que os templates em si sejam salvos para renderização perfeita no visualizador
+            finalFormData['execution_forms'] = formsConfig;
 
             // 1.5 Sync the extra signature/name to finalized data structure
             // Use specific impediment fields first, fall back to main client fields
@@ -1314,19 +1411,22 @@ export default function ExecuteOSScreen() {
             }
 
             // 2.5 Persistir vídeo no form_data do impedimento
-            if (videoUri) {
+            if (videos.length > 0) {
                 try {
-                    let finalVideoUrl = videoUri;
-                    // Se ainda for um arquivo local, fazer upload agora
-                    if (!videoUri.startsWith('http')) {
-                        const uploaded = await OrderService.uploadFile(videoUri, `orders/${order?.displayId || id}/videos`, order?.tenantId);
-                        if (uploaded) finalVideoUrl = uploaded;
+                    let uploadedUrls = [];
+                    for (const v of videos) {
+                        if (!v.uri.startsWith('http')) {
+                            const uploaded = await OrderService.uploadFile(v.uri, `orders/${order?.displayId || id}/videos`, order?.tenantId);
+                            if (uploaded) uploadedUrls.push(uploaded);
+                            else uploadedUrls.push(v.uri);
+                        } else {
+                            uploadedUrls.push(v.uri);
+                        }
                     }
-                    finalFormData['video_url'] = finalVideoUrl;
+                    finalFormData['video_url'] = uploadedUrls.join(',');
                 } catch (e) {
-                    console.warn('[ExecuteOS] Falha ao persistir vídeo no impedimento:', e);
-                    // Ainda salva o URI local como fallback para não perder referência
-                    finalFormData['video_url'] = videoUri;
+                    console.warn('[ExecuteOS] Falha ao persistir vídeos no impedimento:', e);
+                    finalFormData['video_url'] = videos.map(v => v.uri).join(',');
                 }
             }
 
@@ -1382,7 +1482,7 @@ export default function ExecuteOSScreen() {
                 });
 
             if (!result.canceled && result.assets && result.assets.length > 0) {
-                setMediaProcessingLabel(t('execProcessingImages') || 'Processando imagens...');
+                setMediaProcessingLabel('Carregando...');
                 setIsProcessingMedia(true);
                 
                 // Pequeno delay para garantir UI
@@ -1604,34 +1704,113 @@ export default function ExecuteOSScreen() {
                         )}
                     </View>
                 );
+            case 'VIDEO':
+                const fieldVideoVal = data[field.id];
+                const videoUri = typeof fieldVideoVal === 'string' ? fieldVideoVal : (Array.isArray(fieldVideoVal) ? fieldVideoVal[0] : null);
+                const isUploadingThisVideo = isUploadingPhoto === `${eqKey}_${field.id}`;
+                return (
+                    <View key={field.id} style={styles.dynamicFieldControl}>
+                        <Text style={styles.dynamicFieldLabel}>
+                            {displayLabel}{field.required ? <Text style={{color: '#ef4444'}}> *</Text> : ''}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>Grave ou anexe um vídeo demonstrativo</Text>
+                        {!videoUri ? (
+                            <Pressable 
+                                style={{
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    backgroundColor: '#f8fafc',
+                                    borderWidth: 2,
+                                    borderColor: '#cbd5e1',
+                                    borderStyle: 'dashed',
+                                    borderRadius: 10,
+                                    padding: 16,
+                                    marginBottom: 8
+                                }}
+                                onPress={() => {
+                                    setVideoSourceTarget({ type: 'field', eqKey, fieldId: field.id });
+                                    setIsVideoSourceModalVisible(true);
+                                }} 
+                                disabled={isUploadingThisVideo}
+                            >
+                                {isUploadingThisVideo ? (
+                                    <ActivityIndicator size="small" color="#1c2d4f" style={{ marginRight: 14 }} />
+                                ) : (
+                                    <View style={{ backgroundColor: '#e2e8f0', padding: 10, borderRadius: 50, marginRight: 14 }}>
+                                        <Ionicons name="videocam" size={22} color="#1c2d4f" />
+                                    </View>
+                                )}
+                                <View style={{ flex: 1 }}>
+                                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#1c2d4f' }}>
+                                        {isUploadingThisVideo ? 'Processando Vídeo...' : 'Tocar para Gravar / Anexar Vídeo'}
+                                    </Text>
+                                    <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                                        Câmera ou Galeria de Vídeos
+                                    </Text>
+                                </View>
+                            </Pressable>
+                        ) : (
+                            <View style={{ position: 'relative', width: '100%', height: 180, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#000000', marginTop: 4 }}>
+                                <Pressable
+                                    style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+                                    onPress={() => { setSelectedVideoUrl(videoUri); setVideoModalVisible(true); }}
+                                >
+                                    <Ionicons name="play-circle" size={54} color="#ffffff" />
+                                    <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '700', marginTop: 6 }}>Tocar para Reproduzir Vídeo</Text>
+                                </Pressable>
+                                <Pressable 
+                                    style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(239,68,68,0.9)', padding: 8, borderRadius: 14, zIndex: 10 }}
+                                    onPress={() => {
+                                        const remoteUri = resolvePhotoUri(videoUri);
+                                        if (typeof remoteUri === 'string' && remoteUri.startsWith('http')) {
+                                            OrderService.deleteFile(remoteUri).catch((e) => console.warn(`Erro ao excluir vídeo:`, e));
+                                        }
+                                        updateFieldData(eqKey, field.id, null);
+                                    }}
+                                >
+                                    <Ionicons name="close" size={18} color="#fff" />
+                                </Pressable>
+                            </View>
+                        )}
+                    </View>
+                );
             default:
                 return null;
         }
     };
 
-    if (isLoading) {
+    // Removed inline Tabs.Screen to fix layout crashes
+    React.useEffect(() => {
+        if (isLoading) {
+            navigation.setOptions({ title: 'Carregando Execução' });
+        } else {
+            navigation.setOptions({ title: `Execução - Página ${currentPage + 1}/${totalPages}` });
+        }
+    }, [isLoading, currentPage, totalPages, navigation]);
+
+    if (isLoading || !order || order.id !== id) {
         return (
             <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
-                <Stack.Screen options={{ title: 'Carregando Execução' }} />
             </View>
         );
     }
 
     if (isCustomCameraActive) {
         return (
-            <NexusCamera 
-                onClose={() => setIsCustomCameraActive(false)} 
-                onVideoRecorded={(uri) => {
-                    setIsCustomCameraActive(false);
-                    startBackstageVideoProcess(uri, true);
-                }} 
-            />
+            <Modal visible={true} transparent={false} animationType="slide" onRequestClose={() => setIsCustomCameraActive(false)}>
+                <NexusCamera 
+                    onClose={() => setIsCustomCameraActive(false)} 
+                    onVideoRecorded={(uri) => {
+                        setIsCustomCameraActive(false);
+                        startBackstageVideoProcess(uri, true);
+                    }} 
+                />
+            </Modal>
         );
     }
 
     return (
         <KeyboardAvoidingView style={[{ flex: 1 }, styles.container]} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
-            <Stack.Screen options={{ title: `Execução - Página ${currentPage + 1}/${totalPages}` }} />
 
             <ScrollView ref={scrollViewRef} style={{ flex: 1 }} contentContainerStyle={styles.content} scrollEnabled={true}>
 
@@ -1976,26 +2155,27 @@ export default function ExecuteOSScreen() {
                             <View style={[styles.card, { marginTop: 16, elevation: 0, backgroundColor: '#ffffff' }]}>
                                 <View style={styles.cardHeader}>
                                     <Ionicons name="videocam" size={16} color="#059669" />
-                                    <Text style={styles.cardTitle}>{t('execVideoEvidence')}</Text>
+                                    <Text style={styles.cardTitle}>{t('execVideoEvidence')} ({videos.length}/4)</Text>
                                 </View>
                                 <View style={styles.cardContent}>
-                                    {videoUri ? (
+                                    {videos.map((vid, index) => (
                                         <Pressable
-                                            style={styles.attachedVideoCard}
+                                            key={index}
+                                            style={[styles.attachedVideoCard, { marginBottom: 8 }]}
                                             onPress={() => {
-                                                const playUri = videoUri.startsWith('http')
-                                                    ? videoUri : (videoUri.startsWith('/') ? `file://${videoUri}` : videoUri);
+                                                const playUri = vid.uri.startsWith('http')
+                                                    ? vid.uri : (vid.uri.startsWith('/') ? `file://${vid.uri}` : vid.uri);
                                                 Linking.openURL(playUri).catch(() => Alert.alert(t('alertError'), t('execCouldNotPlayVideo')));
                                             }}
                                         >
                                             <View style={styles.videoThumbContainer}>
-                                                {videoThumbUri
-                                                    ? <Image source={{ uri: videoThumbUri }} style={styles.videoThumbImage} resizeMode="cover" />
+                                                {vid.thumbUri
+                                                    ? <Image source={{ uri: vid.thumbUri }} style={styles.videoThumbImage} resizeMode="cover" />
                                                     : <Ionicons name="film-outline" size={40} color="rgba(255,255,255,0.25)" />}
-                                                {isUploadingVideo ? (
+                                                {vid.isProcessing ? (
                                                     <View style={styles.videoProcessingOverlay}>
                                                         <ActivityIndicator size="large" color="#10b981" />
-                                                        <Text style={styles.videoProcessingOverlayText}>{videoProcessingStatus || t('execProcessing')}</Text>
+                                                        <Text style={styles.videoProcessingOverlayText}>{vid.status || t('execProcessing')}</Text>
                                                     </View>
                                                 ) : (
                                                     <View style={styles.videoPlayOverlay}>
@@ -2004,21 +2184,17 @@ export default function ExecuteOSScreen() {
                                                 )}
                                             </View>
                                             <View style={styles.videoMetaBar}>
-                                                <Text style={styles.videoMetaText}>{t('execVideoAttached')} {videoSizeMB ? `(${videoSizeMB}MB)` : ''}</Text>
-                                                {!isUploadingVideo && (
-                                                    <Pressable style={{ padding: 8 }} onPress={() => {
-                                                        if (typeof videoUri === 'string' && videoUri.startsWith('http')) {
-                                                            console.log(`[execute.tsx] 🗑️ Excluindo arquivo do Supabase: ${videoUri}`);
-                                                            OrderService.deleteFile(videoUri).catch((e) => console.warn(`Erro ao excluir:`, e));
-                                                        }
-                                                        setVideoUri(null);
-                                                    }}>
+                                                <Text style={styles.videoMetaText}>{t('execVideoAttached')} {vid.sizeMB ? `(${vid.sizeMB}MB)` : ''}</Text>
+                                                {!vid.isProcessing && (
+                                                    <Pressable style={{ padding: 8 }} onPress={() => setVideos(prev => prev.filter((_, i) => i !== index))}>
                                                         <Ionicons name="trash-outline" size={22} color="#ef4444" />
                                                     </Pressable>
                                                 )}
                                             </View>
                                         </Pressable>
-                                    ) : (
+                                    ))}
+                                    
+                                    {videos.length < 4 && (
                                         <Pressable 
                                             style={{
                                                 flexDirection: 'row',
@@ -2855,6 +3031,14 @@ export default function ExecuteOSScreen() {
                 </View>
             </Modal>
 
+            {/* ALERT THEMED */}
+            <NexusAlert 
+                visible={alertConfig.visible} 
+                title={alertConfig.title} 
+                message={alertConfig.message} 
+                buttons={alertConfig.buttons} 
+            />
+
         </KeyboardAvoidingView>
     );
 }
@@ -2862,6 +3046,9 @@ export default function ExecuteOSScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#f1f5f9' },
     content: { padding: 8, paddingBottom: 100 },
+    attachedVideoCard: {
+        marginBottom: 8,
+    },
     section: { marginBottom: 14, backgroundColor: '#ffffff', padding: 12, borderRadius: 14, shadowColor: '#1c2d4f', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2, borderWidth: 1, borderColor: '#e2e8f0' },
     dynamicFieldControl: { marginBottom: 16, backgroundColor: '#ffffff', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#cbd5e1', shadowColor: 'transparent', elevation: 0 },
     dynamicFieldLabel: { fontSize: 12, fontWeight: '800', color: '#334155', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
