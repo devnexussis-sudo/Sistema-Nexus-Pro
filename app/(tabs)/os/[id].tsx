@@ -439,7 +439,7 @@ export default function OrderDetailsScreen() {
                 .from('orders')
                 .select('id, display_id')
                 .eq('assigned_to', userId)
-                .in('status', ['EM ANDAMENTO'])
+                .in('status', ['EM ANDAMENTO', 'in_progress', 'in_progress_displacement'])
                 .neq('id', id as string)
                 .limit(1);
             if (inProgressOrders && inProgressOrders.length > 0) {
@@ -897,14 +897,13 @@ export default function OrderDetailsScreen() {
 
 
                 {/* ====================== HISTÓRICO DE VISITAS (MOVIMENTADO PARA CIMA) ====================== */}
-                {orderVisits.filter(v => ['completed', 'blocked'].includes(v.status)).length > 0 && (
+                {showVisitHistory && orderVisits.filter(v => ['completed', 'blocked'].includes(v.status)).length > 0 && (
                     <View style={{ marginBottom: 16, marginTop: 12 }}>
                         <Text style={{ fontSize: 18, fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', letterSpacing: -0.5, marginBottom: 16, marginLeft: 4 }}>
                             {t('osVisitHistory')}
                         </Text>
                         {orderVisits
                             .filter(v => ['completed', 'blocked'].includes(v.status))
-                            .filter((_, idx, arr) => showVisitHistory || idx === arr.length - 1)
                             .map((visit, idx, filteredArr) => {
                                 const isLast = idx === filteredArr.length - 1;
                                 const rawFd = visit.form_data || {};
