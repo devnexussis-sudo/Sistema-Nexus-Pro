@@ -13,15 +13,14 @@ import { syncService } from '@/services/sync-service';
 import { TenantService } from '@/services/tenant-service';
 import { ImageService } from '@/services/image-service';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Tabs, useFocusEffect, useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { useGlobalLoading } from '@/contexts/GlobalLoadingContext';
-import { useCallback, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, KeyboardAvoidingView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNetworkState } from 'expo-network';
-
 function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
     const R = 6371e3; // Radius of the earth in m
     const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -34,9 +33,38 @@ function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number,
     return R * c;
 }
 
+class SafeRenderErrorBoundary extends React.Component<{children: any}, {hasError: boolean, error: any}> {
+    constructor(props: any) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+    static getDerivedStateFromError(error: any) {
+        return { hasError: true, error };
+    }
+    componentDidCatch(error: any, errorInfo: any) {
+        console.error("SAFE RENDER ERROR:", error, errorInfo);
+    }
+    render() {
+        if (this.state.hasError) {
+            return (
+                <View style={{ flex: 1, padding: 24, backgroundColor: '#fef2f2', justifyContent: 'center' }}>
+                    <Ionicons name="warning" size={48} color="#dc2626" style={{ marginBottom: 16 }} />
+                    <Text style={{ color: '#b91c1c', fontWeight: 'bold', fontSize: 18 }}>Erro Oculto Capturado!</Text>
+                    <Text style={{ color: '#7f1d1d', marginTop: 12, fontWeight: '500' }}>O app tentou crashar, mas o ErrorBoundary segurou.</Text>
+                    <Text style={{ color: '#991b1b', marginTop: 12, fontSize: 12, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' }}>
+                        {this.state.error?.toString()}
+                    </Text>
+                </View>
+            );
+        }
+        return this.props.children;
+    }
+}
+
 export default function OrderDetailsScreen() {
     const { id } = useLocalSearchParams();
     const router = useRouter();
+    const navigation = useNavigation();
     const { showLoading, hideLoading } = useGlobalLoading();
     const insets = useSafeAreaInsets();
     const { t, lang } = useI18n();
@@ -105,6 +133,7 @@ export default function OrderDetailsScreen() {
             setOrder(null);
             showLoading('Carregando OS...');
 
+            const startTime = Date.now();
             const fetchOrder = async () => {
                 try {
                     // Load tenant settings for concurrent OS control
@@ -153,15 +182,8 @@ export default function OrderDetailsScreen() {
                         OrderService.getOrderVisits(id as string).then(visits => {
                             if (isActive) {
                                 setOrderVisits(visits);
-                                if (visits.length > 0) {
-                                    // Se a OS já está finalizada, mantém todos recolhidos (conforme solicitado).
-                                    // Caso contrário, auto-expande a mais recente.
-                                    const finalizedStatuses = ['completed', 'COMPLETED', 'blocked', 'BLOCKED', 'canceled', 'CANCELED'];
-                                    if (!finalizedStatuses.includes(currentOrder.status) && visits[0].status !== 'blocked') {
-                                        const firstKey = visits[0].id || 'visit_0';
-                                        setExpandedVisits({ [firstKey]: true });
-                                    }
-                                }
+                                // Sempre inicia recolhido — usuário deve clicar para expandir.
+                                setExpandedVisits({});
                             }
                             return visits;
                         }),
@@ -280,11 +302,11 @@ export default function OrderDetailsScreen() {
                         });
 
                         if (imagesToPreload.size > 0) {
-                            // Envia TODAS as URLs coletadas para o método de aquecimento em lote.
-                            // Isso fará exatamente UMA requisição (createSignedUrls) para o Supabase,
-                            // evitando rate-limiting, erros de timeout e travamento do React Native.
-                            // Também faz o prefetch seguro dos bytes.
-                            await warmSignedUrlCacheBulk(Array.from(imagesToPreload));
+                            // Evitar o 'await' para que o pré-carregamento aconteça fantasma em background
+                            // Isso garante que o spinner desapareça rapidamente
+                            warmSignedUrlCacheBulk(Array.from(imagesToPreload)).catch(err => {
+                                console.warn('[OS Detail] Background image prefetch error:', err);
+                            });
                         }
                     }
 
@@ -295,6 +317,13 @@ export default function OrderDetailsScreen() {
                         setOrder(null);
                     }
                 } finally {
+                    const elapsed = Date.now() - startTime;
+                    const remaining = Math.max(0, 1000 - elapsed);
+                    
+                    if (remaining > 0) {
+                        await new Promise(resolve => setTimeout(resolve, remaining));
+                    }
+                    
                     if (isActive) setLoading(false);
                     hideLoading();
                 }
@@ -306,10 +335,33 @@ export default function OrderDetailsScreen() {
         }, [id])
     );
 
+    // Update navigation options safely outside of render to prevent Expo Router bugs
+    React.useEffect(() => {
+        if (order) {
+            navigation.setOptions({
+                title: t('osDetails'),
+                headerLeft: () => (
+                    <Pressable
+                        style={{ marginLeft: 8, padding: 8, flexDirection: 'row', alignItems: 'center' }}
+                        onPress={() => {
+                            if (router.canGoBack()) {
+                                router.back();
+                            } else {
+                                router.replace('/(tabs)');
+                            }
+                        }}
+                    >
+                        <Ionicons name="chevron-back" size={28} color="#fff" />
+                    </Pressable>
+                )
+            });
+        }
+    }, [order, navigation, router, t]);
+
+    // Removed inline Tabs.Screen to fix crash, using layout options instead
     if (loading) {
         return (
             <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
-                <Stack.Screen options={{ title: t('osDetails') || 'Detalhes' }} />
             </View>
         );
     }
@@ -317,7 +369,6 @@ export default function OrderDetailsScreen() {
     if (error || !order) {
         return (
             <ThemedView style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: '#f8fafc' }]}>
-                <Stack.Screen options={{ title: t('osDetails') || 'Detalhes' }} />
                 <Ionicons name="cloud-offline-outline" size={64} color="#94a3b8" style={{ marginBottom: 16 }} />
                 <ThemedText style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', color: '#1e293b', marginBottom: 8 }}>
                     {error ? t('osFetchError') || 'Falha na Conexão' : t('osNotFound')}
@@ -333,7 +384,7 @@ export default function OrderDetailsScreen() {
                             setLoading(true);
                             setError(null);
                             // Set artificial delay, trigger focus effect again or just replace route
-                            router.replace(`/os/${id}`);
+                            router.replace({ pathname: '/os/[id]', params: { id: id as string } });
                         }}
                         style={{ backgroundColor: '#1c2d4f', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 12, flexDirection: 'row', alignItems: 'center', shadowColor: '#1c2d4f', shadowOffset: {width: 0, height: 4}, shadowOpacity: 0.2, shadowRadius: 8, elevation: 4 }}
                     >
@@ -526,6 +577,7 @@ export default function OrderDetailsScreen() {
 
             // Normal flow for already traveling or in_progress
             if (order.status !== 'in_progress' && order.status !== 'EM ANDAMENTO') {
+                await AsyncStorage.removeItem(`os_cache_${id}`);
                 await OrderService.startExecution(id as string, lat, lon);
             }
             router.push({ pathname: '/os/execute', params: { id: id as string } });
@@ -632,31 +684,25 @@ export default function OrderDetailsScreen() {
 
     return (
         <ThemedView style={styles.container}>
-            <Stack.Screen 
-                options={{ 
-                    title: t('osDetails'),
-                    headerLeft: (order.status === 'completed' || order.status === 'COMPLETED' || order.status === 'blocked' || order.status === 'BLOCKED') 
-                        ? () => (
-                            <Pressable 
-                                onPress={() => router.push('/')}
-                                style={{ marginLeft: 8, marginRight: 16, padding: 4 }}
-                            >
-                                <Ionicons name="arrow-back" size={24} color="#fff" />
-                            </Pressable>
-                        )
-                        : undefined
-                }} 
-            />
+            <SafeRenderErrorBoundary>
             <ScrollView contentContainerStyle={styles.content}>
 
                 {/* Header Status */}
                 <View style={styles.header}>
                     <ThemedText style={styles.title}>{order.displayId || order.id}</ThemedText>
-                    <View style={[styles.statusBadge, { backgroundColor: statusConfig[order.status]?.color + '20' || '#ccc' }]}>
-                        <Text style={[styles.statusText, { color: statusConfig[order.status]?.color || '#666' }]}>
-                            {statusConfig[order.status]?.label || order.status}
-                        </Text>
-                    </View>
+                    {(() => {
+                        const normalizedStatus = order.status ? order.status.toLowerCase() : 'pending';
+                        const statusColor = statusConfig[normalizedStatus]?.color || '#64748b';
+                        const statusBg = statusConfig[normalizedStatus]?.color ? statusConfig[normalizedStatus].color + '20' : '#e2e8f0';
+                        const statusLabel = statusConfig[normalizedStatus]?.label || order.status;
+                        return (
+                            <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
+                                <Text style={[styles.statusText, { color: statusColor }]}>
+                                    {statusLabel}
+                                </Text>
+                            </View>
+                        );
+                    })()}
                 </View>
 
                 {/* Modality Info */}
@@ -1063,6 +1109,22 @@ export default function OrderDetailsScreen() {
                                                             const allGroupNames = Array.from(new Set([...Object.keys(groupedChecklist), ...Object.keys(groupedParts)])).filter(g => g !== fallbackGroupName);
                                                             if (groupedChecklist[fallbackGroupName] || groupedParts[fallbackGroupName]) allGroupNames.push(fallbackGroupName);
 
+                                                            // ── Set of all known financial titles
+                                                            const finTitles = new Set(
+                                                                Object.keys(eqTemplateTitles)
+                                                                    .filter(k => k.endsWith('::fin'))
+                                                                    .map(k => eqTemplateTitles[k].toLowerCase())
+                                                            );
+
+                                                            // Ordenar para Financeiro sempre primeiro
+                                                            allGroupNames.sort((a, b) => {
+                                                                const aFin = a.toLowerCase().includes('financeiro');
+                                                                const bFin = b.toLowerCase().includes('financeiro');
+                                                                if (aFin && !bFin) return -1;
+                                                                if (!aFin && bFin) return 1;
+                                                                return a.localeCompare(b);
+                                                            });
+
                                                             return allGroupNames.map((group, gIdx) => {
                                                                 const items = groupedChecklist[group] || [];
                                                                 const parts = groupedParts[group] || [];
@@ -1076,66 +1138,36 @@ export default function OrderDetailsScreen() {
                                                                 });
 
                                                                 let displayTitle = group;
-                                                                const isFinanceiroType = group.toLowerCase().includes('financeiro');
+                                                                
+                                                                const groupSuffixMatch = group.match(/\s*-\s*([^-]+)$/);
+                                                                const suffixText = groupSuffixMatch ? groupSuffixMatch[1].trim() : null;
+                                                                
+                                                                const isFinanceiroType = group.toLowerCase().includes('financeiro') || 
+                                                                    (suffixText && finTitles.has(suffixText.toLowerCase()));
                                                                 
                                                                 if (isFinanceiroType) {
-                                                                    displayTitle = 'Financeiro Geral';
+                                                                    const titleBase = suffixText && suffixText.toLowerCase() !== 'financeiro' ? suffixText : 'Formulário Financeiro';
+                                                                    displayTitle = titleBase !== 'Formulário Financeiro' ? `${titleBase} - Financeiro` : 'Formulário Financeiro';
                                                                 } else if (isEquipment && eqData) {
                                                                     const eqNamePart = eqData.equipment_name || '';
                                                                     const eqModelPart = eqData.equipment_model || '';
                                                                     const fullEqName = [eqNamePart, eqModelPart].filter(Boolean).join(' ');
                                                                     
-                                                                    const oldEqName1 = eqData.equipment_model || eqData.equipment_name || '';
-                                                                    const oldEqName2 = eqData.equipment_name || '';
-                                                                    
-                                                                    if (oldEqName1 && group.startsWith(oldEqName1)) {
-                                                                        displayTitle = group.replace(oldEqName1, fullEqName);
-                                                                    } else if (oldEqName2 && group.startsWith(oldEqName2)) {
-                                                                        displayTitle = group.replace(oldEqName2, fullEqName);
-                                                                    } else if (fullEqName && !group.includes(fullEqName)) {
-                                                                        displayTitle = `${fullEqName} - ${group}`;
-                                                                    }
-                                                                    
-                                                                    if (eqData.equipment_serial && !displayTitle.includes(eqData.equipment_serial)) {
-                                                                        displayTitle = `${displayTitle} (S/N: ${eqData.equipment_serial})`;
-                                                                    }
-
-                                                                    let replacedFallback = false;
-
-                                                                    // Detectar se este grupo é financeiro ou técnico pelo sufixo salvo
-                                                                    const isFinancialGroup = group.toLowerCase().includes('financeiro');
-                                                                    const typeSuffix = isFinancialGroup ? 'fin' : 'tech';
-
-                                                                    // Buscar nome EXATO do formulário pelo tipo correto
                                                                     let matchedFormName: string | undefined =
-                                                                        eqTemplateTitles[`${fullEqName.toLowerCase()}::${typeSuffix}`] ||
-                                                                        eqTemplateTitles[`${eqNamePart.toLowerCase()}::${typeSuffix}`] ||
-                                                                        eqTemplateTitles[`${eqModelPart.toLowerCase()}::${typeSuffix}`];
+                                                                        eqTemplateTitles[`${fullEqName.toLowerCase()}::tech`] ||
+                                                                        eqTemplateTitles[`${eqNamePart.toLowerCase()}::tech`] ||
+                                                                        eqTemplateTitles[`${eqModelPart.toLowerCase()}::tech`];
 
-                                                                    // Se não encontrou pelo tipo específico, tentar extrair do sufixo do grupo
                                                                     if (!matchedFormName) {
-                                                                        const groupSuffix = group.match(/\s*-\s*([^-]+)$/);
-                                                                        const suffixText = groupSuffix ? groupSuffix[1].trim() : null;
-                                                                        if (suffixText && suffixText !== 'Técnico' && suffixText !== 'Financeiro') {
-                                                                            // O sufixo já é o nome do formulário (OS novas)
+                                                                        if (suffixText && suffixText !== 'Técnico' && suffixText !== 'Financeiro' && !finTitles.has(suffixText.toLowerCase())) {
                                                                             matchedFormName = suffixText;
                                                                         }
                                                                     }
-
-                                                                    if (displayTitle.endsWith(' - Técnico') || displayTitle.endsWith(' - Financeiro')) {
-                                                                        const isTech = displayTitle.endsWith(' - Técnico');
-                                                                        if (matchedFormName) {
-                                                                            displayTitle = displayTitle.replace(isTech ? ' - Técnico' : ' - Financeiro', ` - ${matchedFormName}`);
-                                                                            replacedFallback = true;
-                                                                        }
-                                                                        // Se não há nome, manter o sufixo original
-                                                                    }
-
-                                                                    if (!replacedFallback && !displayTitle.includes(' - ')) {
-                                                                        if (matchedFormName) {
-                                                                            displayTitle = `${displayTitle} - ${matchedFormName}`;
-                                                                        }
-                                                                    }
+                                                                    
+                                                                    const formNameStr = matchedFormName ? `${matchedFormName} - ` : '';
+                                                                    const serialStr = eqData.equipment_serial ? ` (S/N: ${eqData.equipment_serial})` : '';
+                                                                    
+                                                                    displayTitle = `${formNameStr}${fullEqName}${serialStr}`;
                                                                 }
 
                                                                 const isGroupExpanded = expandedGroups[group] === true;
@@ -1167,9 +1199,17 @@ export default function OrderDetailsScreen() {
                                                                                             const displayIndex = explicitMatch ? explicitMatch[1] : String(fieldIdx + 1).padStart(3, '0');
                                                                                             const displayLabel = `#${displayIndex} — ${cleanKey}`;
 
-                                                                                            const isImageUrl = (v: any) => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image') || v.startsWith('file:') || v.startsWith('content:'));
+                                                                                            const isMediaVideo = (v: any) => {
+                                                                                                if (typeof v !== 'string') return false;
+                                                                                                const lower = v.toLowerCase();
+                                                                                                const videoExts = ['.mp4', '.mov', '.avi', '.wmv', '.flv', '.webm', '.mkv', '.3gp'];
+                                                                                                return videoExts.some(ext => lower.includes(ext)) || lower.startsWith('data:video/') || lower.includes('/form_videos/') || lower.includes('/videos/');
+                                                                                            };
+                                                                                            const isImageUrl = (v: any) => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image') || v.startsWith('file:') || v.startsWith('content:')) && !isMediaVideo(v);
+                                                                                            const isSingleVideo = !Array.isArray(val) && isMediaVideo(val);
+                                                                                            const isVideoArray = Array.isArray(val) && val.length > 0 && val.every((v: any) => isMediaVideo(v));
                                                                                             const isImageArray = Array.isArray(val) && val.length > 0 && val.every((v: any) => isImageUrl(v));
-                                                                                            const isMultiSelect = Array.isArray(val) && !isImageArray;
+                                                                                            const isMultiSelect = Array.isArray(val) && !isImageArray && !isVideoArray;
                                                                                             const isSingleImage = !Array.isArray(val) && isImageUrl(val);
 
                                                                                             const isPositive = val === 'OK' || val === 'Sim' || val === 'Conforme' || val === 'Aprovado';
@@ -1190,7 +1230,45 @@ export default function OrderDetailsScreen() {
                                                                                                     </Text>
 
                                                                                                     {/* VALUE RENDERERS */}
-                                                                                                    {isImageArray ? (
+                                                                                                    {isSingleVideo || isVideoArray ? (
+                                                                                                        <View style={{ gap: 8 }}>
+                                                                                                            {(Array.isArray(val) ? val : [val]).map((vUri: string, vIdx: number) => (
+                                                                                                                <Pressable
+                                                                                                                    key={vIdx}
+                                                                                                                    style={{
+                                                                                                                        backgroundColor: '#0f172a',
+                                                                                                                        borderRadius: 12,
+                                                                                                                        padding: 14,
+                                                                                                                        flexDirection: 'row',
+                                                                                                                        alignItems: 'center',
+                                                                                                                        justifyContent: 'space-between',
+                                                                                                                        borderWidth: 1,
+                                                                                                                        borderColor: '#1e293b',
+                                                                                                                        shadowColor: '#000',
+                                                                                                                        shadowOffset: { width: 0, height: 1 },
+                                                                                                                        shadowOpacity: 0.1,
+                                                                                                                        shadowRadius: 2,
+                                                                                                                        elevation: 2
+                                                                                                                    }}
+                                                                                                                    onPress={() => {
+                                                                                                                        const playUri = vUri.startsWith('http') ? vUri : (vUri.startsWith('/') ? `file://${vUri}` : vUri);
+                                                                                                                        Linking.openURL(playUri).catch(() => Alert.alert(t('alertError'), t('execCouldNotPlayVideo')));
+                                                                                                                    }}
+                                                                                                                >
+                                                                                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+                                                                                                                        <View style={{ backgroundColor: 'rgba(16,185,129,0.2)', padding: 10, borderRadius: 50 }}>
+                                                                                                                            <Ionicons name="play-circle" size={26} color="#10b981" />
+                                                                                                                        </View>
+                                                                                                                        <View style={{ flex: 1 }}>
+                                                                                                                            <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '700' }}>Vídeo Gravado</Text>
+                                                                                                                            <Text style={{ color: '#94a3b8', fontSize: 11, marginTop: 2 }}>Tocar para reproduzir no player do celular</Text>
+                                                                                                                        </View>
+                                                                                                                    </View>
+                                                                                                                    <Ionicons name="open-outline" size={20} color="#94a3b8" />
+                                                                                                                </Pressable>
+                                                                                                            ))}
+                                                                                                        </View>
+                                                                                                    ) : isImageArray ? (
                                                                                                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                                                                                                             {(val as string[]).map((uri: string, idx: number) => (
                                                                                                                 <Pressable key={idx} onPress={() => openImage(uri, val as string[])}
@@ -1315,15 +1393,23 @@ export default function OrderDetailsScreen() {
                                                 {Boolean(videoUrl) && (
                                                     <View style={{ marginBottom: 10 }}>
                                                         <Text style={{ fontSize: 10, fontWeight: '800', color: '#475569', textTransform: 'uppercase', marginBottom: 6 }}>{t('osRecording')}</Text>
-                                                        <Pressable
-                                                            onPress={() => Linking.openURL(videoUrl!)}
-                                                            style={{ height: 120, borderRadius: 12, backgroundColor: '#1e293b', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
-                                                        >
-                                                            <View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center', paddingLeft: 5 }}>
-                                                                <Ionicons name="play" size={28} color="#ffffff" />
-                                                            </View>
-                                                            <Text style={{ color: '#94a3b8', fontSize: 11, marginTop: 8 }}>{t('osTapToOpen')}</Text>
-                                                        </Pressable>
+                                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 10 }}>
+                                                            {(typeof videoUrl === 'string' ? videoUrl.split(',') : []).map(u => u.trim()).filter(Boolean).map((vUrl, vIdx) => (
+                                                                <Pressable
+                                                                    key={vIdx}
+                                                                    onPress={() => Linking.openURL(vUrl)}
+                                                                    style={{ width: 140, height: 100, borderRadius: 12, backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: 12, borderWidth: 1, borderColor: '#334155' }}
+                                                                >
+                                                                    <Ionicons name="film-outline" size={48} color="#1e293b" style={{ position: 'absolute' }} />
+                                                                    <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(220,38,38,0.9)', alignItems: 'center', justifyContent: 'center', paddingLeft: 4, zIndex: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 }}>
+                                                                        <Ionicons name="play" size={24} color="#ffffff" />
+                                                                    </View>
+                                                                    <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.7)', paddingVertical: 6, zIndex: 2 }}>
+                                                                        <Text style={{ color: '#ffffff', fontSize: 11, textAlign: 'center', fontWeight: 'bold' }}>Vídeo {vIdx + 1}</Text>
+                                                                    </View>
+                                                                </Pressable>
+                                                            ))}
+                                                        </ScrollView>
                                                     </View>
                                                 )}
 
@@ -1426,16 +1512,23 @@ export default function OrderDetailsScreen() {
                                                 <Ionicons name="videocam" size={18} color="#0f172a" />
                                                 <Text style={styles.executionSectionLabel}>{t('osRecording')}</Text>
                                             </View>
-                                            <Pressable
-                                                style={{ width: '100%', height: 140, borderRadius: 12, overflow: 'hidden', position: 'relative', backgroundColor: '#1e293b', marginTop: 8 }}
-                                                onPress={() => Linking.openURL(order.videoUrl!)}
-                                            >
-                                                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
-                                                    <View style={{ width: 60, height: 60, backgroundColor: 'rgba(255,255,255,0.1)', paddingLeft: 6, borderRadius: 30, alignItems: 'center', justifyContent: 'center' }}>
-                                                        <Ionicons name="play" size={32} color="#ffffff" />
-                                                    </View>
-                                                </View>
-                                            </Pressable>
+                                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 10, marginTop: 8 }}>
+                                                {(typeof order.videoUrl === 'string' ? order.videoUrl.split(',') : []).map(u => u.trim()).filter(Boolean).map((vUrl, vIdx) => (
+                                                    <Pressable
+                                                        key={vIdx}
+                                                        onPress={() => Linking.openURL(vUrl)}
+                                                        style={{ width: 140, height: 100, borderRadius: 12, backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: 12, borderWidth: 1, borderColor: '#334155' }}
+                                                    >
+                                                        <Ionicons name="film-outline" size={48} color="#1e293b" style={{ position: 'absolute' }} />
+                                                        <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(220,38,38,0.9)', alignItems: 'center', justifyContent: 'center', paddingLeft: 4, zIndex: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 }}>
+                                                            <Ionicons name="play" size={24} color="#ffffff" />
+                                                        </View>
+                                                        <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.7)', paddingVertical: 6, zIndex: 2 }}>
+                                                            <Text style={{ color: '#ffffff', fontSize: 11, textAlign: 'center', fontWeight: 'bold' }}>Vídeo {vIdx + 1}</Text>
+                                                        </View>
+                                                    </Pressable>
+                                                ))}
+                                            </ScrollView>
                                         </View>
                                     )}
                                 </View>
@@ -1445,6 +1538,7 @@ export default function OrderDetailsScreen() {
                 )}
 
             </ScrollView>
+            </SafeRenderErrorBoundary>
 
             {/* Footer Actions - Only show if pending or in_progress */}
             {isEditable && (
@@ -1577,15 +1671,22 @@ export default function OrderDetailsScreen() {
                                 style={[styles.modalButton, { flex: 0, backgroundColor: '#3b82f6', paddingVertical: 16, width: '100%' }]} 
                                 onPress={async () => {
                                     setIsActionModalVisible(false);
-                                    setLoading(true);
+                                    showLoading(t('osStartActionDisplacement') + '...');
+                                    const startTime = Date.now();
                                     try {
+                                        await AsyncStorage.removeItem(`os_cache_${id}`);
                                         await OrderService.startDisplacement(id as string, actionLocation.lat, actionLocation.lon);
                                         const updated = await OrderService.getOrderById(id as string, true);
                                         setOrder(updated);
                                     } catch (e: any) {
                                         Alert.alert(t('alertError'), e.message);
                                     } finally {
-                                        setLoading(false);
+                                        const elapsed = Date.now() - startTime;
+                                        const remaining = Math.max(0, 1000 - elapsed);
+                                        if (remaining > 0) {
+                                            await new Promise(resolve => setTimeout(resolve, remaining));
+                                        }
+                                        hideLoading();
                                     }
                                 }}
                             >
@@ -1597,14 +1698,21 @@ export default function OrderDetailsScreen() {
                                 style={[styles.modalButton, { flex: 0, backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1', paddingVertical: 16, width: '100%' }]} 
                                 onPress={async () => {
                                     setIsActionModalVisible(false);
-                                    setLoading(true);
+                                    showLoading(t('osStartActionAlreadyAtClient') + '...');
+                                    const startTime = Date.now();
                                     try {
+                                        await AsyncStorage.removeItem(`os_cache_${id}`);
                                         await OrderService.startExecution(id as string, actionLocation.lat, actionLocation.lon);
                                         router.push({ pathname: '/os/execute', params: { id: id as string } });
                                     } catch (e: any) {
                                         Alert.alert(t('alertError'), e.message);
                                     } finally {
-                                        setLoading(false);
+                                        const elapsed = Date.now() - startTime;
+                                        const remaining = Math.max(0, 1000 - elapsed);
+                                        if (remaining > 0) {
+                                            await new Promise(resolve => setTimeout(resolve, remaining));
+                                        }
+                                        hideLoading();
                                     }
                                 }}
                             >
