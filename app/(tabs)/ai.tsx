@@ -126,6 +126,8 @@ export default function DunoAIScreen() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const lastResponseId = useRef<string | null>(null);
+  const messageYPositions = useRef<Record<string, number>>({});
 
   // Carrega o nome do técnico
   useEffect(() => {
@@ -161,8 +163,6 @@ export default function DunoAIScreen() {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
   }, []);
 
-  useEffect(() => { scrollToEnd(); }, [messages]);
-
   const handleSend = useCallback(async () => {
     if (!input.trim() || isLoading) return;
     Keyboard.dismiss();
@@ -172,6 +172,7 @@ export default function DunoAIScreen() {
     setMessages(p => [...p, userMsg, { id: typingId, role: 'assistant', content: '', isTyping: true }]);
     setInput('');
     setIsLoading(true);
+    scrollToEnd();
 
     let response = '';
 
@@ -201,9 +202,11 @@ export default function DunoAIScreen() {
       response = `${firstName}, desculpe, tive um problema de comunicação com a minha base de dados. Pode tentar enviar sua pergunta novamente? 🔄`;
     }
 
-    setMessages(p => p.map(m => m.id === typingId ? { id: Date.now().toString(), role: 'assistant', content: response } : m));
+    const newResponseId = Date.now().toString();
+    lastResponseId.current = newResponseId;
+    setMessages(p => p.map(m => m.id === typingId ? { id: newResponseId, role: 'assistant', content: response } : m));
     setIsLoading(false);
-  }, [input, isLoading, firstName, fullName]);
+  }, [input, isLoading, firstName, fullName, messages, scrollToEnd]);
 
   const handleReset = () => {
     setMessages([{
@@ -269,12 +272,19 @@ export default function DunoAIScreen() {
           </View>
         )}
 
-
-
         {/* Messages */}
         {messages.length > 0 && messages.map(msg => (
           <View
             key={msg.id}
+            onLayout={(e) => {
+              const y = e.nativeEvent.layout.y;
+              messageYPositions.current[msg.id] = y;
+              if (msg.id === lastResponseId.current) {
+                setTimeout(() => {
+                  scrollRef.current?.scrollTo({ y: Math.max(0, y - 10), animated: true });
+                }, 50);
+              }
+            }}
             style={[
               styles.messageRow,
               msg.role === 'user' ? styles.messageRowUser : styles.messageRowAssistant,
