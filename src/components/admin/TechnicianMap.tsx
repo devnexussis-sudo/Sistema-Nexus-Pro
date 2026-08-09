@@ -108,6 +108,7 @@ export const TechnicianMap: React.FC = () => {
     const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isAutoRefresh, setIsAutoRefresh] = useState(false);
+    const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
     const [showLegend, setShowLegend] = useState(true);
     const [showFilterPanel, setShowFilterPanel] = useState(false);
     const [techSearch, setTechSearch] = useState('');
@@ -129,13 +130,13 @@ export const TechnicianMap: React.FC = () => {
 
         let interval: any;
         if (isAutoRefresh) {
-            console.log('[Map] Auto-refresh habilitado: Próxima atualização em 5 minutos');
-            // Refresh imediato ao ligar o modo Live
-            handleRefresh();
+            console.log('[Map] Auto-refresh habilitado: Atualizando mapa e todos os status a cada 4 segundos');
+            // Refresh silencioso imediato ao ligar o modo Live
+            handleRefresh(true);
 
             interval = setInterval(() => {
-                handleRefresh();
-            }, 5 * 60 * 1000); // 5 minutes
+                handleRefresh(true);
+            }, 4000); // 4 segundos
         }
 
         const timer = setTimeout(() => {
@@ -180,10 +181,10 @@ export const TechnicianMap: React.FC = () => {
         }
     };
 
-    const handleRefresh = async () => {
-        setIsRefreshing(true);
+    const handleRefresh = async (isSilent: boolean = false) => {
+        if (!isSilent) setIsRefreshing(true);
         const safetyTimeout = setTimeout(() => {
-            setIsRefreshing(false);
+            if (!isSilent) setIsRefreshing(false);
         }, 15000);
 
         try {
@@ -206,7 +207,7 @@ export const TechnicianMap: React.FC = () => {
             console.error('[Map] Erro ao atualizar:', error);
         } finally {
             clearTimeout(safetyTimeout);
-            setIsRefreshing(false);
+            if (!isSilent) setIsRefreshing(false);
         }
     };
 
@@ -333,9 +334,10 @@ export const TechnicianMap: React.FC = () => {
                     </button>
                     <button
                         onClick={() => setIsAutoRefresh(!isAutoRefresh)}
-                        className={`px-2 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${isAutoRefresh ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-slate-600 hover:bg-slate-100'}`}
+                        className={`px-2 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${isAutoRefresh ? 'bg-emerald-50 text-emerald-700 font-bold border border-emerald-200' : 'text-slate-600 hover:bg-slate-100'}`}
+                        title={isAutoRefresh ? "Atualização automática a cada 4s (Ativa)" : "Ativar atualização automática (4s)"}
                     >
-                        <span className="text-[10px] uppercase">Atualização Auto</span>
+                        <span className="text-[10px] uppercase">{isAutoRefresh ? 'Auto 4s ON' : 'Atualização Auto'}</span>
                     </button>
                 </div>
             </div>
