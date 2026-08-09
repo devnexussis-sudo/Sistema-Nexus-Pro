@@ -12,6 +12,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, View, Linking, Modal } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { useI18n } from '@/services/i18n';
 import { TenantService } from '@/services/tenant-service';
 
 const ITEMS_PER_PAGE = 10;
