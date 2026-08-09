@@ -136,8 +136,8 @@ export default function OrderDetailsScreen() {
             const startTime = Date.now();
             const fetchOrder = async () => {
                 try {
-                    // Load tenant settings for concurrent OS control
-                    TenantService.getSettings().then(settings => {
+                    // Load tenant settings for concurrent OS control (force refresh on screen load)
+                    TenantService.getSettings(true).then(settings => {
                         if (isActive) {
                             setAllowMultipleInProgress(settings.allowMultipleInProgress);
                             setShowPrices(settings.showStockPrice);
@@ -334,6 +334,21 @@ export default function OrderDetailsScreen() {
             return () => { isActive = false; };
         }, [id])
     );
+
+    // Ouvinte em tempo real para alterações de configurações feitas pelo admin no painel
+    React.useEffect(() => {
+        const unsub = TenantService.onSettingsChange(settings => {
+            console.log('[OS Detail] ⚡ Atualizando configurações da tela em tempo real!');
+            setAllowMultipleInProgress(settings.allowMultipleInProgress);
+            setShowPrices(settings.showStockPrice);
+            setShowClientContact(settings.showClientContact);
+            setShowStockHistory(settings.showStockHistory);
+            setAllowImpediment(settings.allowImpediment);
+            setShowVisitHistory(settings.showVisitHistory);
+            setRequireLocationForExecution(settings.requireLocationForExecution);
+        });
+        return () => unsub();
+    }, []);
 
     // Update navigation options safely outside of render to prevent Expo Router bugs
     React.useEffect(() => {

@@ -26,6 +26,62 @@ const DEFAULT_SETTINGS: TenantSettings = {
 
 export class TenantService {
     private static settingsCache: Record<string, TenantSettings> = {};
+    private static activeListeners: Set<(settings: TenantSettings) => void> = new Set();
+    private static realtimeChannel: any = null;
+    private static currentTenantId: string | null = null;
+
+    /**
+     * Inscreve um ouvinte para receber atualizações de configurações em tempo real
+     */
+    static onSettingsChange(listener: (settings: TenantSettings) => void) {
+        this.activeListeners.add(listener);
+        return () => {
+            this.activeListeners.delete(listener);
+        };
+    }
+
+    /**
+     * Inicia a escuta em tempo real da tabela 'tenants' via Supabase Realtime WebSocket
+     */
+    static startRealtimeListener(tenantId: string) {
+        if (!tenantId || this.currentTenantId === tenantId) return;
+        
+        if (this.realtimeChannel) {
+            try {
+                supabase.removeChannel(this.realtimeChannel);
+            } catch (e) {}
+        }
+
+        this.currentTenantId = tenantId;
+        console.log(`[TenantService] ⚡ Iniciando Supabase Realtime para o tenant: ${tenantId}`);
+
+        this.realtimeChannel = supabase
+            .channel(`tenant_settings_${tenantId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'tenants',
+                    filter: `id=eq.${tenantId}`,
+                },
+                async (payload) => {
+                    console.log('[TenantService] 🔔 Alteração de configurações da empresa detectada em tempo real!', payload.new);
+                    this.clearCache();
+                    const newSettings = await this.getSettings(true);
+                    this.activeListeners.forEach((listener) => {
+                        try {
+                            listener(newSettings);
+                        } catch (err) {
+                            console.error('[TenantService] Erro ao notificar listener:', err);
+                        }
+                    });
+                }
+            )
+            .subscribe((status) => {
+                console.log(`[TenantService] 📡 Status da conexão Realtime: ${status}`);
+            });
+    }
 
     /**
      * Busca as configurações globais do tenant do usuário logado
@@ -59,6 +115,9 @@ export class TenantService {
 
             const tenantId = userData.tenant_id;
             console.log(`[TenantService] 🏢 Tenant ID: ${tenantId}`);
+
+            // Garante que o ouvinte em tempo real esteja ativo para este tenant
+            this.startRealtimeListener(tenantId);
 
             // 2. Get settings from tenants table
             const { data: tenantData, error: tenantError } = await supabase

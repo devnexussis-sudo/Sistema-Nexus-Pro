@@ -369,9 +369,9 @@ export default function ExecuteOSScreen() {
                 try {
                     if (!isBackground) setIsLoading(true);
 
-                    // Carregar config do tenant (Preços)
+                    // Carregar config do tenant (Preços & Impedimento)
                     try {
-                        const settings = await TenantService.getSettings();
+                        const settings = await TenantService.getSettings(true);
                         if (isActive) {
                             setShowPrice(settings.showStockPrice);
                             setAllowImpediment(settings.allowImpediment);
@@ -643,6 +643,16 @@ export default function ExecuteOSScreen() {
         const t = setTimeout(saveToCache, 1000);
         return () => clearTimeout(t);
     }, [id, formsConfig, usedItems, extraPhotos, signature, clientName, clientDoc, videos, isLoading, order]);
+
+    // Ouvinte em tempo real para alterações de configurações feitas pelo admin no painel
+    React.useEffect(() => {
+        const unsub = TenantService.onSettingsChange(settings => {
+            console.log('[ExecuteOS] ⚡ Atualizando configurações da tela de execução em tempo real!');
+            setShowPrice(settings.showStockPrice);
+            setAllowImpediment(settings.allowImpediment);
+        });
+        return () => unsub();
+    }, []);
 
 
     const addUsedItem = (stockItem: TechStockItem, quantity: number, equipmentId?: string, equipmentName?: string, equipmentSerial?: string) => {

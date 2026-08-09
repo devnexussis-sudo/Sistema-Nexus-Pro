@@ -27,20 +27,19 @@ export default function StockScreen() {
 
 
     const fetchStock = async (isBackground = false) => {
+        const startTime = Date.now();
         if (!isBackground) setIsLoading(true);
         try {
-            // 1. Fetch settings (we don't show double UI update for settings to avoid flicker, just get cache first if available)
-            const settings = await TenantService.getSettings(isBackground);
+            // 1. Fetch settings (force refresh to ensure real-time accuracy)
+            const settings = await TenantService.getSettings(true);
             setShowPrice(settings.showStockPrice);
             setShowStockHistory(settings.showStockHistory);
 
             // 2. Fetch from Cache first
-            let cachedData = null;
             if (!isBackground) {
-                cachedData = await StockService.getMyStock(false);
+                const cachedData = await StockService.getMyStock(false);
                 if (cachedData && cachedData.length > 0) {
                     setStock(cachedData);
-                    setIsLoading(false); // Cache was fast, remove loader!
                 }
             }
 
@@ -51,6 +50,12 @@ export default function StockScreen() {
         } catch (error) {
             console.error(error);
         } finally {
+            const elapsed = Date.now() - startTime;
+            const remaining = Math.max(0, 1000 - elapsed);
+            if (remaining > 0) {
+                await new Promise(resolve => setTimeout(resolve, remaining));
+            }
+            
             setIsLoading(false);
             setRefreshing(false);
         }
@@ -59,6 +64,12 @@ export default function StockScreen() {
     useFocusEffect(
         useCallback(() => {
             fetchStock();
+            const unsub = TenantService.onSettingsChange(settings => {
+                console.log('[StockScreen] ⚡ Atualizando configurações de estoque em tempo real!');
+                setShowPrice(settings.showStockPrice);
+                setShowStockHistory(settings.showStockHistory);
+            });
+            return () => unsub();
         }, [])
     );
 
