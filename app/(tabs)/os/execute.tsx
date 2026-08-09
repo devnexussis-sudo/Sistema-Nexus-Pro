@@ -1,5 +1,6 @@
 import { HeaderRightToggle } from '@/components/header-right-toggle';
 import { ImageViewerModal } from '@/components/image-viewer-modal';
+import { VideoViewerModal } from '@/components/video-viewer-modal';
 import { ThemedText } from '@/components/themed-text';
 import { NexusAlert } from '@/components/nexus-alert';
 import { ImageService } from '@/services/image-service';
@@ -120,6 +121,7 @@ export default function ExecuteOSScreen() {
 
     // Video states
     const [isVideoModalVisible, setVideoModalVisible] = useState(false);
+    const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null);
     const [videoProcessingStatus, setVideoProcessingStatus] = useState<string | null>(null); // null=idle, string=msg
     const [videoSizeMB, setVideoSizeMB] = useState<number | null>(null);
     const [myStock, setMyStock] = useState<TechStockItem[]>([]);
@@ -2203,9 +2205,8 @@ export default function ExecuteOSScreen() {
                                             key={index}
                                             style={[styles.attachedVideoCard, { marginBottom: 8 }]}
                                             onPress={() => {
-                                                const playUri = vid.uri.startsWith('http')
-                                                    ? vid.uri : (vid.uri.startsWith('/') ? `file://${vid.uri}` : vid.uri);
-                                                Linking.openURL(playUri).catch(() => Alert.alert(t('alertError'), t('execCouldNotPlayVideo')));
+                                                setSelectedVideoUrl(vid.uri);
+                                                setVideoModalVisible(true);
                                             }}
                                         >
                                             <View style={styles.videoThumbContainer}>
@@ -2601,6 +2602,7 @@ export default function ExecuteOSScreen() {
 
 
             <ImageViewerModal visible={viewerVisible} imageUri={selectedImage} onClose={() => setViewerVisible(false)} />
+            <VideoViewerModal visible={isVideoModalVisible} videoUri={selectedVideoUrl} onClose={() => { setVideoModalVisible(false); setSelectedVideoUrl(null); }} />
 
             {/* MODAL: SELEÇÃO DE PEÇAS DO ESTOQUE */}
             <Modal

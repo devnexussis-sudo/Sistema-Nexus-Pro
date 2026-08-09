@@ -1,6 +1,7 @@
 
 import { HeaderRightToggle } from '@/components/header-right-toggle';
 import { ImageViewerModal } from '@/components/image-viewer-modal';
+import { VideoViewerModal } from '@/components/video-viewer-modal';
 import { SecureImage, warmSignedUrlCacheBulk } from '@/components/secure-image';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -113,6 +114,8 @@ export default function OrderDetailsScreen() {
     const [requireLocationForExecution, setRequireLocationForExecution] = useState(false);
     const [allowOsSharing, setAllowOsSharing] = useState(true);
     const [currentUserId, setCurrentUserId] = useState<string | null>(authService.getCurrentUserId());
+    const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null);
+    const [isVideoModalVisible, setVideoModalVisible] = useState(false);
     // Form templates for sorting and display
     const [formTemplates, setFormTemplates] = useState<Record<string, string[]>>({});
     const [templateTitles, setTemplateTitles] = useState<Record<string, string>>({});
@@ -1293,8 +1296,8 @@ export default function OrderDetailsScreen() {
                                                                                                                         elevation: 2
                                                                                                                     }}
                                                                                                                     onPress={() => {
-                                                                                                                        const playUri = vUri.startsWith('http') ? vUri : (vUri.startsWith('/') ? `file://${vUri}` : vUri);
-                                                                                                                        Linking.openURL(playUri).catch(() => Alert.alert(t('alertError'), t('execCouldNotPlayVideo')));
+                                                                                                                        setSelectedVideoUrl(vUri);
+                                                                                                                        setVideoModalVisible(true);
                                                                                                                     }}
                                                                                                                 >
                                                                                                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
@@ -1439,7 +1442,10 @@ export default function OrderDetailsScreen() {
                                                             {(typeof videoUrl === 'string' ? videoUrl.split(',') : []).map(u => u.trim()).filter(Boolean).map((vUrl, vIdx) => (
                                                                 <Pressable
                                                                     key={vIdx}
-                                                                    onPress={() => Linking.openURL(vUrl)}
+                                                                    onPress={() => {
+                                                                        setSelectedVideoUrl(vUrl);
+                                                                        setVideoModalVisible(true);
+                                                                    }}
                                                                     style={{ width: 140, height: 100, borderRadius: 12, backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: 12, borderWidth: 1, borderColor: '#334155' }}
                                                                 >
                                                                     <Ionicons name="film-outline" size={48} color="#1e293b" style={{ position: 'absolute' }} />
@@ -1558,7 +1564,10 @@ export default function OrderDetailsScreen() {
                                                 {(typeof order.videoUrl === 'string' ? order.videoUrl.split(',') : []).map(u => u.trim()).filter(Boolean).map((vUrl, vIdx) => (
                                                     <Pressable
                                                         key={vIdx}
-                                                        onPress={() => Linking.openURL(vUrl)}
+                                                        onPress={() => {
+                                                            setSelectedVideoUrl(vUrl);
+                                                            setVideoModalVisible(true);
+                                                        }}
                                                         style={{ width: 140, height: 100, borderRadius: 12, backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: 12, borderWidth: 1, borderColor: '#334155' }}
                                                     >
                                                         <Ionicons name="film-outline" size={48} color="#1e293b" style={{ position: 'absolute' }} />
@@ -1690,6 +1699,11 @@ export default function OrderDetailsScreen() {
                 imageUris={viewerUris}
                 initialIndex={viewerIndex}
                 onClose={() => setViewerVisible(false)}
+            />
+            <VideoViewerModal
+                visible={isVideoModalVisible}
+                videoUri={selectedVideoUrl}
+                onClose={() => { setVideoModalVisible(false); setSelectedVideoUrl(null); }}
             />
 
             {/* MODAL INICIAR OS AÇÕES */}
