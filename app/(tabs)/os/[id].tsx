@@ -12,6 +12,7 @@ import { supabase } from '@/services/supabase';
 import { syncService } from '@/services/sync-service';
 import { TenantService } from '@/services/tenant-service';
 import { ImageService } from '@/services/image-service';
+import { authService } from '@/services/auth-service';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Tabs, useFocusEffect, useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
@@ -111,6 +112,7 @@ export default function OrderDetailsScreen() {
     const [showVisitHistory, setShowVisitHistory] = useState(true);
     const [requireLocationForExecution, setRequireLocationForExecution] = useState(false);
     const [allowOsSharing, setAllowOsSharing] = useState(true);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(authService.getCurrentUserId());
     // Form templates for sorting and display
     const [formTemplates, setFormTemplates] = useState<Record<string, string[]>>({});
     const [templateTitles, setTemplateTitles] = useState<Record<string, string>>({});
@@ -915,14 +917,22 @@ export default function OrderDetailsScreen() {
 
 
                 {/* ====================== HISTÓRICO DE VISITAS (MOVIMENTADO PARA CIMA) ====================== */}
-                {showVisitHistory && orderVisits.filter(v => ['completed', 'blocked'].includes(v.status)).length > 0 && (
-                    <View style={{ marginBottom: 16, marginTop: 12 }}>
-                        <Text style={{ fontSize: 18, fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', letterSpacing: -0.5, marginBottom: 16, marginLeft: 4 }}>
-                            {t('osVisitHistory')}
-                        </Text>
-                        {orderVisits
-                            .filter(v => ['completed', 'blocked'].includes(v.status))
-                            .map((visit, idx, filteredArr) => {
+                {(() => {
+                    const completedOrBlockedVisits = orderVisits.filter(v => ['completed', 'blocked'].includes(v.status));
+                    // Se showVisitHistory é true: mostra todas as visitas de todos os técnicos.
+                    // Se showVisitHistory é false: mostra apenas as visitas feitas pelo próprio técnico logado.
+                    const visibleVisits = completedOrBlockedVisits.filter(v =>
+                        showVisitHistory || (currentUserId && (v.technician_id === currentUserId || v.technicianId === currentUserId))
+                    );
+
+                    if (visibleVisits.length === 0) return null;
+
+                    return (
+                        <View style={{ marginBottom: 16, marginTop: 12 }}>
+                            <Text style={{ fontSize: 18, fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', letterSpacing: -0.5, marginBottom: 16, marginLeft: 4 }}>
+                                {t('osVisitHistory')}
+                            </Text>
+                            {visibleVisits.map((visit, idx, filteredArr) => {
                                 const isLast = idx === filteredArr.length - 1;
                                 const rawFd = visit.form_data || {};
                                 const ignoredFdKeys = new Set(['blockReason', 'blockPhotoUrls', 'blockedAt', 'completedAt', 'signature', 'clientName', 'clientDoc', 'extra_photos', 'technical_report', 'parts_used', 'impediment_signature', 'impediment_responsible', 'impediment_reason', 'blockPhotoUrl', 'video_url', 'impediment_history', 'items', 'videoUrl', 'execution_forms', 'signatureName']);
@@ -1485,10 +1495,10 @@ export default function OrderDetailsScreen() {
                                         )}
                                     </View>
                                 );
-                            })
                         }
                     </View>
-                )}
+                );
+            })()}
 
                 {/* Execution Details Display — ONLY shown when there are NO visit records at all (legacy fallback) */}
                 {orderVisits.filter(v => ['completed', 'blocked'].includes(v.status)).length === 0 && (
