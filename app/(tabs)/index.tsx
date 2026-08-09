@@ -12,7 +12,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, View, Linking, Modal } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { useI18n } from '@/services/i18n';
+import { TenantService } from '@/services/tenant-service';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -181,26 +181,20 @@ export default function HomeScreen() {
   const [allowOsSharing, setAllowOsSharing] = useState(true);
   const [showClientContact, setShowClientContact] = useState(true);
 
-  // Load tenant settings (allowOsSharing, showClientContact)
+  // Load tenant settings in Realtime (allowOsSharing, showClientContact)
   useEffect(() => {
-    const loadTenantSettings = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const userId = session?.user?.id;
-        if (!userId) return;
-        const { data: userData } = await supabase.from('users').select('tenant_id').eq('id', userId).single();
-        if (userData?.tenant_id) {
-          const { data: tenantData } = await supabase.from('tenants').select('metadata').eq('id', userData.tenant_id).single();
-          if (tenantData?.metadata) {
-            setAllowOsSharing(tenantData.metadata.allowOsSharing ?? true);
-            setShowClientContact(tenantData.metadata.showClientContact ?? true);
-          }
-        }
-      } catch (e) {
-        console.error('[Home] Failed to load tenant settings:', e);
-      }
-    };
-    loadTenantSettings();
+    TenantService.getSettings(true).then(settings => {
+      setAllowOsSharing(settings.allowOsSharing);
+      setShowClientContact(settings.showClientContact);
+    }).catch(() => {});
+
+    const unsub = TenantService.onSettingsChange(settings => {
+      console.log('[HomeScreen] ⚡ Atualizando configurações de compartilhamento e contato em tempo real!');
+      setAllowOsSharing(settings.allowOsSharing);
+      setShowClientContact(settings.showClientContact);
+    });
+
+    return () => unsub();
   }, []);
 
   useEffect(() => {
@@ -232,6 +226,7 @@ export default function HomeScreen() {
   }, [selectedFilter, startDate, endDate, currentPage]);
 
   const fetchOrders = async (isBackground = false) => {
+    const startTime = Date.now();
     // 🛡️ Race condition guard: increment ID before fetching
     const thisId = ++fetchIdRef.current;
     if (!isBackground) setIsLoading(true);
@@ -277,7 +272,15 @@ export default function HomeScreen() {
           if (['assigned', 'traveling', 'pending'].includes(o.status)) stats.pending++;
         });
         setServerStats(stats);
+      } catch (e) {
+        console.error('[Home] Error fetching offline orders:', e);
       } finally {
+        const elapsed = Date.now() - startTime;
+        const remaining = Math.max(0, 1000 - elapsed);
+        if (remaining > 0) {
+          await new Promise(resolve => setTimeout(resolve, remaining));
+        }
+        
         if (fetchIdRef.current === thisId) {
           setIsLoading(false);
           setRefreshing(false);
@@ -343,6 +346,12 @@ export default function HomeScreen() {
     } catch (e) {
       console.error(e);
     } finally {
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, 1000 - elapsed);
+      if (remaining > 0) {
+        await new Promise(resolve => setTimeout(resolve, remaining));
+      }
+      
       if (fetchIdRef.current === thisId) {
         setIsLoading(false);
         setRefreshing(false);
@@ -624,7 +633,7 @@ export default function HomeScreen() {
                 if (isExecuting) {
                   router.push({ pathname: '/os/execute', params: { id: item.id } });
                 } else {
-                  router.push(`/os/${item.id}`);
+                  router.push({ pathname: '/os/[id]', params: { id: item.id } });
                 }
               }}
             />

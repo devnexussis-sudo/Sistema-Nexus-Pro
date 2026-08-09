@@ -6,12 +6,12 @@ import { supabase } from './supabase';
 export interface TenantSettings {
     showStockPrice: boolean;
     allowMultipleInProgress: boolean;
-    // Novos controles do APP do Técnico
     showClientContact: boolean;
     showStockHistory: boolean;
     allowImpediment: boolean;
     showVisitHistory: boolean;
     requireLocationForExecution: boolean;
+    allowOsSharing: boolean;
 }
 
 const DEFAULT_SETTINGS: TenantSettings = {
@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS: TenantSettings = {
     allowImpediment: true,
     showVisitHistory: true,
     requireLocationForExecution: false,
+    allowOsSharing: true,
 };
 
 export class TenantService {
@@ -161,9 +162,10 @@ export class TenantService {
                 allowImpediment: meta?.allowImpediment ?? true,
                 showVisitHistory: meta?.showVisitHistory ?? true,
                 requireLocationForExecution: meta?.requireLocationForExecution ?? false,
+                allowOsSharing: meta?.allowOsSharing ?? true,
             };
 
-            console.log(`[TenantService] ✅ Configuração final -> showStockPrice: ${settings.showStockPrice}, showClientContact: ${settings.showClientContact}, showStockHistory: ${settings.showStockHistory}, allowImpediment: ${settings.allowImpediment}, showVisitHistory: ${settings.showVisitHistory}`);
+            console.log(`[TenantService] ✅ Configuração final -> showStockPrice: ${settings.showStockPrice}, showClientContact: ${settings.showClientContact}, showStockHistory: ${settings.showStockHistory}, allowImpediment: ${settings.allowImpediment}, showVisitHistory: ${settings.showVisitHistory}, allowOsSharing: ${settings.allowOsSharing}`);
 
             this.settingsCache[userId] = settings;
             return settings;
