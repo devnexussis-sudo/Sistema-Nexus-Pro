@@ -2081,51 +2081,80 @@ export default function ExecuteOSScreen() {
                                 />
                             </View>
 
-                            {/* EXTRA PHOTOS */}
-                            <View style={[styles.card, { marginTop: 8, elevation: 0, backgroundColor: '#f8fafc', borderColor: '#e2e8f0', borderWidth: 1 }]}>
-                                <View style={styles.cardHeader}>
-                                    <Ionicons name="images" size={16} color="#1c2d4f" />
-                                    <Text style={styles.cardTitle}>{t('execExtraPhotos')}</Text>
+                            {/* CONTAINER DE ANEXOS EXTRAS (OPCIONAL) */}
+                            <View style={{
+                                marginTop: 16,
+                                backgroundColor: '#ffffff',
+                                borderRadius: 14,
+                                borderWidth: 1,
+                                borderColor: '#cbd5e1',
+                                padding: 16,
+                                shadowColor: '#000',
+                                shadowOffset: { width: 0, height: 1 },
+                                shadowOpacity: 0.05,
+                                shadowRadius: 2,
+                                elevation: 1
+                            }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                        <Ionicons name="attach-outline" size={18} color="#1c2d4f" />
+                                        <Text style={{ fontSize: 13, fontWeight: '800', color: '#1c2d4f', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                            Anexos Extras da O.S.
+                                        </Text>
+                                    </View>
+                                    <View style={{ backgroundColor: '#f1f5f9', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: '#e2e8f0' }}>
+                                        <Text style={{ fontSize: 10, fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Opcional</Text>
+                                    </View>
                                 </View>
-                                <View style={styles.cardContent}>
+                                <Text style={{ fontSize: 11, color: '#64748b', marginBottom: 14 }}>
+                                    Espaço reservado para envio de fotos ou vídeos complementares do atendimento (caso necessário).
+                                </Text>
+
+                                {/* FOTOS EXTRAS */}
+                                <View style={{ marginBottom: 14, backgroundColor: '#f8fafc', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#e2e8f0' }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                                        <Ionicons name="images-outline" size={15} color="#475569" />
+                                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#334155' }}>
+                                            {t('execExtraPhotos')} ({extraPhotos.length})
+                                        </Text>
+                                    </View>
                                     <Pressable 
                                         style={{
                                             flexDirection: 'row',
                                             alignItems: 'center',
-                                            backgroundColor: '#f8fafc',
-                                            borderWidth: 2,
+                                            backgroundColor: '#ffffff',
+                                            borderWidth: 1.5,
                                             borderColor: '#cbd5e1',
                                             borderStyle: 'dashed',
-                                            borderRadius: 10,
-                                            padding: 16,
-                                            marginBottom: 8
+                                            borderRadius: 8,
+                                            padding: 12,
                                         }}
                                         onPress={handleTakeExtraPhoto} 
                                         disabled={isUploadingExtra}
                                     >
                                         {isUploadingExtra ? (
-                                            <ActivityIndicator size="small" color="#1c2d4f" style={{ marginRight: 14 }} />
+                                            <ActivityIndicator size="small" color="#1c2d4f" style={{ marginRight: 12 }} />
                                         ) : (
-                                            <View style={{ backgroundColor: '#e2e8f0', padding: 10, borderRadius: 50, marginRight: 14 }}>
-                                                <Ionicons name="images" size={22} color="#1c2d4f" />
+                                            <View style={{ backgroundColor: '#f1f5f9', padding: 8, borderRadius: 50, marginRight: 12 }}>
+                                                <Ionicons name="images" size={18} color="#1c2d4f" />
                                             </View>
                                         )}
                                         <View style={{ flex: 1 }}>
-                                            <Text style={{ fontSize: 14, fontWeight: '700', color: '#1c2d4f' }}>
-                                                Tocar para Anexar
+                                            <Text style={{ fontSize: 13, fontWeight: '700', color: '#1c2d4f' }}>
+                                                Tocar para Anexar Fotos Extras
                                             </Text>
-                                            <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                                            <Text style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>
                                                 {t('execPhotoFromCameraOrGallery')}
                                             </Text>
                                         </View>
                                     </Pressable>
 
                                     {extraPhotos.length > 0 && (
-                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 }}>
+                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
                                             {extraPhotos.map((photoUri, index) => {
                                                 const isProcessing = uploadingUris.has(photoUri);
                                                 return (
-                                                <Pressable key={index} style={{ position: 'relative', width: 100, height: 100, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#e2e8f0' }}
+                                                <Pressable key={index} style={{ position: 'relative', width: 90, height: 90, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#e2e8f0' }}
                                                     onPress={() => { setSelectedImage(photoUri); setViewerVisible(true); }}>
                                                     <Image source={{ uri: photoUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                                                     {isProcessing && (
@@ -2133,7 +2162,7 @@ export default function ExecuteOSScreen() {
                                                             <ActivityIndicator size="small" color="#fff" />
                                                         </View>
                                                     )}
-                                                    <Pressable style={{ position: 'absolute', top: 2, right: 2, backgroundColor: 'rgba(239,68,68,0.9)', padding: 6, borderRadius: 14 }}
+                                                    <Pressable style={{ position: 'absolute', top: 2, right: 2, backgroundColor: 'rgba(239,68,68,0.9)', padding: 5, borderRadius: 12 }}
                                                         onPress={() => {
                                                             const remoteUri = resolvePhotoUri(photoUri);
                                                             if (typeof remoteUri === 'string' && remoteUri.startsWith('http')) {
@@ -2142,22 +2171,23 @@ export default function ExecuteOSScreen() {
                                                             }
                                                             setExtraPhotos(prev => prev.filter(p => p !== photoUri));
                                                         }}>
-                                                        <Ionicons name="close" size={16} color="#fff" />
+                                                        <Ionicons name="close" size={14} color="#fff" />
                                                     </Pressable>
                                                 </Pressable>
                                             )})}
                                         </View>
                                     )}
                                 </View>
-                            </View>
 
-                            {/* VIDEO */}
-                            <View style={[styles.card, { marginTop: 16, elevation: 0, backgroundColor: '#ffffff' }]}>
-                                <View style={styles.cardHeader}>
-                                    <Ionicons name="videocam" size={16} color="#059669" />
-                                    <Text style={styles.cardTitle}>{t('execVideoEvidence')} ({videos.length}/4)</Text>
-                                </View>
-                                <View style={styles.cardContent}>
+                                {/* VÍDEOS EXTRAS */}
+                                <View style={{ backgroundColor: '#f8fafc', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#e2e8f0' }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                                        <Ionicons name="videocam-outline" size={15} color="#475569" />
+                                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#334155' }}>
+                                            {t('execVideoEvidence')} ({videos.length}/4)
+                                        </Text>
+                                    </View>
+
                                     {videos.map((vid, index) => (
                                         <Pressable
                                             key={index}
@@ -2199,24 +2229,26 @@ export default function ExecuteOSScreen() {
                                             style={{
                                                 flexDirection: 'row',
                                                 alignItems: 'center',
-                                                backgroundColor: '#f8fafc',
-                                                borderWidth: 2,
+                                                backgroundColor: '#ffffff',
+                                                borderWidth: 1.5,
                                                 borderColor: '#cbd5e1',
                                                 borderStyle: 'dashed',
-                                                borderRadius: 10,
-                                                padding: 16,
-                                                marginBottom: 8
+                                                borderRadius: 8,
+                                                padding: 12,
                                             }}
-                                            onPress={() => setIsVideoSourceModalVisible(true)}
+                                            onPress={() => {
+                                                setVideoSourceTarget(null);
+                                                setIsVideoSourceModalVisible(true);
+                                            }}
                                         >
-                                            <View style={{ backgroundColor: '#e2e8f0', padding: 10, borderRadius: 50, marginRight: 14 }}>
-                                                <Ionicons name="videocam" size={22} color="#1c2d4f" />
+                                            <View style={{ backgroundColor: '#f1f5f9', padding: 8, borderRadius: 50, marginRight: 12 }}>
+                                                <Ionicons name="videocam" size={18} color="#1c2d4f" />
                                             </View>
                                             <View style={{ flex: 1 }}>
-                                                <Text style={{ fontSize: 14, fontWeight: '700', color: '#1c2d4f' }}>
+                                                <Text style={{ fontSize: 13, fontWeight: '700', color: '#1c2d4f' }}>
                                                     {t('execAttachVideo')}
                                                 </Text>
-                                                <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                                                <Text style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>
                                                     {t('execRecordOrGallery')}
                                                 </Text>
                                             </View>
