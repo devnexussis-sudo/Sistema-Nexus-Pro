@@ -460,8 +460,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   chatContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 18,
     paddingBottom: 12,
   },
 
@@ -558,7 +558,7 @@ const styles = StyleSheet.create({
   messageRow: {
     flexDirection: 'row',
     marginBottom: 18,
-    gap: 10,
+    gap: 8,
     alignItems: 'flex-end',
   },
   messageRowUser: {
@@ -568,7 +568,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   messageBubble: {
-    maxWidth: '78%',
+    maxWidth: '88%',
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 12,
