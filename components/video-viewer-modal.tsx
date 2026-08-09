@@ -1,9 +1,9 @@
 /**
- * VideoViewerModal — Visualizador de Vídeo Customizado e Resiliente (v1)
+ * VideoViewerModal — Visualizador de Vídeo Customizado e Universal (v2)
  *
- * Exibe vídeos (locais ou armazenados no Supabase) em um modal nativo 
- * usando o player expo-av com controles nativos de reprodução.
- * Trata erros de formato/conexão sem travar ou fechar o app.
+ * Utiliza o WebView nativo com HTML5 Video Player, evitando dependência
+ * do módulo descontinuado ExponentAV/expo-av e eliminando crashes nativos.
+ * Suporta arquivos locais (file://) e URLs remotas assinadas do Supabase.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -14,11 +14,10 @@ import {
     Pressable, 
     Text, 
     ActivityIndicator, 
-    Dimensions,
-    Alert
+    Dimensions 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Video, ResizeMode } from 'expo-av';
+import { WebView } from 'react-native-webview';
 import { getSignedUrl } from '@/components/secure-image';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -32,19 +31,16 @@ interface VideoViewerModalProps {
 export function VideoViewerModal({ visible, videoUri, onClose }: VideoViewerModalProps) {
     const [resolvedUri, setResolvedUri] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [hasError, setHasError] = useState(false);
 
     useEffect(() => {
         let active = true;
         if (!visible || !videoUri) {
             setResolvedUri(null);
             setIsLoading(true);
-            setHasError(false);
             return;
         }
 
         setIsLoading(true);
-        setHasError(false);
 
         let target = videoUri.trim();
         if (target.startsWith('file://') || target.startsWith('data:') || target.startsWith('/')) {
@@ -74,6 +70,23 @@ export function VideoViewerModal({ visible, videoUri, onClose }: VideoViewerModa
 
     if (!visible || !videoUri) return null;
 
+    const htmlContent = resolvedUri ? `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <style>
+            * { box-sizing: border-box; }
+            body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000000; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+            video { width: 100vw; height: 100vh; object-fit: contain; background: #000000; }
+        </style>
+    </head>
+    <body>
+        <video src="${resolvedUri}" controls autoplay playsinline controlsList="nodownload"></video>
+    </body>
+    </html>
+    ` : '';
+
     return (
         <Modal 
             visible={visible} 
@@ -98,30 +111,21 @@ export function VideoViewerModal({ visible, videoUri, onClose }: VideoViewerModa
                     </View>
                 )}
 
-                {/* Erro de Reprodução */}
-                {hasError && !isLoading && (
-                    <View style={styles.centerContent}>
-                        <Ionicons name="alert-circle-outline" size={54} color="#ef4444" />
-                        <Text style={styles.errorText}>Não foi possível reproduzir este vídeo.</Text>
-                        <Pressable style={styles.retryButton} onPress={onClose}>
-                            <Text style={styles.retryButtonText}>Fechar</Text>
-                        </Pressable>
+                {/* Player Nativo Universal HTML5 via WebView */}
+                {!isLoading && resolvedUri && (
+                    <View style={styles.videoWrapper}>
+                        <WebView
+                            source={{ html: htmlContent, baseUrl: '' }}
+                            style={styles.webview}
+                            allowsFullscreenVideo
+                            allowsInlineMediaPlayback
+                            mediaPlaybackRequiresUserAction={false}
+                            originWhitelist={['*']}
+                            allowFileAccess
+                            allowFileAccessFromFileURLs
+                            allowUniversalAccessFromFileURLs
+                        />
                     </View>
-                )}
-
-                {/* Player Nativo Expo-AV */}
-                {!isLoading && resolvedUri && !hasError && (
-                    <Video
-                        source={{ uri: resolvedUri }}
-                        style={styles.fullscreenVideo}
-                        useNativeControls
-                        resizeMode={ResizeMode.CONTAIN}
-                        shouldPlay
-                        onError={(err) => {
-                            console.error('[VideoViewerModal] Erro de reprodução:', err);
-                            setHasError(true);
-                        }}
-                    />
                 )}
             </View>
         </Modal>
@@ -146,29 +150,14 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         marginTop: 8,
     },
-    errorText: {
-        color: '#f87171',
-        fontSize: 15,
-        fontWeight: '700',
-        marginTop: 8,
-        textAlign: 'center',
-        paddingHorizontal: 20,
-    },
-    retryButton: {
-        marginTop: 16,
-        backgroundColor: '#334155',
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 8,
-    },
-    retryButtonText: {
-        color: '#ffffff',
-        fontWeight: 'bold',
-        fontSize: 14,
-    },
-    fullscreenVideo: {
+    videoWrapper: {
         width: SCREEN_W,
-        height: SCREEN_H * 0.85,
+        height: SCREEN_H,
+        backgroundColor: '#000000',
+    },
+    webview: {
+        flex: 1,
+        backgroundColor: '#000000',
     },
     closeButton: {
         position: 'absolute',
