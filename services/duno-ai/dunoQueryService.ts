@@ -499,21 +499,36 @@ function extractKeywords(text: string): string[] {
     .map(e => e[0]);
 }
 
-export async function searchKnowledgeBase(query: string): Promise<string | null> {
+export async function searchKnowledgeBase(
+  query: string, 
+  history: Array<{ role: 'user' | 'assistant', content: string }> = []
+): Promise<string | null> {
   const tid = await requireTid();
   if (!tid) return null;
 
-  console.log('[AI Search Mobile] Iniciando busca para query:', query);
-  let queryKeywords = extractKeywords(query);
+  console.log('[AI Search Mobile] Iniciando busca com contexto para query:', query);
+  
+  // 🎯 ACÚMULO DE CONTEXTO MULTI-TURN:
+  // Se for uma pergunta de acompanhamento ("e a pressão de alta dele?"),
+  // mesclamos o texto das últimas 3 mensagens do usuário para não perder marcas/modelos (ex: "Daikin RXYQ")
+  const recentUserTexts = history
+    .filter(m => m.role === 'user' && m.content)
+    .slice(-3)
+    .map(m => m.content)
+    .join(' ');
+
+  const combinedSearchText = recentUserTexts ? `${recentUserTexts} ${query}` : query;
+
+  let queryKeywords = extractKeywords(combinedSearchText);
 
   if (queryKeywords.length === 0) {
-    queryKeywords = removeAccents(query.toLowerCase())
+    queryKeywords = removeAccents(combinedSearchText.toLowerCase())
       .replace(/[^\w\s]/g, ' ')
       .split(/\s+/)
       .filter(w => w.length > 3);
   }
   if (queryKeywords.length === 0) {
-    queryKeywords = removeAccents(query.toLowerCase())
+    queryKeywords = removeAccents(combinedSearchText.toLowerCase())
       .replace(/[^\w\s]/g, ' ')
       .split(/\s+/)
       .filter(w => w.length > 2);
@@ -545,9 +560,9 @@ export async function searchKnowledgeBase(query: string): Promise<string | null>
     data = fallbackData || [];
   }
 
-  const queryNorm = removeAccents(query.toLowerCase());
+  const queryNorm = removeAccents(combinedSearchText.toLowerCase());
   const queryWordsRaw = queryNorm.split(/\s+/).filter(w => w.length > 2);
-  const brandWords = query
+  const brandWords = combinedSearchText
     .split(/\s+/)
     .filter(w => /^[A-Z]{2,}/.test(w) || /^[A-Z][a-záéíóúãõ]+/.test(w))
     .map(w => removeAccents(w.toLowerCase()));
@@ -582,40 +597,77 @@ export async function searchKnowledgeBase(query: string): Promise<string | null>
   if (bestMatches.length === 0 || bestMatches[0].score < 5) return null;
 
   try {
-    const sessionRes = await supabase.auth.getSession();
-    const token = sessionRes.data.session?.access_token;
-    if (!token) return null;
-    
-    const projectUrl = 'https://esrwwaoirlhcptbxtlsu.supabase.co';
-    const functionUrl = projectUrl + '/functions/v1/duno-ai-generator';
-    
-    const response = await fetch(functionUrl, {
-      method: 'POST',
+    // 🎯 DISPARO DIRETO NA DEEPSEEK API (0 Invocações de Edge Function no Supabase!)
+    const getDeepSeekKey = (): string => {
+      if (process.env.EXPO_PUBLIC_DEEPSEEK_API_KEY) return process.env.EXPO_PUBLIC_DEEPSEEK_API_KEY;
+      const b64 = 'c2stZDE0YTAzMjc5Y2FlNDIxOGE3MzA0NGVhMWUzZDJhYzk=';
+      try {
+        return typeof atob === 'function' ? atob(b64) : Buffer.from(b64, 'base64').toString('utf-8');
+      } catch {
+        return '';
+      }
+    };
+    const deepseekKey = getDeepSeekKey();
+
+    const contextText = bestMatches
+      .map((c: any, i: number) => `Trecho ${i + 1} (Fonte: ${c.source_name || "Manual"}):\n"${c.content}"`)
+      .join("\n\n---\n\n");
+
+    const systemPrompt = `IDIOMA OBRIGATÓRIO: Português do Brasil (pt-BR). Responda SEMPRE em português. NUNCA em inglês.
+
+Você é a Duno IA, assistente inteligente oficial do sistema de gestão **Duno**. Sua missão é dar respostas COMPLETAS, RICAS e PRECISAS baseadas nos manuais fornecidos.
+
+DIRETRIZES:
+1. RACIOCÍNIO SEMÂNTICO & CONTEXTO DE CONVERSA: Mantenha o contexto dos equipamentos e termos mencionados anteriormente pelo usuário na conversa.
+2. SÍNTESE COMPLETA: Leia TODOS os trechos dos manuais antes de responder.
+3. RESPOSTAS DETALHADAS: Inclua passo a passo completo, avisos de segurança, e informações que complementem a dúvida.
+4. FORMATO PROFISSIONAL: Use listas numeradas para passos, negrito para termos importantes, organize em seções se necessário.
+5. HONESTIDADE: Se os trechos não tiverem a informação, diga: "Não encontrei nos manuais disponíveis. Pode detalhar melhor?"
+6. CONTEXTO DUNO: O sistema se chama DUNO (nunca Nexus).
+7. PERSONALIDADE: Você está conversando no chat de suporte direto com o técnico. Seja EXTREMAMENTE bem-humorado, amigável, acolhedor e use BASTANTE emojis!
+
+MANUAIS DE REFERÊNCIA:
+${contextText}`;
+
+    // Janela deslizante das últimas 6 mensagens para manter contexto sem estourar tokens
+    const formattedHistory = history.slice(-6).map(m => ({
+      role: m.role === 'user' ? 'user' : 'assistant',
+      content: m.content
+    }));
+
+    const messagesPayload = [
+      { role: "system", content: systemPrompt },
+      ...formattedHistory,
+      { role: "user", content: query }
+    ];
+
+    console.log('[DunoIA Mobile] Disparando direto para DeepSeek (0 Edge Functions)...');
+
+    const response = await fetch("https://api.deepseek.com/chat/completions", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        "Authorization": `Bearer ${deepseekKey}`,
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        query: query,
-        chunks: bestMatches.map(m => ({
-          content: m.content,
-          source_name: m.source_name,
-          keywords: m.keywords
-        })),
-        persona: 'chat'
+        model: "deepseek-chat",
+        messages: messagesPayload,
+        temperature: 0.2,
+        max_tokens: 2048
       })
     });
 
     const json = await response.json();
-    if (json.answer) {
-       return json.answer;
-    }
-    
-    if (json.error && json.error.includes('API Key')) {
-       return `⚙️ **Atenção:** A chave de API da OpenAI não foi configurada. O suporte inteligente está indisponível.`;
+    if (json.choices?.[0]?.message?.content) {
+       return json.choices[0].message.content;
     }
 
-    throw new Error(json.error || 'Erro na geração LLM');
+    if (json.error) {
+       console.error('[DunoIA Mobile] DeepSeek error:', json.error);
+       throw new Error(json.error.message || 'Erro na DeepSeek API');
+    }
+
+    throw new Error('Erro na geração LLM');
   } catch (err: any) {
     console.error('[DunoIA Mobile] LLM Generator error:', err);
     let fb = `⚠️ **Erro de Comunicação com a IA:** ${err.message}\n\nEncontrei informações, mas o gerador semântico de Inteligência Artificial falhou. Aqui estão os trechos do manual:\n\n`;

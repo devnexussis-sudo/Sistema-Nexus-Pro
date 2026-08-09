@@ -183,8 +183,12 @@ export default function DunoAIScreen() {
       if (personal) {
         response = personal;
       } else {
-        // 2️⃣ Busca no RAG de manuais e PDFs carregados
-        const kbResponse = await searchKnowledgeBase(userMsg.content);
+        // 2️⃣ Busca no RAG de manuais e PDFs carregados com contexto conversacional
+        const conversationHistory = messages
+          .filter(m => m.id !== 'welcome' && !m.isTyping)
+          .map(m => ({ role: m.role, content: m.content }));
+
+        const kbResponse = await searchKnowledgeBase(userMsg.content, conversationHistory);
         if (kbResponse) {
           response = kbResponse;
         } else {
