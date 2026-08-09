@@ -134,22 +134,36 @@ export class TenantService {
 
             console.log('[TenantService] 📦 Dados do tenant recebidos:', JSON.stringify(tenantData));
 
+            // Tratamento robusto de metadata (string JSON vs Object)
+            let meta: Record<string, any> = {};
+            if (typeof tenantData?.metadata === 'string') {
+                try {
+                    meta = JSON.parse(tenantData.metadata);
+                } catch (e) {
+                    console.warn('[TenantService] Falha ao parsear metadata JSON string:', e);
+                    meta = {};
+                }
+            } else if (tenantData?.metadata && typeof tenantData.metadata === 'object') {
+                meta = tenantData.metadata;
+            }
+
+            console.log('[TenantService] 🛠️ Metadata parseado:', JSON.stringify(meta));
+
             // Mapeamento flexível de colunas - Priorizando o que o painel salva (metadata.showItemPricesInApp)
             const settings: TenantSettings = {
-                showStockPrice: tenantData?.metadata?.showItemPricesInApp ??
+                showStockPrice: meta?.showItemPricesInApp ??
                     tenantData?.show_stock_price ??
                     tenantData?.settings?.show_stock_price ??
                     false,
-                allowMultipleInProgress: tenantData?.metadata?.allowMultipleInProgress ?? false,
-                // Novos controles — default = true (habilitado) para não afetar tenants existentes
-                showClientContact: tenantData?.metadata?.showClientContact ?? true,
-                showStockHistory: tenantData?.metadata?.showStockHistory ?? true,
-                allowImpediment: tenantData?.metadata?.allowImpediment ?? true,
-                showVisitHistory: tenantData?.metadata?.showVisitHistory ?? true,
-                requireLocationForExecution: tenantData?.metadata?.requireLocationForExecution ?? false,
+                allowMultipleInProgress: meta?.allowMultipleInProgress ?? false,
+                showClientContact: meta?.showClientContact ?? true,
+                showStockHistory: meta?.showStockHistory ?? true,
+                allowImpediment: meta?.allowImpediment ?? true,
+                showVisitHistory: meta?.showVisitHistory ?? true,
+                requireLocationForExecution: meta?.requireLocationForExecution ?? false,
             };
 
-            console.log(`[TenantService] ✅ Configuração final -> showStockPrice: ${settings.showStockPrice}, showClientContact: ${settings.showClientContact}, allowImpediment: ${settings.allowImpediment}, showVisitHistory: ${settings.showVisitHistory}`);
+            console.log(`[TenantService] ✅ Configuração final -> showStockPrice: ${settings.showStockPrice}, showClientContact: ${settings.showClientContact}, showStockHistory: ${settings.showStockHistory}, allowImpediment: ${settings.allowImpediment}, showVisitHistory: ${settings.showVisitHistory}`);
 
             this.settingsCache[userId] = settings;
             return settings;
