@@ -110,6 +110,7 @@ export default function OrderDetailsScreen() {
     const [allowImpediment, setAllowImpediment] = useState(true);
     const [showVisitHistory, setShowVisitHistory] = useState(true);
     const [requireLocationForExecution, setRequireLocationForExecution] = useState(false);
+    const [allowOsSharing, setAllowOsSharing] = useState(true);
     // Form templates for sorting and display
     const [formTemplates, setFormTemplates] = useState<Record<string, string[]>>({});
     const [templateTitles, setTemplateTitles] = useState<Record<string, string>>({});
@@ -146,6 +147,7 @@ export default function OrderDetailsScreen() {
                             setAllowImpediment(settings.allowImpediment);
                             setShowVisitHistory(settings.showVisitHistory);
                             setRequireLocationForExecution(settings.requireLocationForExecution);
+                            setAllowOsSharing(settings.allowOsSharing);
                         }
                     }).catch(() => {});
 
@@ -346,6 +348,7 @@ export default function OrderDetailsScreen() {
             setAllowImpediment(settings.allowImpediment);
             setShowVisitHistory(settings.showVisitHistory);
             setRequireLocationForExecution(settings.requireLocationForExecution);
+            setAllowOsSharing(settings.allowOsSharing);
         });
         return () => unsub();
     }, []);
@@ -353,6 +356,7 @@ export default function OrderDetailsScreen() {
     // Update navigation options safely outside of render to prevent Expo Router bugs
     React.useEffect(() => {
         if (order) {
+            const publicToken = order.publicToken || order.public_token;
             navigation.setOptions({
                 title: t('osDetails'),
                 headerLeft: () => (
@@ -368,10 +372,24 @@ export default function OrderDetailsScreen() {
                     >
                         <Ionicons name="chevron-back" size={28} color="#fff" />
                     </Pressable>
-                )
+                ),
+                headerRight: () => allowOsSharing && publicToken ? (
+                    <Pressable
+                        style={{ marginRight: 8, padding: 8, flexDirection: 'row', alignItems: 'center' }}
+                        onPress={() => {
+                            const url = `https://app.dunoup.com.br/#/order/view/${publicToken}`;
+                            Share.share({
+                                message: `${t('homeShareMessage')} ${order.displayId || order.id}:\n${url}`,
+                                url,
+                            });
+                        }}
+                    >
+                        <Ionicons name="share-social-outline" size={22} color="#fff" />
+                    </Pressable>
+                ) : null
             });
         }
-    }, [order, navigation, router, t]);
+    }, [order, navigation, router, t, allowOsSharing]);
 
     // Removed inline Tabs.Screen to fix crash, using layout options instead
     if (loading) {

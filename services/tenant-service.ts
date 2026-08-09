@@ -92,9 +92,14 @@ export class TenantService {
      */
     static async getSettings(forceRefresh = false): Promise<TenantSettings> {
         try {
-            const userId = authService.getCurrentUserId();
+            let userId = authService.getCurrentUserId();
             if (!userId) {
-                console.log('[TenantService] No userId found, returning default settings');
+                const { data: sessionData } = await supabase.auth.getSession();
+                userId = sessionData?.session?.user?.id || null;
+            }
+
+            if (!userId) {
+                console.log('[TenantService] No userId found in authService nor session, returning default settings');
                 return { ...DEFAULT_SETTINGS };
             }
 
