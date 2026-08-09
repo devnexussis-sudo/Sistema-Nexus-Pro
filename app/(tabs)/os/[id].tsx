@@ -1495,10 +1495,10 @@ export default function OrderDetailsScreen() {
                                         )}
                                     </View>
                                 );
-                        }
-                    </View>
-                );
-            })()}
+                            })}
+                        </View>
+                    );
+                })()}
 
                 {/* Execution Details Display — ONLY shown when there are NO visit records at all (legacy fallback) */}
                 {orderVisits.filter(v => ['completed', 'blocked'].includes(v.status)).length === 0 && (
