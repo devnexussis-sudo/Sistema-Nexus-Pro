@@ -18,6 +18,7 @@
           "fetch"
         ],
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow Nexus Mobile to use your location to track service routes even when the app is backgrounded.",
+        "NSLocationWhenInUseUsageDescription": "Allow Nexus Mobile to use your location to register check-in and check-out at service locations.",
         "NSMicrophoneUsageDescription": "Permitir acesso ao microfone para transcrição do relatório.",
         "NSSpeechRecognitionUsageDescription": "Permitir reconhecimento de voz para transcrever o relatório técnico.",
         "NSCameraUsageDescription": "Permitir acesso à câmera para tirar fotos e gravar vídeos de evidências das ordens de serviço.",
