@@ -60,7 +60,12 @@ export const QuoteService = {
             billingNotes: data.billing_notes,
             receiptUrl: data.approval_metadata?._receiptUrl,
             discount: Number(data.discount) || 0,
-            discountType: data.discount_type || 'fixed'
+            discountType: data.discount_type || 'fixed',
+            gatewayProvider: data.gateway_provider,
+            gatewayPaymentId: data.gateway_payment_id,
+            gatewayPixCode: data.gateway_pix_code,
+            gatewayTicketUrl: data.gateway_ticket_url,
+            gatewayStatus: data.gateway_status
         };
     },
 
@@ -148,7 +153,15 @@ export const QuoteService = {
                 created_at: now.toISOString()
             };
 
-            const { data, error } = await supabase.from('quotes').insert([dbPayload]).select().single();
+            let { data, error } = await supabase.from('quotes').insert([dbPayload]).select().single();
+            if (error && (error.message?.includes('created_by') || (error as any).code === 'PGRST204')) {
+                console.warn('[QuoteService] Coluna created_by não encontrada no schema de quotes, tentando salvar sem ela...');
+                const { created_by, ...payloadWithoutCreatedBy } = dbPayload as any;
+                const retry = await supabase.from('quotes').insert([payloadWithoutCreatedBy]).select().single();
+                data = retry.data;
+                error = retry.error;
+            }
+
             if (error) throw error;
 
             CacheManager.invalidate(`quotes_${tid}`);

@@ -5,13 +5,17 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { 
   Key, Webhook, Plus, Copy, Trash2, Eye, EyeOff, 
-  CheckCircle2, ShieldAlert, Code2, ArrowRight, X, ExternalLink
+  CheckCircle2, ShieldAlert, Code2, ArrowRight, X, ExternalLink, CreditCard, RefreshCw, Unlink
 } from 'lucide-react';
 import { DataService } from '../../services/dataService';
+import { PaymentService } from '../../services/paymentService';
+import { MercadoPagoSettings } from '../../types';
 
 export const IntegrationsPage: React.FC = () => {
   const { data: tenant } = useTenant();
-  const [activeTab, setActiveTab] = useState<'api_keys' | 'webhooks'>('api_keys');
+  const [activeTab, setActiveTab] = useState<'payments' | 'api_keys' | 'webhooks'>('payments');
+  const [mpSettings, setMpSettings] = useState<MercadoPagoSettings | null>(null);
+  const [loadingMp, setLoadingMp] = useState(false);
   
   // API Keys state
   const [apiKeys, setApiKeys] = useState<any[]>([]);
@@ -47,10 +51,130 @@ export const IntegrationsPage: React.FC = () => {
 
   useEffect(() => {
     if (tenant?.id) {
+      fetchMercadoPago();
       fetchApiKeys();
       fetchWebhooks();
     }
   }, [tenant?.id]);
+
+  const fetchMercadoPago = async () => {
+    setLoadingMp(true);
+    try {
+      const settings = await PaymentService.getMercadoPagoSettings(tenant?.id);
+      setMpSettings(settings);
+    } finally {
+      setLoadingMp(false);
+    }
+  };
+
+  const [customAppId, setCustomAppId] = useState('');
+  const [customAccessToken, setCustomAccessToken] = useState('');
+  const [savingManual, setSavingManual] = useState(false);
+
+  const handleConnectMercadoPago = () => {
+    const cleanAppId = customAppId.trim();
+
+    // Validação: o Client ID do Mercado Pago é SEMPRE numérico
+    if (!cleanAppId) {
+      alert('Informe o App ID / Client ID numérico da sua aplicação no Mercado Pago Developers antes de conectar.\n\nExemplo: 849204819204\n\nEncontre em: mercadopago.com.br/developers/pt/apps');
+      return;
+    }
+
+    if (cleanAppId.includes('@') || !/^\d+$/.test(cleanAppId)) {
+      alert('\u274C Client ID inválido!\n\nO App ID / Client ID é SOMENTE números (ex: 849204819204).\n\nNão é o seu e-mail nem o seu Access Token.\n\nAcesse mercadopago.com.br/developers/pt/apps, abra sua aplicação e copie o "Client ID" numérico.');
+      return;
+    }
+
+    const url = PaymentService.getOAuthConnectUrl(cleanAppId);
+
+    if (!url) {
+      alert('Não foi possível gerar o link de autorização. Verifique o App ID informado.');
+      return;
+    }
+
+    window.open(url, '_blank');
+  };
+
+  const handleSaveManualCredentials = async () => {
+    const token = customAccessToken.trim();
+    if (!token) return;
+
+    setSavingManual(true);
+    try {
+      // ── ETAPA 1: Validar o token NA API REAL do Mercado Pago via Edge Function ──────────────
+      // Isso evita o erro de CORS do navegador, pois o servidor que faz a requisição.
+      let accountEmail = 'Credencial Vinculada';
+      let accountName = 'Conta Mercado Pago';
+      let mpUserId = customAppId.trim() || undefined;
+
+      const { data: verifyData, error: verifyError } = await supabase.functions.invoke('mercadopago-verify-token', {
+        body: { token }
+      });
+
+      if (verifyError || !verifyData || !verifyData.valid) {
+        // Token inválido — não salva nada
+        const errMsg = verifyData?.error || verifyError?.message || 'Token rejeitado pelo servidor.';
+        alert(`❌ Access Token inválido!\n\nO Mercado Pago rejeitou este token: "${errMsg}"\n\nVerifique se copiou o token correto em:\nmercadopago.com.br/settings/account/credentials → Credenciais de produção`);
+        return;
+      }
+
+      // ── ETAPA 2: Token válido — pega os dados reais retornados pela Edge Function ─────────────
+      accountEmail = verifyData.accountEmail;
+      accountName  = verifyData.accountName;
+      mpUserId     = verifyData.userId || customAppId.trim() || '';
+
+      // ── ETAPA 3: Salva no banco com dados reais ───────────────────────────
+      const success = await PaymentService.saveMercadoPagoSettings({
+        mpAccessToken: token,
+        mpUserId,
+        accountEmail
+      }, tenant?.id);
+
+      if (success) {
+        setMpSettings({
+          tenantId: tenant?.id || 'current',
+          accountEmail,
+          accountName,
+          status: 'active'
+        });
+        alert(`🟢 Conta conectada com sucesso!\n\n👤 ${accountName}\n📧 ${accountEmail}`);
+        setCustomAccessToken('');
+        setCustomAppId('');
+      } else {
+        alert('Erro ao salvar credenciais no banco. Tente novamente.');
+      }
+    } catch (err: any) {
+      console.error('[IntegrationsPage] Erro ao validar token MP:', err);
+      alert('❌ Não foi possível verificar o token. Verifique sua conexão com a internet e tente novamente.');
+    } finally {
+      setSavingManual(false);
+    }
+  };
+
+  const handleDisconnectMercadoPago = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Desconectar Mercado Pago',
+      message: 'Tem certeza que deseja desconectar sua conta Mercado Pago? Você não poderá mais gerar cobranças automáticas até reconectar.',
+      confirmText: 'Desconectar',
+      isDanger: true,
+      onConfirm: async () => {
+        setLoadingMp(true);
+        try {
+          // Chama o serviço centralizado com o tenant ID correto
+          await PaymentService.disconnectMercadoPago(tenant?.id);
+          // Aguarda um momento para o banco confirmar, depois re-lê o estado real
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await fetchMercadoPago();
+        } catch (err) {
+          console.error('[IntegrationsPage] Erro ao desconectar MP:', err);
+          setMpSettings(null);
+        } finally {
+          setLoadingMp(false);
+        }
+      }
+    });
+  };
 
   const fetchApiKeys = async () => {
     setLoadingKeys(true);
@@ -195,6 +319,12 @@ export const IntegrationsPage: React.FC = () => {
 
       <div className="flex gap-4 border-b border-slate-200 mb-6">
         <button
+          onClick={() => setActiveTab('payments')}
+          className={`pb-3 px-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'payments' ? 'border-[#009EE3] text-[#009EE3]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          <div className="flex items-center gap-2"><CreditCard size={16} /> Gateway de Pagamento</div>
+        </button>
+        <button
           onClick={() => setActiveTab('api_keys')}
           className={`pb-3 px-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'api_keys' ? 'border-[#1c2d4f] text-[#1c2d4f]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
@@ -209,6 +339,118 @@ export const IntegrationsPage: React.FC = () => {
       </div>
 
       {/* TABS CONTENT */}
+      {activeTab === 'payments' && (
+        <div className="space-y-5 animate-fade-in max-w-4xl">
+
+          {/* ── HEADER STATUS ──────────────────────────────────── */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-[#009EE3]/10 text-[#009EE3] flex items-center justify-center shrink-0 border border-[#009EE3]/20">
+                  <CreditCard size={28} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    Mercado Pago
+                    <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-sky-50 text-[#009EE3] border border-[#009EE3]/30">Gateway de Pagamento</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Receba Pix, Boleto e Cartão de Crédito diretamente pelo painel.</p>
+                </div>
+              </div>
+              {mpSettings?.status === 'active' && (
+                <button
+                  onClick={handleDisconnectMercadoPago}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-semibold transition-all border border-rose-200 shrink-0"
+                >
+                  <Unlink size={15} /> Desconectar Conta
+                </button>
+              )}
+            </div>
+
+            {/* Status badge */}
+            {loadingMp ? (
+              <div className="mt-4 flex items-center gap-2 text-slate-400 text-xs">
+                <RefreshCw size={14} className="animate-spin" /> Verificando conexão...
+              </div>
+            ) : mpSettings?.status === 'active' ? (
+              <div className="mt-4 bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                  <CheckCircle2 size={20} />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-emerald-900 uppercase tracking-wider block">Conta Ativa e Vinculada 🟢</span>
+                  <p className="text-xs text-emerald-700 mt-0.5">
+                    {mpSettings.accountName || 'Mercado Pago'} — {mpSettings.accountEmail || 'Conectado'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2 text-amber-800 text-xs">
+                <ShieldAlert size={16} className="shrink-0 text-amber-500" />
+                <span>Nenhuma conta conectada. Configure suas credenciais abaixo para ativar o gateway.</span>
+              </div>
+            )}
+          </div>
+
+          {/* ── FORMULÁRIO DE CONEXÃO (somente quando desconectado) ── */}
+          {!loadingMp && mpSettings?.status !== 'active' && (
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5">
+
+              {/* Como obter as credenciais */}
+              <div className="flex items-start gap-3 bg-sky-50 border border-sky-200 rounded-2xl p-4">
+                <ShieldAlert size={18} className="text-[#009EE3] shrink-0 mt-0.5" />
+                <div className="space-y-1.5">
+                  <p className="text-xs font-bold text-slate-800">Como obter suas credenciais do Mercado Pago:</p>
+                  <ol className="text-xs text-slate-600 space-y-1 leading-relaxed list-decimal list-inside">
+                    <li>Acesse <a href="https://www.mercadopago.com.br/settings/account/credentials" target="_blank" rel="noreferrer" className="text-[#009EE3] font-semibold hover:underline">mercadopago.com.br/settings/account/credentials</a> e faça login com sua conta</li>
+                    <li>Na seção <strong>Credenciais de produção</strong>, clique em <strong>"Mais informações"</strong> para ver o Access Token</li>
+                    <li>Copie o <strong>Access Token</strong> — começa com <code className="bg-sky-100 px-1 rounded font-mono">APP_USR-</code> (produção) ou <code className="bg-sky-100 px-1 rounded font-mono">TEST-</code> (testes)</li>
+                    <li>Cole no campo abaixo e clique em <strong>Salvar e Conectar</strong></li>
+                  </ol>
+                </div>
+              </div>
+
+              {/* Campos */}
+              <div>
+                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1.5">
+                  Access Token <span className="text-rose-500 font-normal">(obrigatório)</span>
+                </label>
+                <Input
+                  type="password"
+                  placeholder="APP_USR-... ou TEST-..."
+                  value={customAccessToken}
+                  onChange={e => setCustomAccessToken(e.target.value)}
+                  className="font-mono max-w-md"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Cole aqui o Token de produção ou de testes do seu painel MP</p>
+              </div>
+
+              {/* Botão */}
+              <div className="flex items-center justify-between pt-1">
+                <a
+                  href="https://www.mercadopago.com.br/settings/account/credentials"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] text-[#009EE3] hover:underline flex items-center gap-1 font-semibold"
+                >
+                  <ExternalLink size={12} /> Acessar Credenciais do Mercado Pago
+                </a>
+                <button
+                  onClick={handleSaveManualCredentials}
+                  disabled={!customAccessToken.trim() || savingManual}
+                  className="flex items-center gap-2 px-6 py-3 bg-[#009EE3] hover:bg-[#0089c7] disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white rounded-2xl text-sm font-bold transition-all shadow-lg shadow-[#009EE3]/20 active:scale-95"
+                >
+                  {savingManual ? (
+                    <><RefreshCw size={15} className="animate-spin" /> Conectando...</>
+                  ) : (
+                    <><CheckCircle2 size={15} /> Salvar e Conectar Conta</>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       {activeTab === 'api_keys' && (
         <div className="space-y-6 animate-fade-in max-w-5xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

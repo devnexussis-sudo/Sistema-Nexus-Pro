@@ -321,6 +321,14 @@ export interface ServiceOrder {
   discount?: number;
   discountType?: 'fixed' | 'percent';
 
+  // Gateway de Pagamento Mercado Pago
+  gatewayProvider?: 'mercadopago' | string;
+  gatewayPaymentId?: string;
+  gatewayPixCode?: string;
+  gatewayQrCodeUrl?: string;
+  gatewayTicketUrl?: string;
+  gatewayStatus?: string;
+
   // 📍 Fluxo de Atendimento (Check-in / Check-out / SLA)
   timeline?: {
     assignedAt?: string;      // Quando foi atribuída ao técnico
@@ -595,7 +603,30 @@ export interface Quote {
   receiptUrl?: string;
   discount?: number;
   discountType?: 'fixed' | 'percent';
+
+  // Gateway de Pagamento Mercado Pago
+  gatewayProvider?: 'mercadopago' | string;
+  gatewayPaymentId?: string;
+  gatewayPixCode?: string;
+  gatewayQrCodeUrl?: string;
+  gatewayTicketUrl?: string;
+  gatewayStatus?: string;
 }
+
+export interface MercadoPagoSettings {
+  id?: string;
+  tenantId: string;
+  mpUserId?: string;
+  mpPublicKey?: string;
+  mpAccessToken?: string;
+  mpRefreshToken?: string;
+  accountEmail?: string;
+  accountName?: string;
+  status: 'active' | 'disconnected' | 'error';
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 
 export interface AuthState {
   user: User | null;

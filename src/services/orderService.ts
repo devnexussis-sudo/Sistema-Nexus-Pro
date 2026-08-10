@@ -60,8 +60,13 @@ export const OrderService = {
             checkin_location: order.checkinLocation,
             checkout_location: order.checkoutLocation,
             pause_reason: order.pauseReason,
+            gateway_provider: (order as any).gatewayProvider,
+            gateway_payment_id: (order as any).gatewayPaymentId,
+            gateway_pix_code: (order as any).gatewayPixCode,
+            gateway_ticket_url: (order as any).gatewayTicketUrl,
+            gateway_status: (order as any).gatewayStatus,
             updated_at: new Date().toISOString()
-        };
+        } as any;
     },
 
     // Helper para mapear ServiceOrder do DB (snake_case) para o Front (camelCase)
@@ -133,6 +138,11 @@ export const OrderService = {
             checkinLocation: data.checkin_location,
             checkoutLocation: data.checkout_location,
             pauseReason: data.pause_reason,
+            gatewayProvider: (data as any).gateway_provider,
+            gatewayPaymentId: (data as any).gateway_payment_id,
+            gatewayPixCode: (data as any).gateway_pix_code,
+            gatewayTicketUrl: (data as any).gateway_ticket_url,
+            gatewayStatus: (data as any).gateway_status,
             // 🖊️ Assinatura do cliente — coletada pelo técnico no encerramento da OS
             signature: data.client_signature_url || data.signature_url,
             signatureName: data.client_signature_name,

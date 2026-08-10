@@ -8,7 +8,7 @@ import {
     Search, X, DollarSign, Calendar, Users, Tag,
     CreditCard, ArrowRight, CheckCircle2, FileText, Printer, ShieldCheck, MapPin,
     Layout as Layer, Info, UserCheck, Wallet, Smartphone, Layers, Wrench, Check, ArrowUpRight,
-    TrendingUp, Clock, FileSpreadsheet, ChevronRight, ChevronDown, Plus, Slash, ArrowUp, ArrowDown, ArrowUpDown, Filter, Loader2, Share2, Hexagon, Paperclip, Image as ImageIcon, RefreshCw
+    TrendingUp, Clock, FileSpreadsheet, ChevronRight, ChevronDown, Plus, Slash, ArrowUp, ArrowDown, ArrowUpDown, Filter, Loader2, Share2, Hexagon, Paperclip, Image as ImageIcon, RefreshCw, Eye
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { NexusBranding } from '../ui/NexusBranding';
@@ -17,6 +17,10 @@ import { StorageService } from '../../services/storageService';
 import XLSX from 'xlsx-js-style';
 import { NexusQueryClient } from '../../hooks/nexusHooks';
 import { usePermissions } from '../../hooks/usePermissions';
+import { MercadoPagoPaymentModal } from './MercadoPagoPaymentModal';
+import { PaymentAuditModal } from './PaymentAuditModal';
+import { supabase } from '../../lib/supabase';
+import { PaymentService } from '../../services/paymentService';
 
 interface FinancialDashboardProps {
     orders: ServiceOrder[];
@@ -91,7 +95,56 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
     const [printItem, setPrintItem] = useState<any | null>(null);
+
+    // Modal Mercado Pago
+    const [isMpModalOpen, setIsMpModalOpen] = useState(false);
+    const [mpModalItem, setMpModalItem] = useState<any | null>(null);
+
+    // Verifica se Mercado Pago está conectado (bloqueia botão se não estiver)
+    const [isMpConnected, setIsMpConnected] = useState<boolean | null>(null);
+    const [mpTooltipId, setMpTooltipId] = useState<string | null>(null);
+
+    useEffect(() => {
+        const checkMpConnection = async () => {
+            try {
+                const { data } = await supabase
+                    .from('tenant_mercadopago_settings')
+                    .select('status')
+                    .eq('status', 'active')
+                    .maybeSingle();
+                setIsMpConnected(!!data);
+            } catch {
+                setIsMpConnected(false);
+            }
+        };
+        checkMpConnection();
+    }, []);
+
+    // Modal de Auditoria do Gateway
+    const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
+    const [auditModalItem, setAuditModalItem] = useState<any | null>(null);
+
+    // Supabase Realtime: Atualização instantânea na tela assim que o pagamento for liquidado pelo Webhook
+    useEffect(() => {
+        const channel = supabase
+            .channel('realtime_financial_dashboard_gateway')
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, () => {
+                console.log('⚡ [Realtime] Liquidação de O.S. detectada!');
+                onRefresh();
+            })
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'quotes' }, () => {
+                console.log('⚡ [Realtime] Liquidação de Orçamento detectada!');
+                onRefresh();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []);
+
     const [paymentMethod, setPaymentMethod] = useState('Dinheiro');
+    const [boletoDueDate, setBoletoDueDate] = useState<string>('');
     const [installments, setInstallments] = useState(2);
     const [billingNotes, setBillingNotes] = useState('');
     const [receiptFile, setReceiptFile] = useState<File | null>(null);
@@ -199,6 +252,48 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             }
         });
 
+        const computeFinancialValues = (
+            storedVal: number,
+            discVal: number,
+            discType: string,
+            isPaid: boolean,
+            originalGross?: number
+        ) => {
+            let grossValue = originalGross && originalGross > 0 ? originalGross : storedVal;
+            let discountAmount = 0;
+            let netValue = storedVal;
+
+            const cleanDiscType = String(discType || 'fixed').toLowerCase();
+
+            if (discVal > 0) {
+                if (isPaid) {
+                    netValue = storedVal;
+                    if (cleanDiscType === 'percent') {
+                        const ratio = (100 - discVal) / 100;
+                        grossValue = ratio > 0 ? netValue / ratio : netValue + discVal;
+                        discountAmount = grossValue - netValue;
+                    } else {
+                        discountAmount = discVal;
+                        grossValue = netValue + discountAmount;
+                    }
+                } else {
+                    if (cleanDiscType === 'percent') {
+                        discountAmount = grossValue * (discVal / 100);
+                        netValue = Math.max(0, grossValue - discountAmount);
+                    } else {
+                        discountAmount = discVal;
+                        netValue = Math.max(0, grossValue - discountAmount);
+                    }
+                }
+            }
+
+            return {
+                grossValue: Math.round(grossValue * 100) / 100,
+                discountAmount: Math.round(discountAmount * 100) / 100,
+                netValue: Math.round(netValue * 100) / 100
+            };
+        };
+
         const approvedQuotes = quotes
             .filter(q => {
                 const bSt = q.billingStatus?.toUpperCase() || '';
@@ -216,47 +311,62 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
                 return true;
             })
-            .map(q => ({
-                type: 'QUOTE' as const,
-                id: q.id,
-                displayId: q.displayId || null,
-                customerName: q.customerName,
-                customerAddress: q.customerAddress,
-                title: q.title,
-                description: q.description,
-                date: q.approvedAt || (q as any).updatedAt || q.createdAt,
-                dueDate: q.approvedAt || q.validUntil || (q as any).updatedAt || q.createdAt,
-                createdAt: q.createdAt,
-                updatedAt: (q as any).updatedAt || q.createdAt,
-                paidAt: q.paidAt || null,
-                value: Number(q.totalValue) || 0,
-                status: (q.billingStatus || 'PENDING').toUpperCase(),
-                original: q,
-                billingDiscount: q.discount || 0,
-                billingDiscountType: q.discountType || 'fixed',
-                technician: techs.find(t => t.id === (q as any).createdBy || t.id === (q as any).authorId)?.name || 'Administrador'
-            }));
+            .map(q => {
+                const isPaid = (q.billingStatus || '').toUpperCase() === 'PAID';
+                const storedVal = Number(q.totalValue) || 0;
+                const discVal = Number(q.discount || (q as any).discount || 0);
+                const discType = q.discountType || (q as any).discount_type || 'fixed';
+                const originalGross = Number((q as any).original_value || 0);
+
+                const { grossValue, discountAmount, netValue } = computeFinancialValues(storedVal, discVal, discType, isPaid, originalGross);
+
+                return {
+                    type: 'QUOTE' as const,
+                    id: q.id,
+                    displayId: q.displayId || null,
+                    customerName: q.customerName,
+                    customerAddress: q.customerAddress,
+                    title: q.title,
+                    description: q.description,
+                    date: q.approvedAt || (q as any).updatedAt || q.createdAt,
+                    dueDate: q.approvedAt || q.validUntil || (q as any).updatedAt || q.createdAt,
+                    createdAt: q.createdAt,
+                    updatedAt: (q as any).updatedAt || q.createdAt,
+                    paidAt: q.paidAt || null,
+                    value: netValue,
+                    grossValue,
+                    discountAmount,
+                    netValue,
+                    status: (q.billingStatus || 'PENDING').toUpperCase(),
+                    original: q,
+                    billingDiscount: discVal,
+                    billingDiscountType: discType,
+                    technician: techs.find(t => t.id === (q as any).createdBy || t.id === (q as any).authorId)?.name || 'Administrador'
+                };
+            });
 
         const completedOrders = orders
             .filter(o => o.status === OrderStatus.COMPLETED)
             .map(order => {
                 const itemsValue = order.items?.reduce((acc, i) => acc + i.total, 0) || 0;
-                let value = Number(itemsValue || (order.formData as any)?.totalValue || (order.formData as any)?.price || 0);
+                let storedVal = Number((order as any).total_value || (order as any).totalValue || itemsValue || (order.formData as any)?.totalValue || (order.formData as any)?.price || 0);
                 if (order.linkedQuotes && order.linkedQuotes.length > 0) {
-                    value += order.linkedQuotes.reduce((acc, qId) => {
+                    storedVal += order.linkedQuotes.reduce((acc, qId) => {
                         const q = quotes.find(q => q.id === qId);
-                        
-                        // Proteção contra cobrança dupla: 
-                        // Se a O.S. ainda está PENDENTE financeiramente, mas o orçamento já foi PAGO,
-                        // não agregamos o valor dele aqui.
                         if (order.billingStatus !== 'PAID' && q?.billingStatus === 'PAID') {
                             return acc;
                         }
-                        
                         return acc + (Number(q?.totalValue) || 0);
                     }, 0);
                 }
                 const techObj = techs.find(t => t.id === order.assignedTo);
+                const isPaid = (order.billingStatus || '').toUpperCase() === 'PAID';
+                const discVal = Number(order.discount || (order as any).discount || 0);
+                const discType = order.discountType || (order as any).discount_type || 'fixed';
+                const originalGross = Number((order as any).original_value || 0);
+
+                const { grossValue, discountAmount, netValue } = computeFinancialValues(storedVal, discVal, discType, isPaid, originalGross);
+
                 return {
                     type: 'ORDER' as const,
                     id: order.id,
@@ -270,11 +380,14 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     createdAt: order.createdAt,
                     updatedAt: order.updatedAt,
                     paidAt: order.paidAt || null,
-                    value: Number(value),
+                    value: netValue,
+                    grossValue,
+                    discountAmount,
+                    netValue,
                     status: (order.billingStatus || 'PENDING').toUpperCase(),
                     original: order,
-                    billingDiscount: order.discount || 0,
-                    billingDiscountType: order.discountType || 'fixed',
+                    billingDiscount: discVal,
+                    billingDiscountType: discType,
                     technician: techObj?.name || order.assignedTo || 'N/A'
                 };
             })
@@ -356,6 +469,123 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         return sortableItems;
     }, [filteredItems, sortConfig]);
 
+    // Scanner automático contínuo de faturas pendentes em background (a cada 8 segundos)
+    useEffect(() => {
+        let isCancelled = false;
+
+        const scanBackground = async () => {
+            const pendingItems = filteredItems.filter(i => {
+                const rawId = (i.original as any).gatewayPaymentId || (i.original as any).gateway_payment_id;
+                return i.status !== 'PAID' && rawId;
+            });
+
+            if (pendingItems.length === 0) return;
+
+            let didUpdate = false;
+            for (const item of pendingItems) {
+                if (isCancelled) break;
+                try {
+                    const rawId = (item.original as any).gatewayPaymentId || (item.original as any).gateway_payment_id;
+                    const res = await PaymentService.checkPaymentStatus({
+                        itemType: item.type,
+                        itemId: item.id,
+                        gatewayPaymentId: rawId
+                    });
+                    if (res.isPaid) {
+                        didUpdate = true;
+                    }
+                } catch (err) {
+                    // Falhas de rede ignoradas silenciosamente
+                }
+                await new Promise(r => setTimeout(r, 400));
+            }
+
+            if (didUpdate && !isCancelled && onRefresh) {
+                NexusQueryClient.invalidateQuotes();
+                NexusQueryClient.invalidateOrders();
+                NexusQueryClient.invalidateFinancials();
+                await onRefresh();
+            }
+        };
+
+        // Roda a primeira varredura imediatamente
+        scanBackground();
+
+        // E repete continuamente a cada 8 segundos enquanto a tela estiver aberta
+        const intervalId = setInterval(scanBackground, 8000);
+
+        return () => {
+            isCancelled = true;
+            clearInterval(intervalId);
+        };
+    }, [filteredItems, onRefresh]);
+
+    // 🛡️ RECONCILIADOR DE SEGURANÇA: Reverte automaticamente itens para PENDING se o pagamento no Mercado Pago não estiver aprovado
+    useEffect(() => {
+        const revertUnpaidItems = async () => {
+            const paidItems = filteredItems.filter(i => i.status === 'PAID');
+            let didRevert = false;
+
+            for (const item of paidItems) {
+                const orig = item.original as any;
+                const rawGtwId = String(orig.gatewayPaymentId || orig.gateway_payment_id || '').trim();
+
+                // 1. Se tem ID de Preference (link de checkout não pago) ou não tem ID numérico oficial de pagamento
+                const isPreferenceId = rawGtwId && !/^\d+$/.test(rawGtwId);
+                let shouldRevert = isPreferenceId;
+
+                // 2. Se for ID numérico, valida se realmente consta como aprovado no MP
+                if (!shouldRevert && rawGtwId && /^\d+$/.test(rawGtwId)) {
+                    try {
+                        const statusRes = await PaymentService.checkPaymentStatus({
+                            itemType: item.type,
+                            itemId: item.id,
+                            gatewayPaymentId: rawGtwId
+                        });
+                        if (!statusRes.isPaid) {
+                            shouldRevert = true;
+                        }
+                    } catch {
+                        // Se falhou a checagem, mantém por segurança
+                    }
+                }
+
+                if (shouldRevert) {
+                    console.warn(`[FinancialDashboard] 🚨 Item ${item.type} #${item.id} não possui pagamento aprovado no Mercado Pago! Revertendo para PENDING...`);
+                    try {
+                        if (item.type === 'QUOTE') {
+                            await QuoteService.updateQuote({
+                                ...(orig),
+                                id: item.id,
+                                billingStatus: 'PENDING',
+                                gatewayStatus: 'pending'
+                            });
+                        } else {
+                            await OrderService.updateOrder({
+                                ...(orig),
+                                id: item.id,
+                                billingStatus: 'PENDING',
+                                gatewayStatus: 'pending'
+                            });
+                        }
+                        didRevert = true;
+                    } catch (revertErr) {
+                        console.error('[FinancialDashboard] Erro ao reverter item para PENDING:', revertErr);
+                    }
+                }
+            }
+
+            if (didRevert && onRefresh) {
+                NexusQueryClient.invalidateQuotes();
+                NexusQueryClient.invalidateOrders();
+                NexusQueryClient.invalidateFinancials();
+                await onRefresh();
+            }
+        };
+
+        revertUnpaidItems();
+    }, [filteredItems]);
+
     const paginatedItems = useMemo(() => {
         const start = (currentPage - 1) * ITEMS_PER_PAGE;
         return sortedItems.slice(start, start + ITEMS_PER_PAGE);
@@ -405,6 +635,14 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         const discountValue = billingDiscountType === 'percent' ? (baseAmount * billingDiscount / 100) : billingDiscount;
         const finalAmount = Math.max(0, baseAmount - discountValue);
         
+        const isMpIntegrationTriggered = isMpConnected && (paymentMethod === 'Pix' || paymentMethod === 'Cartão Crédito' || paymentMethod === 'Boleto');
+        
+        if (isMpIntegrationTriggered && selectedIds.length > 1) {
+            showAlert('A geração de cobrança via Mercado Pago deve ser feita individualmente (um item por vez).', 'error');
+            setIsProcessing(false);
+            return;
+        }
+
         let uploadedReceiptUrl = '';
         if (receiptFile) {
             try {
@@ -436,77 +674,209 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     : rawItem;
 
                 if (item.type === 'ORDER') {
-                    // Atualiza O.S. principal — preserva desconto original se nenhum extra foi informado
                     const effectiveDiscount = billingDiscount > 0 ? billingDiscount : (item.original?.discount || 0);
                     const effectiveDiscountType = billingDiscount > 0 ? billingDiscountType : (item.original?.discountType || 'fixed');
-                    await DataService.updateOrder({
-                        ...(item.original as ServiceOrder),
-                        billingStatus: 'PAID',
-                        paymentMethod: finalMethod,
-                        billingNotes: billingNotes,
-                        receiptUrl: uploadedReceiptUrl || item.original?.receiptUrl,
-                        discount: effectiveDiscount,
-                        discountType: effectiveDiscountType,
-                        paidAt
-                    });
+                    
+                    if (isMpIntegrationTriggered) {
+                        const mpMethod = finalMethod === 'Pix' ? 'pix' : (finalMethod === 'Boleto' ? 'boleto' : 'card_link');
+                        const fullCust = customers.find(c => c.id === item.original?.customerId || c.id === item.original?.customer_id);
+                        const customerDoc = (item as any).customerDocument || fullCust?.document || (fullCust as any)?.cpf || (fullCust as any)?.cnpj || item.original?.customer_document || item.original?.customerDocument;
 
-                    // Atualiza TODOS os orçamentos vinculados (incluindo os recém-linkados)
-                    const linkedQuoteIds: string[] = item.original.linkedQuotes ?? [];
-                    console.log(`[FinancialDashboard] Faturando O.S. ${item.displayId} com ${linkedQuoteIds.length} orçamento(s) vinculado(s):`, linkedQuoteIds);
-                    for (const qId of linkedQuoteIds) {
-                        const qOrigin = quotes.find(q => q.id === qId);
-                        if (qOrigin) {
-                            await DataService.updateQuote({
-                                ...qOrigin,
-                                billingStatus: 'PAID',
-                                paymentMethod: finalMethod,
-                                billingNotes: `Faturado via O.S. ${item.displayId || '#' + item.id.slice(0, 8)}`,
-                                receiptUrl: uploadedReceiptUrl || qOrigin.receiptUrl,
-                                paidAt
-                            });
+                        if (mpMethod === 'boleto' && !customerDoc) {
+                            showAlert('Para gerar o Boleto diretamente, o cliente precisa ter um CPF/CNPJ cadastrado. Atualize o cadastro do cliente e tente novamente.', 'error');
+                            setIsProcessing(false);
+                            return;
+                        }
+
+                        const res = await PaymentService.createMercadoPagoCharge({
+                            itemType: 'ORDER',
+                            itemId: item.id,
+                            displayId: item.displayId || undefined,
+                            title: item.title || 'Ordem de Serviço',
+                            amount: finalAmount,
+                            customerName: item.customerName,
+                            customerDocument: customerDoc,
+                            paymentMethodType: mpMethod,
+                            installments: mpMethod === 'card_link' ? installments : undefined,
+                            expiresAt: (mpMethod === 'boleto' && boletoDueDate) ? boletoDueDate : undefined
+                        });
+
+                        if (!res.success) {
+                            throw new Error(res.message || 'Erro ao gerar cobrança Mercado Pago.');
+                        }
+
+                        const updatedOrder = {
+                            ...(item.original as ServiceOrder),
+                            discount: effectiveDiscount,
+                            discountType: effectiveDiscountType,
+                            billingNotes: billingNotes || item.original?.billingNotes,
+                            gatewayProvider: 'mercadopago',
+                            gatewayPaymentId: res.paymentId,
+                            gatewayPixCode: res.pixCopiaECola,
+                            gatewayTicketUrl: res.ticketUrl,
+                            gatewayStatus: 'pending'
+                        } as any;
+                        await DataService.updateOrder(updatedOrder);
+
+                        setMpModalItem({
+                            ...item,
+                            original: updatedOrder,
+                            gatewayPaymentId: res.paymentId,
+                            gatewayPixCode: res.pixCopiaECola,
+                            gatewayTicketUrl: res.ticketUrl
+                        });
+                        
+                        if (selectedItem && selectedItem.id === item.id) {
+                            setSelectedItem((prev: any) => prev ? ({
+                                ...prev,
+                                original: {
+                                    ...prev.original,
+                                    discount: effectiveDiscount,
+                                    discountType: effectiveDiscountType,
+                                    gateway_payment_id: res.paymentId,
+                                    gateway_pix_code: res.pixCopiaECola,
+                                    gateway_ticket_url: res.ticketUrl
+                                }
+                            }) : null);
+                        }
+                    } else {
+                        // Atualiza O.S. principal dando BAIXA MANUAL
+                        await DataService.updateOrder({
+                            ...(item.original as ServiceOrder),
+                            billingStatus: 'PAID',
+                            paymentMethod: finalMethod,
+                            billingNotes: billingNotes,
+                            receiptUrl: uploadedReceiptUrl || item.original?.receiptUrl,
+                            discount: effectiveDiscount,
+                            discountType: effectiveDiscountType,
+                            paidAt
+                        });
+
+                        // Atualiza TODOS os orçamentos vinculados (incluindo os recém-linkados)
+                        const linkedQuoteIds: string[] = item.original.linkedQuotes ?? [];
+                        for (const qId of linkedQuoteIds) {
+                            const qOrigin = quotes.find(q => q.id === qId);
+                            if (qOrigin) {
+                                await DataService.updateQuote({
+                                    ...qOrigin,
+                                    billingStatus: 'PAID',
+                                    paymentMethod: finalMethod,
+                                    billingNotes: `Faturado via O.S. ${item.displayId || '#' + item.id.slice(0, 8)}`,
+                                    receiptUrl: uploadedReceiptUrl || qOrigin.receiptUrl,
+                                    paidAt
+                                });
+                            }
                         }
                     }
                 } else {
                     // Orçamento autônomo faturado
-                    // Usa desconto do billing se informado, senão mantém o desconto original do orçamento
                     const effectiveDiscount = billingDiscount > 0 ? billingDiscount : (item.original?.discount || 0);
                     const effectiveDiscountType = billingDiscount > 0 ? billingDiscountType : (item.original?.discountType || 'fixed');
-                    await DataService.updateQuote({
-                        ...item.original,
-                        billingStatus: 'PAID',
-                        paymentMethod: finalMethod,
-                        billingNotes: billingNotes,
-                        receiptUrl: uploadedReceiptUrl || item.original?.receiptUrl,
-                        discount: effectiveDiscount,
-                        discountType: effectiveDiscountType,
-                        paidAt
-                    });
+                    
+                    if (isMpIntegrationTriggered) {
+                        const mpMethod = finalMethod === 'Pix' ? 'pix' : (finalMethod === 'Boleto' ? 'boleto' : 'card_link');
+                        const fullCust = customers.find(c => c.id === item.original?.customerId || c.id === item.original?.customer_id);
+                        const customerDoc = (item as any).customerDocument || fullCust?.document || (fullCust as any)?.cpf || (fullCust as any)?.cnpj || item.original?.customer_document || item.original?.customerDocument;
+
+                        if (mpMethod === 'boleto' && !customerDoc) {
+                            showAlert('Para gerar o Boleto diretamente, o cliente precisa ter um CPF/CNPJ cadastrado. Atualize o cadastro do cliente e tente novamente.', 'error');
+                            setIsProcessing(false);
+                            return;
+                        }
+
+                        const res = await PaymentService.createMercadoPagoCharge({
+                            itemType: 'QUOTE',
+                            itemId: item.id,
+                            displayId: item.displayId || undefined,
+                            title: item.title || 'Orçamento',
+                            amount: finalAmount,
+                            customerName: item.customerName,
+                            customerDocument: customerDoc,
+                            paymentMethodType: mpMethod,
+                            installments: mpMethod === 'card_link' ? installments : undefined,
+                            expiresAt: (mpMethod === 'boleto' && boletoDueDate) ? boletoDueDate : undefined
+                        });
+
+                        if (!res.success) {
+                            throw new Error(res.message || 'Erro ao gerar cobrança Mercado Pago.');
+                        }
+
+                        const updatedQuote = {
+                            ...item.original,
+                            discount: effectiveDiscount,
+                            discountType: effectiveDiscountType,
+                            billingNotes: billingNotes || item.original?.billingNotes,
+                            gatewayProvider: 'mercadopago',
+                            gatewayPaymentId: res.paymentId,
+                            gatewayPixCode: res.pixCopiaECola,
+                            gatewayTicketUrl: res.ticketUrl,
+                            gatewayStatus: 'pending'
+                        } as any;
+                        await DataService.updateQuote(updatedQuote);
+
+                        setMpModalItem({
+                            ...item,
+                            original: updatedQuote,
+                            gatewayPaymentId: res.paymentId,
+                            gatewayPixCode: res.pixCopiaECola,
+                            gatewayTicketUrl: res.ticketUrl
+                        });
+                        
+                        if (selectedItem && selectedItem.id === item.id) {
+                            setSelectedItem((prev: any) => prev ? ({
+                                ...prev,
+                                original: {
+                                    ...prev.original,
+                                    discount: effectiveDiscount,
+                                    discountType: effectiveDiscountType,
+                                    gateway_payment_id: res.paymentId,
+                                    gateway_pix_code: res.pixCopiaECola,
+                                    gateway_ticket_url: res.ticketUrl
+                                }
+                            }) : null);
+                        }
+                    } else {
+                        await DataService.updateQuote({
+                            ...item.original,
+                            billingStatus: 'PAID',
+                            paymentMethod: finalMethod,
+                            billingNotes: billingNotes,
+                            receiptUrl: uploadedReceiptUrl || item.original?.receiptUrl,
+                            discount: effectiveDiscount,
+                            discountType: effectiveDiscountType,
+                            paidAt
+                        });
+                    }
                 }
 
-                // Registra no fluxo de caixa
-                try {
-                    await DataService.registerCashFlow({
-                        type: 'INCOME',
-                        category: item.type === 'ORDER' ? 'Serviço (O.S.)' : 'Venda (Orçamento)',
-                        amount: finalAmount,
-                        description: `Faturamento de ${item.type === 'ORDER' ? 'O.S.' : 'Orçamento'} ${item.displayId || '#' + item.id.slice(0, 8)} — Cliente: ${item.customerName}${discountValue > 0 ? ` (Desconto: R$ ${discountValue.toFixed(2)})` : ''}`,
-                        referenceId: item.id,
-                        referenceType: item.type,
-                        paymentMethod: finalMethod,
-                        entryDate: paidAt,
-                        customerId: item.original?.customerId || undefined,
-                        technicianId: item.type === 'ORDER' ? item.original?.assignedTo : (item.original?.createdBy || undefined)
-                    });
-                } catch (e) { console.warn('Cash flow error (non-blocking):', e); }
+                // Registra no fluxo de caixa APENAS SE FOR BAIXA MANUAL
+                if (!isMpIntegrationTriggered) {
+                    try {
+                        await DataService.registerCashFlow({
+                            type: 'INCOME',
+                            category: item.type === 'ORDER' ? 'Serviço (O.S.)' : 'Venda (Orçamento)',
+                            amount: finalAmount,
+                            description: `Faturamento de ${item.type === 'ORDER' ? 'O.S.' : 'Orçamento'} ${item.displayId || '#' + item.id.slice(0, 8)} — Cliente: ${item.customerName}${discountValue > 0 ? ` (Desconto: R$ ${discountValue.toFixed(2)})` : ''}`,
+                            referenceId: item.id,
+                            referenceType: item.type,
+                            paymentMethod: finalMethod,
+                            entryDate: paidAt,
+                            customerId: item.original?.customerId || undefined,
+                            technicianId: item.type === 'ORDER' ? item.original?.assignedTo : (item.original?.createdBy || undefined)
+                        });
+                    } catch (e) { console.warn('Cash flow error (non-blocking):', e); }
+                }
             }
 
-            // Atualiza UI imediatamente
-            if (selectedItem && selectedIds.includes(selectedItem.id)) {
-                setSelectedItem((prev: any) => prev ? ({
-                    ...prev,
-                    status: 'PAID',
-                    original: { ...prev.original, billingStatus: 'PAID', paymentMethod: finalMethod, paidAt, discount: billingDiscount, discountType: billingDiscountType, receiptUrl: uploadedReceiptUrl || prev.original?.receiptUrl }
-                }) : null);
+            // Atualiza UI imediatamente se for manual
+            if (!isMpIntegrationTriggered) {
+                if (selectedItem && selectedIds.includes(selectedItem.id)) {
+                    setSelectedItem((prev: any) => prev ? ({
+                        ...prev,
+                        status: 'PAID',
+                        original: { ...prev.original, billingStatus: 'PAID', paymentMethod: finalMethod, paidAt, discount: billingDiscount, discountType: billingDiscountType, receiptUrl: uploadedReceiptUrl || prev.original?.receiptUrl }
+                    }) : null);
+                }
             }
 
             setSelectedIds([]);
@@ -515,7 +885,13 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             setBillingNotes('');
             setBillingDiscount(0);
             setBillingDiscountType('fixed');
-            await onRefresh();
+            
+            if (isMpIntegrationTriggered) {
+                // Abre o Modal do Mercado Pago para gerar a cobrança agora que o desconto foi salvo
+                setIsMpModalOpen(true);
+            } else {
+                await onRefresh();
+            }
         } catch (error: any) {
             showAlert(`Erro ao processar faturamento: ${error.message}`, 'error');
         } finally {
@@ -1045,12 +1421,15 @@ ${container.innerHTML}
                                 <th className="px-4 py-3 text-center cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('status')}>
                                     <div className="flex items-center justify-center">Status {getSortIcon('status')}</div>
                                 </th>
+                                <th className="px-4 py-3 text-center">
+                                    <div className="flex items-center justify-center">Ações</div>
+                                </th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                             {isRefreshing ? (
                                 <tr>
-                                    <td colSpan={10} className="py-16 text-center">
+                                    <td colSpan={11} className="py-16 text-center">
                                         <div className="flex flex-col items-center gap-3">
                                             <Loader2 size={28} className="animate-spin text-primary-400" />
                                             <p className="text-xs font-medium text-slate-400">Carregando dados financeiros...</p>
@@ -1059,7 +1438,7 @@ ${container.innerHTML}
                                 </tr>
                             ) : paginatedItems.length === 0 ? (
                                 <tr>
-                                    <td colSpan={10} className="py-16 text-center">
+                                    <td colSpan={11} className="py-16 text-center">
                                         <DollarSign size={32} className="text-slate-200 mx-auto mb-3" />
                                         <p className="text-xs font-semibold text-slate-300 uppercase tracking-widest">Nenhum lançamento encontrado</p>
                                     </td>
@@ -1115,12 +1494,23 @@ ${container.innerHTML}
                                     </td>
                                     <td className="px-4 py-2.5">
                                         <div className="flex flex-col gap-0.5">
-                                            <span className="text-[15px] font-medium text-slate-900">
-                                                {formatCurrency(item.value)}
-                                            </span>
-                                            {item.original?.discount > 0 && (
-                                                <span className="text-[9px] text-rose-500 font-medium uppercase tracking-widest mt-0.5">
-                                                    {item.original.discountType === 'percent' ? `Desc. Aplicado (${item.original.discount}%)` : `Desc. Aplicado (-${formatCurrency(item.original.discount)})`}
+                                            {(item.discountAmount && item.discountAmount > 0) ? (
+                                                <>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="text-[15px] font-bold text-emerald-600">
+                                                            {formatCurrency(item.netValue || item.value)}
+                                                        </span>
+                                                        <span className="text-[11px] font-medium text-slate-400 line-through">
+                                                            {formatCurrency(item.grossValue)}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-[9px] text-rose-600 font-bold uppercase tracking-wider bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200 inline-block w-fit">
+                                                        Desc: -{formatCurrency(item.discountAmount)} {item.billingDiscountType === 'percent' ? `(${item.billingDiscount}%)` : ''}
+                                                    </span>
+                                                </>
+                                            ) : (
+                                                <span className="text-[15px] font-bold text-slate-900">
+                                                    {formatCurrency(item.netValue || item.value)}
                                                 </span>
                                             )}
                                         </div>
@@ -1129,6 +1519,48 @@ ${container.innerHTML}
                                         <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium tracking-wide ${item.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
                                             <span className={`w-1.5 h-1.5 rounded-full ${item.status === 'PAID' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
                                             {item.status === 'PAID' ? 'Faturado' : 'Pendente'}
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-2.5 text-center" onClick={e => e.stopPropagation()}>
+                                        <div className="flex items-center justify-center gap-1">
+
+
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setAuditModalItem({
+                                                        type: item.type,
+                                                        id: item.id,
+                                                        displayId: getDocLabel(item),
+                                                        title: item.title,
+                                                        amount: getItemNetValue(item),
+                                                        customerName: item.customerName,
+                                                        customerDocument: (item as any).customerDocument,
+                                                        paymentMethod: (item as any).paymentMethod || (item.original as any)?.payment_method || (item.original as any)?.paymentMethod,
+                                                        gatewayProvider: (item as any).gatewayProvider || (item.original as any)?.gateway_provider || (item.original as any)?.gatewayProvider,
+                                                        gatewayPaymentId: (item.original as any)?.gateway_payment_id || (item.original as any)?.gatewayPaymentId || (item as any).gatewayPaymentId,
+                                                        gatewayStatus: (item.original as any)?.gateway_status || (item.original as any)?.gatewayStatus || (item as any).gatewayStatus,
+                                                        paidAt: (item as any).paidAt || (item.original as any)?.paid_at || (item.original as any)?.paidAt,
+                                                        billingStatus: item.status,
+                                                        createdAt: item.createdAt,
+                                                        original: item.original
+                                                    });
+                                                    setIsAuditModalOpen(true);
+                                                }}
+                                                className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200"
+                                                title="Auditoria Gateway"
+                                            >
+                                                <ShieldCheck size={15} />
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => { setDetailTab('overview'); setSelectedItem(item); setEditingDueDate(''); setIsSidebarOpen(true); }}
+                                                className="p-1.5 text-slate-400 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors border border-transparent hover:border-primary-200"
+                                                title="Ver Detalhes"
+                                            >
+                                                <Eye size={15} />
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -1266,19 +1698,21 @@ ${container.innerHTML}
                                     <Printer size={14} /> <span className="hidden sm:inline">Imprimir</span>
                                 </button>
                                 {selectedItem.status !== 'PAID' && (
-                                    <button
-                                        onClick={() => {
-                                            if (can('financial', 'invoice')) {
-                                                setSelectedIds([selectedItem.id]);
-                                                setIsInvoiceModalOpen(true);
-                                            } else {
-                                                showAlert("Acesso Negado: Você não tem permissão para faturar.", 'warning');
-                                            }
-                                        }}
-                                        className={`h-9 px-2 sm:px-4 gap-1.5 rounded-lg text-xs font-medium transition-all flex items-center shadow-md ${can('financial', 'invoice') ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20' : 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-50'}`}
-                                    >
-                                        <DollarSign size={14} /> <span className="hidden md:inline">Faturar</span>
-                                    </button>
+                                    <>
+                                        <button
+                                            onClick={() => {
+                                                if (can('financial', 'invoice')) {
+                                                    setSelectedIds([selectedItem.id]);
+                                                    setIsInvoiceModalOpen(true);
+                                                } else {
+                                                    showAlert("Acesso Negado: Você não tem permissão para faturar.", 'warning');
+                                                }
+                                            }}
+                                            className={`h-9 px-2 sm:px-4 gap-1.5 rounded-lg text-xs font-medium transition-all flex items-center shadow-md ${can('financial', 'invoice') ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20' : 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-50'}`}
+                                        >
+                                            <DollarSign size={14} /> <span className="hidden md:inline">Faturar</span>
+                                        </button>
+                                    </>
                                 )}
                                 <div className="h-6 w-px bg-slate-200 mx-0.5 sm:mx-2" />
                                 <button onClick={() => setIsSidebarOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
@@ -1291,11 +1725,11 @@ ${container.innerHTML}
                         <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
 
                             {/* DESKTOP SIDEBAR TABS */}
-                            <div className="hidden md:flex flex-col w-48 border-r border-slate-200 bg-slate-50/80 p-3 gap-1 overflow-y-auto custom-scrollbar shrink-0">
-                                <div className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest mb-2 px-2">Navegação</div>
+                            <div className="hidden md:flex flex-col gap-1 w-48 p-4 border-r border-slate-100 bg-slate-50/50 shrink-0">
                                 {[
                                     { id: 'overview', label: 'Visão Geral', icon: Info },
                                     { id: 'financial', label: 'Financeiro', icon: DollarSign },
+                                    { id: 'audit', label: 'Auditoria Gateway', icon: ShieldCheck },
                                     { id: 'linked', label: selectedItem.type === 'ORDER' ? 'Vínculos' : 'Detalhes', icon: Layer },
                                     { id: 'attachments', label: 'Anexos', icon: Paperclip },
                                 ].map(tab => (
@@ -1318,6 +1752,7 @@ ${container.innerHTML}
                                 {[
                                     { id: 'overview', label: 'Visão Geral', icon: Info },
                                     { id: 'financial', label: 'Financeiro', icon: DollarSign },
+                                    { id: 'audit', label: 'Auditoria Gateway', icon: ShieldCheck },
                                     { id: 'linked', label: selectedItem.type === 'ORDER' ? 'Vínculos' : 'Detalhes', icon: Layer },
                                     { id: 'attachments', label: 'Anexos', icon: Paperclip },
                                 ].map(tab => (
@@ -1340,6 +1775,127 @@ ${container.innerHTML}
 
                                 {detailTab === 'overview' && (
                                     <div className="space-y-4">
+                                        {/* Hero Card de Discriminação Financeira (Stripe Style) */}
+                                        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-950 text-white rounded-2xl p-5 shadow-xl border border-slate-700/60 relative overflow-hidden space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-sky-400">
+                                                    <DollarSign size={16} /> Resumo Executivo & Conciliação
+                                                </div>
+                                                <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                                                    selectedItem.status === 'PAID' 
+                                                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40' 
+                                                        : 'bg-amber-500/20 text-amber-300 border-amber-400/40'
+                                                }`}>
+                                                    {selectedItem.status === 'PAID' ? '🟢 LIQUIDADO E CONCILIADO' : '🟡 AGUARDANDO PAGAMENTO'}
+                                                </span>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                                                <div className="bg-white/5 backdrop-blur-md p-3.5 rounded-xl border border-white/10">
+                                                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-widest">Subtotal Bruto</span>
+                                                    <span className="text-base font-bold text-slate-300 line-through">
+                                                        {formatCurrency((selectedItem as any).grossValue || (selectedItem.value + (selectedItem.billingDiscount || 0)))}
+                                                    </span>
+                                                </div>
+                                                <div className="bg-rose-500/10 backdrop-blur-md p-3.5 rounded-xl border border-rose-400/20 text-rose-300">
+                                                    <span className="text-rose-300/80 block text-[10px] uppercase font-bold tracking-widest">Desconto Concedido</span>
+                                                    <span className="text-base font-bold text-rose-400">
+                                                        - {formatCurrency((selectedItem as any).discountAmount || selectedItem.billingDiscount || 0)} {selectedItem.billingDiscountType === 'percent' ? `(${selectedItem.billingDiscount}%)` : ''}
+                                                    </span>
+                                                </div>
+                                                <div className="bg-emerald-500/15 backdrop-blur-md p-3.5 rounded-xl border border-emerald-400/30 text-emerald-300">
+                                                    <span className="text-emerald-300/80 block text-[10px] uppercase font-bold tracking-widest">Valor Líquido Real (Caixa)</span>
+                                                    <span className="text-xl font-black text-emerald-400">
+                                                        {formatCurrency((selectedItem as any).netValue || selectedItem.value)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 italic pt-1 border-t border-white/10">
+                                                * O valor líquido de {formatCurrency(selectedItem.value)} é a entrada exata conciliada no Fluxo de Caixa da empresa.
+                                            </p>
+                                        </div>
+
+                                        {/* Card de Cobrança Mercado Pago Salva / Ativa no Drawer */}
+                                        {selectedItem.status !== 'PAID' && (selectedItem.original?.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl || selectedItem.original?.gateway_pix_code || (selectedItem.original as any)?.gatewayPixCode) && (
+                                            <div className="bg-sky-50/80 border border-sky-200 rounded-2xl p-4 space-y-3 shadow-sm font-poppins animate-fade-in">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2 text-xs font-bold text-[#009EE3]">
+                                                        <CreditCard size={16} /> Cobrança Mercado Pago Ativa (Salva)
+                                                    </div>
+                                                    <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-2.5 py-0.5 rounded-full border border-sky-200">
+                                                        Pronta para Reenvio
+                                                    </span>
+                                                </div>
+
+                                                <p className="text-[11px] text-slate-600 leading-relaxed">
+                                                    Esta cobrança foi gerada recentemente e está <strong>salva no sistema</strong>. Se o cliente solicitar o reenvio, utilize os botões abaixo sem necessidade de gerar uma nova cobrança:
+                                                </p>
+
+                                                <div className="flex flex-wrap items-center gap-2 pt-1">
+                                                    {selectedItem.original?.gateway_pix_code && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(selectedItem.original.gateway_pix_code || (selectedItem.original as any)?.gatewayPixCode);
+                                                                alert('Código Pix Copia e Cola copiado para a área de transferência!');
+                                                            }}
+                                                            className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+                                                        >
+                                                            📋 Copiar Pix
+                                                        </button>
+                                                    )}
+
+                                                    {(selectedItem.original?.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl) && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => window.open(selectedItem.original.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl, '_blank')}
+                                                            className="px-3 py-1.5 bg-[#009EE3] hover:bg-[#0089c7] text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+                                                        >
+                                                            <Share2 size={13} /> 🔗 Abrir Link / Boleto
+                                                        </button>
+                                                    )}
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setMpModalItem({
+                                                                type: selectedItem.type,
+                                                                id: selectedItem.id,
+                                                                displayId: selectedItem.displayId || getDocLabel(selectedItem),
+                                                                title: selectedItem.title,
+                                                                value: selectedItem.value,
+                                                                customerName: selectedItem.customerName,
+                                                                gatewayPixCode: (selectedItem.original as any)?.gateway_pix_code || (selectedItem.original as any)?.gatewayPixCode,
+                                                                gatewayTicketUrl: (selectedItem.original as any)?.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl,
+                                                                gatewayStatus: (selectedItem.original as any)?.gateway_status || (selectedItem.original as any)?.gatewayStatus,
+                                                                gatewayPaymentId: (selectedItem.original as any)?.gateway_payment_id || (selectedItem.original as any)?.gatewayPaymentId,
+                                                                billingStatus: selectedItem.status
+                                                            });
+                                                            setIsMpModalOpen(true);
+                                                        }}
+                                                        className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+                                                    >
+                                                        <RefreshCw size={13} /> Checar Pagamento MP
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const text = encodeURIComponent(
+                                                                `Olá ${selectedItem.customerName}! Segue o link de pagamento da ${selectedItem.type === 'ORDER' ? 'O.S.' : 'Orçamento'} #${getDocLabel(selectedItem)} no valor de R$ ${getItemNetValue(selectedItem).toFixed(2)}:\n\n` +
+                                                                ((selectedItem.original?.gateway_pix_code || (selectedItem.original as any)?.gatewayPixCode) ? `*Pix Copia e Cola:*\n${selectedItem.original.gateway_pix_code || (selectedItem.original as any)?.gatewayPixCode}\n\n` : '') +
+                                                                ((selectedItem.original?.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl) ? `Link de Pagamento: ${selectedItem.original.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl}` : '')
+                                                            );
+                                                            window.open(`https://wa.me/?text=${text}`, '_blank');
+                                                        }}
+                                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+                                                    >
+                                                        📲 Reenviar WhatsApp
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {/* Cliente */}
                                             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
@@ -1412,6 +1968,143 @@ ${container.innerHTML}
                                                     </div>
                                                 </div>
                                             </div>
+                                        </div>
+
+                                        {/* Linha do Tempo do Ciclo de Vida da Cobrança */}
+                                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+                                            <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                                                <div className="w-7 h-7 rounded-lg bg-sky-50 flex items-center justify-center border border-sky-200 text-[#009EE3]">
+                                                    <Clock size={14} />
+                                                </div>
+                                                <h3 className="text-xs font-bold text-slate-800 tracking-wide uppercase">Jornada da Transação (Timeline)</h3>
+                                            </div>
+
+                                            <div className="space-y-3 text-xs pt-1">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                                                        ✓
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-slate-800">{selectedItem.type === 'QUOTE' ? 'Orçamento Aprovado' : 'Ordem de Serviço Concluída'}</p>
+                                                        <p className="text-[10px] text-slate-400">{new Date(selectedItem.createdAt).toLocaleString('pt-BR')}</p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-start gap-3">
+                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 ${
+                                                        (selectedItem.original?.gateway_payment_id || selectedItem.original?.gatewayPaymentId) ? 'bg-sky-100 text-[#009EE3]' : 'bg-slate-100 text-slate-400'
+                                                    }`}>
+                                                        {(selectedItem.original?.gateway_payment_id || selectedItem.original?.gatewayPaymentId) ? '✓' : '•'}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-slate-800">
+                                                            {(selectedItem.original?.gateway_payment_id || selectedItem.original?.gatewayPaymentId) ? `Cobrança Criada no Mercado Pago (ID #${selectedItem.original.gateway_payment_id || selectedItem.original.gatewayPaymentId})` : 'Aguardando Geração de Link / Pix'}
+                                                        </p>
+                                                        <p className="text-[10px] text-slate-400">
+                                                            {(selectedItem.original?.gateway_payment_id || selectedItem.original?.gatewayPaymentId) ? 'Cobrança válida por 1 hora' : 'Selecione "Gerar Pix/Cartão" acima'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-start gap-3">
+                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 ${
+                                                        selectedItem.status === 'PAID' ? 'bg-emerald-500 text-white' : 'bg-amber-100 text-amber-600'
+                                                    }`}>
+                                                        {selectedItem.status === 'PAID' ? '✓' : '⏳'}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-slate-800">
+                                                            {selectedItem.status === 'PAID' ? 'Pagamento Aprovado & Conciliado no Caixa' : 'Aguardando Liquidação Bancária'}
+                                                        </p>
+                                                        <p className="text-[10px] text-slate-400">
+                                                            {selectedItem.paidAt ? new Date(selectedItem.paidAt).toLocaleString('pt-BR') : 'Status: Pendente no Gateway'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {detailTab === 'audit' && (
+                                    <div className="space-y-4">
+                                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-4">
+                                            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200">
+                                                        <ShieldCheck size={18} />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Auditoria de Pagamento</h3>
+                                                        <p className="text-[10px] text-slate-400">Dados rastreáveis do gateway em tempo real</p>
+                                                    </div>
+                                                </div>
+
+                                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                                    selectedItem.status === 'PAID' || selectedItem.gatewayStatus === 'approved'
+                                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                                        : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                                }`}>
+                                                    {selectedItem.status === 'PAID' || selectedItem.gatewayStatus === 'approved' ? '🟢 Liquidado' : '🟡 Pendente'}
+                                                </span>
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Gateway Payment ID (Mercado Pago)</span>
+                                                    <code className="text-xs font-mono font-bold text-slate-800 break-all">{selectedItem.gatewayPaymentId || 'Sem transação gerada'}</code>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                                    <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+                                                        <span className="text-[10px] text-slate-400 font-semibold block uppercase">Método</span>
+                                                        <span className="font-bold text-slate-800">
+                                                            {(() => {
+                                                                const raw = (selectedItem as any).original?.payment_method || selectedItem.original?.paymentMethod || (selectedItem as any).paymentMethod;
+                                                                if (!raw) return '—';
+                                                                const str = String(raw).toLowerCase();
+                                                                if (str.includes('pix')) return 'Pix';
+                                                                if (str.includes('boleto') || str.includes('ticket') || str.includes('bolbradesco')) return 'Boleto';
+                                                                if (str.includes('cart') || str.includes('card') || str.includes('credit') || str.includes('visa') || str.includes('master') || str.includes('elo') || str.includes('amex')) {
+                                                                    return 'Cartão de Crédito';
+                                                                }
+                                                                if (str.includes('dinheiro') || str.includes('cash')) return 'Dinheiro';
+                                                                return raw;
+                                                            })()}
+                                                        </span>
+                                                    </div>
+                                                    <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+                                                        <span className="text-[10px] text-slate-400 font-semibold block uppercase">Faturamento</span>
+                                                        <span className="font-bold text-slate-800">{selectedItem.paidAt ? new Date(selectedItem.paidAt).toLocaleDateString('pt-BR') : 'Pendente'}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <button
+                                                onClick={() => {
+                                                    setAuditModalItem({
+                                                        type: selectedItem.type,
+                                                        id: selectedItem.id,
+                                                        displayId: getDocLabel(selectedItem),
+                                                        title: selectedItem.title,
+                                                        amount: getItemNetValue(selectedItem),
+                                                        customerName: selectedItem.customerName,
+                                                        customerDocument: selectedItem.customerDocument,
+                                                        paymentMethod: selectedItem.paymentMethod || selectedItem.original?.payment_method || selectedItem.original?.paymentMethod,
+                                                        gatewayProvider: selectedItem.gatewayProvider || selectedItem.original?.gateway_provider || selectedItem.original?.gatewayProvider,
+                                                        gatewayPaymentId: selectedItem.original?.gateway_payment_id || selectedItem.original?.gatewayPaymentId || selectedItem.gatewayPaymentId,
+                                                        gatewayStatus: selectedItem.original?.gateway_status || selectedItem.original?.gatewayStatus || selectedItem.gatewayStatus,
+                                                        paidAt: selectedItem.paidAt || selectedItem.original?.paid_at || selectedItem.original?.paidAt,
+                                                        billingStatus: selectedItem.status,
+                                                        createdAt: selectedItem.createdAt,
+                                                        original: selectedItem.original
+                                                    });
+                                                    setIsAuditModalOpen(true);
+                                                }}
+                                                className="w-full py-3 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
+                                            >
+                                                <Printer size={15} /> Abrir Comprovante de Auditoria Completo
+                                            </button>
                                         </div>
                                     </div>
                                 )}
@@ -1691,40 +2384,71 @@ ${container.innerHTML}
                                             </div>
                                         </div>
 
-                                        {!selectedItem.original?.receiptUrl ? (
+                                        {(!selectedItem.original?.receiptUrl && !selectedItem.original?.gateway_ticket_url && !(selectedItem.original as any)?.gatewayTicketUrl) ? (
                                             <div className="bg-slate-50 border border-slate-200 border-dashed rounded-xl p-10 flex flex-col items-center justify-center text-center">
                                                 <Paperclip size={32} className="text-slate-300 mb-3" />
                                                 <p className="text-sm font-medium text-slate-500">Nenhum anexo encontrado</p>
-                                                <p className="text-xs text-slate-400 mt-1">Os comprovantes anexados durante o faturamento aparecerão aqui.</p>
+                                                <p className="text-xs text-slate-400 mt-1">Os comprovantes e boletos anexados aparecerão aqui.</p>
                                             </div>
                                         ) : (
-                                            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
-                                                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                                                    <h4 className="text-sm font-medium text-slate-800">Comprovante de Faturamento</h4>
-                                                    <a 
-                                                        href={selectedItem.original.receiptUrl} 
-                                                        target="_blank" 
-                                                        rel="noopener noreferrer"
-                                                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-colors"
-                                                    >
-                                                        Abrir Original
-                                                    </a>
-                                                </div>
-                                                <div className="flex justify-center bg-slate-50 rounded-lg p-2 border border-slate-100">
-                                                    {selectedItem.original.receiptUrl.toLowerCase().includes('.pdf') ? (
-                                                        <div className="w-full py-12 flex flex-col items-center justify-center text-center">
-                                                            <FileText size={48} className="text-slate-300 mb-4" />
-                                                            <p className="text-sm font-medium text-slate-600">Documento PDF anexado</p>
-                                                            <p className="text-xs text-slate-500 mt-1">Clique em "Abrir Original" para visualizar o arquivo completo.</p>
+                                            <div className="space-y-6">
+                                                {(selectedItem.original?.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl) && (
+                                                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4 relative overflow-hidden">
+                                                        <div className="absolute top-0 left-0 w-1 h-full bg-[#009EE3]"></div>
+                                                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                                                            <div className="flex items-center gap-2">
+                                                                <FileText size={16} className="text-[#009EE3]" />
+                                                                <h4 className="text-sm font-bold text-slate-800">Boleto / Checkout Mercado Pago</h4>
+                                                            </div>
+                                                            <a 
+                                                                href={selectedItem.original.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer"
+                                                                className="px-3 py-1.5 bg-[#009EE3] hover:bg-[#0089c7] text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center gap-1.5"
+                                                            >
+                                                                Abrir Original
+                                                            </a>
                                                         </div>
-                                                    ) : (
-                                                        <img 
-                                                            src={selectedItem.original.receiptUrl} 
-                                                            alt="Comprovante" 
-                                                            className="max-w-full max-h-[400px] object-contain rounded border border-slate-200 shadow-sm"
-                                                        />
-                                                    )}
-                                                </div>
+                                                        <div className="flex justify-center bg-slate-50 rounded-lg p-2 border border-slate-100">
+                                                            <div className="w-full py-8 flex flex-col items-center justify-center text-center">
+                                                                <FileText size={40} className="text-[#009EE3]/50 mb-3" />
+                                                                <p className="text-sm font-medium text-slate-700">Documento de Cobrança (PDF / Link)</p>
+                                                                <p className="text-xs text-slate-500 mt-1">Clique em "Abrir Original" para visualizar ou baixar o documento.</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {selectedItem.original?.receiptUrl && (
+                                                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
+                                                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                                                            <h4 className="text-sm font-medium text-slate-800">Comprovante de Faturamento</h4>
+                                                            <a 
+                                                                href={selectedItem.original.receiptUrl} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer"
+                                                                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-colors"
+                                                            >
+                                                                Abrir Original
+                                                            </a>
+                                                        </div>
+                                                        <div className="flex justify-center bg-slate-50 rounded-lg p-2 border border-slate-100">
+                                                            {selectedItem.original.receiptUrl.toLowerCase().includes('.pdf') ? (
+                                                                <div className="w-full py-12 flex flex-col items-center justify-center text-center">
+                                                                    <FileText size={48} className="text-slate-300 mb-4" />
+                                                                    <p className="text-sm font-medium text-slate-600">Documento PDF anexado</p>
+                                                                    <p className="text-xs text-slate-500 mt-1">Clique em "Abrir Original" para visualizar o arquivo completo.</p>
+                                                                </div>
+                                                            ) : (
+                                                                <img 
+                                                                    src={selectedItem.original.receiptUrl} 
+                                                                    alt="Comprovante" 
+                                                                    className="max-w-full max-h-[400px] object-contain rounded border border-slate-200 shadow-sm"
+                                                                />
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -1920,6 +2644,25 @@ ${container.innerHTML}
                                                                 return `${installments}x de ${formatCurrency(finalAmount / (installments || 1))}`;
                                                             })()}
                                                         </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Vencimento Boleto */}
+                                        {paymentMethod === 'Boleto' && (
+                                            <div className="mt-5 pt-5 border-t border-slate-100 animate-in fade-in">
+                                                <h4 className="text-[10px] font-semibold tracking-widest uppercase text-slate-400 mb-3">Vencimento do Boleto</h4>
+                                                
+                                                <div className="p-3 bg-slate-50 rounded-lg flex flex-col md:flex-row items-center justify-between gap-3 border border-slate-100">
+                                                    <div className="flex items-center gap-2 w-full">
+                                                        <Calendar size={16} className="text-slate-400 shrink-0" />
+                                                        <input
+                                                            type="date"
+                                                            value={boletoDueDate || (selectedItem?.dueDate ? selectedItem.dueDate.split('T')[0] : new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])}
+                                                            onChange={e => setBoletoDueDate(e.target.value)}
+                                                            className="flex-1 px-3 py-2 text-sm font-semibold text-slate-800 bg-white border border-slate-200 rounded-md outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition-all"
+                                                        />
                                                     </div>
                                                 </div>
                                             </div>
@@ -2354,6 +3097,33 @@ ${container.innerHTML}
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Modal de Cobrança Mercado Pago (Pix / Cartão) */}
+            {isMpModalOpen && mpModalItem && (
+                <MercadoPagoPaymentModal
+                    isOpen={isMpModalOpen}
+                    onClose={() => {
+                        setIsMpModalOpen(false);
+                        setMpModalItem(null);
+                    }}
+                    item={mpModalItem}
+                    onSuccess={() => {
+                        onRefresh();
+                    }}
+                />
+            )}
+
+            {/* Modal de Auditoria da Transação / Gateway */}
+            {isAuditModalOpen && auditModalItem && (
+                <PaymentAuditModal
+                    isOpen={isAuditModalOpen}
+                    onClose={() => {
+                        setIsAuditModalOpen(false);
+                        setAuditModalItem(null);
+                    }}
+                    item={auditModalItem}
+                />
             )}
 
             <style>{`

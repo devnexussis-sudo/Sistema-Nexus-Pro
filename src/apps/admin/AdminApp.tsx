@@ -23,6 +23,7 @@ import { DocsPage } from '../../components/admin/DocsPage';
 import { IntegrationsPage } from '../../components/admin/IntegrationsPage';
 import { WhatsAppInbox } from '../../components/admin/WhatsAppInbox';
 import { SolicitacoesPage } from '../../components/admin/SolicitacoesPage';
+import { OAuthCallbackPage } from '../../components/admin/OAuthCallbackPage';
 import { DataService } from '../../services/dataService';
 import SessionStorage from '../../lib/sessionStorage';
 import {
@@ -294,10 +295,9 @@ export const AdminApp: React.FC<AdminAppProps> = ({
 
     // 🔄 Force Refresh
     const fetchGlobalData = async () => {
-        if (isDashboard) {
-            await NexusQueryClient.invalidateAll();
-            await NexusQueryClient.invalidateTenant();
-        }
+        await NexusQueryClient.invalidateAll();
+        await NexusQueryClient.invalidateTenant();
+
         if (needsFullOrders) await oRefetch();
         if (needsContracts) await cRefetch();
         if (needsQuotes) await qRefetch();
@@ -409,6 +409,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                 <Route path="/whatsapp" element={<PermissionGuard requiredMenu="settings"><WhatsAppInbox /></PermissionGuard>} />
                 <Route path="/solicitacoes" element={<PermissionGuard requiredMenu="settings"><SolicitacoesPage /></PermissionGuard>} />
                 <Route path="/integrations" element={<PermissionGuard requiredMenu="settings"><IntegrationsPage /></PermissionGuard>} />
+                <Route path="/integrations/callback" element={<OAuthCallbackPage />} />
 
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/admin" replace />} />
