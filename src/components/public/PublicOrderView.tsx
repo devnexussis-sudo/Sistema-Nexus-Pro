@@ -655,60 +655,56 @@ const CollapsibleFormSection: React.FC<{
                           <h4 className="text-xs uppercase tracking-widest text-[#1c2d4f]">{group}</h4>
                         </div>
                       )}
-                      <div className="flex flex-col gap-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                         {items.map(({ key, cleanKey, text, photos }) => (
-                          <div key={key} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                            <div className="grid grid-cols-2 divide-x divide-slate-200">
-                              {/* Pergunta */}
-                              <div className="p-3 sm:p-4 bg-slate-50/50 flex items-center">
-                                <p className="text-xs text-slate-800 uppercase tracking-wide">
-                                  {resolvePublicLabel(key)}
-                                </p>
-                              </div>
-                              {/* Resposta */}
-                              <div className="p-3 sm:p-4 flex flex-col justify-center">
-                                {text !== null && (
-                                  <p className={`text-sm leading-snug flex items-center gap-1.5 ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok'
+                          <div key={key} className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                            <div>
+                              <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-1.5">
+                                {resolvePublicLabel(key)}
+                              </p>
+                              {text !== null && (
+                                <p className={`text-sm leading-relaxed font-semibold flex items-center gap-1.5 ${
+                                  text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok'
                                     ? 'text-emerald-600'
-                                    : 'text-slate-500'
-                                    }`}>
-                                    {(text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok') && <CheckCircle2 size={13} />}
-                                    {formatPublicValue(text)}
-                                  </p>
-                                )}
-                                {text === null && photos.length > 0 && (
-                                  <p className="text-xs text-slate-400 italic">Evidência fotográfica anexada</p>
-                                )}
-                                {photos.length > 0 && (
-                                  <div className="flex flex-wrap gap-2 mt-3">
-                                    {photos.map((url, i) => (
-                                      <div
-                                        key={i}
-                                        className="w-[60px] h-[60px] sm:w-[80px] sm:h-[80px] rounded-lg overflow-hidden bg-slate-200 border border-slate-200 cursor-zoom-in group hover:shadow-md transition-all shrink-0"
-                                        onClick={() => onImageClick(url, photos)}
-                                      >
-                                        {isVideoUrl(url) ? (
-                                          <div className="w-full h-full relative flex items-center justify-center bg-black">
-                                            <video src={url} className="w-full h-full object-cover opacity-60" />
-                                            <div className="absolute inset-0 flex items-center justify-center shadow-inner">
-                                              <div className="w-6 h-6 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 group-hover:bg-white/30 transition-all">
-                                                <Play size={10} className="text-white fill-white ml-0.5" />
-                                              </div>
-                                            </div>
-                                          </div>
-                                        ) : (
-                                          <img
-                                            src={url}
-                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                                            alt={key}
-                                          />
-                                        )}
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
+                                    : 'text-slate-800'
+                                }`}>
+                                  {(text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok') && <CheckCircle2 size={15} className="shrink-0" />}
+                                  {formatPublicValue(text)}
+                                </p>
+                              )}
+                              {text === null && photos.length > 0 && (
+                                <p className="text-xs text-slate-400 italic">Evidência fotográfica anexada</p>
+                              )}
                             </div>
+
+                            {photos.length > 0 && (
+                              <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-slate-100">
+                                {photos.map((url, i) => (
+                                  <div
+                                    key={i}
+                                    className="w-[70px] h-[70px] sm:w-[85px] sm:h-[85px] rounded-xl overflow-hidden bg-slate-100 border border-slate-200 cursor-zoom-in group hover:shadow-md transition-all shrink-0"
+                                    onClick={() => onImageClick(url, photos)}
+                                  >
+                                    {isVideoUrl(url) ? (
+                                      <div className="w-full h-full relative flex items-center justify-center bg-black">
+                                        <video src={url} className="w-full h-full object-cover opacity-60" />
+                                        <div className="absolute inset-0 flex items-center justify-center shadow-inner">
+                                          <div className="w-6 h-6 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 group-hover:bg-white/30 transition-all">
+                                            <Play size={10} className="text-white fill-white ml-0.5" />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <img
+                                        src={url}
+                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                        alt={key}
+                                      />
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -1709,7 +1705,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                   <span className="text-[9px] text-slate-500 mt-0.5">S/N: {eq.equipment_serial || eq.equipmentSerial}</span>
                                 )}
                               </div>
-                              <div className="flex flex-col gap-1.5 p-2 bg-white">
+                              <div className="grid grid-cols-2 gap-1.5 p-2 bg-white">
                                 {Object.entries(gData).sort((a, b) => {
                                   const matchA = a[0].replace(/^\[.*?\]\s*-\s*/, '').match(/(?:#\s*(\d+)|^(\d+)\s*#)/);
                                   const matchB = b[0].replace(/^\[.*?\]\s*-\s*/, '').match(/(?:#\s*(\d+)|^(\d+)\s*#)/);
@@ -1732,47 +1728,48 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                   if (!text && photos.length === 0) return null;
                                   
                                   return (
-                                    // print-checklist-row: cada pergunta+resposta fica junta
-                                    <div key={idx} className="print-checklist-row border border-slate-200 rounded overflow-hidden bg-white">
-                                      <div className="grid grid-cols-2 divide-x divide-slate-200">
-                                        <div className="p-1.5 bg-slate-50/50 flex items-center">
-                                          <div className="text-[8px] uppercase tracking-tight text-slate-800">{resolvePublicLabel(key)}</div>
+                                    // print-checklist-row: cada pergunta+resposta fica junta no grid 2 colunas
+                                    <div key={idx} className="print-checklist-row border border-slate-200 rounded-md overflow-hidden bg-white p-2 flex flex-col justify-between">
+                                      <div>
+                                        <div className="text-[7.5px] font-semibold uppercase tracking-tight text-slate-700 mb-0.5">
+                                          {resolvePublicLabel(key)}
                                         </div>
-                                        <div className="p-1.5 flex flex-col justify-center">
-                                          {text && (
-                                            <div className={`text-[9px] uppercase leading-tight ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok' ? 'text-emerald-600' : 'text-slate-500'}`}>
-                                              {formatPublicValue(text)}
-                                            </div>
-                                          )}
-                                          {photos.length > 0 && (
-                                            <div className="flex flex-wrap gap-1 mt-1">
-                                              {photos.map((p, pIdx) => (
-                                                <div key={pIdx} className="w-[140px] h-[140px] border border-slate-200 rounded overflow-hidden flex items-center justify-center bg-white shadow-sm">
-                                                  {isVideoUrl(p) ? (
-                                                    <a href={p} target="_blank" rel="noopener noreferrer" className="w-full h-full relative flex items-center justify-center bg-black cursor-pointer">
-                                                      <video src={`${p}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
-                                                      <div className="absolute inset-0 flex items-center justify-center">
-                                                        <Play size={10} className="text-white opacity-80" />
-                                                      </div>
-                                                      <span className="absolute bottom-1 bg-black/60 text-white text-[6px] px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
-                                                    </a>
-                                                  ) : (
-                                                    <a href={p} target="_blank" rel="noopener noreferrer" className="w-full h-full block cursor-pointer">
-                                                      <img src={p} className="w-full h-full object-contain" />
-                                                    </a>
-                                                  )}
-                                                </div>
-                                              ))}
-                                            </div>
-                                          )}
-                                        </div>
+                                        {text && (
+                                          <div className={`text-[8.5px] uppercase leading-tight font-medium ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok' ? 'text-emerald-600 font-bold' : 'text-slate-800'}`}>
+                                            {formatPublicValue(text)}
+                                          </div>
+                                        )}
                                       </div>
+                                      {photos.length > 0 && (
+                                        <div className="flex flex-wrap gap-1 mt-1 pt-1 border-t border-slate-100">
+                                          {photos.map((p, pIdx) => (
+                                            <div key={pIdx} className="w-[120px] h-[120px] border border-slate-200 rounded overflow-hidden flex items-center justify-center bg-white shadow-sm shrink-0">
+                                              {isVideoUrl(p) ? (
+                                                <a href={p} target="_blank" rel="noopener noreferrer" className="w-full h-full relative flex items-center justify-center bg-black cursor-pointer">
+                                                  <video src={`${p}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                                                  <div className="absolute inset-0 flex items-center justify-center">
+                                                    <Play size={10} className="text-white opacity-80" />
+                                                  </div>
+                                                  <span className="absolute bottom-1 bg-black/60 text-white text-[6px] px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
+                                                </a>
+                                              ) : (
+                                                <a href={p} target="_blank" rel="noopener noreferrer" className="w-full h-full block cursor-pointer">
+                                                  <img src={p} className="w-full h-full object-contain" />
+                                                </a>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
                                     </div>
                                   );
                                 })}
                               </div>
 
                               {(() => {
+                                // Não renderiza lista de peças no container de Formulário Financeiro
+                                if (isPrintFinanceiro) return null;
+
                                 const eqParts = enrichedItems.filter(it => {
                                   const itEqName = (it.equipmentName || '').toLowerCase();
                                   const gLower = gName.toLowerCase();
@@ -1939,39 +1936,69 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           );
         })()}
 
-        {/* ── PEÇAS E MATERIAIS (sempre visível quando há itens) ── */}
-        {enrichedItems.length > 0 && (
+        {/* ── RESUMO DA COMPOSIÇÃO FINANCEIRA (Exibido apenas quando a exibição de valores estiver habilitada) ── */}
+        {showPrices && (
           <div className="border border-slate-300 rounded-lg overflow-hidden print-no-break mt-4">
-            <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 text-[9px] uppercase tracking-wider text-slate-700">{showPrices ? 'Composição Financeira' : 'Peças e Materiais Aplicados'}</div>
-            <div className="w-full"><table className="w-full text-left break-words">
-              <thead>
-                <tr className="bg-slate-50 text-[8px] text-slate-500 uppercase border-b border-slate-200">
-                  <th className="px-3 py-1">Item</th>
-                  <th className="px-3 py-1 text-center whitespace-nowrap">Qtd</th>
-                  {showPrices && <th className="px-3 py-1 text-right whitespace-nowrap">Unit.</th>}
-                  {showPrices && <th className="px-3 py-1 text-right whitespace-nowrap">Total</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
-                {enrichedItems.map((it: any, i: number) => (
-                  <tr key={i}>
-                    <td className="px-3 py-1 text-[9px] uppercase text-slate-800 break-words whitespace-normal">
-                      <span className="text-slate-900 mr-1">{it.quantity || 1}x</span> {it.description}
-                      {it.equipmentName && <span className="block text-[7px] text-slate-400 font-normal mt-0.5">Ref: {it.equipmentName}</span>}
-                    </td>
-                    <td className="px-3 py-1 text-[9px] text-center text-slate-900 whitespace-nowrap">{it.quantity || 1}</td>
-                    {showPrices && <td className="px-3 py-1 text-[9px] text-right text-slate-600 whitespace-nowrap">R$ {(it.unitPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
-                    {showPrices && <td className="px-3 py-1 text-[9px] text-right text-slate-900 whitespace-nowrap">R$ {(it.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
-                  </tr>
-                ))}
-              </tbody>
-            </table></div>
-            {showPrices && (
-              <div className="bg-slate-800 text-white px-3 py-1.5 flex justify-end gap-6 items-center border-t border-slate-800">
-                <span className="text-[8px] uppercase tracking-widest text-slate-300">Total Geral</span>
-                <span className="text-[11px] tracking-tighter">R$ {totalItems.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 text-[9px] font-bold uppercase tracking-wider text-slate-700">
+              Resumo da Composição Financeira
+            </div>
+
+            {/* Lista completa de Peças, Materiais e Itens da OS (Abertura + Campo) */}
+            {enrichedItems.length > 0 && (
+              <div className="w-full">
+                <table className="w-full text-left break-words border-b border-slate-200">
+                  <thead>
+                    <tr className="bg-slate-50 text-[8px] text-slate-500 uppercase border-b border-slate-200">
+                      <th className="px-3 py-1">Item / Descrição</th>
+                      <th className="px-3 py-1 text-center whitespace-nowrap">Qtd</th>
+                      <th className="px-3 py-1 text-right whitespace-nowrap">Unitário</th>
+                      <th className="px-3 py-1 text-right whitespace-nowrap">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {enrichedItems.map((it: any, i: number) => (
+                      <tr key={i}>
+                        <td className="px-3 py-1 text-[8.5px] uppercase text-slate-800 break-words whitespace-normal">
+                          <span className="text-slate-900 font-semibold mr-1">{it.quantity || 1}x</span> {it.description}
+                          {it.equipmentName && <span className="block text-[7px] text-slate-400 font-normal mt-0.5">Equipamento: {it.equipmentName}</span>}
+                          {it.fromStock && <span className="block text-[7px] text-emerald-600 font-normal">✦ Estoque Técnico</span>}
+                        </td>
+                        <td className="px-3 py-1 text-[8.5px] text-center text-slate-900 whitespace-nowrap">{it.quantity || 1}</td>
+                        <td className="px-3 py-1 text-[8.5px] text-right text-slate-600 whitespace-nowrap">R$ {(it.unitPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="px-3 py-1 text-[8.5px] text-right text-slate-900 font-semibold whitespace-nowrap">R$ {(it.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
+
+            <div className="p-3 bg-slate-50/50 space-y-1">
+              {totalItems > 0 && (
+                <div className="flex justify-between items-center text-[9px] text-slate-700 border-b border-slate-200/60 pb-1">
+                  <span className="uppercase text-slate-500 font-medium">Subtotal Peças e Materiais Aplicados:</span>
+                  <span className="font-mono font-bold text-slate-900">R$ {totalItems.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {(() => {
+                const laborVal = (order as any).laborValue || (order as any).serviceValue || 0;
+                const grandTotal = ((order as any).totalValue || (order as any).value) ? Number((order as any).totalValue || (order as any).value) : (totalItems + laborVal);
+                return (
+                  <>
+                    {laborVal > 0 && (
+                      <div className="flex justify-between items-center text-[9px] text-slate-700 border-b border-slate-200/60 pb-1">
+                        <span className="uppercase text-slate-500 font-medium">Mão de Obra / Serviço:</span>
+                        <span className="font-mono font-bold text-slate-900">R$ {laborVal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-900 pt-1">
+                      <span className="uppercase tracking-wider">Valor Total da O.S.:</span>
+                      <span className="font-mono text-[11px] text-emerald-700 font-bold">R$ {grandTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
           </div>
         )}
 
@@ -2128,7 +2155,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
         {/* ── STICKY HEADER ── */}
         <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm print:hidden">
-          <div className="max-w-6xl mx-auto px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between gap-4">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between gap-4">
             {/* Company identity */}
             <div className="flex items-center gap-4 min-w-0">
               {companyLogo
@@ -2179,7 +2206,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
         {/* ── OS HERO BANNER ── */}
         <div className="bg-[#1c2d4f] print:hidden">
-          <div className="max-w-6xl mx-auto px-4 sm:px-8 py-5 sm:py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-5 sm:py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
             {/* OS identity */}
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center border border-white/10 shrink-0">
@@ -2229,7 +2256,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         </div>
 
         {/* ── MAIN CONTENT ── */}
-        <main className="max-w-6xl mx-auto px-2 sm:px-8 py-6 sm:py-12 flex flex-col gap-6 sm:gap-10 print:hidden">
+        <main className="max-w-[1400px] mx-auto px-4 sm:px-8 py-6 sm:py-12 flex flex-col gap-6 sm:gap-10 print:hidden">
 
           {/* ── ROW 1: Cliente + Localização ── */}
           <div className="flex flex-col gap-4 lg:gap-6">
@@ -2731,7 +2758,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
         {/* ── FOOTER NEXUS ── */}
         <footer className="mt-8 sm:mt-12 lg:mt-auto border-t border-slate-200 bg-white print:hidden">
-          <div className="max-w-6xl mx-auto px-4 sm:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <NexusBranding size="lg" className="opacity-80 transform scale-[0.55] sm:scale-[0.7] origin-left" />
             </div>

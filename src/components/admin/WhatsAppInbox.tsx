@@ -935,18 +935,22 @@ export const WhatsAppInbox: React.FC = () => {
       {/* ── Coluna esquerda: lista de conversas ── */}
       <div className={`${selected ? 'hidden md:flex' : 'flex'} w-full md:w-80 flex-shrink-0 bg-white border-r border-gray-100 flex-col`}>
         <div className="p-3 border-b border-gray-50">
-          <div className="flex items-center gap-2 mb-3">
-            <MessageCircle size={18} className="text-emerald-500" />
-            <h2 className="text-sm font-bold text-gray-800 uppercase tracking-tight">WhatsApp Inbox</h2>
-            <div className="ml-auto flex items-center gap-1.5" title={realtimeOk ? 'Tempo real ativo' : 'Modo polling (3s)'}>
-              <div className={`w-2 h-2 rounded-full ${realtimeOk ? 'bg-emerald-400 animate-pulse' : 'bg-yellow-400'}`} />
-              <span className="text-[9px] text-gray-400 font-medium">{realtimeOk ? 'Ao vivo' : 'Polling'}</span>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2">
+              <MessageCircle size={18} className="text-emerald-500" />
+              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-tight font-poppins">WhatsApp Inbox</h2>
             </div>
-            {waitingCount > 0 && (
-              <span className="min-w-[20px] h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-amber-400 text-slate-950 text-[10px] font-black leading-none shadow-sm shadow-amber-400/40 border border-amber-300/50 shrink-0">
-                {waitingCount}
-              </span>
-            )}
+            <div 
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider font-poppins ${
+                realtimeOk 
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80 shadow-xs' 
+                  : 'bg-amber-50 text-amber-700 border-amber-200/80 shadow-xs'
+              }`} 
+              title={realtimeOk ? 'Tempo real ativo via WebSocket' : 'Modo Polling ativo (sincronização a cada 3s)'}
+            >
+              <div className={`w-2 h-2 rounded-full ${realtimeOk ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
+              <span>{realtimeOk ? 'Ao Vivo' : 'Polling (3s)'}</span>
+            </div>
           </div>
 
           {/* Botão Nova Conversa */}
@@ -961,23 +965,64 @@ export const WhatsAppInbox: React.FC = () => {
               setNewChatError(null);
               fetchCustomersList();
             }}
-            className="w-full mb-3 flex items-center justify-center gap-2 py-2 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 active:scale-95 cursor-pointer"
+            className="w-full mb-3 flex items-center justify-center gap-2 py-2 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 active:scale-95 cursor-pointer font-poppins"
           >
             <Plus size={16} /> Nova Conversa
           </button>
-          <div className="flex gap-1">
-            {(['all', 'waiting', 'mine', 'active'] as const).map(f => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`flex-1 text-[10px] font-bold uppercase py-1 rounded-lg transition-all ${
-                  filter === f ? 'bg-[#1c2d4f] text-white' : 'text-gray-400 hover:text-gray-600'
-                }`}
-              >
-                {f === 'all' ? 'Todos' : f === 'waiting' ? '⚠ Aguarda' : f === 'mine' ? 'Meus' : '👤 Outros'}
-              </button>
-            ))}
-          </div>
+
+          {/* Abas de Filtro com Destaque Vibrante de Pendências */}
+          {(() => {
+            const counts = {
+              all: conversations.filter(c => c.state !== 'RESOLVED').length,
+              waiting: conversations.filter(c => c.state === 'WAITING_HUMAN').length,
+              mine: conversations.filter(c => c.state === 'HUMAN_ACTIVE' && c.assigned_agent_id === currentUserId).length,
+              active: conversations.filter(c => c.state === 'HUMAN_ACTIVE' && c.assigned_agent_id !== currentUserId).length
+            };
+
+            return (
+              <div className="flex gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200/60 font-poppins">
+                {(['all', 'waiting', 'mine', 'active'] as const).map(f => {
+                  const isActiveTab = filter === f;
+                  const count = counts[f];
+                  const isWaitingTab = f === 'waiting';
+                  const hasPendingWaiting = isWaitingTab && count > 0;
+
+                  return (
+                    <button
+                      key={f}
+                      onClick={() => setFilter(f)}
+                      className={`relative flex-1 py-1.5 px-1 rounded-lg text-[10px] font-bold uppercase tracking-tight transition-all flex items-center justify-center gap-1 ${
+                        isActiveTab
+                          ? (hasPendingWaiting 
+                              ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30 ring-2 ring-amber-400 font-extrabold' 
+                              : 'bg-[#1c2d4f] text-white shadow-sm ring-1 ring-[#1c2d4f]')
+                          : (hasPendingWaiting 
+                              ? 'bg-amber-400/25 text-amber-700 border border-amber-300 animate-pulse font-extrabold' 
+                              : 'text-slate-500 hover:bg-white hover:text-slate-800')
+                      }`}
+                    >
+                      {hasPendingWaiting && (
+                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping absolute -top-1 -right-1" />
+                      )}
+                      <span>
+                        {f === 'all' ? 'Todos' : f === 'waiting' ? 'Aguarda' : f === 'mine' ? 'Meus' : 'Outros'}
+                      </span>
+
+                      {count > 0 && (
+                        <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black leading-none ${
+                          isActiveTab
+                            ? (hasPendingWaiting ? 'bg-slate-950 text-amber-400' : 'bg-white/20 text-white')
+                            : (hasPendingWaiting ? 'bg-amber-500 text-slate-950' : 'bg-slate-200 text-slate-600')
+                        }`}>
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
 
           {/* Campo de pesquisa de conversas */}
           <div className="mt-3 relative">
@@ -1127,49 +1172,17 @@ export const WhatsAppInbox: React.FC = () => {
               )}
               {selected.state === 'HUMAN_ACTIVE' && selected.assigned_agent_id === currentUserId && (
                 <>
-                  <div className="relative">
                     <button
-                      onClick={() => setTransferModal(transferModal === selected.id ? null : selected.id)}
+                      onClick={() => {
+                        supabase.from('users').select('id, name').neq('role', 'TECHNICIAN').order('name').then(({ data }) => setTeamMembers(data || []));
+                        setTransferModal(selected.id);
+                        setAgentSearch('');
+                      }}
                       disabled={sendingAction !== null}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 text-[11px] font-bold rounded-xl hover:bg-indigo-100 disabled:opacity-50 transition-all border border-indigo-200 shadow-sm whitespace-nowrap"
                     >
                       {sendingAction === 'transfer' ? <RefreshCw size={14} className="animate-spin" /> : <ArrowRight size={14} />} Transferir
                     </button>
-                    {transferModal === selected.id && (
-                      <div className="absolute left-0 sm:left-auto sm:right-0 mt-2 w-48 bg-white border border-gray-100 shadow-xl rounded-xl z-50 overflow-hidden">
-                        <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 flex flex-col gap-2">
-                          <p className="text-[10px] font-bold text-gray-500 uppercase">Selecione o agente</p>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              placeholder="Pesquisar agente..."
-                              value={agentSearch}
-                              onChange={(e) => setAgentSearch(e.target.value)}
-                              className="w-full px-2 py-1 bg-white border border-gray-200 rounded text-[10px] focus:ring-1 focus:ring-indigo-500 outline-none"
-                              autoFocus
-                            />
-                          </div>
-                        </div>
-                        <div className="max-h-48 overflow-y-auto">
-                          {teamMembers.filter(m => m.id !== currentUserId && (m.name || '').toLowerCase().includes(agentSearch.toLowerCase())).length === 0 && (
-                            <p className="px-3 py-4 text-xs text-gray-400 text-center">Nenhum agente encontrado</p>
-                          )}
-                          {teamMembers.filter(m => m.id !== currentUserId && (m.name || '').toLowerCase().includes(agentSearch.toLowerCase())).map(m => (
-                            <button
-                              key={m.id}
-                              onClick={() => {
-                                handleTransfer(m.id);
-                                setAgentSearch('');
-                              }}
-                              className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors border-b border-gray-50 last:border-0"
-                            >
-                              {m.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
                   <button
                     onClick={handleReturnToBot}
                     disabled={sendingAction !== null}
@@ -1449,6 +1462,115 @@ export const WhatsAppInbox: React.FC = () => {
                   <RotateCcw size={14} /> Confirmar Reinício
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal de Transferir Conversa ── */}
+      {transferModal && selected && (
+        <div className="fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-[#1c2d4f] px-6 py-5 flex items-center justify-between text-white shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-indigo-500/20 border border-indigo-400/30 rounded-2xl flex items-center justify-center text-indigo-300">
+                  <ArrowRight size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold tracking-tight">Transferir Atendimento</h3>
+                  <p className="text-[11px] text-slate-300">Selecione o membro da equipe para assumir este chat</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setTransferModal(null); setAgentSearch(''); }}
+                className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-700 block uppercase tracking-wider">
+                  Buscar Agente / Atendente
+                </label>
+                <div className="relative">
+                  <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Digite o nome do atendente..."
+                    value={agentSearch}
+                    onChange={(e) => setAgentSearch(e.target.value)}
+                    className="w-full pl-10 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all"
+                    autoFocus
+                  />
+                  {agentSearch && (
+                    <button
+                      onClick={() => setAgentSearch('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Agents List */}
+              <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-1">
+                {(() => {
+                  const filteredAgents = teamMembers.filter(m => 
+                    m.id !== currentUserId && 
+                    (m.name || '').toLowerCase().includes(agentSearch.toLowerCase().trim())
+                  );
+
+                  if (filteredAgents.length === 0) {
+                    return (
+                      <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-100">
+                        <User size={28} className="text-slate-300 mx-auto mb-2" />
+                        <p className="text-xs font-semibold text-slate-500">Nenhum agente encontrado</p>
+                        <p className="text-[10px] text-slate-400 mt-1">Verifique o nome digitado ou se há outros usuários cadastrados na equipe.</p>
+                      </div>
+                    );
+                  }
+
+                  return filteredAgents.map(m => (
+                    <button
+                      key={m.id}
+                      onClick={() => {
+                        handleTransfer(m.id);
+                        setTransferModal(null);
+                        setAgentSearch('');
+                      }}
+                      className="w-full flex items-center justify-between p-3 bg-white hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-200 rounded-2xl transition-all group text-left shadow-sm hover:shadow-md"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                          {m.name ? m.name.charAt(0).toUpperCase() : 'U'}
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-800 group-hover:text-indigo-950">{m.name}</p>
+                          <p className="text-[10px] text-slate-400">Atendente / Equipe</p>
+                        </div>
+                      </div>
+                      <div className="px-3 py-1 bg-slate-100 group-hover:bg-indigo-600 group-hover:text-white text-slate-600 text-[10px] font-bold rounded-lg transition-colors">
+                        Transferir
+                      </div>
+                    </button>
+                  ));
+                })()}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                onClick={() => { setTransferModal(null); setAgentSearch(''); }}
+                className="px-5 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl transition-all shadow-sm"
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         </div>

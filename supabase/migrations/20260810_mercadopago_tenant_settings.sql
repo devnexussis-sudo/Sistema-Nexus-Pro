@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS public.tenant_mercadopago_settings (
     mp_public_key TEXT,
     mp_access_token TEXT,
     mp_refresh_token TEXT,
+    mp_webhook_secret TEXT,
     account_email TEXT,
     account_name TEXT,
     status TEXT DEFAULT 'active' CHECK (status IN ('active', 'disconnected', 'error')),
@@ -17,6 +18,8 @@ CREATE TABLE IF NOT EXISTS public.tenant_mercadopago_settings (
     updated_at TIMESTAMPTZ DEFAULT now(),
     UNIQUE(tenant_id)
 );
+
+ALTER TABLE public.tenant_mercadopago_settings ADD COLUMN IF NOT EXISTS mp_webhook_secret TEXT DEFAULT NULL;
 
 -- RLS (Row Level Security) para tenant_mercadopago_settings
 ALTER TABLE public.tenant_mercadopago_settings ENABLE ROW LEVEL SECURITY;

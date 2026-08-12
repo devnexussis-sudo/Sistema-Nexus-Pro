@@ -1124,7 +1124,7 @@ export const StockManagement: React.FC = () => {
             </div>
 
             {/* Main Table Container */}
-            <div className="bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col flex-1 ring-1 ring-slate-200/80">
+            <div className="bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col flex-1 ring-1 ring-slate-200/80 stock-table-container">
                 {activeTab === 'items' ? (
                     <>
                         <div className="hidden md:block flex-1 overflow-auto custom-scrollbar">
@@ -1151,7 +1151,7 @@ export const StockManagement: React.FC = () => {
                                         <th className="px-3 py-2 text-right pr-6">Gestão</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody key={currentPage} className="animate-fade-in duration-200">
                                     {error ? (
                                         <tr>
                                             <td colSpan={9} className="py-20 text-center px-6">
@@ -1351,7 +1351,17 @@ export const StockManagement: React.FC = () => {
                             totalPages={totalPages}
                             totalItems={totalItemsCount}
                             itemsPerPage={ITEMS_PER_PAGE}
-                            onPageChange={setCurrentPage}
+                            onPageChange={(page) => {
+                                setLoading(true);
+                                setCurrentPage(page);
+                                setTimeout(() => {
+                                    const container = document.querySelector('.stock-table-container .overflow-auto') || document.querySelector('.stock-table-container');
+                                    if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
+                                    const scrollableRoot = document.querySelector('.overflow-y-auto.custom-scrollbar');
+                                    if (scrollableRoot) scrollableRoot.scrollTo({ top: 0, behavior: 'smooth' });
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }, 50);
+                            }}
                         />
                     </>
                 ) : (

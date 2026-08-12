@@ -314,7 +314,7 @@ serve(async (req: Request) => {
       throw new Error("Body inválido: não é um JSON válido.");
     }
 
-    const { tenant_id, tenant_name, tenant_address, settings, conversation, user_message } = body ?? {};
+    const { tenant_id, tenant_name, tenant_cnpj, tenant_address, settings, conversation, user_message } = body ?? {};
     
     if (!tenant_id) throw new Error("Campo obrigatório ausente: tenant_id");
     if (!user_message) throw new Error("Campo obrigatório ausente: user_message");
@@ -329,8 +329,17 @@ serve(async (req: Request) => {
 
     // Descobre a saudação e despedida com base na hora atual em São Paulo/Brasília
     const now = new Date();
-    const spHour = parseInt(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo", hour: "numeric", hour12: false }));
-    
+    const spNow = new Date(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+    const spHour = spNow.getHours();
+    const spMinute = spNow.getMinutes();
+    const spDayOfWeek = spNow.getDay();
+    const spHourFormatted = `${String(spHour).padStart(2, '0')}:${String(spMinute).padStart(2, '0')}`;
+    const diasSemanaFull: Record<number, string> = {
+      0: "Domingo", 1: "Segunda-feira", 2: "Terça-feira", 3: "Quarta-feira",
+      4: "Quinta-feira", 5: "Sexta-feira", 6: "Sábado"
+    };
+    const diaAtual = diasSemanaFull[spDayOfWeek];
+
     let saudacao = "Bom dia";
     let despedida = "Um excelente dia pra você";
     if (spHour >= 12 && spHour < 18) {
@@ -345,9 +354,20 @@ serve(async (req: Request) => {
     const botGender = settings?.bot_gender || "Feminino";
     const wordObrigado = botGender === "Masculino" ? "obrigado" : "obrigada";
     const genderDirective = `\nGÊNERO: Você se identifica no gênero ${botGender}. Ao agradecer ou usar adjetivos para si mesmo(a), adapte a gramática corretamente (ex: use 'obrigado' se masculino, 'obrigada' se feminino).`;
-    const companyInfo = settings?.company_info ? `SOBRE A EMPRESA:\n${settings.company_info}\n\n` : "";
+
+    // Saudação personalizada: usa o campo greeting_message das configurações se preenchido,
+    // mas SEMPRE garante que o nome do bot e o nome da empresa estejam presentes.
+    const customGreeting = settings?.greeting_message?.trim();
+    const firstContactGreeting = customGreeting
+      ? `${customGreeting} Sou ${botName}, da equipe da ${tenant_name ?? "empresa"}.`
+      : `${saudacao}! Tudo bem? Sou ${botName}, da equipe da ${tenant_name ?? "empresa"}. Como posso te ajudar hoje?`;
+
+    const companyInfo = settings?.company_info
+      ? `SOBRE A EMPRESA (LEIA COM ATENÇÃO — use essas informações ao responder qualquer dúvida sobre o que a empresa faz, seus serviços, produtos, marcas e diferenciais):\n${settings.company_info}\n\n`
+      : "";
+    const cnpjInfo = tenant_cnpj ? `CNPJ DA EMPRESA:\n${tenant_cnpj}\n\n` : "";
     const addressInfo = tenant_address ? `ENDEREÇO DA EMPRESA:\n${tenant_address}\n\n` : "";
-    
+
     const isOnline = isWithinBusinessHours(settings || {});
     const businessDaysMap: Record<number, string> = { 0: "Dom", 1: "Seg", 2: "Ter", 3: "Qua", 4: "Qui", 5: "Sex", 6: "Sáb" };
     const bDaysArray: number[] = settings?.business_days ?? [1, 2, 3, 4, 5];
@@ -356,15 +376,18 @@ serve(async (req: Request) => {
     const bEnd = settings?.business_end || "18:00";
     const businessHoursInfo = `HORÁRIO DE ATENDIMENTO:\n- Dias: ${bDaysStr}\n- Horário: ${bStart} às ${bEnd}\n- Status Atual: ${isOnline ? "ABERTO (Equipe online e trabalhando agora)" : "FECHADO (Fora do horário comercial)"}\n\n`;
 
+    // Contexto de data/hora atual em Brasília — a IA DEVE usar isso para responder perguntas sobre dia e hora
+    const dateTimeContext = `DATA E HORA ATUAL (Brasília/São Paulo):\n- Dia da semana: ${diaAtual}\n- Horário atual: ${spHourFormatted}\n\n`;
+
     const llmMessages: any[] = [
       {
         role: "system",
         content: `Você é ${botName}, assistente administrativa e de atendimento da ${tenant_name ?? "nossa empresa"}.
-${companyInfo}${addressInfo}${businessHoursInfo}Personalidade: Você é uma atendente humana real digitando no WhatsApp. Seja extremamente natural, prestativa, carismática e transmita total segurança de que o problema do cliente está sendo resolvido com atenção. NUNCA se apresente como IA ou bot.${genderDirective}
+${cnpjInfo}${companyInfo}${addressInfo}${dateTimeContext}${businessHoursInfo}Personalidade: Você é uma atendente humana real digitando no WhatsApp. Seja extremamente natural, prestativa, carismática e transmita total segurança de que o problema do cliente está sendo resolvido com atenção. NUNCA se apresente como IA ou bot.${genderDirective}
 
 DIRETRIZES DE COMUNICAÇÃO:
-- Primeiro Contato: APENAS na primeira mensagem da conversa diga: "${saudacao}! Tudo bem? Sou ${botName}, como posso te ajudar hoje?". Se a conversa já estiver em andamento, NUNCA repita o cumprimento ou a apresentação, vá direto ao ponto e seja natural.
-- Identificação: Deixe claro, de forma sutil, que você é da equipe de atendimento da empresa.
+- Primeiro Contato: APENAS na primeira mensagem da conversa (quando o histórico estiver vazio), diga EXATAMENTE: "${firstContactGreeting}". Se a conversa já estiver em andamento, NUNCA repita o cumprimento ou a apresentação, vá direto ao ponto e seja natural.
+- Identificação: Você sempre trabalha para a ${tenant_name ?? "empresa"} e deve deixar isso claro de forma sutil quando relevante.
 - Tom: Acolhedor, resolutivo e direto ao ponto. Use pontuação natural de conversas (sem formalidades robóticas). Mostre empatia e garanta que estamos cuidando da solicitação dele.
 - Uso de Emojis: Seja EXTREMAMENTE sensato e contido. Não use emojis em todas as mensagens nem coloque "carinhas" no final das frases de forma automática. Use no máximo 1 emoji apenas se o cliente for muito amigável e o tom da conversa for leve. Se o cliente estiver insatisfeito, crítico, agressivo, ou se o assunto for sério/urgente, NÃO use NENHUM emoji. Mantenha uma postura estritamente profissional e empática.
 - Fora de Horário (FECHADO): Se o Status Atual for FECHADO, é OBRIGATÓRIO avisar o cliente imediatamente que a empresa está fechada. JAMAIS use os termos "equipe humana" ou "atendimento com humanos". Apresente o aviso BEM FORMATADO em linhas separadas e usando negrito (*texto*) no WhatsApp. Exemplo exato de estrutura:
@@ -396,6 +419,7 @@ Siga este formato rigorosamente:
 ESTADO ATUAL: ${newState}`,
       },
     ];
+
 
     for (const msg of recentHistory) {
       if (!msg?.role || !msg?.content) continue;

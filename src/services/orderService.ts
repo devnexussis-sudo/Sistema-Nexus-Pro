@@ -11,6 +11,8 @@ import { logger } from '../lib/logger';
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 const STORAGE_KEYS = { ORDERS: 'nexus_orders_v2' }; // Replication of constant
 
+import { StockService } from './stockService';
+
 
 
 // getServiceClient() REMOVIDO — use `supabase` diretamente.
@@ -536,6 +538,50 @@ export const OrderService = {
         return updatedOrder;
     },
 
+    addInternalNote: async (orderId: string, newNote: { text: string; user: string; date: string; attachments?: any[] }): Promise<any[]> => {
+        if (!isCloudEnabled) return [newNote];
+
+        if (!orderId) {
+            throw new Error('ID da ordem de serviço é obrigatório.');
+        }
+
+        const { data, error } = await supabase.rpc('upsert_internal_note', {
+            p_order_id: String(orderId),
+            p_note: newNote,
+            p_action: 'add',
+            p_note_index: null,
+        });
+
+        if (error) {
+            console.error('❌ OrderService.addInternalNote RPC error:', error);
+            throw new Error(error.message || 'Erro ao salvar observação interna.');
+        }
+
+        return Array.isArray(data) ? data : (data as any) || [];
+    },
+
+    deleteInternalNote: async (orderId: string, noteIndex: number): Promise<any[]> => {
+        if (!isCloudEnabled) return [];
+
+        if (!orderId) {
+            throw new Error('ID da ordem de serviço é obrigatório.');
+        }
+
+        const { data, error } = await supabase.rpc('upsert_internal_note', {
+            p_order_id: String(orderId),
+            p_note: null,
+            p_action: 'delete',
+            p_note_index: noteIndex,
+        });
+
+        if (error) {
+            console.error('❌ OrderService.deleteInternalNote RPC error:', error);
+            throw new Error(error.message || 'Erro ao excluir observação interna.');
+        }
+
+        return Array.isArray(data) ? data : (data as any) || [];
+    },
+
     updateOrderStatus: async (id: string, status: OrderStatus, notes?: string, data?: any, items?: OrderItem[]): Promise<void> => {
         if (!isCloudEnabled) return;
 
@@ -576,45 +622,99 @@ export const OrderService = {
         };
 
         if (notes !== undefined) updatePayload.notes = notes;
-        if (processedData !== undefined) updatePayload.form_data = processedData as Record<string, unknown>;
-        if (items !== undefined) updatePayload.items = items as DbOrderItem[];
+
+        // 🛡️ NEXUS BULLETPROOF: SEMPRE buscar os dados existentes da OS no banco
+        // para garantir que items e form_data NUNCA sejam apagados acidentalmente.
+        let existingOrderData: any = null;
+        try {
+            const tid = getCurrentTenantId();
+            if (tid) {
+                const { data: dbOrder } = await supabase
+                    .from('orders')
+                    .select('items, form_data, assigned_to')
+                    .eq('id', id)
+                    .eq('tenant_id', tid)
+                    .single();
+                existingOrderData = dbOrder;
+            }
+        } catch (e) {
+            console.warn("⚠️ [OrderService] Falha ao buscar dados existentes da OS:", e);
+        }
+
+        // Extrair items existentes do banco (coluna items OU fallback form_data.items)
+        const dbItems = (() => {
+            if (!existingOrderData) return [];
+            const raw = existingOrderData.items;
+            if (typeof raw === 'string') {
+                try { return JSON.parse(raw); } catch { return []; }
+            }
+            if (Array.isArray(raw) && raw.length > 0) return raw;
+            const fdItems = (existingOrderData.form_data as any)?.items;
+            return Array.isArray(fdItems) ? fdItems : [];
+        })();
+
+        // 🛡️ DECISÃO DE ITEMS: Usar items recebidos SOMENTE se forem não-vazios.
+        // Se forem vazios/undefined mas o banco tem items, PRESERVAR os do banco.
+        const finalItems: any[] = (items && items.length > 0) ? items : (dbItems.length > 0 ? dbItems : (items || []));
+
+        // SEMPRE gravar os items no payload para garantir persistência
+        updatePayload.items = finalItems as DbOrderItem[];
+
+        // Form Data merging
+        if (processedData !== undefined) {
+            try {
+                const existingFormData = (existingOrderData?.form_data || {}) as Record<string, unknown>;
+
+                // Remove propriedades com valor 'undefined' para evitar que o spread apague chaves existentes
+                const cleanProcessed = Object.fromEntries(
+                    Object.entries(processedData as Record<string, unknown>).filter(([_, v]) => v !== undefined)
+                );
+
+                updatePayload.form_data = { ...existingFormData, ...cleanProcessed, items: finalItems };
+            } catch (err) {
+                updatePayload.form_data = { ...(processedData as Record<string, unknown>), items: finalItems };
+            }
+        } else {
+            // Mesmo sem processedData, garantir que form_data.items nunca se perca
+            if (existingOrderData?.form_data) {
+                const existingFD = (existingOrderData.form_data || {}) as Record<string, unknown>;
+                // Só atualiza form_data se os items mudaram
+                if (finalItems.length > 0) {
+                    updatePayload.form_data = { ...existingFD, items: finalItems };
+                }
+            }
+        }
 
         if (status === OrderStatus.IN_PROGRESS) {
             updatePayload.start_date = new Date().toISOString();
         } else if (status === OrderStatus.COMPLETED || status === OrderStatus.BLOCKED) {
             updatePayload.end_date = new Date().toISOString();
 
-            // 💰 BILLING AUTO-QUEUE: Se a OS for concluída com valor > 0,
-            // ela entra automaticamente na fila do financeiro como PENDING.
-            // OS sem cobrança (valor = 0) ficam sem billingStatus e não aparecem no financeiro.
+            // 💰 BILLING AUTO-QUEUE
             if (status === OrderStatus.COMPLETED) {
-                let finalItemsToSum = items;
-                if (!finalItemsToSum) {
-                    try {
-                        const tid = getCurrentTenantId();
-                        if (tid) {
-                            const { data: existingOrder } = await supabase
-                                .from('orders')
-                                .select('items, form_data')
-                                .eq('id', id)
-                                .eq('tenant_id', tid)
-                                .single();
-                            
-                            if (existingOrder) {
-                                const rawItems = typeof existingOrder.items === 'string' 
-                                    ? JSON.parse(existingOrder.items) 
-                                    : (existingOrder.items || (existingOrder.form_data as any)?.items || []);
-                                finalItemsToSum = rawItems as any[];
+                const techId = existingOrderData?.assigned_to || null;
+
+                // Dar baixa no estoque das peças incluídas na OS (quando concluída)
+                if (finalItems.length > 0 && techId) {
+                    for (const item of finalItems) {
+                        if (item.fromStock && item.stockItemId) {
+                            try {
+                                await StockService.consumeTechStock(techId, item.stockItemId, item.quantity, id);
+                            } catch (e) {
+                                console.warn(`⚠️ [OrderService] Falha ao dar baixa no estoque para o item ${item.stockItemId}:`, e);
                             }
                         }
-                    } catch(e) {
-                        console.warn("⚠️ [OrderService] Falha ao recuperar itens para soma de faturamento:", e);
                     }
                 }
 
-                const itemsValue = finalItemsToSum?.reduce((acc, i) => acc + (Number(i.total) || 0), 0) ?? 0;
-                const formTotal = (processedData as any)?.totalValue || (processedData as any)?.price || 0;
-                const orderValue = itemsValue + Number(formTotal);
+                const itemsValue = finalItems.reduce((acc, i) => {
+                    const total = Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0;
+                    return acc + total;
+                }, 0);
+
+                const existingFD = (updatePayload.form_data || existingOrderData?.form_data || {}) as Record<string, any>;
+                const formTotal = Number(existingFD?.totalValue || existingFD?.price || (processedData as any)?.totalValue || (processedData as any)?.price || 0);
+                const orderValue = itemsValue + formTotal;
 
                 if (orderValue > 0) {
                     updatePayload.billing_status = 'PENDING';

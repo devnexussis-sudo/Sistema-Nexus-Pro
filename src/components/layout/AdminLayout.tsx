@@ -47,6 +47,30 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     // Hook global que verifica mensagens novas independente da aba aberta
     const { alertCount } = useGlobalWhatsAppNotifications(user?.id || null, isAdmin, location.pathname);
 
+    // 🚦 Big Tech Route Transition Progress Bar
+    const [isNavigating, setIsNavigating] = useState(false);
+    const [progress, setProgress] = useState(0);
+
+    useEffect(() => {
+        setIsNavigating(true);
+        setProgress(20);
+
+        const t1 = setTimeout(() => setProgress(55), 50);
+        const t2 = setTimeout(() => setProgress(85), 110);
+        const t3 = setTimeout(() => setProgress(100), 190);
+        const t4 = setTimeout(() => {
+            setIsNavigating(false);
+            setProgress(0);
+        }, 360);
+
+        return () => {
+            clearTimeout(t1);
+            clearTimeout(t2);
+            clearTimeout(t3);
+            clearTimeout(t4);
+        };
+    }, [location.pathname]);
+
     // Buscar contador de WhatsApp aguardando humano
     useEffect(() => {
         if (!isAdmin) return;
@@ -269,7 +293,17 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     );
 
     return (
-        <div className="flex flex-col h-screen bg-slate-50 overflow-hidden font-poppins print:h-auto print:overflow-visible print:block">
+        <div className="flex flex-col h-screen bg-slate-50 overflow-hidden font-poppins print:h-auto print:overflow-visible print:block relative">
+            {/* 🚦 Big Tech Top Route Progress Bar */}
+            {isNavigating && (
+                <div className="fixed top-0 left-0 right-0 h-[3px] bg-slate-200/50 z-[99999] overflow-hidden pointer-events-none">
+                    <div
+                        className="h-full bg-gradient-to-r from-[#1c2d4f] via-[#253a66] to-[#3e5b99] transition-all duration-200 ease-out shadow-[0_0_12px_rgba(28,45,79,0.7)]"
+                        style={{ width: `${progress}%` }}
+                    />
+                </div>
+            )}
+
             {/* Header Global */}
             <header className="h-12 bg-white text-slate-900 flex justify-between items-center z-[100] shadow-sm shrink-0 border-b border-slate-200 print:hidden">
                 <div className="flex items-center">
@@ -568,7 +602,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                             {activeItem?.label || 'dashboard'}
                         </h2>
                     </div>
-                    <div className="flex-1 overflow-y-auto relative custom-scrollbar print:overflow-visible print:block pb-16 lg:pb-0">
+                    <div key={location.pathname} className="flex-1 overflow-y-auto relative custom-scrollbar print:overflow-visible print:block pb-16 lg:pb-0 animate-fade-in duration-300">
                         {children}
                     </div>
                 </main>

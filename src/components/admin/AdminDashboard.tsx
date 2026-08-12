@@ -44,7 +44,7 @@ import {
   Image as ImageIcon,
   Copy
 } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '../../i18n';
 import { useDialog } from '../../contexts/DialogContext';
 import { createPortal } from 'react-dom';
@@ -144,6 +144,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newInternalNote, setNewInternalNote] = useState('');
   const [internalNoteAttachments, setInternalNoteAttachments] = useState<any[]>([]);
   const [isUploadingNote, setIsUploadingNote] = useState(false);
+  const [isSavingInternalNote, setIsSavingInternalNote] = useState(false);
 
   // ── Aba Visitas ────────────────────────────────────────────────
   const [visits, setVisits] = useState<ServiceVisit[]>([]);
@@ -396,18 +397,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+  const prevOrderIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (selectedOrder) {
-      // Reset estados de edição ao abrir nova OS
-      setIsEditing(false);
-      setEditDraft({});
-      setActiveTab('overview');
-      setShowNewVisitForm(false);
-      setEditingVisitId(null);
-      setEquipments([]);
+      const isNewOrderOpened = prevOrderIdRef.current !== selectedOrder.id;
+      prevOrderIdRef.current = selectedOrder.id;
 
-      // Busca o técnicos da OS via RPC secundário (não bloqueante)
+      if (isNewOrderOpened) {
+        // Reset estados de edição SOMENTE ao abrir uma nova OS diferente
+        setIsEditing(false);
+        setEditDraft({});
+        setActiveTab('overview');
+        setShowNewVisitForm(false);
+        setEditingVisitId(null);
+        setEquipments([]);
+      }
+
+      // Busca os técnicos/visitas da OS via RPC secundário
       VisitService.getVisitsByOrderId(selectedOrder.id).then(v => {
         setOrderVisits(v);
       });
@@ -436,6 +443,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setSelectedTemplate(null);
       }
     } else {
+      prevOrderIdRef.current = null;
       setOrderVisits([]);
       setSelectedTemplate(null);
       setIsEditing(false);
@@ -1295,52 +1303,52 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )}
         {/* 💻 DESKTOP TABLE VIEW */}
         <div className="hidden md:block flex-1 overflow-auto custom-scrollbar os-table-container">
-          <table className="w-full border-collapse">
-            <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm font-poppins">
-              <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center">
-                <th className="px-2 py-1 w-12 text-center text-slate-400">
+          <table className="w-full text-left border-collapse">
+            <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-md border-b border-slate-200 z-10 shadow-xs font-poppins">
+              <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">
+                <th className="px-2 py-2.5 w-8 text-center">
                   <input
                     type="checkbox"
-                    className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                    className="w-3.5 h-3.5 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
                     checked={sortedPageOrders.length > 0 && sortedPageOrders.every(o => selectedOrderIds.includes(o.id))}
                     onChange={toggleSelectAll}
                     title="Selecionar página atual"
                   />
                 </th>
-                <th className="px-2 py-1 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('id')}>
-                  <div className="flex items-center justify-center gap-1">Protocolo {getSortIcon('displayId')}</div>
+                <th className="px-2 py-2.5 cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap" onClick={() => requestSort('id')}>
+                  <div className="flex items-center gap-1">Protocolo {getSortIcon('displayId')}</div>
                 </th>
-                <th className="px-2 py-1 text-center cursor-pointer group hover:text-primary-600 transition-colors hidden md:table-cell" onClick={() => requestSort('operationType')}>
-                  <div className="flex items-center justify-center gap-1">Modalidade {getSortIcon('operationType')}</div>
+                <th className="px-2 py-2.5 cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap hidden md:table-cell" onClick={() => requestSort('operationType')}>
+                  <div className="flex items-center gap-1">Modalidade {getSortIcon('operationType')}</div>
                 </th>
-                <th className="px-2 py-1 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('customerName')}>
-                  <div className="flex items-center justify-center gap-1">Cliente {getSortIcon('customerName')}</div>
+                <th className="px-2 py-2.5 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('customerName')}>
+                  <div className="flex items-center gap-1">Cliente {getSortIcon('customerName')}</div>
                 </th>
-                <th className="px-2 py-1 text-center cursor-pointer group hover:text-primary-600 transition-colors hidden md:table-cell" onClick={() => requestSort('assignedTo')}>
-                  <div className="flex items-center justify-center gap-1">Técnico {getSortIcon('assignedTo')}</div>
+                <th className="px-2 py-2.5 cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap hidden md:table-cell" onClick={() => requestSort('assignedTo')}>
+                  <div className="flex items-center gap-1">Técnico {getSortIcon('assignedTo')}</div>
                 </th>
-                <th className="px-2 py-1 text-center cursor-pointer group hover:text-primary-600 transition-colors hidden md:table-cell" onClick={() => requestSort('createdAt')}>
-                  <div className="flex items-center justify-center gap-1">Abertura {getSortIcon('createdAt')}</div>
+                <th className="px-2 py-2.5 cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap hidden md:table-cell" onClick={() => requestSort('createdAt')}>
+                  <div className="flex items-center gap-1">Abertura {getSortIcon('createdAt')}</div>
                 </th>
-                <th className="px-2 py-1 text-center cursor-pointer group hover:text-primary-600 transition-colors hidden lg:table-cell" onClick={() => requestSort('scheduledDate')}>
-                  <div className="flex items-center justify-center gap-1">Agendamento {getSortIcon('scheduledDate')}</div>
+                <th className="px-2 py-2.5 cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap hidden lg:table-cell" onClick={() => requestSort('scheduledDate')}>
+                  <div className="flex items-center gap-1">Agendamento {getSortIcon('scheduledDate')}</div>
                 </th>
-                <th className="px-2 py-1 text-center cursor-pointer group hover:text-primary-600 transition-colors hidden lg:table-cell" onClick={() => requestSort('endDate')}>
-                  <div className="flex items-center justify-center gap-1">Conclusão {getSortIcon('endDate')}</div>
+                <th className="px-2 py-2.5 cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap hidden lg:table-cell" onClick={() => requestSort('endDate')}>
+                  <div className="flex items-center gap-1">Conclusão {getSortIcon('endDate')}</div>
                 </th>
-                <th className="px-2 py-1 text-center hidden xl:table-cell">
+                <th className="px-2 py-2.5 text-center whitespace-nowrap hidden xl:table-cell">
                   <div className="flex items-center justify-center gap-1">Visitas</div>
                 </th>
-                <th className="px-2 py-1 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('status')}>
+                <th className="px-2 py-2.5 text-center cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap" onClick={() => requestSort('status')}>
                   <div className="flex items-center justify-center gap-1">Status {getSortIcon('status')}</div>
                 </th>
-                <th className="px-2 py-1 text-center pr-4">{t.common.actions}</th>
+                <th className="px-2 py-2.5 text-center whitespace-nowrap">{t.common.actions}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 bg-white">
+            <tbody key={currentPage} className="divide-y divide-slate-100 bg-white animate-fade-in duration-200">
               {ordersLoading ? (
                 <tr>
-                  <td colSpan={10} className="py-24 text-center">
+                  <td colSpan={11} className="py-24 text-center">
                     <div className="flex flex-col items-center gap-3 text-slate-400">
                       <Loader2 size={28} className="animate-spin text-primary-400" />
                       <p className="text-sm text-slate-500 uppercase tracking-widest">Carregando ordens...</p>
@@ -1356,24 +1364,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     className={`transition-all border-b border-slate-100 hover:border-slate-200 group cursor-pointer ${isSelected ? 'bg-indigo-50/40' : 'bg-white hover:bg-slate-50'}`}
                     onClick={() => setSelectedOrder(order)}
                   >
-                    <td className="px-2 py-1 text-center shrink-0 w-12" onClick={(e) => { e.stopPropagation(); setSelectedOrderIds(prev => prev.includes(order.id) ? prev.filter(id => id !== order.id) : [...prev, order.id]); }}>
+                    <td className="px-2 py-2 text-center" onClick={(e) => { e.stopPropagation(); setSelectedOrderIds(prev => prev.includes(order.id) ? prev.filter(id => id !== order.id) : [...prev, order.id]); }}>
                       <input
                         type="checkbox"
-                        className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                        className="w-3.5 h-3.5 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
                         checked={isSelected}
                         readOnly
                       />
                     </td>
-                    <td className="px-2 py-1">
-                      <span className="font-medium text-slate-700 text-[12px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 group-hover:bg-white group-hover:border-slate-300 transition-colors">
+                    <td className="px-2 py-2 whitespace-nowrap">
+                      <span className="font-mono text-[10px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 group-hover:bg-white transition-colors">
                         {order.displayId || order.id}
                       </span>
                     </td>
-                    <td className="px-2 py-1 text-[11px] text-slate-500 tracking-wide whitespace-nowrap hidden md:table-cell">
+                    <td className="px-2 py-2 text-[11px] text-slate-600 whitespace-nowrap hidden md:table-cell">
                       {order.operationType || '---'}
                     </td>
-                    <td className="px-2 py-1">
-                      <div className="text-[13px] text-slate-800 font-semibold tracking-tight truncate max-w-[120px] md:max-w-[160px]">
+                    <td className="px-2 py-2">
+                      <div className="text-xs text-slate-800 font-bold tracking-tight truncate max-w-[120px] lg:max-w-[150px] 2xl:max-w-[200px]" title={order.customerName}>
                         {order.customerName}
                       </div>
                       <div className="md:hidden mt-1 flex flex-col gap-0.5">
@@ -1386,38 +1394,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         ) : <span className="text-[10px] text-slate-400">Sem Técnico</span>}
                       </div>
                     </td>
-                    <td className="px-2 py-1 hidden md:table-cell">
-                      <div className="flex justify-center">
-                        {assignedTech ? (
-                          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-50 border border-slate-200 group-hover:bg-white inset-shadow-lg shadow-slate-200/50 transition-all shrink-0">
-                            <img src={assignedTech.avatar} className="w-4 h-4 rounded-full object-cover shadow-sm" />
-                            <span className="text-[11px] text-slate-600 truncate max-w-[60px]">{assignedTech?.name?.split(' ')[0]}</span>
-                          </div>
-                        ) : <span className="text-[11px] text-slate-300 tracking-widest">-</span>}
-                      </div>
+                    <td className="px-2 py-2 hidden md:table-cell">
+                      <span className="text-[11px] text-slate-600 truncate max-w-[70px] lg:max-w-[100px] block capitalize" title={assignedTech?.name}>
+                        {assignedTech?.name?.split(' ')[0] || '—'}
+                      </span>
                     </td>
-                    <td className="px-2 py-1 text-[12px] text-slate-500 tracking-wide whitespace-nowrap hidden md:table-cell">
+                    <td className="px-2 py-2 text-[11px] text-slate-500 whitespace-nowrap hidden md:table-cell">
                       {order.createdAt ? new Date(order.createdAt).toLocaleDateString('pt-BR') : '---'}
                     </td>
-                    <td className="px-2 py-1 text-[12px] text-slate-700 whitespace-nowrap hidden lg:table-cell">
+                    <td className="px-2 py-2 text-[11px] text-slate-700 font-medium whitespace-nowrap hidden lg:table-cell">
                       {formatDateDisplay(order.scheduledDate)}
                     </td>
-                    <td className="px-2 py-1 text-[12px] text-slate-700 whitespace-nowrap hidden lg:table-cell">
+                    <td className="px-2 py-2 text-[11px] text-slate-600 whitespace-nowrap hidden lg:table-cell">
                       {order.endDate ? new Date(order.endDate).toLocaleDateString('pt-BR') : '---'}
                     </td>
-                    <td className="px-2 py-1 align-middle hidden xl:table-cell"><VisitCountCell order={order} /></td>
-                    <td className="px-2 py-1 whitespace-nowrap"><StatusBadge status={order.status} /></td>
-                    <td className="px-2 py-1 text-right pr-4">
-                      <div className="flex items-center justify-end gap-1.5 transition-opacity opacity-90 group-hover:opacity-100">
+                    <td className="px-2 py-2 align-middle text-center hidden xl:table-cell"><VisitCountCell order={order} /></td>
+                    <td className="px-2 py-2 text-center whitespace-nowrap"><StatusBadge status={order.status} /></td>
+                    <td className="px-2 py-2 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center gap-1">
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedOrder(order);
-                          }}
-                          className="p-2 text-primary-600 bg-primary-50 hover:bg-primary-600 hover:text-white rounded-lg border border-primary-200 hover:border-primary-600 transition-all shadow-sm"
+                          type="button"
+                          onClick={() => setSelectedOrder(order)}
+                          className="p-1 text-slate-400 hover:text-primary-700 hover:bg-primary-50 rounded transition-colors"
                           title="Visualizar OS"
                         >
-                          <Eye size={16} />
+                          <Eye size={14} />
                         </button>
                       </div>
                     </td>
@@ -1992,115 +1993,137 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       Estes registros são visíveis apenas para usuários administrativos do sistema e não aparecerão na impressão ou no link do cliente.
                     </p>
 
-                    {isEditing ? (
-                        <div className="space-y-4">
-                          <textarea
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm font-medium text-slate-700 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-50 transition-all resize-y min-h-[120px]"
-                            placeholder="Digite uma nova observação interna..."
-                            value={newInternalNote}
-                            onChange={(e) => setNewInternalNote(e.target.value)}
-                            disabled={isUploadingNote}
-                          />
-                          
-                          {internalNoteAttachments.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {internalNoteAttachments.map((file, i) => (
-                                <div key={i} className="flex items-center gap-1.5 bg-[#1c2d4f]/10 text-[#1c2d4f] px-3 py-1.5 rounded-full text-xs font-semibold border border-[#1c2d4f]/20">
-                                  {file.isUploading ? <Loader2 size={14} className="animate-spin text-primary-500" /> : (file.type === 'image' ? <ImageIcon size={14} /> : <FileText size={14} />)}
-                                  <span className="truncate max-w-[150px]">{file.name}</span>
-                                  <button type="button" onClick={async () => {
-                                      setInternalNoteAttachments(prev => prev.filter((_, idx) => idx !== i));
-                                      if (file.url) {
-                                          await StorageService.deleteFile(file.url);
-                                      }
-                                  }} className="hover:bg-[#1c2d4f]/20 rounded-full p-0.5 transition-colors text-rose-500 hover:text-rose-600">
-                                    <X size={14} />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          <div className="flex justify-between items-center">
-                            <label className="cursor-pointer flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-[#1c2d4f] transition-colors">
-                              <input 
-                                type="file" 
-                                multiple
-                                className="hidden"
-                                accept="image/*,.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                                onChange={async (e) => {
-                                  if (e.target.files) {
-                                    const files = Array.from(e.target.files);
-                                    const validFiles = files.filter(f => {
-                                      if (f.size > 15 * 1024 * 1024) {
-                                        alert(`O arquivo ${f.name} é muito grande (máx 15MB).`);
-                                        return false;
-                                      }
-                                      if (!f.type.startsWith('image/') && !['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(f.type)) {
-                                        alert(`Tipo de arquivo não permitido: ${f.name}`);
-                                        return false;
-                                      }
-                                      return true;
-                                    });
-                                    
-                                    const newPlaceholders = validFiles.map(f => ({ name: f.name, type: f.type.startsWith('image/') ? 'image' : 'document', size: f.size, isUploading: true, url: '' }));
-                                    setInternalNoteAttachments(prev => [...prev, ...newPlaceholders]);
-                                    
-                                    for (let i = 0; i < validFiles.length; i++) {
-                                        const file = validFiles[i];
-                                        const placeholder = newPlaceholders[i];
-                                        try {
-                                            const att = await StorageService.uploadInternalNoteAttachment(file, selectedOrder.id);
-                                            setInternalNoteAttachments(prev => prev.map(p => p.name === placeholder.name && p.isUploading ? { ...att, isUploading: false } : p));
-                                        } catch (err) {
-                                            console.error("Falha ao enviar:", err);
-                                            setInternalNoteAttachments(prev => prev.filter(p => p !== placeholder));
-                                        }
-                                    }
+                    <div className="space-y-4">
+                      <textarea
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm font-medium text-slate-700 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-50 transition-all resize-y min-h-[120px]"
+                        placeholder="Digite uma nova observação interna (sempre permitido, mesmo com a OS finalizada)..."
+                        value={newInternalNote}
+                        onChange={(e) => setNewInternalNote(e.target.value)}
+                        disabled={isUploadingNote}
+                      />
+                      
+                      {internalNoteAttachments.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {internalNoteAttachments.map((file, i) => (
+                            <div key={i} className="flex items-center gap-1.5 bg-[#1c2d4f]/10 text-[#1c2d4f] px-3 py-1.5 rounded-full text-xs font-semibold border border-[#1c2d4f]/20">
+                              {file.isUploading ? <Loader2 size={14} className="animate-spin text-primary-500" /> : (file.type === 'image' ? <ImageIcon size={14} /> : <FileText size={14} />)}
+                              <span className="truncate max-w-[150px]">{file.name}</span>
+                              <button type="button" onClick={async () => {
+                                  setInternalNoteAttachments(prev => prev.filter((_, idx) => idx !== i));
+                                  if (file.url) {
+                                      await StorageService.deleteFile(file.url);
                                   }
-                                  e.target.value = '';
-                                }}
-                              />
-                              <Paperclip size={18} />
-                              Anexar Arquivos
-                            </label>
-
-                            <button
-                              type="button"
-                              disabled={(!newInternalNote.trim() && internalNoteAttachments.length === 0) || internalNoteAttachments.some(a => a.isUploading)}
-                              onClick={() => {
-                                if (!newInternalNote.trim() && internalNoteAttachments.length === 0) return;
-                                const newNoteObj = {
-                                  text: newInternalNote.trim(),
-                                  user: auth?.user?.name || auth?.user?.email || 'Usuário',
-                                  date: new Date().toISOString(),
-                                  attachments: internalNoteAttachments.map(({ url, name, type, size }) => ({ url, name, type, size }))
-                                };
-                                setEditDraft(prev => ({
-                                  ...prev,
-                                  internalNotes: [...(prev.internalNotes || selectedOrder.internalNotes || []), newNoteObj]
-                                }));
-                                setNewInternalNote('');
-                                setInternalNoteAttachments([]);
-                              }}
-                              className="bg-[#1c2d4f] text-white px-4 py-2 rounded-lg text-xs font-medium uppercase tracking-widest hover:bg-[#2a457a] disabled:opacity-50 transition-colors flex items-center gap-2"
-                            >
-                              Adicionar Observação
-                            </button>
-                          </div>
+                              }} className="hover:bg-[#1c2d4f]/20 rounded-full p-0.5 transition-colors text-rose-500 hover:text-rose-600">
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ))}
                         </div>
-                    ) : (
-                      <div className="bg-slate-50 rounded-lg p-4 text-center border border-slate-200">
-                        <p className="text-xs font-medium text-slate-400 uppercase tracking-widest">Ative a edição para adicionar uma nova observação</p>
+                      )}
+
+                      <div className="flex justify-between items-center">
+                        <label className="cursor-pointer flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-[#1c2d4f] transition-colors">
+                          <input 
+                            type="file" 
+                            multiple
+                            className="hidden"
+                            accept="image/*,.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                            onChange={async (e) => {
+                              if (e.target.files) {
+                                const files = Array.from(e.target.files);
+                                const validFiles = files.filter(f => {
+                                  if (f.size > 15 * 1024 * 1024) {
+                                    alert(`O arquivo ${f.name} é muito grande (máx 15MB).`);
+                                    return false;
+                                  }
+                                  if (!f.type.startsWith('image/') && !['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(f.type)) {
+                                    alert(`Tipo de arquivo não permitido: ${f.name}`);
+                                    return false;
+                                  }
+                                  return true;
+                                });
+                                
+                                for (const file of validFiles) {
+                                  const placeholderId = `${file.name}_${Math.random().toString(36).substring(2, 7)}`;
+                                  const placeholder = { id: placeholderId, name: file.name, type: file.type.startsWith('image/') ? 'image' : 'document', size: file.size, isUploading: true, url: '' };
+                                  
+                                  setInternalNoteAttachments(prev => [...prev, placeholder]);
+                                  
+                                  try {
+                                    const att = await StorageService.uploadInternalNoteAttachment(file, selectedOrder.id);
+                                    setInternalNoteAttachments(prev => prev.map(p => (p as any).id === placeholderId ? { ...att, id: placeholderId, isUploading: false } : p));
+                                  } catch (err) {
+                                    console.error("Falha ao enviar anexo:", err);
+                                    setInternalNoteAttachments(prev => prev.filter(p => (p as any).id !== placeholderId));
+                                    alert(`Falha ao enviar o arquivo ${file.name}. Tente novamente.`);
+                                  }
+                                }
+                              }
+                              e.target.value = '';
+                            }}
+                          />
+                          <Paperclip size={18} />
+                          Anexar Arquivos
+                        </label>
+
+                        <button
+                          type="button"
+                          disabled={isSavingInternalNote || (!newInternalNote.trim() && internalNoteAttachments.length === 0) || internalNoteAttachments.some(a => a.isUploading)}
+                          onClick={async () => {
+                            if (!newInternalNote.trim() && internalNoteAttachments.length === 0) return;
+                            if (isSavingInternalNote) return;
+
+                            setIsSavingInternalNote(true);
+
+                            try {
+                              const validAttachments = internalNoteAttachments
+                                .filter(a => !a.isUploading && a.url)
+                                .map(({ url, name, type, size }) => ({ url, name, type, size }));
+
+                              const newNoteObj = {
+                                text: newInternalNote.trim(),
+                                user: auth?.user?.name || auth?.user?.email || 'Usuário',
+                                date: new Date().toISOString(),
+                                attachments: validAttachments
+                              };
+
+                              const targetOrderId = selectedOrder.id || selectedOrder.displayId;
+                              if (!targetOrderId) {
+                                throw new Error("ID da Ordem de Serviço não encontrado.");
+                              }
+
+                              console.log(`[AdminDashboard] 📝 Salvando observação para OS ${targetOrderId}:`, newNoteObj);
+
+                              const { OrderService } = await import('../../services/orderService');
+                              const updatedNotes = await OrderService.addInternalNote(targetOrderId, newNoteObj);
+                              
+                              setSelectedOrder(prev => prev ? ({ ...prev, internalNotes: updatedNotes }) : null);
+                              if (isEditing) {
+                                setEditDraft(prev => ({ ...prev, internalNotes: updatedNotes }));
+                              }
+                              if (typeof refetchOrders === 'function') refetchOrders();
+                              
+                              setNewInternalNote('');
+                              setInternalNoteAttachments([]);
+                            } catch (err: any) {
+                              console.error("❌ Erro ao salvar observação interna:", err);
+                              alert(`Erro ao salvar observação: ${err?.message || 'Falha na conexão'}`);
+                            } finally {
+                              setIsSavingInternalNote(false);
+                            }
+                          }}
+                          className="bg-[#1c2d4f] text-white px-4 py-2 rounded-lg text-xs font-medium uppercase tracking-widest hover:bg-[#2a457a] disabled:opacity-50 transition-colors flex items-center gap-2"
+                        >
+                          {isSavingInternalNote ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                          {isSavingInternalNote ? 'Salvando...' : 'Adicionar Observação'}
+                        </button>
                       </div>
-                    )}
+                    </div>
                   </div>
 
                   <div className="space-y-4">
                     {(() => {
-                      const notesList = isEditing 
-                        ? (editDraft.internalNotes || selectedOrder.internalNotes || [])
-                        : (selectedOrder.internalNotes || []);
+                      const notesList = selectedOrder.internalNotes || [];
                       
                       if (notesList.length === 0) {
                         return (
@@ -2125,20 +2148,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 </p>
                               </div>
                             </div>
-                            {isEditing && (
-                              <button
+                            <button
                                 onClick={() => {
                                   // Reverse logic to delete
                                   const originalIdx = notesList.length - 1 - idx;
                                   const noteToDelete = notesList[originalIdx];
                                   
-                                  const doDelete = () => {
-                                      const updatedNotes = [...notesList];
-                                      updatedNotes.splice(originalIdx, 1);
-                                      setEditDraft(prev => ({
-                                        ...prev,
-                                        internalNotes: updatedNotes
-                                      }));
+                                  const doDelete = async () => {
+                                    try {
+                                      const { OrderService } = await import('../../services/orderService');
+                                      const updatedNotes = await OrderService.deleteInternalNote(selectedOrder.id, originalIdx);
+                                      setSelectedOrder(prev => prev ? ({ ...prev, internalNotes: updatedNotes }) : null);
+                                      if (isEditing) {
+                                        setEditDraft(prev => ({ ...prev, internalNotes: updatedNotes }));
+                                      }
+                                      if (typeof refetchOrders === 'function') refetchOrders();
+                                      alert('Observação excluída com sucesso.');
+                                    } catch (err) {
+                                      console.error("Erro ao excluir observação:", err);
+                                      alert('Erro ao excluir observação.');
+                                    }
                                   };
                                   
                                   if (noteToDelete.attachments && noteToDelete.attachments.length > 0) {
@@ -2146,7 +2175,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                           for (const att of noteToDelete.attachments) {
                                               await StorageService.deleteFile(att.url);
                                           }
-                                          doDelete();
+                                          await doDelete();
                                       });
                                   } else {
                                       doDelete();
@@ -2157,7 +2186,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               >
                                 <Trash2 size={14} />
                               </button>
-                            )}
                           </div>
                           <div className="pl-10">
                             <p className="text-sm font-medium text-slate-700 whitespace-pre-wrap">{note.text}</p>

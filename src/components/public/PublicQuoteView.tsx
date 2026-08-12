@@ -398,39 +398,39 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
     if (isSuccess || isRejected) return (
         <div className="public-view-wrapper font-poppins" style={{ fontFamily: "'Poppins', sans-serif" }}>
             {fontStyle}
-            <div className={`min-h-screen ${isSuccess ? 'bg-emerald-500' : 'bg-rose-500'} flex items-center justify-center p-4 sm:p-6 animate-fade-in`}>
-            <div className="bg-white p-8 sm:p-12 rounded-[2rem] sm:rounded-[4rem] shadow-2xl text-center max-w-md border-[6px] sm:border-8 border-white/20">
-                <div className={`w-16 h-16 sm:w-24 sm:h-24 ${isSuccess ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'} rounded-[1.5rem] sm:rounded-[2rem] flex items-center justify-center mx-auto mb-6 sm:mb-8 shadow-xl`}>
-                    {isSuccess ? <CheckCircle className="w-8 h-8 sm:w-12 sm:h-12" /> : <AlertCircle className="w-8 h-8 sm:w-12 sm:h-12" />}
-                </div>
-                <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 uppercase italic tracking-tighter mb-4">
-                    {isSuccess ? 'Proposta Aprovada!' : 'Proposta Recusada'}
-                </h2>
-                <p className="text-sm sm:text-sm font-bold text-slate-500 uppercase leading-relaxed mb-8">
-                    {isSuccess
-                        ? `Obrigado, ${approverName.split(' ')[0]}! Recebemos sua assinatura digital. Nossa equipe técnica entrará em contato em breve.`
-                        : `Obrigado pelo seu feedback. Registramos a recusa da proposta e notificamos nossa equipe comercial.`
-                    }
-                </p>
-                <div className="p-4 sm:p-6 bg-slate-50 rounded-[1.5rem] sm:rounded-[2rem] border border-slate-100 mb-8 grid grid-cols-2 gap-4 text-left">
-                    <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase mb-1">Código do Orçamento</p>
-                        <p className="text-sm sm:text-sm font-bold text-[#1c2d4f] italic tracking-tighter break-all">{quote.displayId || quote.id.split('-')[0].toUpperCase()}</p>
+            <div className={`min-h-screen ${isSuccess ? 'bg-emerald-600' : 'bg-rose-600'} flex items-center justify-center p-4 py-8 animate-fade-in`}>
+                <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-2xl text-center w-full max-w-md border-4 border-white/30 my-auto">
+                    <div className={`w-16 h-16 ${isSuccess ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'} rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg`}>
+                        {isSuccess ? <CheckCircle className="w-9 h-9" /> : <AlertCircle className="w-9 h-9" />}
                     </div>
-                    <div className="border-l border-slate-200 pl-4 flex flex-col justify-center">
-                        <p className="text-xs font-bold text-slate-400 uppercase mb-1">{isSuccess ? 'Data da Aprovação' : 'Data da Recusa'}</p>
-                        <p className="text-sm sm:text-sm font-bold text-slate-800 tracking-tight">
-                            {quote?.updatedAt ? new Date(quote.updatedAt).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR')}
-                        </p>
+                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900 uppercase italic tracking-tight mb-2">
+                        {isSuccess ? 'Proposta Aprovada!' : 'Proposta Recusada'}
+                    </h2>
+                    <p className="text-xs sm:text-sm font-semibold text-slate-500 uppercase leading-relaxed mb-6 px-2">
+                        {isSuccess
+                            ? `Obrigado, ${approverName.split(' ')[0]}! Recebemos sua assinatura digital. Nossa equipe técnica entrará em contato em breve.`
+                            : `Obrigado pelo seu feedback. Registramos a recusa da proposta e notificamos nossa equipe comercial.`
+                        }
+                    </p>
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 mb-6 grid grid-cols-2 gap-3 text-left shadow-inner">
+                        <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Código do Orçamento</p>
+                            <p className="text-xs sm:text-sm font-bold text-[#1c2d4f] italic tracking-tight break-all">{quote.displayId || quote.id.split('-')[0].toUpperCase()}</p>
+                        </div>
+                        <div className="border-l border-slate-200 pl-3 flex flex-col justify-center">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{isSuccess ? 'Data da Aprovação' : 'Data da Recusa'}</p>
+                            <p className="text-xs sm:text-sm font-bold text-slate-800 tracking-tight">
+                                {quote?.updatedAt ? new Date(quote.updatedAt).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR')}
+                            </p>
+                        </div>
                     </div>
+                    <div className="flex items-center justify-center gap-2 opacity-60">
+                        <NexusBranding size="sm" />
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Protocolo Digital Duno</p>
                 </div>
-                <div className="flex items-center justify-center gap-2 opacity-50">
-                    <NexusBranding size="sm" />
-                </div>
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-2">Protocolo Digital Duno</p>
             </div>
         </div>
-    </div>
     );
 
 

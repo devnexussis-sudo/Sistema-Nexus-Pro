@@ -29,6 +29,7 @@ export const PaymentService = {
             tenantId: data.tenant_id,
             mpUserId: data.mp_user_id,
             mpPublicKey: data.mp_public_key,
+            mpAccessToken: data.mp_access_token,
             accountEmail: data.account_email,
             accountName: data.account_name,
             status: data.status || 'active',
@@ -167,7 +168,7 @@ export const PaymentService = {
 
     // 2. Grava no banco Supabase em segundo plano
     try {
-      await supabase
+      const { error: dbErr } = await supabase
         .from('tenant_mercadopago_settings')
         .upsert([{
           tenant_id: tenantId,
@@ -178,8 +179,14 @@ export const PaymentService = {
           status: 'active',
           updated_at: new Date().toISOString()
         }], { onConflict: 'tenant_id' });
+        
+      if (dbErr) {
+        console.error('[PaymentService] DB Upsert error:', dbErr);
+        return false;
+      }
     } catch (dbErr) {
-      console.warn('[PaymentService] DB Upsert non-blocking notice:', dbErr);
+      console.error('[PaymentService] DB Upsert exception:', dbErr);
+      return false;
     }
 
     return true;
@@ -244,6 +251,7 @@ export const PaymentService = {
     paymentMethodType: 'pix' | 'card_link' | 'boleto';
     installments?: number;
     expiresAt?: string;
+    tenantId?: string;
   }): Promise<{
     success: boolean;
     paymentId?: string;
@@ -253,7 +261,7 @@ export const PaymentService = {
     expiresAt?: string;
     message?: string;
   }> {
-    const tenantId = DataService.getCurrentTenantId() || 'default';
+    const tenantId = params.tenantId || DataService.getCurrentTenantId() || 'default';
 
     // 1. Obtém as configurações reais salvas do Tenant
     const settings = await this.getMercadoPagoSettings(tenantId);
@@ -283,11 +291,8 @@ export const PaymentService = {
       });
 
       if (edgeErr) {
-        console.error('[PaymentService] Erro na chamada da Edge Function:', edgeErr);
-        return { success: false, message: `Erro no servidor em nuvem (Edge Function): ${edgeErr.message || 'Falha de comunicação'}. Verifique o log da função no Supabase.` };
-      }
-
-      if (edgeData) {
+        console.warn('[PaymentService] Falha na Edge Function, tentando fallback direto:', edgeErr);
+      } else if (edgeData) {
         if (edgeData.success) {
           return edgeData;
         } else if (edgeData.error) {
@@ -295,8 +300,7 @@ export const PaymentService = {
         }
       }
     } catch (e: any) {
-      console.error('[PaymentService] Exceção na Edge function:', e);
-      return { success: false, message: `Erro interno de comunicação com a nuvem: ${e.message || 'Failed to fetch'}` };
+      console.warn('[PaymentService] Exceção na Edge function, tentando fallback direto:', e);
     }
 
 
@@ -307,6 +311,8 @@ export const PaymentService = {
 
     try {
       // 3. Chamada Direta e REAL à API do Mercado Pago
+      const expiresAt = params.expiresAt || new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      
       if (params.paymentMethodType === 'pix') {
         const mpRes = await fetch('https://api.mercadopago.com/v1/payments', {
           method: 'POST',
@@ -319,7 +325,7 @@ export const PaymentService = {
             transaction_amount: numAmount,
             description: `${params.title} (#${params.displayId || params.itemId.slice(0, 8)})`,
             payment_method_id: 'pix',
-            date_of_expiration: params.expiresAt || new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+            date_of_expiration: expiresAt,
             payer: {
               email: params.customerEmail && params.customerEmail.includes('@') ? params.customerEmail : 'cliente@nexus.com',
               first_name: params.customerName || 'Cliente'
@@ -347,12 +353,8 @@ export const PaymentService = {
           gateway_payment_id: realPaymentId,
           gateway_pix_code: realPixCode || null,
           gateway_ticket_url: realTicketUrl || null,
-          gateway_status: mpData.status || 'pending',
-          total_value: numAmount
+          gateway_status: mpData.status || 'pending'
         };
-        if (params.itemType === 'QUOTE') {
-          updatePayload.totalValue = numAmount;
-        }
 
         await supabase
           .from(table)
@@ -386,7 +388,7 @@ export const PaymentService = {
             transaction_amount: numAmount,
             description: `${params.title} (#${params.displayId || params.itemId.slice(0, 8)})`.slice(0, 60),
             payment_method_id: 'bolbradesco',
-            date_of_expiration: params.expiresAt || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+            date_of_expiration: expiresAt,
             payer: {
               email: params.customerEmail && params.customerEmail.includes('@') ? params.customerEmail : 'cliente@nexus.com',
               first_name: params.customerName ? params.customerName.slice(0, 30) : 'Cliente',
@@ -658,10 +660,6 @@ export const PaymentService = {
           gateway_status: 'approved',
           gateway_payment_id: realPaymentId
         };
-
-        if (paidAmount > 0) {
-          updateObj.total_value = paidAmount;
-        }
 
         // Busca anexos existentes para incluir o comprovante Mercado Pago
         const { data: existingDoc } = await supabase.from(table).select('attachments').eq('id', params.itemId).maybeSingle();

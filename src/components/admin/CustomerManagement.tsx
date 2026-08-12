@@ -8,7 +8,7 @@ import { Input } from '../ui/Input';
 import {
   Search, Plus, Building2, User, MapPin, Phone, Mail,
   Trash2, Edit2, X, Save, Power, PowerOff, Info, Box,
-  ChevronDown, ChevronUp, Laptop, Hash, Filter, Calendar, ChevronLeft
+  ChevronDown, ChevronUp, Laptop, Hash, Filter, Calendar, ChevronLeft, Loader2
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -47,11 +47,30 @@ interface CustomerManagementProps {
   onSwitchView?: (view: any, params?: any) => void;
 }
 
+const MapInvalidator: React.FC = () => {
+  const map = useMap();
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [map]);
+  return null;
+};
+
 const LocationPickerLogic: React.FC<{ lat: number; lng: number }> = ({ lat, lng }) => {
   const map = useMap();
   
   useEffect(() => {
-    map.flyTo([lat, lng], 15, { duration: 1.5 });
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 150);
+
+    if (lat && lng) {
+      map.flyTo([lat, lng], 16, { duration: 1.2 });
+    }
+
+    return () => clearTimeout(timer);
   }, [lat, lng, map]);
 
   return (
@@ -157,23 +176,44 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
     }
   }, [formData.document, customers, editingId]);
 
-  const fetchCoordinates = async (address: string, number: string | undefined, city: string, state: string, currentLat?: number, currentLng?: number) => {
-    if (currentLat && currentLng) return { lat: currentLat, lng: currentLng };
-    if (!address || !city || !state) return null;
+  const fetchCoordinates = async (
+    address: string, 
+    number: string | undefined, 
+    city: string, 
+    state: string, 
+    zip?: string,
+    currentLat?: number, 
+    currentLng?: number
+  ) => {
+    if (!address || !city || !state) {
+      if (currentLat && currentLng) return { lat: currentLat, lng: currentLng };
+      return null;
+    }
 
     try {
-      const queryParts = [];
-      if (address) queryParts.push(address);
-      if (number) queryParts.push(number);
-      queryParts.push(city);
-      queryParts.push(state);
-      queryParts.push('Brasil');
+      const cleanZip = zip ? zip.replace(/\D/g, '') : '';
+      const streetQuery = number ? `${address}, ${number}` : address;
+      
+      // 1. Busca Estruturada com Número do Imóvel + CEP no Nominatim
+      const structuredUrl = `https://nominatim.openstreetmap.org/search?street=${encodeURIComponent(streetQuery)}&city=${encodeURIComponent(city)}&state=${encodeURIComponent(state)}&postalcode=${encodeURIComponent(cleanZip)}&country=Brasil&format=json&limit=3&addressdetails=1`;
+      
+      let res = await fetch(structuredUrl, { headers: { 'Accept-Language': 'pt-BR' } });
+      let data = await res.json();
+      
+      // 2. Se não localizar com o CEP específico, faz busca focada na Rua + Número + Cidade
+      if (!data || data.length === 0) {
+        const noZipUrl = `https://nominatim.openstreetmap.org/search?street=${encodeURIComponent(streetQuery)}&city=${encodeURIComponent(city)}&state=${encodeURIComponent(state)}&country=Brasil&format=json&limit=3&addressdetails=1`;
+        res = await fetch(noZipUrl, { headers: { 'Accept-Language': 'pt-BR' } });
+        data = await res.json();
+      }
 
-      const query = encodeURIComponent(queryParts.join(', '));
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`, {
-        headers: { 'Accept-Language': 'pt-BR' }
-      });
-      const data = await res.json();
+      // 3. Fallback para busca combinada livre
+      if (!data || data.length === 0) {
+        const freeformUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(`${address}, ${number || ''} - ${city}, ${state}, Brasil`)}&limit=3&addressdetails=1`;
+        res = await fetch(freeformUrl, { headers: { 'Accept-Language': 'pt-BR' } });
+        data = await res.json();
+      }
+
       if (data && data.length > 0) {
         return {
           lat: parseFloat(data[0].lat),
@@ -183,8 +223,10 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
     } catch (err) {
       console.error("Erro geocoding nominatim", err);
     }
+
+    if (currentLat && currentLng) return { lat: currentLat, lng: currentLng };
     return null;
-  }
+  };
 
   const handleZipBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
     const zip = e.target.value.replace(/\D/g, '');
@@ -220,12 +262,12 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
               city: fallbackData.localidade,
               address: fallbackData.logradouro,
               neighborhood: fallbackData.bairro
-            }
+            };
           }
         }
 
         if (addressData) {
-          const coords = await fetchCoordinates(addressData.address, formData.number, addressData.city, addressData.state, addressData.initialLat, addressData.initialLng);
+          const coords = await fetchCoordinates(addressData.address, formData.number, addressData.city, addressData.state, addressData.zip, addressData.initialLat, addressData.initialLng);
 
           setFormData(prev => ({
             ...prev,
@@ -238,7 +280,6 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
             longitude: coords?.lng || prev.longitude
           }));
         }
-
       } catch (error) {
         console.error("Erro geral na busca de CEP", error);
       } finally {
@@ -249,13 +290,18 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
 
   const handleNumberBlur = async () => {
     if (formData.address && formData.city && formData.state && formData.number) {
-      const coords = await fetchCoordinates(formData.address, formData.number, formData.city, formData.state);
-      if (coords) {
-        setFormData(prev => ({
-          ...prev,
-          latitude: coords.lat,
-          longitude: coords.lng
-        }));
+      setLoadingZip(true);
+      try {
+        const coords = await fetchCoordinates(formData.address, formData.number, formData.city, formData.state, formData.zip);
+        if (coords) {
+          setFormData(prev => ({
+            ...prev,
+            latitude: coords.lat,
+            longitude: coords.lng
+          }));
+        }
+      } finally {
+        setLoadingZip(false);
       }
     }
   };
@@ -680,91 +726,132 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
 
                 {/* ABA: DADOS */}
                 {modalTab === 'dados' && (
-                  <form id="customer-form" onSubmit={handleSubmit} className="space-y-6 max-w-4xl mx-auto">
-
-                    {/* Tipo */}
-                    <div className="flex bg-white p-1 rounded-xl w-fit border border-slate-200 shadow-sm">
-                      <button type="button" onClick={() => setFormData({ ...formData, type: 'PJ' })}
-                        className={`px-8 py-2 rounded-lg text-xs font-bold transition-all ${
-                          formData.type === 'PJ' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'
-                        }`}>Empresa (PJ)</button>
-                      <button type="button" onClick={() => setFormData({ ...formData, type: 'PF' })}
-                        className={`px-8 py-2 rounded-lg text-xs font-bold transition-all ${
-                          formData.type === 'PF' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'
-                        }`}>Individual (PF)</button>
-                    </div>
-
-                    {/* Card: Identificação */}
-                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                      <div className="px-6 py-4 border-b border-slate-100">
-                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">identificação</h3>
+                  <form id="customer-form" onSubmit={handleSubmit} className="space-y-5">
+                    
+                    {/* SEÇÃO SUPERIOR: TIPO + IDENTIFICAÇÃO (OCUPA TODO O ESPAÇO ACIMA) */}
+                    <div className="space-y-4">
+                      {/* Tipo Switcher */}
+                      <div className="flex bg-slate-100 p-1 rounded-xl w-fit border border-slate-200 shadow-xs">
+                        <button type="button" onClick={() => setFormData({ ...formData, type: 'PJ' })}
+                          className={`px-6 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            formData.type === 'PJ' ? 'bg-[#1c2d4f] text-white shadow-sm' : 'text-slate-500 hover:bg-white'
+                          }`}>Empresa (PJ)</button>
+                        <button type="button" onClick={() => setFormData({ ...formData, type: 'PF' })}
+                          className={`px-6 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            formData.type === 'PF' ? 'bg-[#1c2d4f] text-white shadow-sm' : 'text-slate-500 hover:bg-white'
+                          }`}>Individual (PF)</button>
                       </div>
-                      <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div className="md:col-span-2">
-                          <Input label={formData.type === 'PJ' ? 'Razão Social' : 'Nome Completo'} required className="rounded-xl py-3 font-medium border-slate-200" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
-                        </div>
-                        <div className="relative">
-                          <Input label={formData.type === 'PJ' ? 'CNPJ' : 'CPF'} required
-                            className={`rounded-xl py-3 font-medium ${documentDuplicate ? 'border-red-400 bg-red-50' : 'border-slate-200'}`}
-                            value={formData.document || ''}
-                            placeholder={formData.type === 'PJ' ? '00.000.000/0000-00' : '000.000.000-00'}
-                            onChange={e => setFormData({ ...formData, document: formData.type === 'PJ' ? formatCNPJ(e.target.value) : formatCPF(e.target.value) })} />
-                          {documentDuplicate && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">⚠️ Já cadastrado: {documentDuplicate}</p>}
-                        </div>
-                        <Input label="E-mail" type="email" required icon={<Mail size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} />
-                        <Input label="Telefone" className="rounded-xl py-3 font-medium border-slate-200" value={formData.phone || ''} onChange={e => setFormData({ ...formData, phone: formatPhone(e.target.value) })} placeholder="(00) 0000-0000" />
-                        <Input label="WhatsApp" icon={<Phone size={14} className="text-emerald-500" />} className="rounded-xl py-3 font-medium border-slate-200" value={formData.whatsapp || ''} onChange={e => setFormData({ ...formData, whatsapp: formatPhone(e.target.value) })} placeholder="(00) 00000-0000" />
-                      </div>
-                    </div>
 
-                    {/* Card: Localização */}
-                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                      <div className="px-6 py-4 border-b border-slate-100">
-                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">localização e atendimento</h3>
-                      </div>
-                      <div className="p-6 space-y-5">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                          <Input label="CEP" onBlur={handleZipBlur} required className="rounded-xl py-3 font-medium border-slate-200" value={formData.zip || ''} onChange={e => setFormData({ ...formData, zip: e.target.value })} />
-                          <Input label="Estado (UF)" className="rounded-xl py-3 font-medium border-slate-200" value={formData.state || ''} onChange={e => setFormData({ ...formData, state: e.target.value })} />
-                          <Input label="Cidade" className="rounded-xl py-3 font-medium border-slate-200" value={formData.city || ''} onChange={e => setFormData({ ...formData, city: e.target.value })} />
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
-                          <div className="md:col-span-2"><Input label="Logradouro" className="rounded-xl py-3 font-medium border-slate-200" value={formData.address || ''} onChange={e => setFormData({ ...formData, address: e.target.value })} /></div>
-                          <Input label="Número" required onBlur={handleNumberBlur} className="rounded-xl py-3 font-medium border-slate-200" value={formData.number || ''} onChange={e => setFormData({ ...formData, number: e.target.value })} />
-                          <Input label="Bairro" required className="rounded-xl py-3 font-medium border-slate-200" value={formData.neighborhood || ''} onChange={e => setFormData({ ...formData, neighborhood: e.target.value })} />
-                        </div>
-                        <Input label="Complemento / Referência" icon={<Info size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={formData.complement || ''} onChange={e => setFormData({ ...formData, complement: e.target.value })} />
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                          <div className="col-span-full">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Geolocalização</p>
-                            <p className="text-[10px] text-slate-500 mt-1">
-                              Preenchida automaticamente via CEP e Número. O ajuste manual está desabilitado para garantir a precisão do geocoding.
-                            </p>
+                      {/* Card: Identificação Principal (Ocupa Toda a Largura Superior) */}
+                      <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 space-y-3">
+                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Identificação Principal</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                          <div className="md:col-span-2 lg:col-span-2">
+                            <Input label={formData.type === 'PJ' ? 'Razão Social' : 'Nome Completo'} required className="rounded-xl py-2 text-xs font-medium border-slate-200" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
                           </div>
-                          <Input disabled label="Latitude" type="number" step="any" className="rounded-xl py-3 font-medium border-slate-200 opacity-70 cursor-not-allowed bg-slate-100/50" value={formData.latitude || ''} onChange={() => {}} />
-                          <Input disabled label="Longitude" type="number" step="any" className="rounded-xl py-3 font-medium border-slate-200 opacity-70 cursor-not-allowed bg-slate-100/50" value={formData.longitude || ''} onChange={() => {}} />
-                          
-                          <div className="col-span-full h-64 rounded-xl overflow-hidden border border-slate-200 shadow-inner mt-2 z-0">
-                            <MapContainer 
-                              center={[formData.latitude || -23.55052, formData.longitude || -46.63331]} 
-                              zoom={15} 
-                              style={{ height: '100%', width: '100%', zIndex: 0 }}
-                            >
-                              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                              {formData.latitude && formData.longitude && (
-                                <LocationPickerLogic 
-                                  lat={formData.latitude} 
-                                  lng={formData.longitude} 
-                                />
-                              )}
-                            </MapContainer>
+                          <div className="relative">
+                            <Input label={formData.type === 'PJ' ? 'CNPJ' : 'CPF'} required
+                              className={`rounded-xl py-2 text-xs font-medium ${documentDuplicate ? 'border-rose-400 bg-rose-50' : 'border-slate-200'}`}
+                              value={formData.document || ''}
+                              placeholder={formData.type === 'PJ' ? '00.000.000/0000-00' : '000.000.000-00'}
+                              onChange={e => setFormData({ ...formData, document: formData.type === 'PJ' ? formatCNPJ(e.target.value) : formatCPF(e.target.value) })} />
+                            {documentDuplicate && <p className="text-rose-500 text-[10px] font-bold mt-1">⚠️ Cadastrado: {documentDuplicate}</p>}
+                          </div>
+                          <Input label="E-mail" type="email" required icon={<Mail size={14} />} className="rounded-xl py-2 text-xs font-medium border-slate-200" value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} />
+                          <Input label="Telefone" className="rounded-xl py-2 text-xs font-medium border-slate-200" value={formData.phone || ''} onChange={e => setFormData({ ...formData, phone: formatPhone(e.target.value) })} placeholder="(00) 0000-0000" />
+                          <Input label="WhatsApp" icon={<Phone size={14} className="text-emerald-500" />} className="rounded-xl py-2 text-xs font-medium border-slate-200" value={formData.whatsapp || ''} onChange={e => setFormData({ ...formData, whatsapp: formatPhone(e.target.value) })} placeholder="(00) 00000-0000" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* SEÇÃO INFERIOR: ENDEREÇO E MAPA (LADO A LADO 50% / 50%) */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
+                      {/* ESQUERDA: ENDEREÇO & ATENDIMENTO */}
+                      <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 space-y-3 flex flex-col justify-between">
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Endereço & Atendimento</h3>
+                            {loadingZip && (
+                              <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 animate-pulse">
+                                <Loader2 size={12} className="animate-spin" /> Buscando CEP...
+                              </span>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <Input label="CEP" onBlur={handleZipBlur} required className="rounded-xl py-2 text-xs font-medium border-slate-200" value={formData.zip || ''} onChange={e => setFormData({ ...formData, zip: e.target.value })} placeholder="00000-000" />
+                            <Input label="Estado (UF)" className="rounded-xl py-2 text-xs font-medium border-slate-200" value={formData.state || ''} onChange={e => setFormData({ ...formData, state: e.target.value })} />
+                            <Input label="Cidade" className="rounded-xl py-2 text-xs font-medium border-slate-200" value={formData.city || ''} onChange={e => setFormData({ ...formData, city: e.target.value })} />
+                          </div>
+                          <div>
+                            <Input label="Logradouro" className="rounded-xl py-2 text-xs font-medium border-slate-200 w-full" value={formData.address || ''} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="Rua / Avenida / Alameda..." />
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <Input label="Número" required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-medium border-slate-200" value={formData.number || ''} onChange={e => setFormData({ ...formData, number: e.target.value })} placeholder="123" />
+                            <Input label="Bairro" required className="rounded-xl py-2 text-xs font-medium border-slate-200" value={formData.neighborhood || ''} onChange={e => setFormData({ ...formData, neighborhood: e.target.value })} placeholder="Bairro" />
+                          </div>
+                          <div>
+                            <Input label="Complemento / Referência" icon={<Info size={14} />} className="rounded-xl py-2 text-xs font-medium border-slate-200 w-full" value={formData.complement || ''} onChange={e => setFormData({ ...formData, complement: e.target.value })} placeholder="Apto, Sala, Bloco, Ponto de Referência..." />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* DIREITA: MAPA LADO A LADO COM O ENDEREÇO */}
+                      <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 flex flex-col justify-between min-h-[280px] relative overflow-hidden">
+                        <div>
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
+                            <div className="flex items-center gap-2">
+                              <MapPin size={16} className="text-[#1c2d4f]" />
+                              <h3 className="text-xs font-bold text-slate-800 tracking-tight">Geolocalização Exata</h3>
+                            </div>
+                            <span className="text-[9px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              Precisão 3 Metros
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Container do Mapa Leaflet com Invalidator */}
+                        <div className="flex-1 rounded-xl overflow-hidden border border-slate-200 shadow-inner relative min-h-[190px] my-1">
+                          {loadingZip && (
+                            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs z-30 flex flex-col items-center justify-center gap-2 p-4 text-center text-white animate-fade-in">
+                              <Loader2 size={32} className="animate-spin text-emerald-400" />
+                              <p className="text-xs font-bold uppercase tracking-wider text-white">Localizando imóvel no mapa...</p>
+                              <p className="text-[10px] text-emerald-300 font-mono">Buscando CEP e número do imóvel</p>
+                            </div>
+                          )}
+
+                          <MapContainer 
+                            center={[formData.latitude || -23.55052, formData.longitude || -46.63331]} 
+                            zoom={16} 
+                            style={{ height: '100%', width: '100%', minHeight: '190px', zIndex: 0 }}
+                          >
+                            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                            <MapInvalidator />
+                            {formData.latitude && formData.longitude && (
+                              <LocationPickerLogic 
+                                lat={formData.latitude} 
+                                lng={formData.longitude} 
+                              />
+                            )}
+                          </MapContainer>
+                        </div>
+
+                        {/* Lat / Long Badges */}
+                        <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2 rounded-xl border border-slate-100 mt-1">
+                          <div className="flex flex-col">
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Latitude</span>
+                            <span className="text-xs font-mono font-bold text-slate-700">{formData.latitude ? formData.latitude.toFixed(6) : 'Aguardando CEP'}</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Longitude</span>
+                            <span className="text-xs font-mono font-bold text-slate-700">{formData.longitude ? formData.longitude.toFixed(6) : 'Aguardando CEP'}</span>
                           </div>
                         </div>
                       </div>
                     </div>
 
                     {errorMessage && (
-                      <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs font-bold">{errorMessage}</div>
+                      <div className="mt-3 p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs font-bold">{errorMessage}</div>
                     )}
                   </form>
                 )}

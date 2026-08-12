@@ -61,10 +61,17 @@ function extractPhoneNumber(payload: any): string {
   const msgObj = payload.data?.messages?.[0] || payload.data;
   const phoneVal = payload.phone || 
                    payload.chat?.phone || 
+                   payload.chat?.id ||
+                   payload.sender?.phone ||
+                   payload.sender?.id ||
                    payload.message?.chatid || 
+                   payload.remoteJid ||
                    msgObj?.key?.remoteJid || 
+                   msgObj?.remoteJid ||
                    '';
-  return String(phoneVal).replace(/[^0-9]/g, '');
+  // Remove @s.whatsapp.net ou @g.us se presente
+  const cleanPhone = String(phoneVal).split('@')[0];
+  return cleanPhone.replace(/[^0-9]/g, '');
 }
 
 function unwrapMessage(msg: any): any {
@@ -210,7 +217,7 @@ const STATUS_EVENT_TYPES = [
   'DeliveryCallback', 'ReadCallback', 'PlayedCallback',
   'SentCallback', 'MessageStatusCallback', 'PresenceCallback',
   'ConnectedCallback', 'DisconnectedCallback', 'AllUnreadMessagesCallback',
-  'MESSAGE_STATUS', 'CONNECTION_UPDATE'
+  'MESSAGE_STATUS', 'CONNECTION_UPDATE', 'messages_update', 'MESSAGE_UPDATE', 'messages.update', 'MESSAGES_UPDATE'
 ];
 
 // ── Main Handler ──────────────────────────────────────────────────────────────
@@ -353,22 +360,28 @@ serve(async (req: Request) => {
     if (tenantIdParam) {
       const { data } = await supabase
         .from("tenants")
-        .select("id, company_name, trading_name, whatsapp_settings, street, number, complement, neighborhood, city, state, cep")
+        .select("id, company_name, trading_name, cnpj, whatsapp_settings, street, number, complement, neighborhood, city, state, cep")
         .eq("id", tenantIdParam);
       tenants = data;
     } else {
       const { data } = await supabase
         .from("tenants")
-        .select("id, company_name, trading_name, whatsapp_settings, street, number, complement, neighborhood, city, state, cep");
+        .select("id, company_name, trading_name, cnpj, whatsapp_settings, street, number, complement, neighborhood, city, state, cep");
         
       if (data) {
         tenants = data.filter(t => {
           const ws = t.whatsapp_settings as Record<string, any>;
           if (!ws) return false;
+          if (ws.uazapi_instance && instanceId && ws.uazapi_instance.toLowerCase() === instanceId.toLowerCase()) return true;
           if (ws.uazapi_url && instanceId && ws.uazapi_url.includes(instanceId)) return true;
-          if (ws.zapi_instance_id === instanceId) return true;
+          if (ws.zapi_instance_id && instanceId && ws.zapi_instance_id.toLowerCase() === instanceId.toLowerCase()) return true;
           return false;
         });
+
+        // Fallback: se houver apenas 1 tenant no banco com bot ativado, seleciona ele
+        if ((!tenants || tenants.length === 0) && data.length === 1) {
+          tenants = data;
+        }
       }
     }
 
@@ -383,6 +396,17 @@ serve(async (req: Request) => {
     const tenant = tenants[0];
     const settings = tenant.whatsapp_settings as Record<string, any>;
     console.log("[WPP Bot] Tenant:", tenant.company_name, "| bot_enabled:", settings?.bot_enabled);
+
+    // 🛡️ AUTO-HEAL: Se o instanceId recebido for diferente do cadastrado, atualiza no banco automaticamente!
+    if (instanceId && settings && (settings.uazapi_instance !== instanceId || settings.zapi_instance_id !== instanceId)) {
+      console.log(`[WPP Bot] 🔄 Auto-Sync: Atualizando identificador da instância para "${instanceId}"`);
+      const updatedSettings = {
+        ...settings,
+        uazapi_instance: instanceId,
+        zapi_instance_id: instanceId
+      };
+      supabase.from("tenants").update({ whatsapp_settings: updatedSettings }).eq("id", tenant.id).then();
+    }
 
     // ── Verificar se o bot está habilitado
     if (settings.bot_enabled === false || settings.bot_enabled === "false") {
@@ -498,6 +522,7 @@ serve(async (req: Request) => {
         body: JSON.stringify({
           tenant_id: tenant.id,
           tenant_name: tenant.trading_name || tenant.company_name,
+          tenant_cnpj: tenant.cnpj || tenant.document || '',
           tenant_address: `${tenant.street || ''}, ${tenant.number || ''} ${tenant.complement || ''} - ${tenant.neighborhood || ''}, ${tenant.city || ''} - ${tenant.state || ''}, CEP: ${tenant.cep || ''}`.replace(/,\s*,/g, ',').replace(/\s+/g, ' ').trim(),
           settings,
           conversation,

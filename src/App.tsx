@@ -104,8 +104,9 @@ const AppRoutes: React.FC = () => {
                 setSystemNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
               }
             }}
-          /> :
-          <Navigate to="/login" replace />
+          /> : (
+            isInitializing ? null : <Navigate to="/login" replace />
+          )
       } />
 
       {/* LOGIN */}
@@ -119,7 +120,9 @@ const AppRoutes: React.FC = () => {
       <Route path="/reset-password/*" element={<ResetPassword />} />
 
       {/* ROOT REDIRECT */}
-      <Route path="/" element={<Navigate to={auth.isAuthenticated ? "/admin" : "/login"} replace />} />
+      <Route path="/" element={
+        isInitializing ? null : <Navigate to={auth.isAuthenticated ? "/admin" : "/login"} replace />
+      } />
 
       {/* DEFAULT CATCH-ALL */}
       <Route path="*" element={<NotFoundPage />} />

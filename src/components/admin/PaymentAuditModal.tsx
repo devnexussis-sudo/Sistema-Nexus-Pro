@@ -15,6 +15,7 @@ interface PaymentAuditModalProps {
     title: string;
     amount: number;
     discount?: number;
+    grossValue?: number;
     customerName: string;
     customerDocument?: string;
     customerAddress?: string;
@@ -64,14 +65,7 @@ export const PaymentAuditModal: React.FC<PaymentAuditModalProps> = ({
 
   const formatMethodName = (methodStr?: string | null) => {
     if (!methodStr) return 'Não Especificado';
-    const str = String(methodStr).toLowerCase();
-    if (str.includes('pix')) return 'Pix (Mercado Pago)';
-    if (str.includes('boleto') || str.includes('ticket') || str.includes('bolbradesco')) return 'Boleto Bancário';
-    if (str.includes('cart') || str.includes('card') || str.includes('credit') || str.includes('visa') || str.includes('master') || str.includes('elo') || str.includes('amex')) {
-      return 'Cartão de Crédito';
-    }
-    if (str.includes('dinheiro') || str.includes('cash')) return 'Dinheiro / Espécie';
-    return methodStr;
+    return String(methodStr);
   };
 
   const companyName = tenant?.company_name || tenant?.name || tenant?.companyName || 'DUNO NEXUS PRO';
@@ -85,9 +79,53 @@ export const PaymentAuditModal: React.FC<PaymentAuditModalProps> = ({
     window.print();
   };
 
-  const netAmount = Number(item.amount || 0);
-  const discountAmount = Number(item.discount || 0);
-  const grossAmount = netAmount + discountAmount;
+  // ─── Extração Ultra-Resiliente da Discriminação Financeira (100% alinhada à Visão Geral) ──────────────
+  const itemsSum = Array.isArray(orig.items) && orig.items.length > 0
+    ? orig.items.reduce((acc: number, i: any) => acc + (Number(i.total) || (Number(i.unitPrice || i.unit_price || 0) * Number(i.quantity || 1)) || 0), 0)
+    : 0;
+
+  const grossAmount = Number(
+    (item as any).grossValue ||
+    (item as any).grossAmount ||
+    itemsSum ||
+    orig.grossValue ||
+    orig.original_value ||
+    orig.total_value ||
+    orig.totalValue ||
+    item.amount ||
+    (item as any).value ||
+    0
+  );
+
+  const discountType = String(
+    (item as any).billingDiscountType ||
+    (item as any).discountType ||
+    orig.billingDiscountType ||
+    orig.discountType ||
+    orig.discount_type ||
+    'fixed'
+  ).toLowerCase();
+
+  let discountAmount = Number((item as any).discountAmount || 0);
+
+  if (discountAmount <= 0) {
+    const rawDisc = Number((item as any).billingDiscount || item.discount || orig.discount || orig.discount_amount || 0);
+    if (rawDisc > 0) {
+      discountAmount = discountType === 'percent' ? (grossAmount * rawDisc / 100) : rawDisc;
+    }
+  }
+
+  const netAmount = Number(
+    (item as any).netValue ||
+    item.amount ||
+    (item as any).value ||
+    Math.max(0, grossAmount - discountAmount)
+  );
+
+  // Se discountAmount continuar 0 mas o Bruto for maior que o Líquido, infere o desconto pela diferença
+  if (discountAmount <= 0 && grossAmount > netAmount) {
+    discountAmount = grossAmount - netAmount;
+  }
 
   return (
     <>

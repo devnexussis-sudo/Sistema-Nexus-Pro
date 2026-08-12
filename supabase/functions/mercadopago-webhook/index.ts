@@ -3,8 +3,47 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-signature, x-request-id",
 };
+
+/**
+ * Validação de Assinatura HMAC SHA-256 do Mercado Pago (x-signature)
+ * Documentação oficial: https://www.mercadopago.com.br/developers/pt/docs/your-integrations/notifications/webhooks
+ */
+async function verifyMercadoPagoSignature(
+  secretKey: string,
+  dataId: string,
+  requestId: string,
+  ts: string,
+  expectedHash: string
+): Promise<boolean> {
+  if (!secretKey || !dataId || !requestId || !ts || !expectedHash) return false;
+
+  try {
+    const manifest = `id:${dataId};request-id:${requestId};ts:${ts};`;
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(secretKey);
+    const messageData = encoder.encode(manifest);
+
+    const cryptoKey = await crypto.subtle.importKey(
+      "raw",
+      keyData,
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+
+    const signatureBuffer = await crypto.subtle.sign("HMAC", cryptoKey, messageData);
+    const calculatedHash = Array.from(new Uint8Array(signatureBuffer))
+      .map(b => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    return calculatedHash.toLowerCase() === expectedHash.toLowerCase();
+  } catch (err) {
+    console.error("[MP Signature Error]:", err);
+    return false;
+  }
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -23,10 +62,48 @@ serve(async (req) => {
       return new Response("No payment ID", { status: 200, headers: corsHeaders });
     }
 
+    // ── VALIDAÇÃO DE SEGURANÇA HMAC SHA-256 (x-signature) ──────────────────────
+    const xSignature = req.headers.get("x-signature") || "";
+    const xRequestId = req.headers.get("x-request-id") || "";
+
+    let ts = "";
+    let hashV1 = "";
+    if (xSignature) {
+      xSignature.split(",").forEach(part => {
+        const [k, v] = part.split("=").map(s => s.trim());
+        if (k === "ts") ts = v;
+        if (k === "v1") hashV1 = v;
+      });
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
+
+    let webhookSecret = Deno.env.get("MERCADOPAGO_WEBHOOK_SECRET") || "";
+    if (!webhookSecret && tenantId) {
+      const { data: tenantSettings } = await supabaseAdmin
+        .from("tenant_mercadopago_settings")
+        .select("mp_webhook_secret")
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+
+      webhookSecret = tenantSettings?.mp_webhook_secret || "";
+    }
+
+    // Se o webhookSecret estiver configurado (global ou por tenant) E for um aviso automático via webhook
+    if (webhookSecret && xSignature && body.action !== 'manual_check' && body.action !== 'reconcile_all') {
+      const isValid = await verifyMercadoPagoSignature(webhookSecret, String(paymentId), xRequestId, ts, hashV1);
+      if (!isValid) {
+        console.warn("[MP Webhook Edge] Rejeitado: Assinatura x-signature HMAC SHA-256 inválida!");
+        return new Response(
+          JSON.stringify({ error: "Assinatura do Webhook Mercado Pago inválida." }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      console.log("[MP Webhook Edge] 🔒 Assinatura HMAC SHA-256 validada com sucesso!");
+    }
 
     if (body.action === 'reconcile_all') {
       const { data: tenantSettings } = await supabaseAdmin

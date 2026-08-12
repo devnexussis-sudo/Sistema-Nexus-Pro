@@ -442,8 +442,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
 
       // Se a OS foi FINALIZADA ou é um novo protocolo com itens do estoque
-      // Dar baixa no estoque do técnico
-      if (formData.assignedTo && items.some(i => i.fromStock)) {
+      // Dar baixa no estoque do técnico apenas se a OS já estiver concluída.
+      if (formData.assignedTo && items.some(i => i.fromStock) && isCompleted) {
         const orderId = orderResult?.id || initialData?.id;
         if (orderId) {
           for (const item of items) {

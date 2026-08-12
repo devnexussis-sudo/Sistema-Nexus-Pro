@@ -141,7 +141,7 @@ export const IntegrationsPage: React.FC = () => {
         setCustomAccessToken('');
         setCustomAppId('');
       } else {
-        alert('Erro ao salvar credenciais no banco. Tente novamente.');
+        alert('❌ Falha ao salvar as credenciais no banco de dados. Tente novamente.');
       }
     } catch (err: any) {
       console.error('[IntegrationsPage] Erro ao validar token MP:', err);

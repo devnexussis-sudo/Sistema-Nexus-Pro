@@ -405,6 +405,7 @@ export const SettingsPage: React.FC = () => {
         cep: company.zip,
         whatsapp_settings: {
           ...whatsapp,
+          zapi_instance_id: whatsapp.uazapi_instance || whatsapp.zapi_instance_id,
           connected: wppConnected,
         },
         metadata: {

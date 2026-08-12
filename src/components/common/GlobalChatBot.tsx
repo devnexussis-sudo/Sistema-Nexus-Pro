@@ -139,7 +139,7 @@ export const GlobalChatBot: React.FC = () => {
     <div className={`fixed right-4 sm:right-6 flex flex-col items-end print:hidden transition-all duration-300 ${isOpen ? 'z-[9999]' : 'z-[40]'} ${
       isWhatsAppPage 
         ? 'bottom-40 lg:bottom-32' 
-        : 'bottom-20 lg:bottom-6'
+        : (isOpen ? 'bottom-4 lg:bottom-6' : 'bottom-20 lg:bottom-20')
     }`}>
       
       {/* ── JANELA DO CHAT (Aberta) ── */}

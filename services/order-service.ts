@@ -579,17 +579,25 @@ export class OrderService {
                 if (url) signatureUrl = url;
             }
 
-            // Fetch current DB order to preserve existing form_data context
-            const { data: currentOrder } = await supabase.from('orders').select('form_data').eq('id', id).single();
+            // Fetch current DB order to preserve existing form_data and items context
+            const { data: currentOrder } = await supabase.from('orders').select('form_data, items').eq('id', id).single();
             const currentFormData = currentOrder?.form_data || {};
 
+            const existingItems = typeof currentOrder?.items === 'string' 
+                ? JSON.parse(currentOrder.items) 
+                : (currentOrder?.items || (currentFormData as any)?.items || []);
+
+            const finalItems = (details.items && Array.isArray(details.items) && details.items.length > 0)
+                ? details.items
+                : existingItems;
+
             // 3. Process Stock Consumption (only if online and items provided)
-            if (details.items && details.items.length > 0) {
+            if (finalItems && finalItems.length > 0) {
                 const { data: userData } = await supabase.auth.getUser();
                 const uid = userData?.user?.id;
 
                 if (uid) {
-                    for (const item of details.items) {
+                    for (const item of finalItems) {
                         if (item.fromStock && item.stockItemId) {
                             try {
                                 await supabase.rpc('consume_tech_stock', {
@@ -608,7 +616,14 @@ export class OrderService {
             }
 
             // 4. Update DB
-            const itemsValue = details.items?.reduce((acc, i) => acc + (i.total || 0), 0) ?? 0;
+            const itemsValue = finalItems?.reduce((acc: number, i: any) => {
+                const total = Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0;
+                return acc + total;
+            }, 0) ?? 0;
+
+            const formTotal = Number((currentFormData as any)?.totalValue || (currentFormData as any)?.price || 0);
+            const totalOrderValue = itemsValue + formTotal;
+
             const updateData: any = {
                 status: 'CONCLUÍDO',
                 end_date: new Date().toISOString(),
@@ -620,12 +635,13 @@ export class OrderService {
                     completedAt: new Date().toISOString(),
                     clientName: details.clientName,
                     clientDoc: details.clientDoc,
+                    items: finalItems,
                     ...(details.formData || {})
                 },
-                items: details.items || [], // Save items structured list
+                items: finalItems, // Save items structured list
                 signature_url: signatureUrl,
                 video_url: details.videoUrl || null,
-                billing_status: itemsValue > 0 ? 'PENDING' : undefined
+                billing_status: totalOrderValue > 0 ? 'PENDING' : undefined
             };
 
             const { error } = await supabase

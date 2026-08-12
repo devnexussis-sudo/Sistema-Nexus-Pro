@@ -107,12 +107,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     useEffect(() => {
         const checkMpConnection = async () => {
             try {
-                const { data } = await supabase
-                    .from('tenant_mercadopago_settings')
-                    .select('status')
-                    .eq('status', 'active')
-                    .maybeSingle();
-                setIsMpConnected(!!data);
+                const settings = await PaymentService.getMercadoPagoSettings();
+                setIsMpConnected(settings?.status === 'active');
             } catch {
                 setIsMpConnected(false);
             }
@@ -256,36 +252,23 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             storedVal: number,
             discVal: number,
             discType: string,
-            isPaid: boolean,
+            _isPaid?: boolean,
             originalGross?: number
         ) => {
             let grossValue = originalGross && originalGross > 0 ? originalGross : storedVal;
             let discountAmount = 0;
-            let netValue = storedVal;
 
             const cleanDiscType = String(discType || 'fixed').toLowerCase();
 
             if (discVal > 0) {
-                if (isPaid) {
-                    netValue = storedVal;
-                    if (cleanDiscType === 'percent') {
-                        const ratio = (100 - discVal) / 100;
-                        grossValue = ratio > 0 ? netValue / ratio : netValue + discVal;
-                        discountAmount = grossValue - netValue;
-                    } else {
-                        discountAmount = discVal;
-                        grossValue = netValue + discountAmount;
-                    }
+                if (cleanDiscType === 'percent') {
+                    discountAmount = grossValue * (discVal / 100);
                 } else {
-                    if (cleanDiscType === 'percent') {
-                        discountAmount = grossValue * (discVal / 100);
-                        netValue = Math.max(0, grossValue - discountAmount);
-                    } else {
-                        discountAmount = discVal;
-                        netValue = Math.max(0, grossValue - discountAmount);
-                    }
+                    discountAmount = discVal;
                 }
             }
+
+            const netValue = Math.max(0, grossValue - discountAmount);
 
             return {
                 grossValue: Math.round(grossValue * 100) / 100,
@@ -586,6 +569,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         revertUnpaidItems();
     }, [filteredItems]);
 
+    const [isPageChanging, setIsPageChanging] = useState(false);
+
     const paginatedItems = useMemo(() => {
         const start = (currentPage - 1) * ITEMS_PER_PAGE;
         return sortedItems.slice(start, start + ITEMS_PER_PAGE);
@@ -631,7 +616,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         setIsProcessing(true);
         const finalMethod = getPaymentMethodLabel();
         const paidAt = new Date().toISOString();
-        const baseAmount = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal;
+        const targetRawItem = filteredItems.find(i => selectedIds.includes(i.id)) || (selectedItem && selectedIds.includes(selectedItem.id) ? selectedItem : null);
+        const baseAmount = selectedIds.length === 1 ? (targetRawItem?.value || selectedItem?.value || 0) : selectedTotal;
         const discountValue = billingDiscountType === 'percent' ? (baseAmount * billingDiscount / 100) : billingDiscount;
         const finalAmount = Math.max(0, baseAmount - discountValue);
         
@@ -688,17 +674,22 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             return;
                         }
 
+                        const itemBaseVal = Number(item.grossValue || item.original?.total_value || item.original?.totalValue || item.value || 0);
+                        const itemDisc = billingDiscountType === 'percent' ? (itemBaseVal * billingDiscount / 100) : billingDiscount;
+                        const itemAmount = (billingDiscount > 0) ? Math.max(0, Math.round((itemBaseVal - itemDisc) * 100) / 100) : (item.value || finalAmount);
+
                         const res = await PaymentService.createMercadoPagoCharge({
                             itemType: 'ORDER',
                             itemId: item.id,
                             displayId: item.displayId || undefined,
                             title: item.title || 'Ordem de Serviço',
-                            amount: finalAmount,
+                            amount: itemAmount,
                             customerName: item.customerName,
                             customerDocument: customerDoc,
                             paymentMethodType: mpMethod,
                             installments: mpMethod === 'card_link' ? installments : undefined,
-                            expiresAt: (mpMethod === 'boleto' && boletoDueDate) ? boletoDueDate : undefined
+                            expiresAt: (mpMethod === 'boleto' && boletoDueDate) ? boletoDueDate : undefined,
+                            tenantId: item.original?.tenantId || item.original?.tenant_id
                         });
 
                         if (!res.success) {
@@ -720,6 +711,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
                         setMpModalItem({
                             ...item,
+                            value: itemAmount,
                             original: updatedOrder,
                             gatewayPaymentId: res.paymentId,
                             gatewayPixCode: res.pixCopiaECola,
@@ -784,17 +776,22 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             return;
                         }
 
+                        const itemBaseVal = Number(item.grossValue || item.original?.total_value || item.original?.totalValue || item.value || 0);
+                        const itemDisc = billingDiscountType === 'percent' ? (itemBaseVal * billingDiscount / 100) : billingDiscount;
+                        const itemAmount = (billingDiscount > 0) ? Math.max(0, Math.round((itemBaseVal - itemDisc) * 100) / 100) : (item.value || finalAmount);
+
                         const res = await PaymentService.createMercadoPagoCharge({
                             itemType: 'QUOTE',
                             itemId: item.id,
                             displayId: item.displayId || undefined,
                             title: item.title || 'Orçamento',
-                            amount: finalAmount,
+                            amount: itemAmount,
                             customerName: item.customerName,
                             customerDocument: customerDoc,
                             paymentMethodType: mpMethod,
                             installments: mpMethod === 'card_link' ? installments : undefined,
-                            expiresAt: (mpMethod === 'boleto' && boletoDueDate) ? boletoDueDate : undefined
+                            expiresAt: (mpMethod === 'boleto' && boletoDueDate) ? boletoDueDate : undefined,
+                            tenantId: item.original?.tenantId || item.original?.tenant_id
                         });
 
                         if (!res.success) {
@@ -816,6 +813,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
                         setMpModalItem({
                             ...item,
+                            value: itemAmount,
                             original: updatedQuote,
                             gatewayPaymentId: res.paymentId,
                             gatewayPixCode: res.pixCopiaECola,
@@ -1378,12 +1376,12 @@ ${container.innerHTML}
             </div>
 
             {/* 💻 DESKTOP TABLE VIEW */}
-            <div className="bg-white border border-slate-200 rounded-2xl hidden md:flex flex-col overflow-hidden flex-1 min-h-0 shadow-xl shadow-slate-200/30 relative">
-                <div className="flex-1 overflow-auto">
-                    <table className="w-full text-left">
-                        <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md z-10 border-b border-slate-300 shadow-sm font-poppins">
-                            <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center">
-                                <th className="px-3 py-3 w-10 text-center">
+            <div className="bg-white border border-slate-200 rounded-xl hidden md:flex flex-col overflow-hidden flex-1 min-h-0 shadow-sm relative financial-table-container">
+                <div className="flex-1 overflow-x-auto custom-scrollbar">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-md z-10 border-b border-slate-200 shadow-xs font-poppins">
+                            <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">
+                                <th className="px-2 py-2.5 w-8 text-center">
                                     <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-200 text-[#1c2d4f] cursor-pointer" checked={paginatedItems.length > 0 && paginatedItems.every(i => selectedIds.includes(i.id))} onChange={() => { 
                                         const pageIds = paginatedItems.map(i => i.id);
                                         const allSelected = pageIds.every(id => selectedIds.includes(id));
@@ -1394,40 +1392,40 @@ ${container.innerHTML}
                                         }
                                      }} title="Selecionar página atual" />
                                 </th>
-                                <th className="px-4 py-3 cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('displayId')}>
-                                    <div className="flex items-center">Protocolo {getSortIcon('displayId')}</div>
+                                <th className="px-2 py-2.5 cursor-pointer group select-none hover:bg-slate-200/50 transition-colors whitespace-nowrap" onClick={() => requestSort('displayId')}>
+                                    <div className="flex items-center gap-1">Protocolo {getSortIcon('displayId')}</div>
                                 </th>
-                                <th className="px-4 py-3 cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('customerName')}>
-                                    <div className="flex items-center">Cliente {getSortIcon('customerName')}</div>
+                                <th className="px-2 py-2.5 cursor-pointer group select-none hover:bg-slate-200/50 transition-colors" onClick={() => requestSort('customerName')}>
+                                    <div className="flex items-center gap-1">Cliente {getSortIcon('customerName')}</div>
                                 </th>
-                                <th className="px-4 py-3 cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('title')}>
-                                    <div className="flex items-center">Descrição {getSortIcon('title')}</div>
+                                <th className="px-2 py-2.5 cursor-pointer group select-none hover:bg-slate-200/50 transition-colors" onClick={() => requestSort('title')}>
+                                    <div className="flex items-center gap-1">Descrição {getSortIcon('title')}</div>
                                 </th>
-                                <th className="px-4 py-3 cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('technician')}>
-                                    <div className="flex items-center">Técnico {getSortIcon('technician')}</div>
+                                <th className="px-2 py-2.5 cursor-pointer group select-none hover:bg-slate-200/50 transition-colors" onClick={() => requestSort('technician')}>
+                                    <div className="flex items-center gap-1">Técnico {getSortIcon('technician')}</div>
                                 </th>
-                                <th className="px-4 py-3 cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('date')}>
-                                    <div className="flex items-center">Data Ref. {getSortIcon('date')}</div>
+                                <th className="px-2 py-2.5 cursor-pointer group select-none hover:bg-slate-200/50 transition-colors whitespace-nowrap" onClick={() => requestSort('date')}>
+                                    <div className="flex items-center gap-1">Data Ref. {getSortIcon('date')}</div>
                                 </th>
-                                <th className="px-4 py-3 cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('dueDate')}>
-                                    <div className="flex items-center">Vencimento {getSortIcon('dueDate')}</div>
+                                <th className="px-2 py-2.5 cursor-pointer group select-none hover:bg-slate-200/50 transition-colors whitespace-nowrap" onClick={() => requestSort('dueDate')}>
+                                    <div className="flex items-center gap-1">Vencimento {getSortIcon('dueDate')}</div>
                                 </th>
-                                <th className="px-4 py-3 cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('paidAt')}>
-                                    <div className="flex items-center">Pgto {getSortIcon('paidAt')}</div>
+                                <th className="px-2 py-2.5 cursor-pointer group select-none hover:bg-slate-200/50 transition-colors whitespace-nowrap" onClick={() => requestSort('paidAt')}>
+                                    <div className="flex items-center gap-1">Pgto {getSortIcon('paidAt')}</div>
                                 </th>
-                                <th className="px-4 py-3 cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('value')}>
-                                    <div className="flex items-center">Valor {getSortIcon('value')}</div>
+                                <th className="px-2 py-2.5 cursor-pointer group select-none hover:bg-slate-200/50 transition-colors whitespace-nowrap" onClick={() => requestSort('value')}>
+                                    <div className="flex items-center gap-1">Valor {getSortIcon('value')}</div>
                                 </th>
-                                <th className="px-4 py-3 text-center cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('status')}>
-                                    <div className="flex items-center justify-center">Status {getSortIcon('status')}</div>
+                                <th className="px-2 py-2.5 text-center cursor-pointer group select-none hover:bg-slate-200/50 transition-colors whitespace-nowrap" onClick={() => requestSort('status')}>
+                                    <div className="flex items-center justify-center gap-1">Status {getSortIcon('status')}</div>
                                 </th>
-                                <th className="px-4 py-3 text-center">
+                                <th className="px-2 py-2.5 text-center whitespace-nowrap">
                                     <div className="flex items-center justify-center">Ações</div>
                                 </th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {isRefreshing ? (
+                        <tbody key={currentPage} className="divide-y divide-slate-100 animate-fade-in duration-200">
+                            {isRefreshing || isPageChanging ? (
                                 <tr>
                                     <td colSpan={11} className="py-16 text-center">
                                         <div className="flex flex-col items-center gap-3">
@@ -1446,85 +1444,83 @@ ${container.innerHTML}
                             ) : paginatedItems.map(item => (
                                 <tr
                                     key={item.id}
-                                    className={`group hover:bg-[#1c2d4f]/5 transition-all cursor-pointer ${selectedIds.includes(item.id) ? 'bg-[#1c2d4f]/5' : 'bg-white'}`}
+                                    className={`group hover:bg-slate-50 transition-all cursor-pointer ${selectedIds.includes(item.id) ? 'bg-[#1c2d4f]/5' : 'bg-white'}`}
                                     onClick={() => { setDetailTab('overview'); setSelectedItem(item); setEditingDueDate(''); setIsSidebarOpen(true); }}
                                 >
-                                    <td className="px-3 py-2.5 text-center" onClick={e => e.stopPropagation()}>
+                                    <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
                                         <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-300 text-[#1c2d4f] cursor-pointer" checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} />
                                     </td>
-                                    <td className="px-4 py-2.5">
-                                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-lg w-fit whitespace-nowrap ${item.type === 'QUOTE' ? 'bg-[#1c2d4f]/10 text-[#1c2d4f]' : 'bg-slate-100 text-slate-600'}`}>
+                                    <td className="px-2 py-2 whitespace-nowrap">
+                                        <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border w-fit block ${item.type === 'QUOTE' ? 'bg-[#1c2d4f]/10 text-[#1c2d4f] border-[#1c2d4f]/20' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
                                             {getDocLabel(item)}
                                         </span>
                                     </td>
-                                    <td className="px-4 py-2.5">
-                                        <p className="text-[13px] font-medium text-slate-800 truncate max-w-[150px]">{item.customerName}</p>
+                                    <td className="px-2 py-2">
+                                        <p className="text-xs font-bold text-slate-800 truncate max-w-[120px] lg:max-w-[140px] 2xl:max-w-[200px]" title={item.customerName}>{item.customerName}</p>
                                     </td>
-                                    <td className="px-4 py-2.5">
-                                        <p className="text-[12px] text-slate-600 truncate max-w-[180px]">{item.title}</p>
+                                    <td className="px-2 py-2">
+                                        <p className="text-xs text-slate-600 truncate max-w-[130px] lg:max-w-[150px] 2xl:max-w-[220px]" title={item.title}>{item.title}</p>
                                     </td>
-                                    <td className="px-4 py-2.5">
-                                        <span className="text-[12px] text-slate-700 capitalize">{item.technician?.toLowerCase()}</span>
+                                    <td className="px-2 py-2">
+                                        <span className="text-[11px] text-slate-600 truncate max-w-[90px] block capitalize" title={item.technician}>{item.technician?.toLowerCase() || '—'}</span>
                                     </td>
-                                    <td className="px-4 py-2.5">
-                                        <div className="flex flex-col gap-0.5">
-                                            <span className="text-[12px] text-slate-600 whitespace-nowrap">{new Date(item.date).toLocaleDateString('pt-BR')}</span>
-                                            <span className="text-[10px] text-slate-400 tracking-wider">{item.type === 'QUOTE' ? 'Criação' : 'Conclusão'}</span>
+                                    <td className="px-2 py-2 whitespace-nowrap">
+                                        <div className="flex flex-col">
+                                            <span className="text-[11px] text-slate-700 font-medium">{new Date(item.date).toLocaleDateString('pt-BR')}</span>
+                                            <span className="text-[9px] text-slate-400">{item.type === 'QUOTE' ? 'Criação' : 'Conclusão'}</span>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-2.5">
-                                        <div className="flex flex-col gap-0.5">
-                                            <span className="text-[12px] font-medium text-rose-600 whitespace-nowrap">
+                                    <td className="px-2 py-2 whitespace-nowrap">
+                                        <div className="flex flex-col">
+                                            <span className="text-[11px] font-bold text-rose-600">
                                                 {new Date(item.dueDate || item.date).toLocaleDateString('pt-BR')}
                                             </span>
-                                            <span className="text-[10px] text-rose-400 tracking-wider">Prazo</span>
+                                            <span className="text-[9px] text-rose-400">Prazo</span>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-2.5">
-                                        <div className="flex flex-col gap-0.5">
+                                    <td className="px-2 py-2 whitespace-nowrap">
+                                        <div className="flex flex-col">
                                             {item.paidAt ? (
                                                 <>
-                                                    <span className="text-[12px] text-emerald-600 whitespace-nowrap">{new Date(item.paidAt).toLocaleDateString('pt-BR')}</span>
-                                                    <span className="text-[10px] text-emerald-400 tracking-wider">Faturado</span>
+                                                    <span className="text-[11px] font-medium text-emerald-600">{new Date(item.paidAt).toLocaleDateString('pt-BR')}</span>
+                                                    <span className="text-[9px] text-emerald-500">Faturado</span>
                                                 </>
                                             ) : (
-                                                <span className="text-[12px] text-slate-400">—</span>
+                                                <span className="text-[11px] text-slate-300">—</span>
                                             )}
                                         </div>
                                     </td>
-                                    <td className="px-4 py-2.5">
-                                        <div className="flex flex-col gap-0.5">
+                                    <td className="px-2 py-2 whitespace-nowrap">
+                                        <div className="flex flex-col">
                                             {(item.discountAmount && item.discountAmount > 0) ? (
                                                 <>
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span className="text-[15px] font-bold text-emerald-600">
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-xs font-bold text-emerald-600">
                                                             {formatCurrency(item.netValue || item.value)}
                                                         </span>
-                                                        <span className="text-[11px] font-medium text-slate-400 line-through">
+                                                        <span className="text-[9px] text-slate-400 line-through">
                                                             {formatCurrency(item.grossValue)}
                                                         </span>
                                                     </div>
-                                                    <span className="text-[9px] text-rose-600 font-bold uppercase tracking-wider bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200 inline-block w-fit">
-                                                        Desc: -{formatCurrency(item.discountAmount)} {item.billingDiscountType === 'percent' ? `(${item.billingDiscount}%)` : ''}
+                                                    <span className="text-[8px] text-rose-600 font-bold uppercase tracking-wider bg-rose-50 px-1 py-0.5 rounded border border-rose-200 inline-block w-fit">
+                                                        Desc: -{formatCurrency(item.discountAmount)}
                                                     </span>
                                                 </>
                                             ) : (
-                                                <span className="text-[15px] font-bold text-slate-900">
+                                                <span className="text-xs font-bold text-slate-900">
                                                     {formatCurrency(item.netValue || item.value)}
                                                 </span>
                                             )}
                                         </div>
                                     </td>
-                                    <td className="px-4 py-2.5 text-center">
-                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium tracking-wide ${item.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                                    <td className="px-2 py-2 text-center whitespace-nowrap">
+                                        <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${item.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
                                             <span className={`w-1.5 h-1.5 rounded-full ${item.status === 'PAID' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
                                             {item.status === 'PAID' ? 'Faturado' : 'Pendente'}
                                         </div>
                                     </td>
-                                    <td className="px-4 py-2.5 text-center" onClick={e => e.stopPropagation()}>
+                                    <td className="px-2 py-2 text-center whitespace-nowrap" onClick={e => e.stopPropagation()}>
                                         <div className="flex items-center justify-center gap-1">
-
-
                                             <button
                                                 type="button"
                                                 onClick={() => {
@@ -1533,7 +1529,12 @@ ${container.innerHTML}
                                                         id: item.id,
                                                         displayId: getDocLabel(item),
                                                         title: item.title,
-                                                        amount: getItemNetValue(item),
+                                                        amount: (item as any).netValue ?? item.value ?? getItemNetValue(item),
+                                                        grossValue: (item as any).grossValue ?? (item.value + (item.billingDiscount || 0)),
+                                                        discountAmount: (item as any).discountAmount ?? item.billingDiscount ?? 0,
+                                                        netValue: (item as any).netValue ?? item.value,
+                                                        billingDiscount: item.billingDiscount,
+                                                        billingDiscountType: item.billingDiscountType,
                                                         customerName: item.customerName,
                                                         customerDocument: (item as any).customerDocument,
                                                         paymentMethod: (item as any).paymentMethod || (item.original as any)?.payment_method || (item.original as any)?.paymentMethod,
@@ -1547,19 +1548,19 @@ ${container.innerHTML}
                                                     });
                                                     setIsAuditModalOpen(true);
                                                 }}
-                                                className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200"
+                                                className="p-1 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded transition-colors"
                                                 title="Auditoria Gateway"
                                             >
-                                                <ShieldCheck size={15} />
+                                                <ShieldCheck size={14} />
                                             </button>
 
                                             <button
                                                 type="button"
                                                 onClick={() => { setDetailTab('overview'); setSelectedItem(item); setEditingDueDate(''); setIsSidebarOpen(true); }}
-                                                className="p-1.5 text-slate-400 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors border border-transparent hover:border-primary-200"
+                                                className="p-1 text-slate-400 hover:text-primary-700 hover:bg-primary-50 rounded transition-colors"
                                                 title="Ver Detalhes"
                                             >
-                                                <Eye size={15} />
+                                                <Eye size={14} />
                                             </button>
                                         </div>
                                     </td>
@@ -1630,7 +1631,24 @@ ${container.innerHTML}
             </div>
             
             <div className="bg-white border-t border-slate-200">
-                <Pagination currentPage={currentPage} totalPages={totalPages} totalItems={filteredItems.length} itemsPerPage={ITEMS_PER_PAGE} onPageChange={setCurrentPage} />
+                <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={filteredItems.length}
+                    itemsPerPage={ITEMS_PER_PAGE}
+                    onPageChange={(page) => {
+                        setIsPageChanging(true);
+                        setCurrentPage(page);
+                        setTimeout(() => {
+                            setIsPageChanging(false);
+                            const container = document.querySelector('.financial-table-container .overflow-x-auto') || document.querySelector('.financial-table-container');
+                            if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
+                            const scrollableRoot = document.querySelector('.overflow-y-auto.custom-scrollbar');
+                            if (scrollableRoot) scrollableRoot.scrollTo({ top: 0, behavior: 'smooth' });
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }, 200);
+                    }}
+                />
             </div>
 
             {/* MOBILE FAB FOR BATCH ACTIONS */}
@@ -1959,7 +1977,11 @@ ${container.innerHTML}
                                                 <div className="bg-slate-50/50 rounded-lg p-3 border border-slate-100 space-y-3">
                                                     <div>
                                                         <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest mb-0.5">Referência Original</p>
-                                                        <p className="text-xs font-medium text-slate-700">{selectedItem.type === 'QUOTE' ? 'Orçamento Aprovado' : 'Ordem de Serviço Concluída'}</p>
+                                                        <p className="text-xs font-medium text-slate-700">
+                                                            {selectedItem.type === 'QUOTE' 
+                                                                ? ((selectedItem.original?.status === 'APROVADO' || selectedItem.original?.approvedAt) ? 'Orçamento Aprovado' : 'Orçamento Emitido') 
+                                                                : 'Ordem de Serviço Concluída'}
+                                                        </p>
                                                     </div>
                                                     <div className="h-px bg-slate-200" />
                                                     <div>
@@ -1980,15 +2002,37 @@ ${container.innerHTML}
                                             </div>
 
                                             <div className="space-y-3 text-xs pt-1">
-                                                <div className="flex items-start gap-3">
-                                                    <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
-                                                        ✓
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-bold text-slate-800">{selectedItem.type === 'QUOTE' ? 'Orçamento Aprovado' : 'Ordem de Serviço Concluída'}</p>
-                                                        <p className="text-[10px] text-slate-400">{new Date(selectedItem.createdAt).toLocaleString('pt-BR')}</p>
-                                                    </div>
-                                                </div>
+                                                {(() => {
+                                                    const isQuote = selectedItem.type === 'QUOTE';
+                                                    const orig = selectedItem.original || {};
+
+                                                    let stepTitle = '';
+                                                    let stepDate = '';
+
+                                                    if (isQuote) {
+                                                        const isApproved = orig.status === 'APROVADO' || orig.approvedAt || orig.approved_at;
+                                                        stepTitle = isApproved ? 'Orçamento Aprovado pelo Cliente' : 'Orçamento Emitido';
+                                                        const rawDate = orig.approvedAt || orig.approved_at || orig.updatedAt || orig.updated_at || selectedItem.date || selectedItem.createdAt;
+                                                        stepDate = rawDate ? new Date(rawDate).toLocaleString('pt-BR') : '—';
+                                                    } else {
+                                                        const isFinished = orig.status === 'COMPLETED' || orig.finishedAt || orig.finished_at || orig.completedAt || orig.completed_at || orig.endDate || orig.end_date;
+                                                        stepTitle = isFinished ? 'Ordem de Serviço Concluída & Finalizada' : 'Ordem de Serviço Criada';
+                                                        const rawDate = orig.finishedAt || orig.finished_at || orig.completedAt || orig.completed_at || orig.endDate || orig.end_date || orig.updatedAt || orig.updated_at || selectedItem.date || selectedItem.createdAt;
+                                                        stepDate = rawDate ? new Date(rawDate).toLocaleString('pt-BR') : '—';
+                                                    }
+
+                                                    return (
+                                                        <div className="flex items-start gap-3">
+                                                            <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                                                                ✓
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-bold text-slate-800">{stepTitle}</p>
+                                                                <p className="text-[10px] text-slate-400">{stepDate}</p>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
 
                                                 <div className="flex items-start gap-3">
                                                     <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 ${
@@ -2087,7 +2131,12 @@ ${container.innerHTML}
                                                         id: selectedItem.id,
                                                         displayId: getDocLabel(selectedItem),
                                                         title: selectedItem.title,
-                                                        amount: getItemNetValue(selectedItem),
+                                                        amount: (selectedItem as any).netValue ?? selectedItem.value ?? getItemNetValue(selectedItem),
+                                                        grossValue: (selectedItem as any).grossValue ?? (selectedItem.value + (selectedItem.billingDiscount || 0)),
+                                                        discountAmount: (selectedItem as any).discountAmount ?? selectedItem.billingDiscount ?? 0,
+                                                        netValue: (selectedItem as any).netValue ?? selectedItem.value,
+                                                        billingDiscount: selectedItem.billingDiscount,
+                                                        billingDiscountType: selectedItem.billingDiscountType,
                                                         customerName: selectedItem.customerName,
                                                         customerDocument: selectedItem.customerDocument,
                                                         paymentMethod: selectedItem.paymentMethod || selectedItem.original?.payment_method || selectedItem.original?.paymentMethod,

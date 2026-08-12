@@ -1354,7 +1354,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     </div>
                                                     <div className="space-y-1.5">
                                                         <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">{t.common.email}</label>
-                                                        <div className="text-sm text-slate-600 font-medium">{c?.email || 'Não informado'}</div>
+                                                        <div className="text-sm text-slate-600 font-medium break-all">{c?.email || 'Não informado'}</div>
                                                     </div>
                                                     <div className="space-y-1.5">
                                                         <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">{t.common.phone}</label>

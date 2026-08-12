@@ -147,7 +147,7 @@ export const MercadoPagoPaymentModal: React.FC<MercadoPagoPaymentModalProps> = (
     return parseFloat(str) || 0;
   };
 
-  const baseValue = item?.value || 0;
+  const baseValue = parseNumber(customAmount) || item?.value || 0;
   const finalAmount = Math.max(0, Math.round(baseValue * 100) / 100);
 
   if (!isOpen || !item) return null;
@@ -162,18 +162,17 @@ export const MercadoPagoPaymentModal: React.FC<MercadoPagoPaymentModalProps> = (
     setLoadingMethod(paymentMethodType);
     setError(null);
     try {
+      const itemTenantId = (item as any)?.tenantId || (item as any)?.tenant_id || (item as any)?.original?.tenantId || (item as any)?.original?.tenant_id;
       const res = await PaymentService.createMercadoPagoCharge({
         itemType: item.type,
         itemId: item.id,
         displayId: item.displayId || undefined,
         title: item.title || (item.type === 'ORDER' ? 'Ordem de Serviço' : 'Orçamento'),
         amount: finalAmount,
-        originalAmount: baseValue,
-        discountAmount: 0,
-        discountType: 'fixed',
         customerName: item.customerName,
         paymentMethodType,
-        installments: paymentMethodType === 'card_link' ? 12 : undefined
+        installments: paymentMethodType === 'card_link' ? 12 : undefined,
+        tenantId: itemTenantId
       });
 
       if (res.success) {

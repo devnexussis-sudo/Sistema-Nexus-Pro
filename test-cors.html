@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <script>
+        async function testCORS() {
+            try {
+                const res = await fetch('https://api.mercadopago.com/v1/payments', {
+                    method: 'OPTIONS',
+                    headers: { 'Authorization': 'Bearer test' }
+                });
+                console.log("CORS OK:", res.status);
+            } catch (e) {
+                console.error("CORS Error:", e);
+            }
+        }
+        testCORS();
+    </script>
+</body>
+</html>

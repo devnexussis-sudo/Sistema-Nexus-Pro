@@ -9,6 +9,7 @@ import { supabase } from '../../lib/supabase';
 import { DataService } from '../../services/dataService';
 import { CreateOrderModal } from './CreateOrderModal';
 import { ServiceOrder, OrderStatus, OrderPriority } from '../../types';
+import { Pagination } from '../ui/Pagination';
 
 interface ServiceRequest {
   id: string;
@@ -272,6 +273,10 @@ export const SolicitacoesPage: React.FC = () => {
     runTriage();
   }, [viewingReq]);
 
+  const PAGE_SIZE = 10;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isPageChanging, setIsPageChanging] = useState(false);
+
   const pendingCount = requests.filter(r => r.status === 'PENDING').length;
 
   const filtered = requests.filter(r => {
@@ -290,6 +295,13 @@ export const SolicitacoesPage: React.FC = () => {
     }
     return true;
   });
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filter]);
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE) || 1;
+  const pagedRequests = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const handleAccept = (req: ServiceRequest) => {
     setSelectedReq(req);
@@ -513,27 +525,27 @@ export const SolicitacoesPage: React.FC = () => {
       <div className="flex-1 bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden flex flex-col relative os-table-container">
         <div className="overflow-x-auto flex-1 custom-scrollbar">
           <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-50/80 backdrop-blur-md sticky top-0 z-20 border-b border-slate-200 shadow-sm">
-              <tr>
-                <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Ticket</th>
-                <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Status</th>
-                <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">O.S. Atribuída</th>
-                <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Data / Hora</th>
-                <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Cliente</th>
-                <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Equipamento</th>
-                <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Problema Relatado</th>
-                <th className="px-4 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Ações</th>
+            <thead className="bg-slate-100/90 backdrop-blur-md sticky top-0 z-20 border-b border-slate-200 shadow-xs font-poppins">
+              <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">
+                <th className="px-3 py-2.5 whitespace-nowrap">Ticket</th>
+                <th className="px-3 py-2.5 whitespace-nowrap">Status</th>
+                <th className="px-3 py-2.5 whitespace-nowrap">O.S. Atribuída</th>
+                <th className="px-3 py-2.5 whitespace-nowrap">Data / Hora</th>
+                <th className="px-3 py-2.5 min-w-[140px]">Cliente</th>
+                <th className="px-3 py-2.5 min-w-[120px]">Equipamento</th>
+                <th className="px-3 py-2.5 min-w-[180px]">Problema Relatado</th>
+                <th className="px-3 py-2.5 text-center whitespace-nowrap">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
+            <tbody key={currentPage} className="divide-y divide-slate-100 animate-fade-in duration-200">
+              {loading || isPageChanging ? (
                 <tr>
                   <td colSpan={8} className="py-20 text-center">
                     <RefreshCw size={24} className="animate-spin text-primary-400 mx-auto mb-2" />
                     <span className="text-xs font-medium uppercase tracking-widest text-slate-400">Carregando solicitações...</span>
                   </td>
                 </tr>
-              ) : filtered.length > 0 ? filtered.map(req => {
+              ) : pagedRequests.length > 0 ? pagedRequests.map(req => {
                 const isPending = req.status === 'PENDING';
                 const isActing = actionLoading === req.id;
                 return (
@@ -542,89 +554,98 @@ export const SolicitacoesPage: React.FC = () => {
                     onClick={() => setViewingReq(req)}
                     className={`transition-all border-b border-slate-100 hover:border-slate-200 group cursor-pointer ${isPending ? 'bg-amber-50/30' : 'bg-white hover:bg-slate-50'}`}
                   >
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span className="text-[11px] font-mono text-slate-700 font-bold bg-slate-100 border border-slate-200 px-2 py-1 rounded" title="Número do Ticket gerado pelo Bot">
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span className="text-[10px] font-mono text-slate-700 font-bold bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded" title="Número do Ticket gerado pelo Bot">
                         #{req.id.substring(0, 6).toUpperCase()}
                       </span>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-3 py-2 whitespace-nowrap">
                       <StatusBadge status={req.status} />
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-3 py-2 whitespace-nowrap">
                       {req.order_id ? (
                         <OSNumberCell orderId={req.order_id} tenantId={req.tenant_id} />
                       ) : (
                         <span className="text-[11px] text-slate-400 font-medium">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-[11px] text-slate-600 font-medium whitespace-nowrap">
+                    <td className="px-3 py-2 text-[11px] text-slate-600 font-medium whitespace-nowrap">
                       {formatDateDisplay(req.created_at)}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       <div className="flex flex-col">
-                        <span className="text-[12px] font-bold text-slate-800">{req.customer_name || <span className="text-slate-400 font-normal italic">Não identificado</span>}</span>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[10px] text-slate-500 font-mono">{formatPhone(req.phone_number)}</span>
-                          {req.customer_document && <span className="text-[10px] text-slate-500 font-mono bg-slate-100 px-1 py-0.5 rounded">{req.customer_document}</span>}
+                        <span className="text-xs font-bold text-slate-800" title={req.customer_name || 'Não identificado'}>
+                          {req.customer_name || <span className="text-slate-400 font-normal italic">Não identificado</span>}
+                        </span>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <span className="text-[10px] text-slate-500 font-mono whitespace-nowrap">{formatPhone(req.phone_number)}</span>
+                          {req.customer_document && <span className="text-[9px] text-slate-500 font-mono bg-slate-100 px-1 py-0.5 rounded">{req.customer_document}</span>}
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       <div className="flex flex-col">
                         <span className="text-[11px] font-medium text-slate-700">{req.equipment_name || '—'}</span>
-                        {req.equipment_serial && <span className="text-[10px] text-slate-400 mt-0.5 font-mono">SN: {req.equipment_serial}</span>}
+                        {req.equipment_serial && <span className="text-[9px] text-slate-400 font-mono">SN: {req.equipment_serial}</span>}
                       </div>
                     </td>
-                    <td className="px-4 py-3">
-                      <p className="text-[11px] text-slate-600 line-clamp-2 pr-4">{req.problem_description}</p>
+                    <td className="px-3 py-2">
+                      <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed" title={req.problem_description}>{req.problem_description}</p>
                     </td>
-                    <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-3 py-2 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       {isPending ? (
-                        <div className="flex items-center justify-center gap-1.5 transition-opacity opacity-90 group-hover:opacity-100">
+                        <div className="flex items-center justify-center gap-1 transition-opacity opacity-90 group-hover:opacity-100">
                           <button
                             onClick={() => navigate('/admin/whatsapp', { state: { selectedConvId: req.conversation_id } })}
-                            className="p-1.5 px-3 flex items-center gap-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-all shadow-sm text-[10px] font-bold uppercase"
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg border border-transparent hover:border-blue-200 transition-colors"
                             title="Abrir Conversa no WhatsApp"
                           >
-                            <MessageCircle size={14} /> Ver Conversa
+                            <MessageCircle size={15} />
                           </button>
                           
                           {req.customer_id ? (
                             <button
                               onClick={() => handleAccept(req)}
                               disabled={isActing}
-                              className="p-1.5 px-3 flex items-center gap-1.5 text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg border border-emerald-600 transition-all shadow-sm text-[10px] font-bold uppercase"
+                              className="px-2 py-1 flex items-center gap-1 text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs text-[10px] font-bold uppercase transition-colors"
                               title="Aceitar e Abrir OS"
                             >
-                              {isActing ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Aceitar
+                              {isActing ? <RefreshCw size={13} className="animate-spin" /> : <CheckCircle2 size={13} />} Aceitar
                             </button>
                           ) : (
                             <button
                               onClick={() => setViewingReq(req)}
-                              className="p-1.5 px-3 flex items-center gap-1.5 text-amber-700 bg-amber-50 rounded-lg border border-amber-200 transition-all shadow-sm text-[10px] font-bold uppercase hover:bg-amber-100"
+                              className="px-2 py-1 flex items-center gap-1 text-amber-700 bg-amber-50 rounded-lg border border-amber-200 text-[10px] font-bold uppercase hover:bg-amber-100 transition-colors"
                               title="Ver pendências de cadastro"
                             >
-                              <AlertTriangle size={14} className="text-amber-500" /> Triage
+                              <AlertTriangle size={13} className="text-amber-500" /> Triage
                             </button>
                           )}
                           
                           <button
                             onClick={(e) => { e.stopPropagation(); setRejectId(req.id); setRejectReason(''); }}
                             disabled={isActing}
-                            className="p-1.5 px-3 flex items-center gap-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200 transition-all shadow-sm text-[10px] font-bold uppercase"
+                            className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg border border-transparent hover:border-rose-200 transition-colors"
                             title="Rejeitar Solicitação"
                           >
-                            <XCircle size={14} /> Rejeitar
+                            <XCircle size={15} />
                           </button>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-center gap-1.5">
+                        <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={(e) => { e.stopPropagation(); navigate('/admin/whatsapp', { state: { selectedConvId: req.conversation_id } }); }}
-                            className="p-1.5 px-3 flex items-center gap-1.5 text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-all shadow-sm text-[10px] font-bold uppercase"
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                             title="Abrir Conversa no WhatsApp"
                           >
-                            <MessageCircle size={14} /> Conversa
+                            <MessageCircle size={15} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setViewingReq(req); }}
+                            className="p-1.5 text-slate-400 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
+                            title="Ver Detalhes"
+                          >
+                            <Eye size={15} />
                           </button>
                         </div>
                       )}
@@ -645,6 +666,22 @@ export const SolicitacoesPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Paginação Padrão do Sistema */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          itemsPerPage={PAGE_SIZE}
+          onPageChange={(page) => {
+            setIsPageChanging(true);
+            setCurrentPage(page);
+            setTimeout(() => {
+              setIsPageChanging(false);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 200);
+          }}
+        />
       </div>
 
       {/* Reject Modal */}

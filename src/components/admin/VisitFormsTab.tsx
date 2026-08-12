@@ -671,11 +671,11 @@ const EquipmentGroup: React.FC<{
               return (
                 <>
                   <div className="flex items-center gap-2">
-                    <span className="block text-xs font-black text-slate-800 uppercase tracking-widest">{displayName}</span>
-                    {isFinanceiro && <span className="text-[9px] font-semibold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">Financeiro</span>}
-                    {isTecnico && <span className="text-[9px] font-semibold uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">Técnico</span>}
+                    <span className="block text-sm font-semibold text-slate-800 uppercase tracking-wide">{displayName}</span>
+                    {isFinanceiro && <span className="text-[10px] font-medium uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">Financeiro</span>}
+                    {isTecnico && <span className="text-[10px] font-medium uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">Técnico</span>}
                   </div>
-                  <span className="block text-[10px] text-slate-500 font-bold mt-1 tracking-wide uppercase">
+                  <span className="block text-[11px] text-slate-500 font-medium mt-1 tracking-wide uppercase">
                     {groupEntries.length} campo{groupEntries.length !== 1 ? 's' : ''} respondido{groupEntries.length !== 1 ? 's' : ''}
                   </span>
                 </>
@@ -712,8 +712,8 @@ const EquipmentGroup: React.FC<{
 
             return (
               <div key={key} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                  <span className="text-slate-300 font-mono">#{numStr}</span> {label}
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                  <span className="text-slate-400 font-mono text-[10px]">#{numStr}</span> {label}
                 </p>
                 {isMediaArray(val) ? (
                   <div className="flex flex-wrap gap-2 mt-1">
@@ -734,7 +734,7 @@ const EquipmentGroup: React.FC<{
                     ))}
                   </div>
                 ) : (
-                  <div className={`px-3 py-2 rounded-lg border text-[13px] font-semibold ${
+                  <div className={`px-3 py-2 rounded-lg border text-[13px] font-medium ${
                     isPositive ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                     isNegative ? 'bg-rose-50 text-rose-700 border-rose-200' :
                     'bg-slate-50 text-slate-700 border-slate-200'
