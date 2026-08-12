@@ -75,11 +75,16 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
   const [isTechDropdownOpen, setIsTechDropdownOpen] = useState(false);
   const [techSearchQuery, setTechSearchQuery] = useState('');
   const techDropdownRef = React.useRef<HTMLDivElement>(null);
+  const monthDropdownRef = React.useRef<HTMLDivElement>(null);
+  const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
 
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (techDropdownRef.current && !techDropdownRef.current.contains(event.target as Node)) {
         setIsTechDropdownOpen(false);
+      }
+      if (monthDropdownRef.current && !monthDropdownRef.current.contains(event.target as Node)) {
+        setIsMonthDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -152,18 +157,51 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
 
         {/* Navegação de mês — compacta */}
         <div className="flex items-center gap-1 shrink-0">
-          <button onClick={prevMonth} className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-90 shadow-sm">
+          <button onClick={prevMonth} className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-90 shadow-sm shrink-0">
             <ChevronLeft size={14} />
           </button>
-          <div className="px-3 py-1.5 min-w-[108px] text-center bg-white border border-slate-200 rounded-lg shadow-sm">
-            <span className="text-[12px] font-semibold text-slate-800 capitalize block leading-none">
+          <div ref={monthDropdownRef} className="relative px-3 py-1.5 min-w-[108px] text-center bg-white border border-slate-200 rounded-lg shadow-sm hover:border-primary-400 cursor-pointer overflow-visible group shrink-0" onClick={() => setIsMonthDropdownOpen(!isMonthDropdownOpen)}>
+            <span className="text-[12px] font-semibold text-slate-800 capitalize block leading-none group-hover:text-primary-600 transition-colors select-none">
               {format(currentMonth, 'MMMM', { locale: ptBR })}
             </span>
-            <span className="text-[9px] font-medium text-primary-500 uppercase tracking-widest">
+            <span className="text-[9px] font-medium text-primary-500 uppercase tracking-widest select-none">
               {format(currentMonth, 'yyyy')}
             </span>
+            
+            {/* Custom Month Picker Dropdown */}
+            {isMonthDropdownOpen && (
+              <div className="absolute top-[calc(100%+8px)] left-1/2 -translate-x-1/2 w-[220px] bg-white rounded-xl shadow-xl border border-slate-100 p-3 z-[1000] cursor-default" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
+                  <button onClick={() => setCurrentMonth(subMonths(currentMonth, 12))} className="p-1 hover:bg-slate-100 rounded text-slate-500">
+                    <ChevronLeft size={14} />
+                  </button>
+                  <span className="text-xs font-bold text-slate-700">{format(currentMonth, 'yyyy')}</span>
+                  <button onClick={() => setCurrentMonth(addMonths(currentMonth, 12))} className="p-1 hover:bg-slate-100 rounded text-slate-500">
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-1">
+                  {Array.from({ length: 12 }).map((_, i) => {
+                    const monthDate = new Date(currentMonth.getFullYear(), i, 1);
+                    const isSelected = currentMonth.getMonth() === i;
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => {
+                          setCurrentMonth(monthDate);
+                          setIsMonthDropdownOpen(false);
+                        }}
+                        className={`text-[11px] py-1.5 rounded-md capitalize font-bold transition-all ${isSelected ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'}`}
+                      >
+                        {format(monthDate, 'MMM', { locale: ptBR })}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
-          <button onClick={nextMonth} className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-90 shadow-sm">
+          <button onClick={nextMonth} className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-90 shadow-sm shrink-0">
             <ChevronRight size={14} />
           </button>
         </div>

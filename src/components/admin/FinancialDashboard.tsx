@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useI18n } from '../../i18n';
 import { useDialog } from '../../contexts/DialogContext';
-import { flushSync } from 'react-dom';
+import { flushSync, createPortal } from 'react-dom';
 import { ServiceOrder, OrderStatus, User, Quote, Customer } from '../../types';
 import type { DbTenant } from '../../types/database';
 import {
@@ -1668,7 +1668,7 @@ ${container.innerHTML}
 
 
             {/* ── PAINEL DE DETALHES — Idêntico à edição de OS ── */}
-            {isSidebarOpen && selectedItem && (
+            {isSidebarOpen && selectedItem && createPortal(
                 <div
                     className="fixed inset-0 z-[1200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-0 lg:p-4 animate-in fade-in"
                     onClick={() => setIsSidebarOpen(false)}
@@ -2506,8 +2506,7 @@ ${container.innerHTML}
                         </div>
                     </div>
                 </div>
-            )}
-
+            , document.body)}
 
             {/* ── MODAL DE FATURAMENTO (Padrão OS Big Tech) ── */}
             {isInvoiceModalOpen && (

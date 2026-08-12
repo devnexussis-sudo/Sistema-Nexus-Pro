@@ -31,7 +31,7 @@ const SYSTEM_KEYS = new Set([
   'block_date', 'blockDate', 'block_time', 'blockTime', 'impedimentDate', 'impedimentTime',
   'data_hora_impedimento', 'data_impedimento', 'hora_impedimento', 'blocked_date', 'blockedDate',
   'blockPhotoUrls', 'block_photo_urls', 'impedimentResponsible', 'impediment_responsible',
-  'internalNotes', '_internalNotes'
+  'internalNotes', '_internalNotes', 'items', 'materials', 'services', 'costs'
 ]);
 const isSignatureKey = (k: string) =>
   k.toLowerCase().includes('assinatura') || k.toLowerCase().includes('signature') ||
@@ -347,7 +347,7 @@ const VisitContainer: React.FC<{
               const groups: Record<string, typeof entries> = {};
               entries.forEach(([key, val]) => {
                 const match = key.match(/^\[(.*?)\]\s*(?:-|$)/);
-                const groupName = match ? match[1] : 'Relatório de Atendimento';
+                const groupName = match ? match[1] : 'Formulário';
                 if (!groups[groupName]) groups[groupName] = [];
                 groups[groupName].push([key, val]);
               });
@@ -357,7 +357,7 @@ const VisitContainer: React.FC<{
                 const n = name.toLowerCase();
                 if (n.endsWith('financeiro') || n.includes('- financeiro')) return 0;
                 if (n.endsWith('técnico') || n.includes('- técnico') || n.endsWith('tecnico') || n.includes('- tecnico')) return 1;
-                if (n === 'relatório de atendimento') return 99;
+                if (n === 'formulário' || n === 'formulario') return 99;
                 return 50;
               };
               const sortedGroups = Object.entries(groups)

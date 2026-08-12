@@ -27,6 +27,7 @@ import {
     X
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDialog } from '../../contexts/DialogContext';
 import { usePagedQuotes, useTenant } from '../../hooks/nexusHooks';
@@ -637,7 +638,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                 )}
             </div>
 
-            <div className="relative bg-white border border-slate-200 rounded-[2rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0">
+            <div className="relative bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col overflow-hidden flex-1 ring-1 ring-slate-200/80">
                 {/* 🔄 Page Transition Overlay — Big Tech Standard */}
                 {(quotesFetching || isManualSyncing) && !quotesLoading && pagedQuotes.length > 0 && (
                     <div className="absolute inset-0 bg-white/70 backdrop-blur-[2px] z-20 flex items-center justify-center transition-opacity duration-200 animate-fade-in">
@@ -647,10 +648,10 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         </div>
                     </div>
                 )}
-                <div className="hidden md:block flex-1 overflow-auto custom-scrollbar">
-                    <table className="w-full border-separate border-spacing-y-0 text-left">
-                        <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md z-10 text-[11px] font-semibold text-slate-600 border-b border-slate-300 font-poppins">
-                            <tr className="border-b border-slate-200">
+                <div className="hidden md:block flex-1 overflow-auto custom-scrollbar os-table-container">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-md border-b border-slate-200 z-10 shadow-xs font-poppins">
+                            <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">
                                 <th className="px-3 py-2 w-12 text-center text-slate-400">
                                     <input
                                         type="checkbox"
@@ -859,7 +860,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
             </div>
 
             {/* Modal Editor de Orçamento */}
-            {isModalOpen && (
+            {isModalOpen && createPortal(
                 <div className="fixed inset-0 z-[1200] flex items-end md:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 md:p-8 overflow-hidden animate-in fade-in duration-300">
                     <div className="bg-white md:rounded-2xl w-full max-w-6xl h-full md:h-[92vh] shadow-2xl md:border border-slate-200 overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-300">
                         <div className="px-8 py-5 border-b border-slate-200 flex justify-between items-center bg-white">
@@ -1222,10 +1223,10 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         </div>
                     </div>
                 </div>
-            )}
+            , document.body)}
 
             {/* MODAL DE VISUALIZAÇÃO */}
-            {isViewModalOpen && viewQuote && (
+            {isViewModalOpen && viewQuote && createPortal(
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
                     <div className="bg-white rounded-xl w-full max-w-6xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
 
@@ -1586,7 +1587,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         </div>
                     </div>
                 </div>
-            )}
+            , document.body)}
 
             {/* ── HIDDEN PRINT CONTAINER ── */}
             {viewQuote && (

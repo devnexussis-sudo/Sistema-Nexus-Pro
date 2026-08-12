@@ -35,6 +35,10 @@ export interface OrderFilters {
     endDate?: string;
     dateType?: 'scheduled' | 'created' | 'completed';
     search?: string;
+    serviceType?: string;
+    customerId?: string;
+    creatorId?: string;
+    equipmentSerial?: string;
 }
 
 export const getOrdersPage = async (
@@ -76,6 +80,18 @@ export const getOrdersPage = async (
     if (filters.search) {
         // ilike em display_id ou customer_name
         query = query.or(`display_id.ilike.%${filters.search}%,customer_name.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+    }
+    if (filters.serviceType && filters.serviceType !== 'ALL') {
+        query = query.eq('operation_type', filters.serviceType); 
+    }
+    if (filters.customerId && filters.customerId !== 'ALL') {
+        query = query.eq('customer_id', filters.customerId);
+    }
+    if (filters.creatorId && filters.creatorId !== 'ALL') {
+        query = query.eq('created_by', filters.creatorId);
+    }
+    if (filters.equipmentSerial) {
+        query = query.ilike('equipment_serial', `%${filters.equipmentSerial}%`);
     }
 
     if (signal) query = query.abortSignal(signal);

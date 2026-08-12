@@ -49,7 +49,7 @@ import { useI18n } from '../../i18n';
 import { useDialog } from '../../contexts/DialogContext';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { usePagedOrders } from '../../hooks/nexusHooks';
+import { usePagedOrders, useUsers, useServiceTypes, useForms } from '../../hooks/nexusHooks';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useOrderExport } from '../../hooks/useOrderExport';
 import { supabase } from '../../lib/supabase';
@@ -187,7 +187,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [quoteSearch, setQuoteSearch] = useState('');
 
   // ── Server-Side Pagination ─────────────────────────────────────────
-  const { session, isAuthLoading } = useAuth();
+  const { session, isAuthLoading, auth } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [serviceTypes, setServiceTypes] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -198,6 +198,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isTechDropdownOpen, setIsTechDropdownOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [customerFilter, setCustomerFilter] = useState<string>('ALL');
+  const [serviceTypeFilter, setServiceTypeFilter] = useState<string>('ALL');
+  const [creatorFilter, setCreatorFilter] = useState<string>('ALL');
+  const [equipmentSerialFilter, setEquipmentSerialFilter] = useState<string>('');
+
+  // Fetch data for the new filters
+  const { data: usersData = [] } = useUsers(auth?.isAuthenticated ?? false);
+  const { data: serviceTypesData = [] } = useServiceTypes(auth?.isAuthenticated ?? false);
 
   // --- Geofencing State & Computation ---
   const { data: tenant } = useTenant();
@@ -264,16 +271,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const serverFilters = useMemo(() => ({
     status: statusFilter !== 'ALL' ? statusFilter : undefined,
     technicianId: techFilter !== 'ALL' ? techFilter : undefined,
-    search: [
-      searchTerm.trim() || undefined,
-      customerFilter !== 'ALL' ? customerFilter : undefined
-    ].filter(Boolean).join(' ') || undefined,
+    serviceType: serviceTypeFilter !== 'ALL' ? serviceTypeFilter : undefined,
+    customerId: customerFilter !== 'ALL' ? customerFilter : undefined,
+    creatorId: creatorFilter !== 'ALL' ? creatorFilter : undefined,
+    equipmentSerial: equipmentSerialFilter.trim() || undefined,
+    search: searchTerm.trim() || undefined,
     startDate: startDate || undefined,
     endDate: endDate || undefined,
     dateType: dateTypeFilter,
-  }), [statusFilter, techFilter, searchTerm, customerFilter, startDate, endDate, dateTypeFilter]);
+  }), [statusFilter, techFilter, serviceTypeFilter, customerFilter, creatorFilter, equipmentSerialFilter, searchTerm, startDate, endDate, dateTypeFilter]);
 
-  const { auth } = useAuth();
   
   const {
     data: pageResult,
@@ -1182,7 +1189,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               ))}
             </div>
 
-            <div className="flex flex-col gap-1 md:col-span-2 xl:col-span-6">
+            <div className="flex flex-col gap-1 md:col-span-2 xl:col-span-5">
               <label className="text-xs font-medium text-slate-500 px-1">Período</label>
               <div className="flex items-center gap-1 bg-white border border-[#1c2d4f]/20 p-1 rounded-xl shadow-sm h-10 hover:border-[#1c2d4f]/40 transition-colors focus-within:ring-2 focus-within:ring-primary-500/20">
                 <select
@@ -1209,11 +1216,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   onBlur={() => setTimeout(() => setIsStatusDropdownOpen(false), 200)}
                   className="flex items-center justify-between w-full bg-white border border-[#1c2d4f]/20 rounded-xl px-3 h-10 text-xs text-slate-700 hover:border-[#1c2d4f]/40 transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20"
                 >
-                  <div className="flex items-center gap-2">
-                    <Filter size={14} className="text-slate-400" />
-                    <span>{statusFilter === 'ALL' ? 'Todos Status' : statusFilter}</span>
+                  <div className="flex items-center gap-2 truncate pr-1">
+                    <Filter size={14} className="text-slate-400 shrink-0" />
+                    <span className="truncate">{statusFilter === 'ALL' ? 'Todos Status' : statusFilter}</span>
                   </div>
-                  <ChevronDown size={14} className="text-slate-400" />
+                  <ChevronDown size={14} className="text-slate-400 shrink-0" />
                 </button>
                 {isStatusDropdownOpen && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2">
@@ -1236,55 +1243,92 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 )}
               </div>
             </div>
-
-            <div className="flex flex-col gap-1 xl:col-span-2">
-              <label className="text-xs font-medium text-slate-500 px-1">Responsável</label>
-              <div className="relative">
-                <button 
-                  onClick={() => { setIsTechDropdownOpen(!isTechDropdownOpen); setIsStatusDropdownOpen(false); }}
-                  onBlur={() => setTimeout(() => setIsTechDropdownOpen(false), 200)}
-                  className="flex items-center justify-between w-full bg-white border border-[#1c2d4f]/20 rounded-xl px-3 h-10 text-xs text-slate-700 hover:border-[#1c2d4f]/40 transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20"
-                >
-                  <div className="flex items-center gap-2 truncate pr-2">
-                    <UserCheck size={14} className="text-slate-400 shrink-0" />
-                    <span className="truncate">{techFilter === 'ALL' ? 'Técnicos' : (techs.find(t => t.id === techFilter)?.name || 'Técnicos')}</span>
-                  </div>
-                  <ChevronDown size={14} className="text-slate-400 shrink-0" />
-                </button>
-                {isTechDropdownOpen && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2">
-                    <button 
-                      className={`w-full text-left px-2 py-1 text-xs hover:bg-slate-50 transition-colors ${techFilter === 'ALL' ? 'font-medium text-primary-600 bg-primary-50/50' : 'text-slate-600'}`}
-                      onClick={() => { setTechFilter('ALL'); setIsTechDropdownOpen(false); setCurrentPage(1); }}
-                    >
-                      Técnicos
-                    </button>
-                    {techs.map(t => (
-                      <button 
-                        key={t.id} 
-                        className={`w-full text-left px-2 py-1 text-xs hover:bg-slate-50 transition-colors ${techFilter === t.id ? 'font-medium text-primary-600 bg-primary-50/50' : 'text-slate-600'}`}
-                        onClick={() => { setTechFilter(t.id); setIsTechDropdownOpen(false); setCurrentPage(1); }}
-                      >
-                        {t.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
+            <div className="flex flex-col gap-1 xl:col-span-3">
+              <label className="text-xs font-medium text-slate-500 px-1">Técnico</label>
+              <div className="relative filters-searchable-select">
+                <SearchableSelect
+                  options={techs.map(t => ({ id: t.id, name: t.name }))}
+                  value={techFilter === 'ALL' ? '' : techFilter}
+                  onChange={(val) => { setTechFilter(val || 'ALL'); setCurrentPage(1); }}
+                  placeholder="Todos os Técnicos"
+                  searchPlaceholder="Buscar técnico..."
+                  noOptionsText="Nenhum técnico encontrado"
+                />
               </div>
             </div>
 
-            <div className="flex items-end pb-0.5 xl:col-span-2">
-              <button
-                onClick={() => {
-                  setSearchTerm(''); setStatusFilter('ALL'); setTechFilter('ALL'); setCustomerFilter('ALL'); setDateTypeFilter('scheduled');
-                  onDateChange('', '');
-                  setSelectedOrderIds([]);
-                  setCurrentPage(1);
-                }}
-                className="h-10 w-full px-4 text-xs bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-600 rounded-xl transition-colors border border-rose-100 shadow-sm"
-              >
-                Limpar Todos os Filtros
-              </button>
+            <div className="col-span-1 md:col-span-2 xl:col-span-12 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-3 mt-1">
+              <div className="flex flex-col gap-1 xl:col-span-3">
+                <label className="text-xs font-medium text-slate-500 px-1">Cliente</label>
+                <div className="relative filters-searchable-select">
+                  <SearchableSelect
+                    options={customers.map(c => ({ id: c.id, name: `${c.name}${c.document ? ` - ${c.document}` : ''}` }))}
+                    value={customerFilter === 'ALL' ? '' : customerFilter}
+                    onChange={(val) => { setCustomerFilter(val || 'ALL'); setCurrentPage(1); }}
+                    placeholder="Todos os Clientes"
+                    searchPlaceholder="Buscar cliente por nome, CPF ou CNPJ..."
+                    noOptionsText="Nenhum cliente"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1 xl:col-span-3">
+                <label className="text-xs font-medium text-slate-500 px-1">Criador (Abertura)</label>
+                <div className="relative filters-searchable-select">
+                  <SearchableSelect
+                    options={usersData.map(u => ({ id: u.id, name: u.name }))}
+                    value={creatorFilter === 'ALL' ? '' : creatorFilter}
+                    onChange={(val) => { setCreatorFilter(val || 'ALL'); setCurrentPage(1); }}
+                    placeholder="Todos os Usuários"
+                    searchPlaceholder="Buscar criador..."
+                    noOptionsText="Nenhum usuário"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1 xl:col-span-2">
+                <label className="text-xs font-medium text-slate-500 px-1">Modalidade</label>
+                <div className="relative filters-searchable-select">
+                  <SearchableSelect
+                    options={serviceTypesData.map(st => ({ id: st.name, name: st.name }))}
+                    value={serviceTypeFilter === 'ALL' ? '' : serviceTypeFilter}
+                    onChange={(val) => { setServiceTypeFilter(val || 'ALL'); setCurrentPage(1); }}
+                    placeholder="Todas Modalidades"
+                    searchPlaceholder="Buscar modalidade..."
+                    noOptionsText="Nenhuma modalidade"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1 xl:col-span-2">
+                <label className="text-xs font-medium text-slate-500 px-1">Ativo (Série)</label>
+                <div className="relative h-10 bg-white border border-[#1c2d4f]/20 rounded-xl flex items-center px-3 hover:border-[#1c2d4f]/40 transition-all shadow-sm focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-500/20">
+                  <Search size={14} className="text-slate-400 mr-2 shrink-0" />
+                  <input
+                    type="text"
+                    value={equipmentSerialFilter}
+                    onChange={(e) => { setEquipmentSerialFilter(e.target.value); setCurrentPage(1); }}
+                    placeholder="Nº de Série..."
+                    className="w-full h-full bg-transparent border-none outline-none text-xs text-slate-700 placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-end pb-0.5 xl:col-span-2">
+                <button
+                  onClick={() => {
+                    setSearchTerm(''); setStatusFilter('ALL'); setTechFilter('ALL'); setCustomerFilter('ALL'); 
+                    setServiceTypeFilter('ALL'); setCreatorFilter('ALL'); setEquipmentSerialFilter(''); 
+                    setDateTypeFilter('scheduled');
+                    onDateChange('', '');
+                    setSelectedOrderIds([]);
+                    setCurrentPage(1);
+                  }}
+                  className="h-10 w-full px-4 text-xs bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-600 rounded-xl transition-colors border border-rose-100 shadow-sm"
+                >
+                  Limpar Todos
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -2032,8 +2076,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               if (e.target.files) {
                                 const files = Array.from(e.target.files);
                                 const validFiles = files.filter(f => {
-                                  if (f.size > 15 * 1024 * 1024) {
-                                    alert(`O arquivo ${f.name} é muito grande (máx 15MB).`);
+                                  if (f.size > 20 * 1024 * 1024) {
+                                    alert(`O arquivo ${f.name} é muito grande (máx 20MB).`);
                                     return false;
                                   }
                                   if (!f.type.startsWith('image/') && !['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(f.type)) {
