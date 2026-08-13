@@ -183,11 +183,24 @@ export const useStockCategories = (enabled = true) => {
 // 💰 FINANCIAL HOOKS
 // ------------------------------------------------------------------
 
-export const useCombinedFinancials = (enabled = true) => {
+export const useCashFlow = (enabled: boolean = true) => {
     return useQuery('cash_flow', (signal) => FinancialService.getCashFlow(signal as any), {
         enabled,
-        staleTime: 1000 * 60 * 5,
-        keepPreviousData: true
+        staleTime: 60 * 1000
+    });
+};
+
+export const useAccountsPayable = (enabled: boolean = true, filters?: { start?: string, end?: string, status?: string }) => {
+    return useQuery(['accounts_payable', filters], () => FinancialService.getAccountsPayable(filters), {
+        enabled,
+        staleTime: 60 * 1000
+    });
+};
+
+export const usePayableCategories = (enabled: boolean = true) => {
+    return useQuery('payable_categories', () => FinancialService.getPayableCategories(), {
+        enabled,
+        staleTime: 60 * 60 * 1000 // 1 hora
     });
 };
 
@@ -291,6 +304,8 @@ export const NexusQueryClient = {
     invalidateFinancials: () => {
         queryClient.invalidateQueries('cash_flow');
         CacheManager.invalidate('cash_flow');
+        queryClient.invalidateQueries('accounts_payable');
+        CacheManager.invalidate('accounts_payable');
     },
     invalidateContracts: () => {
         queryClient.invalidateQueries('contracts');

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useGroupStore } from '../../store/groupStore';
 
 import {
@@ -775,26 +776,27 @@ export const UserManagement: React.FC = () => {
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
           {activeTab === 'users' ? (
             <table className="w-full border-collapse">
-              <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
-                <tr className="text-[10px] font-bold text-slate-400  tracking-[0.3em] text-center">
-                  <th className="px-4 py-2">administrador / identidade</th>
-                  <th className="px-4 py-2 text-center">status</th>
-                  <th className="px-4 py-2 text-right pr-6">ações</th>
+              <thead className="sticky top-0 bg-slate-50 z-10">
+                <tr className="text-[10px] font-poppins font-bold text-slate-500 tracking-wider uppercase text-center border-b border-slate-200">
+                  <th className="px-6 py-2.5 text-left">Administrador / Identidade</th>
+                  <th className="px-4 py-2.5 text-center">Status</th>
+                  <th className="px-6 py-2.5 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedUsers.length > 0 ? paginatedUsers.map(user => (
-                  <tr key={user.id} className={`bg-white hover:bg-slate-50 transition-all group ${!user.active ? 'opacity-60' : ''}`}>
-                    <td className="px-4 py-3 border-b border-slate-100">
+                  <tr key={user.id} className={`hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0 group ${!user.active ? 'opacity-60' : ''}`}>
+                    <td className="px-6 py-2">
                       <div className="flex items-center gap-4">
                         <div className="shrink-0">
                           <div className="w-10 h-10 rounded-xl border border-slate-200 bg-slate-50 text-slate-400 flex items-center justify-center transition-all group-hover:text-[#1c2d4f] group-hover:bg-white group-hover:border-[#1c2d4f]/20 group-hover:shadow-sm">
                             <Users size={18} />
                           </div>
                         </div>
-                        <div className="truncate">
-                          <p className="text-[11px] text-slate-400 mt-0.5 truncate max-w-[180px]">{user.email}</p>
-                          <p className="text-[9px] font-bold text-slate-500 mt-1 truncate max-w-[180px] uppercase tracking-wider flex items-center gap-1">
+                        <div className="truncate text-left">
+                          <p className="text-[13px] font-bold text-slate-900 truncate max-w-[200px]">{user.name}</p>
+                          <p className="text-[11px] font-bold text-slate-400 mt-0.5 truncate max-w-[200px]">{user.email}</p>
+                          <p className="text-[9px] font-bold text-slate-500 mt-1 truncate max-w-[200px] uppercase tracking-wider flex items-center gap-1">
                             <FolderTree size={10} className="text-slate-400" />
                             {(() => {
                               const groupId = user.groupIds?.[0] || user.groupId;
@@ -806,12 +808,12 @@ export const UserManagement: React.FC = () => {
                       </div>
                     </td>
 
-                    <td className="px-4 py-3 border-b border-slate-100 text-center whitespace-nowrap">
-                      <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold   border transition-all ${user.active ? 'bg-primary-50 text-primary-700 border-primary-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                    <td className="px-4 py-2 text-center whitespace-nowrap">
+                      <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold border transition-all ${user.active ? 'bg-primary-50 text-primary-700 border-primary-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
                         {user.active ? 'Ativo' : 'Inativo'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 border-b border-slate-100 text-right pr-4">
+                    <td className="px-6 py-2 text-right">
                       <div className="flex items-center justify-end gap-1.5 transition-all">
                         <button onClick={() => { setEditingUser(user); setFormData({ ...user, groupIds: user.groupIds || (user.groupId ? [user.groupId] : []) }); setGroupSearch(''); setSaveError(null); setIsModalOpen(true); }} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Editar Usuário">
                           <Edit3 size={16} />
@@ -823,72 +825,76 @@ export const UserManagement: React.FC = () => {
                   <tr>
                     <td colSpan={3} className="py-24 text-center">
                       <Users size={48} className="mx-auto text-slate-200 mb-4" />
-                      <p className="text-[10px] font-bold text-slate-300  italic tracking-[0.2em]">Nenhum usuário localizado</p>
+                      <p className="text-[10px] font-bold text-slate-300 italic tracking-[0.2em]">Nenhum usuário localizado</p>
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           ) : (
-            <div className="w-full flex flex-col h-full">
-              <div className="flex sticky top-0 bg-white/80 backdrop-blur-md z-10 text-[10px] font-bold text-slate-400 tracking-[0.3em] px-4 py-2 border-b border-slate-200 uppercase">
-                <div className="flex-1 text-left">grupo / descrição</div>
-                <div className="w-48 text-center">tipo</div>
-                <div className="w-32 text-right pr-6">ações</div>
-              </div>
-              <div className="flex-1">
+            <table className="w-full border-collapse">
+              <thead className="sticky top-0 bg-slate-50 z-10">
+                <tr className="text-[10px] font-poppins font-bold text-slate-500 tracking-wider uppercase text-center border-b border-slate-200">
+                  <th className="px-6 py-2.5 text-left">Grupo / Descrição</th>
+                  <th className="px-4 py-2.5 text-center">Tipo</th>
+                  <th className="px-6 py-2.5 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
                 {(() => {
                   const filteredGroups = groups.filter(g => g.name.toLowerCase().includes(searchTerm.toLowerCase()) || g.description?.toLowerCase().includes(searchTerm.toLowerCase()));
 
                   return filteredGroups.length > 0 ? (
-                    <div className="flex flex-col w-full pb-8">
-                      {filteredGroups.map((group) => (
-                        <div key={group.id} className="flex items-center px-4 py-3 bg-white hover:bg-slate-50 transition-all group border-b border-slate-100">
-                          <div className="flex-1 flex items-center gap-4">
+                    filteredGroups.map((group) => (
+                      <tr key={group.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0 group">
+                        <td className="px-6 py-2 text-left">
+                          <div className="flex items-center gap-4">
                             <div className="shrink-0">
                               <div className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all ${group.isSystem ? 'bg-amber-50 border-amber-200 text-amber-500' : 'bg-slate-50 border-slate-200 text-slate-400 group-hover:text-[#1c2d4f] group-hover:bg-white group-hover:border-[#1c2d4f]/20'}`}>
                                 {group.isSystem ? <ShieldCheck size={18} /> : <FolderTree size={18} />}
                               </div>
                             </div>
-                            <div className="truncate">
-                              <p className="text-slate-900 tracking-tighter text-[13px] font-medium truncate max-w-[250px]">{group.name}</p>
-                              <p className="text-[11px] text-slate-400 mt-0.5 truncate max-w-[300px]">{group.description}</p>
+                            <div className="truncate text-left">
+                              <p className="text-[13px] font-bold text-slate-900 truncate max-w-[250px]">{group.name}</p>
+                              <p className="text-[11px] font-bold text-slate-400 mt-0.5 truncate max-w-[300px]">{group.description}</p>
                             </div>
                           </div>
-                          <div className="w-48 text-center whitespace-nowrap">
-                            <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold border transition-all ${group.isSystem ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
-                              {group.isSystem ? 'Sistema Protegido' : 'Customizado'}
-                            </span>
-                          </div>
-                          <div className="w-32 text-right pr-4">
-                            <div className="flex items-center justify-end gap-1.5 transition-all">
-                              <button onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Configurar Regras de Acesso">
-                                <Settings size={16} />
+                        </td>
+                        <td className="px-4 py-2 text-center whitespace-nowrap">
+                          <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold border transition-all ${group.isSystem ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                            {group.isSystem ? 'Sistema Protegido' : 'Customizado'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-2 text-right">
+                          <div className="flex items-center justify-end gap-1.5 transition-all">
+                            <button onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Configurar Regras de Acesso">
+                              <Settings size={16} />
+                            </button>
+                            {!group.isSystem && (
+                              <button
+                                onClick={() => setGroupToDelete(group)}
+                                disabled={isSaving}
+                                className="p-2.5 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-90"
+                                title="Excluir Grupo"
+                              >
+                                <Trash2 size={16} />
                               </button>
-                              {!group.isSystem && (
-                                <button
-                                  onClick={() => setGroupToDelete(group)}
-                                  disabled={isSaving}
-                                  className="p-2.5 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-90"
-                                  title="Excluir Grupo"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              )}
-                            </div>
+                            )}
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        </td>
+                      </tr>
+                    ))
                   ) : (
-                    <div className="py-24 text-center">
-                      <FolderTree size={48} className="mx-auto text-slate-200 mb-4" />
-                      <p className="text-[10px] font-bold text-slate-300 italic tracking-[0.2em]">Nenhum grupo localizado</p>
-                    </div>
+                    <tr>
+                      <td colSpan={3} className="py-24 text-center">
+                        <FolderTree size={48} className="mx-auto text-slate-200 mb-4" />
+                        <p className="text-[10px] font-bold text-slate-300 italic tracking-[0.2em]">Nenhum grupo localizado</p>
+                      </td>
+                    </tr>
                   )
                 })()}
-              </div>
-            </div>
+              </tbody>
+            </table>
           )}
         </div>
         {activeTab === 'users' && (
@@ -904,8 +910,8 @@ export const UserManagement: React.FC = () => {
 
       {/* Modal de Usuário */}
       {
-        isModalOpen && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
+        isModalOpen && createPortal(
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
             <form onSubmit={handleSaveUser} className="bg-white rounded-xl w-full max-w-[96vw] h-[92vh] shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up" autoComplete="off">
 
               {/* HEADER — idêntico ao modal de OS */}
@@ -1149,14 +1155,15 @@ export const UserManagement: React.FC = () => {
                 </div>
               </div>
             </form>
-          </div>
+          </div>,
+          document.body
         )
       }
 
       {/* Modal de Grupo */}
       {
-        isGroupModalOpen && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
+        isGroupModalOpen && createPortal(
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
             <form onSubmit={handleSaveGroup} className="bg-white rounded-xl w-full max-w-2xl shadow-2xl border border-slate-200 flex flex-col animate-scale-up max-h-[92vh]">
               <div className="px-8 py-5 border-b border-slate-200 flex justify-between items-center bg-white rounded-t-xl shrink-0">
                 <div className="flex items-center gap-4">
@@ -1249,10 +1256,10 @@ export const UserManagement: React.FC = () => {
                 </div>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )
       }
     </div >
   );
 };
-

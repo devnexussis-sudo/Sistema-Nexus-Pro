@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Bot, Send, User, Sparkles, RefreshCw, BookOpen, Loader2, BrainCircuit, Paperclip, GraduationCap, Database, Search, Trash2, FileText, X, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { KnowledgeEntry } from '../../data/dunoKnowledge';
+import { KnowledgeEntry, findBestMatch } from '../../data/dunoKnowledge';
 import { detectDataIntent, executeDataQuery } from '../../services/dunoQueryService';
 import { analyzeAndDiscover } from '../../services/dunoBrain';
 import { aiKnowledgeService } from '../../services/aiKnowledgeService';
@@ -213,23 +213,40 @@ export const AIAgent: React.FC = () => {
                 response = `Não encontrei informações sobre isso nos manuais e documentos que você enviou. Lembre-se que no **Modo Aprender** eu respondo estritamente com base nos anexos! 📄`;
              }
           } else {
-             // 4️⃣ Modo Assistente: Busca RAG + Fallback Copilot
-             const tenantId = getCurrentTenantId();
-             let kbResponse = null;
-             if (tenantId) {
-                kbResponse = await aiKnowledgeService.searchKnowledge(userMsg.content, tenantId);
-             }
-
-             if (kbResponse) {
-                response = kbResponse;
+             // 4️⃣ Modo Assistente: 1. Manual Fixo -> 2. Varredura Profunda -> 3. RAG PDFs -> 4. LocalStorage
+             
+             // 1. Tenta achar resposta exata no Manual do Sistema (dunoKnowledge.ts)
+             const systemManualRes = findBestMatch(userMsg.content);
+             
+             if (systemManualRes) {
+                response = systemManualRes;
              } else {
-               const learnedRes = searchLearned(userMsg.content);
-               if (learnedRes) {
-                 response = learnedRes.includes(firstName) ? learnedRes : `${firstName}, me ensinaram que: ${learnedRes}`;
-               } else {
-                 const proc = await analyzeAndDiscover(userMsg.content);
-                 response = proc || `Não consegui processar isso agora, ${firstName}. Pode tentar novamente?`;
-               }
+                // 2. Varredura heurística profunda no Cérebro do Sistema (dunoBrain.ts)
+                const proc = await analyzeAndDiscover(userMsg.content);
+                
+                if (proc) {
+                   response = proc;
+                } else {
+                   // 3. Tenta achar no RAG (Manuais de equipamento upados pelo usuário)
+                   const tenantId = getCurrentTenantId();
+                   let kbResponse = null;
+                   if (tenantId) {
+                      kbResponse = await aiKnowledgeService.searchKnowledge(userMsg.content, tenantId);
+                   }
+
+                   if (kbResponse) {
+                      response = kbResponse;
+                   } else {
+                     // 4. Tenta achar no LocalStorage (Aprendizado manual)
+                     const learnedRes = searchLearned(userMsg.content);
+                     if (learnedRes) {
+                       response = learnedRes.includes(firstName) ? learnedRes : `${firstName}, me ensinaram que: ${learnedRes}`;
+                     } else {
+                       // 5. Fallback Final Genérico
+                       response = `🤖 **Duno Copilot — Assistente de Procedimento**\n\nDesculpe ${firstName}, fiz uma varredura completa mas não encontrei informações sobre isso no sistema nem nos seus manuais anexados.\n\n👉 **Dica:** Tente usar verbos claros (ex: "como criar um cliente", "imprimir os", "cadastrar peça").`;
+                     }
+                   }
+                }
              }
           }
         }

@@ -2,7 +2,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
 import { supabase } from '../lib/supabase';
 import { getCurrentTenantId } from '../lib/tenantContext';
-import { KNOWLEDGE_BASE } from '../data/dunoKnowledge';
+import { KNOWLEDGE_BASE, findBestMatch } from '../data/dunoKnowledge';
 import { TenantService } from './tenantService';
 
 // Set the worker source
@@ -471,24 +471,34 @@ export const aiKnowledgeService = {
     // ══════════════════════════════════════════════════════════════
     const bestMatches: any[] = scored.slice(0, 4);
 
-    // Injeção cirúrgica do manual interno (apenas seções relevantes)
-    const searchWords = [...brandWords, ...queryWordsRaw, ...queryKeywords];
-    const relevantManualItems = KNOWLEDGE_BASE.filter(k => {
-      const itemLower = removeAccents(k.response.toLowerCase());
-      const itemKws = k.keywords ? k.keywords.map(kw => removeAccents(kw.toLowerCase())) : [];
-      return searchWords.some(word =>
-        word.length >= 3 && (itemKws.includes(word) || itemLower.includes(word))
-      );
-    });
-
-    if (relevantManualItems.length > 0) {
-      const systemManualText = relevantManualItems.slice(0, 2).map(k => k.response).join('\n\n');
-      bestMatches.push({
-        content: `[MANUAL OFICIAL DO SISTEMA DUNO]\n${systemManualText}`,
-        source_name: 'Manual do Sistema Duno',
-        keywords: ['manual', 'sistema'],
-        score: 999
+    // Injeção cirúrgica do manual interno oficial do Duno
+    const bestSystemMatch = findBestMatch(query);
+    if (bestSystemMatch) {
+      bestMatches.unshift({
+        content: `[MANUAL OFICIAL DO SISTEMA DUNO]\n${bestSystemMatch}`,
+        source_name: 'Manual Oficial do Sistema Duno',
+        keywords: ['manual', 'sistema', 'duno'],
+        score: 9999
       });
+    } else {
+      const searchWords = [...brandWords, ...queryWordsRaw, ...queryKeywords];
+      const relevantManualItems = KNOWLEDGE_BASE.filter(k => {
+        const itemLower = removeAccents(k.response.toLowerCase());
+        const itemKws = k.keywords ? k.keywords.map(kw => removeAccents(kw.toLowerCase())) : [];
+        return searchWords.some(word =>
+          word.length >= 3 && (itemKws.some(kw => kw.includes(word)) || itemLower.includes(word))
+        );
+      });
+
+      if (relevantManualItems.length > 0) {
+        const systemManualText = relevantManualItems.slice(0, 2).map(k => k.response).join('\n\n');
+        bestMatches.unshift({
+          content: `[MANUAL OFICIAL DO SISTEMA DUNO]\n${systemManualText}`,
+          source_name: 'Manual Oficial do Sistema Duno',
+          keywords: ['manual', 'sistema'],
+          score: 999
+        });
+      }
     }
 
     try {

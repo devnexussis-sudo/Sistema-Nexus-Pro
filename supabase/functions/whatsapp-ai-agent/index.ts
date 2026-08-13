@@ -57,7 +57,7 @@ const TOOLS = [
     type: "function",
     function: {
       name: "escalate_to_human",
-      description: "Transfere o atendimento para um atendente humano.",
+      description: "Transfere o atendimento para um atendente humano. Se a empresa estiver fechada, você será instruído a abrir um Ticket.",
       parameters: {
         type: "object",
         properties: {
@@ -228,10 +228,10 @@ async function executeTool(
       case "escalate_to_human": {
         const isOnline = isWithinBusinessHours(settings);
         if (!isOnline) {
-          const outMsg = settings.out_of_office_msg || "Nosso horário de atendimento com humanos é de Seg a Sex das 08h às 18h.";
+          const outMsg = settings.out_of_office_msg || "Nosso horário de atendimento é de Seg a Sex das 08h às 18h.";
           return JSON.stringify({ 
             escalated: false, 
-            message: `ATENÇÃO (Instrução de Sistema): A empresa está FECHADA neste momento e não há humanos disponíveis. Informe o cliente dizendo exatamente isto ou algo similar: "${outMsg}", mas pergunte se você pode ajudar com alguma outra dúvida enquanto isso. NÃO encerre a conversa.` 
+            message: `SISTEMA: A empresa está FECHADA neste momento. INSTRUÇÃO MÁXIMA: 1) Avise o cliente cordialmente ("${outMsg}"). 2) Execute IMEDIATAMENTE a tool 'request_service_order' para gerar um Ticket com a solicitação do cliente (mesmo sem todos os dados), garantindo que a equipe verá no próximo dia útil.` 
           });
         }
         return JSON.stringify({ escalated: true, message: "Atendimento transferido para humano." });
@@ -390,21 +390,16 @@ DIRETRIZES DE COMUNICAÇÃO:
 - Identificação: Você sempre trabalha para a ${tenant_name ?? "empresa"} e deve deixar isso claro de forma sutil quando relevante.
 - Tom: Acolhedor, resolutivo e direto ao ponto. Use pontuação natural de conversas (sem formalidades robóticas). Mostre empatia e garanta que estamos cuidando da solicitação dele.
 - Uso de Emojis: Seja EXTREMAMENTE sensato e contido. Não use emojis em todas as mensagens nem coloque "carinhas" no final das frases de forma automática. Use no máximo 1 emoji apenas se o cliente for muito amigável e o tom da conversa for leve. Se o cliente estiver insatisfeito, crítico, agressivo, ou se o assunto for sério/urgente, NÃO use NENHUM emoji. Mantenha uma postura estritamente profissional e empática.
-- Fora de Horário (FECHADO): Se o Status Atual for FECHADO, é OBRIGATÓRIO avisar o cliente imediatamente que a empresa está fechada. JAMAIS use os termos "equipe humana" ou "atendimento com humanos". Apresente o aviso BEM FORMATADO em linhas separadas e usando negrito (*texto*) no WhatsApp. Exemplo exato de estrutura:
-"Perdão, nosso expediente já encerrou por hoje. Nosso horário de atendimento é:
-*Dias:* ${bDaysStr}
-*Horário:* ${bStart} às ${bEnd}
-
-Mas por favor, me diga o que precisa (ou: vou abrir seu chamado aqui) e assim que a equipe técnica estiver disponível eles entrarão em contato!"
-- Transferência (APENAS SE ABERTO): Se o Status Atual for ABERTO e você precisar transferir, NUNCA diga "transferir para um humano". Diga de forma natural: "Vou passar o seu contato agora mesmo para um de nossos colaboradores dar sequência, só um instante por favor." Se estiver FECHADO, não prometa transferência, apenas aplique a regra de Fora de Horário.
+- Fora de Horário (FECHADO): Se o Status Atual for FECHADO, é OBRIGATÓRIO avisar o cliente imediatamente que a empresa está fechada. JAMAIS use os termos "equipe humana" ou "atendimento com humanos". Apresente o aviso bem formatado (ex: "Nosso horário é de ${bStart} às ${bEnd}"). Além disso, se ele tiver um problema, EXECUTE IMEDIATAMENTE a ferramenta 'request_service_order' para criar um chamado e informe o número do Ticket gerado, dizendo que a equipe verá assim que retornar.
+- Transferência (APENAS SE ABERTO): Se o Status Atual for ABERTO e você precisar transferir, NUNCA diga "transferir para um humano". Diga de forma natural: "Vou passar o seu contato agora mesmo para um de nossos colaboradores dar sequência, só um instante por favor." e execute 'escalate_to_human'. Se estiver FECHADO, não prometa transferência, apenas aplique a regra de Fora de Horário.
 - Encerramento: NUNCA diga que "alguém encerrou" o chat. Diga de forma gentil: "Estou encerrando o seu atendimento por aqui, mas se precisar de mais alguma coisa, é só nos chamar novamente. ${despedida} e muito ${wordObrigado}!"
 
 REGRAS TÉCNICAS (Use as Tools OBRIGATORIAMENTE):
 - O cliente passou CPF, CNPJ ou N. de Série? → Execute 'list_orders'.
 - O cliente passou Nº de OS (ex: 1007, NEX-1007)? → Execute 'get_order_details'.
-- O cliente quer abrir chamado, agendar visita ou relatar problema? → Execute 'request_service_order'. Pegue os dados necessários e tranquilize-o de que a equipe já foi acionada.
+- O cliente quer abrir chamado, agendar visita, relatou um problema ou pediu ajuda técnica? → EXECUTE IMEDIATAMENTE a tool 'request_service_order'. NUNCA prometa "vou abrir um chamado" sem efetivamente acionar a ferramenta no MESMO momento. Colete os dados básicos e já execute a tool!
 - **ATENÇÃO MÁXIMA:** Se você JÁ abriu um chamado/OS nesta conversa e já passou o número do Ticket para o cliente, e na mensagem seguinte ele apenas pedir urgência, adicionar uma observação extra ou agradecer, **NÃO execute 'request_service_order' novamente**. Apenas responda confirmando de forma empática que você já repassou a urgência/observação para a equipe responsável pelo Ticket atual.
-- O cliente quer falar com um atendente, humano, suporte, colaborador ou representante da empresa? → Execute 'escalate_to_human'.
+- O cliente quer falar com um atendente, suporte, ou representante? → Execute 'escalate_to_human'. Se o sistema avisar que está fechado, siga as instruções de criar o ticket imediatamente.
 - IMPORTANTE: Nunca afirme que não encontrou informações antes de de fato executar as ferramentas de busca.
 
 APRESENTAÇÃO DE O.S.:

@@ -325,10 +325,10 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
             <table className="w-full border-separate border-spacing-y-1">
               <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
                 <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center font-poppins">
-                  <th className="px-3 py-1 text-left">equipamento / modelo</th>
-                  <th className="px-3 py-1 text-center hidden md:table-cell">código</th>
+                  <th className="px-3 py-1 text-center hidden md:table-cell w-28">código</th>
+                  <th className="px-3 py-1 text-center">equipamento / modelo</th>
                   <th className="px-3 py-1 text-center whitespace-nowrap hidden md:table-cell">nº de série</th>
-                  <th className="px-3 py-1 hidden md:table-cell">proprietário</th>
+                  <th className="px-3 py-1 text-center hidden md:table-cell">proprietário</th>
                   <th className="px-3 py-1 text-center hidden lg:table-cell">garantia</th>
                   <th className="px-3 py-1 text-right pr-6">{t.common.actions}</th>
                 </tr>
@@ -336,12 +336,17 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
               <tbody>
                 {paginatedItems.map((e: any) => (
                   <tr key={e.id} className="bg-white hover:bg-primary-50/40 transition-all group shadow-sm hover:shadow-md cursor-pointer">
-                    <td className="px-3 py-1 rounded-l-[1.5rem] border border-slate-100 border-r-0 font-bold text-xs max-w-[200px]">
-                      <div className="flex items-center gap-3">
+                    <td className="px-3 py-1 rounded-l-[1.5rem] border border-slate-100 border-r-0 text-center hidden md:table-cell">
+                      <span className="font-mono text-[11px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2.5 py-1 rounded-lg tracking-widest border border-[#1c2d4f]/15">
+                        {formatAssetCode(e.assetCode)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-1 md:rounded-none rounded-l-[1.5rem] border border-slate-100 border-r-0 md:border-y md:border-x-0 font-bold text-xs max-w-[200px]">
+                      <div className="flex items-center justify-center md:justify-start gap-3">
                         <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-primary-400 shadow-inner group-hover:bg-primary-600 group-hover:text-white transition-all shrink-0">
                           <Box size={18} />
                         </div>
-                        <div className="truncate">
+                        <div className="truncate text-left">
                           <p className="text-slate-900 tracking-tight truncate text-[13px] font-medium">{e.model}</p>
                           <p className="text-[11px] text-primary-400 mt-1 truncate">{e.familyName}</p>
                           <div className="md:hidden mt-1 flex flex-col gap-0.5">
@@ -351,13 +356,8 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-1 border-y border-slate-100 text-center hidden md:table-cell">
-                      <span className="font-mono text-[11px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2.5 py-1 rounded-lg tracking-widest border border-[#1c2d4f]/15">
-                        {formatAssetCode(e.assetCode)}
-                      </span>
-                    </td>
                     <td className="px-3 py-1 border-y border-slate-100 text-center font-mono text-[12px] text-slate-500 tracking-tighter whitespace-nowrap hidden md:table-cell">#{e.serialNumber}</td>
-                    <td className="px-3 py-1 border-y border-slate-100 text-[12px] text-slate-600 tracking-tight truncate max-w-[150px] hidden md:table-cell">
+                    <td className="px-3 py-1 border-y border-slate-100 text-center text-[12px] text-slate-600 tracking-tight truncate max-w-[150px] hidden md:table-cell">
                       {customers.find(c => c.id === e.customerId)?.name || e.customerName || 'Não vinculado'}
                     </td>
 

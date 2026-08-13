@@ -202,6 +202,45 @@ export interface FormTemplate {
 }
 
 
+export interface Customer {
+  id: string;
+  name: string;
+  document: string;
+  email: string;
+  phone: string;
+  address: string;
+  type: 'FISICA' | 'JURIDICA';
+  segment: string;
+  tenantId: string;
+}
+
+export interface AccountPayable {
+  id: string;
+  tenantId: string;
+  description: string;
+  supplierName?: string;
+  category: string;
+  amount: number;
+  dueDate: string;
+  paidAt?: string;
+  status: 'PENDING' | 'PAID' | 'CANCELLED';
+  paymentMethod?: string;
+  notes?: string;
+  isRecurring?: boolean;
+  recurrencePeriod?: 'MONTHLY' | 'WEEKLY' | 'YEARLY';
+  parentId?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+}
+
+export interface PayableCategory {
+  id: string;
+  tenantId: string;
+  name: string;
+  color?: string;
+}
+
 export interface Tenant {
   id: string;
   slug: string;

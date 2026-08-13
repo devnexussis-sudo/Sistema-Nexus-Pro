@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw, X, BellRing, Bell, Volume2, ArrowRight, ArrowLeft, Sticker, FileVideo, Mic, FileText, Download, AlertCircle, Plus, Search, Loader2, CheckCircle2 } from 'lucide-react';
+import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw, X, BellRing, Bell, Volume2, ArrowRight, ArrowLeft, Sticker, FileVideo, Mic, FileText, Download, AlertCircle, Plus, Search, Loader2, CheckCircle2, ExternalLink } from 'lucide-react';
 import { Customer } from '../../types';
 import { getCurrentTenantId } from '../../lib/tenantContext';
 
@@ -940,16 +940,25 @@ export const WhatsAppInbox: React.FC = () => {
               <MessageCircle size={18} className="text-emerald-500" />
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-tight font-poppins">WhatsApp Inbox</h2>
             </div>
-            <div 
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider font-poppins ${
-                realtimeOk 
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80 shadow-xs' 
-                  : 'bg-amber-50 text-amber-700 border-amber-200/80 shadow-xs'
-              }`} 
-              title={realtimeOk ? 'Tempo real ativo via WebSocket' : 'Modo Polling ativo (sincronização a cada 3s)'}
-            >
-              <div className={`w-2 h-2 rounded-full ${realtimeOk ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
-              <span>{realtimeOk ? 'Ao Vivo' : 'Polling (3s)'}</span>
+            <div className="flex items-center gap-2">
+              <div 
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider font-poppins ${
+                  realtimeOk 
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80 shadow-xs' 
+                    : 'bg-amber-50 text-amber-700 border-amber-200/80 shadow-xs'
+                }`} 
+                title={realtimeOk ? 'Tempo real ativo via WebSocket' : 'Modo Polling ativo (sincronização a cada 3s)'}
+              >
+                <div className={`w-2 h-2 rounded-full ${realtimeOk ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
+                <span className="hidden sm:inline">{realtimeOk ? 'Ao Vivo' : 'Polling (3s)'}</span>
+              </div>
+              <button
+                onClick={() => window.open('/#/admin/whatsapp?standalone=true', '_blank', 'width=1200,height=800,left=100,top=100')}
+                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100 shadow-sm"
+                title="Abrir em Nova Aba"
+              >
+                <ExternalLink size={14} />
+              </button>
             </div>
           </div>
 
@@ -1578,45 +1587,45 @@ export const WhatsAppInbox: React.FC = () => {
 
       {/* ── Modal de Nova Conversa ── */}
       {isNewChatOpen && (
-        <div className="fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
             {/* Header */}
-            <div className="bg-[#1c2d4f] px-6 py-5 flex items-center justify-between text-white shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-emerald-500/20 border border-emerald-400/30 rounded-2xl flex items-center justify-center text-emerald-400">
-                  <MessageCircle size={22} />
+            <div className="px-6 py-5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center text-[#1c2d4f] border border-slate-200">
+                  <MessageCircle size={18} />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold tracking-tight">Iniciar Nova Conversa</h3>
-                  <p className="text-[11px] text-slate-300">WhatsApp Outbound • Atendimento direto</p>
+                  <h2 className="text-lg font-bold text-slate-900 tracking-tight">Iniciar Nova Conversa</h2>
+                  <p className="text-[10px] font-bold text-slate-400 mt-0.5">WhatsApp Outbound • Atendimento direto</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsNewChatOpen(false)}
-                className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
+                className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
 
             {/* Alternador de Abas */}
-            <div className="p-4 bg-slate-50 border-b border-slate-200 flex gap-2 shrink-0">
+            <div className="p-4 bg-slate-50/50 border-b border-slate-200 flex gap-2 shrink-0">
               <button
                 onClick={() => { setNewChatTab('customer'); setNewChatError(null); }}
-                className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                className={`flex-1 py-2.5 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
                   newChatTab === 'customer'
                     ? 'bg-[#1c2d4f] text-white shadow-md'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                    : 'bg-white text-slate-500 border border-slate-200 hover:text-[#1c2d4f] hover:bg-slate-50'
                 }`}
               >
                 <User size={15} /> Cliente Cadastrado
               </button>
               <button
                 onClick={() => { setNewChatTab('manual'); setNewChatError(null); setSelectedCustomer(null); }}
-                className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                className={`flex-1 py-2.5 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
                   newChatTab === 'manual'
                     ? 'bg-[#1c2d4f] text-white shadow-md'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                    : 'bg-white text-slate-500 border border-slate-200 hover:text-[#1c2d4f] hover:bg-slate-50'
                 }`}
               >
                 <Phone size={15} /> Digitar Número
@@ -1624,7 +1633,7 @@ export const WhatsAppInbox: React.FC = () => {
             </div>
 
             {/* Corpo do Modal */}
-            <div className="p-6 overflow-y-auto space-y-5 flex-1 custom-scrollbar">
+            <div className="p-6 overflow-y-auto space-y-5 flex-1 min-h-0 custom-scrollbar bg-slate-50/30">
               {newChatError && (
                 <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-rose-700 text-xs font-medium animate-in fade-in">
                   <AlertCircle size={18} className="shrink-0 text-rose-500" />
@@ -1763,12 +1772,12 @@ export const WhatsAppInbox: React.FC = () => {
             </div>
 
             {/* Footer Actions */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3 shrink-0">
+            <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-end gap-3 shrink-0">
               <button
                 type="button"
                 onClick={() => setIsNewChatOpen(false)}
                 disabled={startingChat}
-                className="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold rounded-xl transition-all shadow-sm disabled:opacity-50"
+                className="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 hover:text-rose-600 text-slate-500 text-xs font-bold rounded-lg transition-all shadow-sm disabled:opacity-50"
               >
                 Cancelar
               </button>
@@ -1776,7 +1785,7 @@ export const WhatsAppInbox: React.FC = () => {
                 type="button"
                 onClick={handleStartNewChat}
                 disabled={startingChat || (newChatTab === 'customer' && !selectedCustomer) || (newChatTab === 'manual' && !manualPhone.trim())}
-                className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 disabled:opacity-40 disabled:hover:from-emerald-600 disabled:hover:to-teal-600 active:scale-95 cursor-pointer"
+                className="px-6 py-2.5 bg-[#1c2d4f] hover:bg-[#2a4070] text-white text-xs font-bold rounded-lg transition-all shadow-md shadow-[#1c2d4f]/20 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 cursor-pointer"
               >
                 {startingChat ? (
                   <>
@@ -1785,7 +1794,7 @@ export const WhatsAppInbox: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <Send size={15} />
+                    <MessageCircle size={15} />
                     <span>Iniciar Conversa</span>
                   </>
                 )}

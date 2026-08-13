@@ -1092,7 +1092,7 @@ export const SettingsPage: React.FC = () => {
                     {/* ──── NOVOS TOGGLES ──── */}
 
                     {/* Toggle: Check-in Automático */}
-                    <div className="flex items-start gap-4 p-4 bg-emerald-50/60 rounded-2xl border border-emerald-100 group transition-all hover:bg-white hover:shadow-xl col-span-full">
+                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
                       <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.autoCheckin ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
                         <MapPinned size={20} />
                       </div>
@@ -1111,25 +1111,30 @@ export const SettingsPage: React.FC = () => {
                           </button>
                         </div>
                         <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
-                          Quando ativado, o app detecta automaticamente a chegada do técnico ao endereço do cliente (raio de 50 m por 10 minutos) e inicia a OS sem intervenção manual, marcando como "Cheguei no Cliente".
+                          Quando ativado, o app detecta automaticamente a chegada do técnico (raio de 50m) e inicia a OS sem intervenção manual.
                         </p>
                       </div>
                     </div>
 
                     {/* Restringir Execução por Localização */}
-                    <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.requireLocationForExecution ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
-                      <div className="flex items-center justify-between mb-1">
-                        <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">Restringir Execução (300m)</h4>
-                        <button
-                          onClick={() => setParams({ ...params, requireLocationForExecution: !params.requireLocationForExecution })}
-                          className={`w-10 h-5 rounded-full relative transition-colors ${params.requireLocationForExecution ? 'bg-emerald-600' : 'bg-gray-300'}`}
-                        >
-                          <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: params.requireLocationForExecution ? '22px' : '2px' }}></div>
-                        </button>
+                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
+                      <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.requireLocationForExecution ? 'bg-teal-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                        <MapPin size={20} />
                       </div>
-                      <p className={`text-[10px] leading-snug mt-1 ${params.requireLocationForExecution ? 'text-emerald-50' : 'text-gray-500'}`}>
-                        O técnico só conseguirá executar a OS se estiver a menos de 300 metros do cliente (ignorado se o app estiver offline).
-                      </p>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">Restringir Execução (300m)</h4>
+                          <button
+                            onClick={() => setParams({ ...params, requireLocationForExecution: !params.requireLocationForExecution })}
+                            className={`w-10 h-5 rounded-full relative transition-colors ${params.requireLocationForExecution ? 'bg-teal-600' : 'bg-gray-300'}`}
+                          >
+                            <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: params.requireLocationForExecution ? '22px' : '2px' }}></div>
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
+                          O técnico só conseguirá executar a OS se estiver a menos de 300 metros do cliente (ignorado se o app estiver offline).
+                        </p>
+                      </div>
                     </div>
 
                     <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
@@ -1452,20 +1457,25 @@ export const SettingsPage: React.FC = () => {
                     <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">🤖 Configurações do Bot</h3>
                     
                     {/* Bot Enable Toggle */}
-                    <div className={`p-3 rounded-xl shadow-inner transition-colors ${whatsapp.bot_enabled ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
-                      <div className="flex items-center justify-between mb-1">
-                        <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">Bot Ativo</h4>
-                        <button
-                          type="button"
-                          onClick={() => setWhatsapp({ ...whatsapp, bot_enabled: !whatsapp.bot_enabled })}
-                          className={`w-10 h-5 rounded-full relative transition-colors ${whatsapp.bot_enabled ? 'bg-emerald-600' : 'bg-gray-300'}`}
-                        >
-                          <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: whatsapp.bot_enabled ? '22px' : '2px' }}></div>
-                        </button>
+                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
+                      <div className={`p-3 rounded-xl shadow-inner transition-colors ${whatsapp.bot_enabled ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                        <MessageCircle size={20} />
                       </div>
-                      <p className={`text-[10px] leading-snug ${whatsapp.bot_enabled ? 'text-emerald-50' : 'text-gray-500'}`}>
-                        Quando ativado, o bot responde automaticamente as mensagens recebidas no número configurado.
-                      </p>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">Bot Ativo</h4>
+                          <button
+                            type="button"
+                            onClick={() => setWhatsapp({ ...whatsapp, bot_enabled: !whatsapp.bot_enabled })}
+                            className={`w-10 h-5 rounded-full relative transition-colors ${whatsapp.bot_enabled ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                          >
+                            <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: whatsapp.bot_enabled ? '22px' : '2px' }}></div>
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
+                          Quando ativado, o bot responde automaticamente as mensagens recebidas no número configurado.
+                        </p>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1583,17 +1593,6 @@ export const SettingsPage: React.FC = () => {
                             className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-indigo-100 outline-none"
                           />
                         </div>
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Mensagem de Fora de Expediente</label>
-                        <textarea
-                          value={whatsapp.out_of_office_msg}
-                          onChange={e => setWhatsapp({ ...whatsapp, out_of_office_msg: e.target.value })}
-                          rows={2}
-                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-indigo-100 outline-none resize-none"
-                        />
-                        <p className="text-[10px] text-gray-400 mt-1">Essa mensagem é enviada antes de transferir ou continuar, caso o cliente chame um humano fora do horário.</p>
                       </div>
                     </div>
                   </div>

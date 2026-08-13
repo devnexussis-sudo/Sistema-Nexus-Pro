@@ -113,19 +113,32 @@ export const StockManagement: React.FC = () => {
 
     // --- Balance State ---
     const [stagedBalances, setStagedBalances] = useState<Record<string, { newQty: number, item: StockItem }>>({});
-    const [isBalanceReportModalOpen, setIsBalanceReportModalOpen] = useState(false);
+    const [isCountingBalance, setIsCountingBalance] = useState(false);
+    const [isConfirmBalanceModalOpen, setIsConfirmBalanceModalOpen] = useState(false);
+
     const [balanceReports, setBalanceReports] = useState<any[]>([]);
     const [loadingReports, setLoadingReports] = useState(false);
-    const [reportDateFrom, setReportDateFrom] = useState('');
-    const [reportDateTo, setReportDateTo] = useState('');
+    const [reportDateFrom, setReportDateFrom] = useState(() => {
+        const d = new Date();
+        d.setMonth(d.getMonth() - 6);
+        return d.toISOString().split('T')[0];
+    });
+    const [reportDateTo, setReportDateTo] = useState(() => new Date().toISOString().split('T')[0]);
+    const [reportSearchCode, setReportSearchCode] = useState('');
+    const [reportCurrentPage, setReportCurrentPage] = useState(1);
     const [printModalOpen, setPrintModalOpen] = useState(false);
     const [printConfig, setPrintConfig] = useState({ quantity: 1, type: 'a4_maxprint_33', companyName: 'NEXUS PRO' });
 
-    const handleBatchBalanceSave = async () => {
+    const handleBatchBalanceSave = () => {
         const keys = Object.keys(stagedBalances);
         if (keys.length === 0) return;
+        setIsConfirmBalanceModalOpen(true);
+    };
 
-        if (!confirm(`Deseja confirmar o balanço de ${keys.length} item(ns)? Uma auditoria será gerada para o lote.`)) return;
+    const executeBatchBalanceSave = async () => {
+        setIsConfirmBalanceModalOpen(false);
+        const keys = Object.keys(stagedBalances);
+        if (keys.length === 0) return;
 
         const referenceId = 'BALANCO-' + new Date().getTime().toString().slice(-6);
         const user = await DataService.getCurrentUser();
@@ -169,6 +182,8 @@ export const StockManagement: React.FC = () => {
             }
 
             setStagedBalances({});
+            setIsCountingBalance(false);
+            fetchBalanceReports();
             alert('Auditoria de balanço salva com sucesso!');
             loadItems(currentPage, searchTerm, categoryFilter, statusFilter);
             loadMovements();
@@ -202,6 +217,9 @@ export const StockManagement: React.FC = () => {
                 const end = new Date(reportDateTo);
                 end.setHours(23, 59, 59, 999);
                 query = query.lte('created_at', end.toISOString());
+            }
+            if (reportSearchCode) {
+                query = query.ilike('reference_id', `%${reportSearchCode}%`);
             }
 
             const { data, error } = await query;
@@ -255,16 +273,13 @@ export const StockManagement: React.FC = () => {
         }
     };
 
-    const openBalanceReports = () => {
-        setIsBalanceReportModalOpen(true);
-        fetchBalanceReports();
-    };
-
     useEffect(() => {
-        if (isBalanceReportModalOpen) {
+        setReportCurrentPage(1);
+        const timer = setTimeout(() => {
             fetchBalanceReports();
-        }
-    }, [reportDateFrom, reportDateTo, isBalanceReportModalOpen]);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [reportDateFrom, reportDateTo, reportSearchCode]);
 
     const handlePrintBalanceReport = async (report: any) => {
         const printWindow = window.open('', '_blank');
@@ -653,8 +668,10 @@ export const StockManagement: React.FC = () => {
     useEffect(() => {
         if (activeTab === 'balance') {
             setStagedBalances({}); // Clear inputs when entering tab
+            fetchBalanceReports();
+            setIsCountingBalance(false);
         }
-    }, [activeTab, currentPage, searchTerm, categoryFilter]);
+    }, [activeTab]);
 
     // --- Item Handlers ---
     const handleOpenModal = (item?: StockItem) => {
@@ -1031,7 +1048,7 @@ export const StockManagement: React.FC = () => {
 
                 <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-3">
 
-                    {(activeTab === 'items' || activeTab === 'balance') && (
+                    {(activeTab === 'items' || (activeTab === 'balance' && isCountingBalance)) && (
                         <div className="relative flex-1 min-w-[200px] w-full lg:w-auto">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                             <input
@@ -1045,7 +1062,7 @@ export const StockManagement: React.FC = () => {
                     )}
 
                     <div className="flex items-center gap-2 w-full lg:w-auto justify-end shrink-0">
-                        {(activeTab === 'items' || activeTab === 'balance') && (
+                        {(activeTab === 'items' || (activeTab === 'balance' && isCountingBalance)) && (
                             <div className="hidden sm:flex items-center bg-white border border-[#1c2d4f]/20 rounded-xl pl-2 pr-1 h-10 shadow-sm max-w-[160px]">
                                 <Filter size={12} className="text-slate-400 mr-2 shrink-0" />
                                 <select 
@@ -1380,34 +1397,61 @@ export const StockManagement: React.FC = () => {
                                         </button>
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {categories.map(cat => (
-                                            <div key={cat.id} className="p-6 bg-white border border-slate-200 rounded-3xl shadow-sm hover:shadow-md transition-all flex items-center justify-between group">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
-                                                        <Layers size={18} />
-                                                    </div>
-                                                    <div>
-                                                        <h4 className="font-black text-slate-700 uppercase text-xs">{cat.name}</h4>
-                                                        <span className="text-[9px] font-bold text-slate-400 uppercase">{cat.active ? 'Ativo' : 'Inativo'}</span>
-                                                    </div>
-                                                </div>
-                                                <div className="flex gap-2 transition-opacity">
-                                                        <button onClick={(e) => {
-                                                            if (!canEdit('stock')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
-                                                            handleOpenCategoryModal(cat);
-                                                        }} className={`p-3 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95 ${!canEdit('stock') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar">
-                                                            <Edit3 size={16} />
-                                                        </button>
-                                                        <button onClick={(e) => {
-                                                            if (!canDelete('stock')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
-                                                            handleDeleteCategory(cat.id);
-                                                        }} className={`p-3 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-95 ${!canDelete('stock') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Excluir">
-                                                            <Trash2 size={16} />
-                                                        </button>
-                                                </div>
-                                            </div>
-                                        ))}
+                                    <div className="bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col flex-1 ring-1 ring-slate-200/80 stock-table-container">
+                                        <div className="flex-1 overflow-auto custom-scrollbar">
+                                            <table className="w-full border-collapse">
+                                                <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm">
+                                                    <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left">
+                                                        <th className="px-6 py-3 font-semibold">Categoria</th>
+                                                        <th className="px-6 py-3 font-semibold text-center">Status</th>
+                                                        <th className="px-6 py-3 font-semibold text-right pr-6">Gestão</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="animate-fade-in duration-200">
+                                                    {categories.map(cat => (
+                                                        <tr key={cat.id} className="transition-all border-b border-slate-100 group bg-white hover:bg-slate-50">
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100">
+                                                                        <Layers size={14} />
+                                                                    </div>
+                                                                    <span className="text-[12px] font-bold text-slate-800 uppercase tracking-tight">{cat.name}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-4 text-center">
+                                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${cat.active ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                                                                    {cat.active ? 'Ativo' : 'Inativo'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-6 py-4 text-right pr-6">
+                                                                <div className="flex items-center justify-end gap-1.5 transition-opacity">
+                                                                    <Button onClick={(e) => {
+                                                                        if (!canEdit('stock')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                                                                        handleOpenCategoryModal(cat);
+                                                                    }} 
+                                                                    variant="secondary"
+                                                                    size="sm"
+                                                                    className={`p-2 text-primary-600 bg-primary-50 hover:bg-primary-600 hover:text-white rounded-lg border border-primary-200 transition-all ${!canEdit('stock') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
+                                                                    title="Editar">
+                                                                        <Edit3 size={14} />
+                                                                    </Button>
+                                                                    <Button onClick={(e) => {
+                                                                        if (!canDelete('stock')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
+                                                                        handleDeleteCategory(cat.id);
+                                                                    }} 
+                                                                    variant="danger"
+                                                                    size="sm"
+                                                                    className={`p-2 text-rose-400 bg-rose-50 hover:bg-rose-600 hover:text-white rounded-lg border border-transparent hover:border-rose-200 transition-all ${!canDelete('stock') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
+                                                                    title="Excluir">
+                                                                        <Trash2 size={14} />
+                                                                    </Button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
                                 )}
                             </>
@@ -1713,8 +1757,8 @@ export const StockManagement: React.FC = () => {
                         })()}
                         
                         {activeTab === 'balance' && (
-                            <div className="space-y-6 animate-fade-in font-poppins flex flex-col h-full">
-                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0 px-4 sm:px-10 pt-4 sm:pt-10">
+                            <div className="space-y-4 animate-fade-in font-poppins flex flex-col h-full">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0 px-4 sm:px-6 pt-2 sm:pt-4">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 bg-[#1c2d4f] rounded-xl flex items-center justify-center text-white border border-primary-900/20 shadow-sm">
                                             <ClipboardCheck size={20} />
@@ -1727,26 +1771,36 @@ export const StockManagement: React.FC = () => {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-3">
-                                        <Button
-                                            onClick={openBalanceReports}
-                                            variant="secondary"
-                                            className="h-9 px-4 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-2 hover:bg-slate-50 hover:text-slate-900"
-                                        >
-                                            <FileText size={14} /> Relatórios
-                                        </Button>
+                                        {!isCountingBalance ? (
+                                            <Button
+                                                onClick={() => setIsCountingBalance(true)}
+                                                className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-2"
+                                            >
+                                                <Plus size={14} /> Novo Balanço
+                                            </Button>
+                                        ) : (
+                                            <Button
+                                                onClick={() => { setIsCountingBalance(false); setStagedBalances({}); }}
+                                                variant="secondary"
+                                                className="h-9 px-4 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-2 hover:bg-slate-50 hover:text-slate-900"
+                                            >
+                                                <X size={14} /> Cancelar / Voltar
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
                                 
-                                <div className="flex-1 min-h-0 flex flex-col bg-white border-t border-slate-200 mt-2 rounded-b-2xl">
-                                    <div className="overflow-auto custom-scrollbar flex-1">
-                                        <table className="w-full text-left border-collapse min-w-[700px]">
-                                            <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
-                                                <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">
-                                                    <th className="px-6 py-4">Item / Produto</th>
-                                                    <th className="px-6 py-4 text-center">Saldo Sistema</th>
-                                                    <th className="px-6 py-4 text-center">Saldo Físico (Real)</th>
-                                                    <th className="px-6 py-4 text-center">Diferença</th>
-                                                    <th className="px-6 py-4 text-right">Ação</th>
+                                {isCountingBalance ? (
+                                    <div className="flex-1 min-h-0 flex flex-col">
+                                        <div className="flex-1 overflow-auto custom-scrollbar border-t border-slate-200">
+                                            <table className="w-full text-left border-collapse min-w-[700px]">
+                                            <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm">
+                                                <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center">
+                                                    <th className="px-3 py-2 text-left pl-6">Item / Produto</th>
+                                                    <th className="px-3 py-2 text-center">Saldo Sistema</th>
+                                                    <th className="px-3 py-2 text-center">Saldo Físico (Real)</th>
+                                                    <th className="px-3 py-2 text-center">Diferença</th>
+                                                    <th className="px-3 py-2 text-right pr-6">Ação</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
@@ -1868,124 +1922,127 @@ export const StockManagement: React.FC = () => {
                                         </div>
                                     )}
                                 </div>
+                                ) : (
+                                    <div className="flex-1 flex flex-col overflow-y-auto custom-scrollbar border-t border-slate-200">
+                                        <div className="flex items-center gap-3 p-4 shrink-0 bg-white border-b border-slate-200 flex-wrap">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-2">Filtrar Histórico:</span>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <input 
+                                                    type="text"
+                                                    placeholder="Cód. Balanço..."
+                                                    value={reportSearchCode}
+                                                    onChange={e => setReportSearchCode(e.target.value.toUpperCase())}
+                                                    className="bg-slate-50 border border-slate-200 rounded text-[10px] font-bold text-slate-600 outline-none h-[28px] px-2 w-32 placeholder-slate-400 focus:border-[#1c2d4f]/30" 
+                                                />
+                                                <div className="h-4 w-px bg-slate-200 hidden sm:block"></div>
+                                                <input 
+                                                    type="date" 
+                                                    value={reportDateFrom} 
+                                                    onChange={e => setReportDateFrom(e.target.value)} 
+                                                    className="bg-slate-50 border border-slate-200 rounded text-[10px] font-bold text-slate-600 outline-none h-[28px] px-2" 
+                                                />
+                                                <span className="text-[9px] font-black text-slate-400">ATÉ</span>
+                                                <input 
+                                                    type="date" 
+                                                    value={reportDateTo} 
+                                                    onChange={e => setReportDateTo(e.target.value)} 
+                                                    className="bg-slate-50 border border-slate-200 rounded text-[10px] font-bold text-slate-600 outline-none h-[28px] px-2" 
+                                                />
+                                                {(reportDateFrom || reportDateTo || reportSearchCode) && (
+                                                    <button onClick={() => { setReportDateFrom(''); setReportDateTo(''); setReportSearchCode(''); }} className="px-2 text-[9px] font-bold uppercase text-rose-400 hover:text-rose-600">Limpar</button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {loadingReports ? (
+                                            <div className="py-20 text-center">
+                                                <Loader2 size={30} className="mx-auto text-primary-600 animate-spin mb-3" />
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Buscando Relatórios...</p>
+                                            </div>
+                                        ) : balanceReports.length === 0 ? (
+                                            <div className="py-20 text-center flex-1 flex flex-col justify-center items-center">
+                                                <History size={40} className="mx-auto text-slate-300 mb-4" />
+                                                <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Nenhuma auditoria encontrada</p>
+                                            </div>
+                                        ) : (
+                                            <div className="flex-1 flex flex-col overflow-auto">
+                                                <div className="flex-1 min-h-0">
+                                                    <table className="w-full text-left border-collapse">
+                                                        <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm">
+                                                            <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center">
+                                                                <th className="px-4 py-3 text-left pl-6">Referência</th>
+                                                                <th className="px-4 py-3 text-left">Data/Hora</th>
+                                                                <th className="px-4 py-3 text-center">Itens</th>
+                                                                <th className="px-4 py-3 text-left">Responsável</th>
+                                                                <th className="px-4 py-3 text-right pr-6">{t.common.actions}</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100">
+                                                            {balanceReports.slice((reportCurrentPage - 1) * 10, reportCurrentPage * 10).map((report: any, idx: number) => (
+                                                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                                                                <td className="px-4 py-4 whitespace-nowrap">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+                                                                            <ClipboardCheck size={14} />
+                                                                        </div>
+                                                                        <span className="text-xs font-bold text-slate-700">{report.reference_id}</span>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-4 py-4 whitespace-nowrap">
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-xs font-bold text-slate-800">{new Date(report.created_at).toLocaleDateString('pt-BR')}</span>
+                                                                        <span className="text-[10px] text-slate-500">às {new Date(report.created_at).toLocaleTimeString('pt-BR')}</span>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-4 py-4 text-center whitespace-nowrap">
+                                                                    <span className="inline-flex items-center justify-center px-2 py-1 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600 min-w-[24px]">
+                                                                        {report.items.length}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-4 py-4 whitespace-nowrap">
+                                                                    <span className="text-xs font-medium text-slate-600">{report.executor || 'Sistema'}</span>
+                                                                </td>
+                                                                <td className="px-4 py-4 text-right whitespace-nowrap">
+                                                                    <div className="flex justify-end gap-2">
+                                                                        <button
+                                                                            onClick={() => handlePrintBalanceReport(report)}
+                                                                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] uppercase rounded-lg transition-colors flex items-center gap-1.5"
+                                                                        >
+                                                                            <Printer size={12} /> PDF
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleExportExcelBalance(report)}
+                                                                            className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-[10px] uppercase rounded-lg transition-colors flex items-center gap-1.5"
+                                                                        >
+                                                                            <FileText size={12} /> Excel
+                                                                        </button>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                                </div>
+                                                {Math.ceil(balanceReports.length / 10) > 1 && (
+                                                    <div className="p-4 border-t border-slate-100 shrink-0 bg-white">
+                                                        <Pagination
+                                                            currentPage={reportCurrentPage}
+                                                            totalPages={Math.ceil(balanceReports.length / 10)}
+                                                            totalItems={balanceReports.length}
+                                                            itemsPerPage={10}
+                                                            onPageChange={setReportCurrentPage}
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
                 )}
             </div>
-
-            {/* BALANCE REPORTS MODAL */}
-            {isBalanceReportModalOpen && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
-                    <div className="bg-white rounded-xl w-full max-w-4xl h-full lg:h-auto lg:max-h-[85vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
-                        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0 flex-wrap gap-4">
-                            <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center text-slate-400">
-                                    <FileText size={20} />
-                                </div>
-                                <div>
-                                    <h2 className="text-base font-semibold text-slate-900 font-poppins">Relatórios de Auditoria de Balanço</h2>
-                                    <p className="text-xs text-slate-500 font-medium mt-0.5">Histórico completo de contagens físicas</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1">
-                                    <input 
-                                        type="date" 
-                                        value={reportDateFrom} 
-                                        onChange={e => setReportDateFrom(e.target.value)} 
-                                        className="bg-transparent text-[10px] font-bold text-slate-600 outline-none h-[28px]" 
-                                    />
-                                    <span className="text-[9px] font-black text-slate-400">ATÉ</span>
-                                    <input 
-                                        type="date" 
-                                        value={reportDateTo} 
-                                        onChange={e => setReportDateTo(e.target.value)} 
-                                        className="bg-transparent text-[10px] font-bold text-slate-600 outline-none h-[28px]" 
-                                    />
-                                    {(reportDateFrom || reportDateTo) && (
-                                        <button onClick={() => { setReportDateFrom(''); setReportDateTo(''); }} className="px-2 text-[9px] font-bold uppercase text-rose-400 hover:text-rose-600">Limpar</button>
-                                    )}
-                                </div>
-                                <Button variant="ghost" onClick={() => setIsBalanceReportModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900">
-                                    <X size={20} />
-                                </Button>
-                            </div>
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
-                            {loadingReports ? (
-                                <div className="py-20 text-center">
-                                    <Loader2 size={30} className="mx-auto text-primary-600 animate-spin mb-3" />
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Buscando Relatórios...</p>
-                                </div>
-                            ) : balanceReports.length === 0 ? (
-                                <div className="py-20 text-center bg-white border border-slate-200 rounded-2xl shadow-sm">
-                                    <History size={40} className="mx-auto text-slate-300 mb-4" />
-                                    <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Nenhuma auditoria encontrada</p>
-                                </div>
-                            ) : (
-                                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="bg-slate-50 border-b border-slate-200">
-                                                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Referência</th>
-                                                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Data/Hora</th>
-                                                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Itens</th>
-                                                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Responsável</th>
-                                                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.common.actions}</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {balanceReports.map((report: any, idx: number) => (
-                                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                                                    <td className="px-4 py-4 whitespace-nowrap">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
-                                                                <ClipboardCheck size={14} />
-                                                            </div>
-                                                            <span className="text-xs font-bold text-slate-700">{report.reference_id}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-4 whitespace-nowrap">
-                                                        <div className="flex flex-col">
-                                                            <span className="text-xs font-bold text-slate-800">{new Date(report.created_at).toLocaleDateString('pt-BR')}</span>
-                                                            <span className="text-[10px] text-slate-500">às {new Date(report.created_at).toLocaleTimeString('pt-BR')}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-4 text-center whitespace-nowrap">
-                                                        <span className="inline-flex items-center justify-center px-2 py-1 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600 min-w-[24px]">
-                                                            {report.items.length}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-4 py-4 whitespace-nowrap">
-                                                        <span className="text-xs font-medium text-slate-600">{report.executor || 'Sistema'}</span>
-                                                    </td>
-                                                    <td className="px-4 py-4 text-right whitespace-nowrap">
-                                                        <div className="flex justify-end gap-2">
-                                                            <button
-                                                                onClick={() => handlePrintBalanceReport(report)}
-                                                                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] uppercase rounded-lg transition-colors flex items-center gap-1.5"
-                                                            >
-                                                                <Printer size={12} /> PDF
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleExportExcelBalance(report)}
-                                                                className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-[10px] uppercase rounded-lg transition-colors flex items-center gap-1.5"
-                                                            >
-                                                                <FileText size={12} /> Excel
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* RESTOCK MODAL */}
             {isRestockModalOpen && (
@@ -2709,6 +2766,46 @@ export const StockManagement: React.FC = () => {
                                 {transferData.direction === 'transfer' ? 'Confirmar Transferência' : 'Confirmar Devolução'}
                             </Button>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Confirm Balance */}
+            {isConfirmBalanceModalOpen && (
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
+                    <div className="bg-white rounded-xl w-full max-w-sm shadow-2xl overflow-hidden animate-scale-up border border-slate-200 flex flex-col max-h-[90vh]">
+                        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
+                            <h2 className="text-base font-semibold text-slate-900 font-poppins flex items-center gap-3">
+                                <ClipboardCheck className="text-emerald-600" size={20} /> Confirmar Balanço
+                            </h2>
+                            <button type="button" onClick={() => setIsConfirmBalanceModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all rounded-lg shrink-0">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6 text-center space-y-4">
+                            <div className="w-16 h-16 bg-emerald-50 border border-emerald-100 rounded-full flex items-center justify-center mx-auto text-emerald-500 mb-2">
+                                <AlertTriangle size={32} />
+                            </div>
+                            <p className="text-sm font-medium text-slate-600 leading-relaxed">
+                                Deseja confirmar o balanço de <strong className="text-slate-900 font-black">{Object.keys(stagedBalances).length}</strong> item(ns)?<br/><br/>
+                                <span className="text-xs text-slate-400 uppercase tracking-widest font-bold">Uma auditoria será gerada para este lote.</span>
+                            </p>
+                        </div>
+                        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center gap-3 shrink-0">
+                            <Button 
+                                onClick={() => setIsConfirmBalanceModalOpen(false)} 
+                                variant="secondary" 
+                                className="flex-1 bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 shadow-sm text-xs font-bold"
+                            >
+                                Cancelar
+                            </Button>
+                            <Button 
+                                onClick={executeBatchBalanceSave} 
+                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 text-xs font-bold flex items-center justify-center gap-2"
+                            >
+                                <Save size={16} /> Confirmar
+                            </Button>
+                        </div>
                     </div>
                 </div>
             )}

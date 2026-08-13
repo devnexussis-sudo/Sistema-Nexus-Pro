@@ -42,7 +42,7 @@ export function useQuery<T>(
     queryFn: (signal: AbortSignal) => Promise<T>,
     options: QueryOptions<T> & { keepPreviousData?: boolean } = {}
 ): QueryResult<T> {
-    const key = Array.isArray(queryKey) ? queryKey.join(':') : queryKey;
+    const key = Array.isArray(queryKey) ? queryKey.map(k => typeof k === 'object' ? JSON.stringify(k) : k).join(':') : queryKey;
 
     const {
         enabled = true,

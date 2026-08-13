@@ -352,6 +352,71 @@ export const CONSCIOUSNESS_BASE: KnowledgeNode[] = [
       "src/components/admin/SystemSettings.tsx",
       "src/components/layout/AdminLayout.tsx"
     ]
+  },
+  {
+    title: "Triagem de WhatsApp, Solicitações de Atendimento e Caixa de Entrada",
+    category: "workflow",
+    keywords: [
+      'whatsapp bot', 'bot do zap', 'robo whatsapp', 'atendimento automatico', 
+      'solicitacao de atendimento', 'triagem', 'aprovar solicitacao', 'rejeitar solicitacao', 'inbox'
+    ],
+    description: "Configuração do bot 24/7 no WhatsApp e triagem de relatos de clientes que se tornam chamados ou OS na caixa de entrada.",
+    steps: [
+      "No menu Configurações > WhatsApp Bot, conecte o número corporativo da empresa.",
+      "O bot da Duno IA passará a recepcionar os clientes no WhatsApp.",
+      "Quando o cliente relatar um problema, o bot entende, extrai os dados e envia para a fila de Triagem.",
+      "Acesse Atividade > aba Solicitações de Atendimento para ver a caixa de entrada.",
+      "Para Aceitar: Clique na solicitação. O sistema verifica se o cliente existe. Ao aprovar, o chamado se torna uma OS real vinculada a um técnico.",
+      "Para Rejeitar: Você pode cancelar a solicitação e registrar o motivo do cancelamento."
+    ],
+    technicalDetails: "• **Webhook:** A integração oficial processa os webhooks da Meta/WhatsApp.\n• **Triagem:** Tabela separada no banco que isola relatos brutos de OS formais.",
+    relatedFiles: [
+      "src/components/admin/WhatsAppSettings.tsx",
+      "src/components/admin/ServiceRequests.tsx"
+    ]
+  },
+  {
+    title: "Contas a Pagar e Despesas Financeiras",
+    category: "workflow",
+    keywords: [
+      'contas a pagar', 'contas', 'despesas', 'fornecedor', 'pagamento parcial', 
+      'juros', 'multa', 'anexo nota fiscal', 'categoria de despesa', 'centro de custo',
+      'boleto', 'fatura', 'lancamento'
+    ],
+    description: "Lançamento e controle de despesas operacionais da empresa com anexos, controle de juros e pagamentos parciais.",
+    steps: [
+      "Acesse o menu Financeiro e vá na aba Contas a Pagar.",
+      "Para Cadastrar: Clique em '+ Nova Conta'.",
+      "Insira o valor, fornecedor, descrição e data de vencimento.",
+      "Anexos: Faça o upload de notas fiscais (PDF) ou comprovantes direto no registro.",
+      "Pagamentos Parciais: Ao dar baixa, você pode informar um valor menor que o total. O sistema manterá o saldo restante em aberto.",
+      "Juros/Multas: Se a conta estiver atrasada, o sistema aplica regras configuradas para recalcular o valor."
+    ],
+    technicalDetails: "• **Componente:** `AccountsPayableTab.tsx`.\n• **Cálculos:** Usa rotinas utilitárias para computar multas e abater saldos parcialmente em tempo real.",
+    relatedFiles: [
+      "src/components/admin/AccountsPayableTab.tsx",
+      "src/components/admin/CreatePayableModal.tsx"
+    ]
+  },
+  {
+    title: "Check-in Automático e Geofencing (Restrição de Execução)",
+    category: "workflow",
+    keywords: [
+      'check in automatico', 'raio de atendimento', 'geofencing', 'restringir execucao', 
+      'bloqueio de os', 'bloqueio gps', 'cheguei cliente', 'cerca virtual'
+    ],
+    description: "Ferramentas de segurança via GPS para o aplicativo do técnico, automatizando o check-in e bloqueando atendimentos falsos.",
+    steps: [
+      "No menu Configurações, aba APP do Técnico.",
+      "Check-in Automático: Habilite esta função para que o App Duno detecte automaticamente quando o técnico entra no raio de 50 metros do cliente e inicie a OS sozinho após alguns minutos.",
+      "Restringir Execução: Habilite para bloquear o botão de 'Concluir' caso o técnico tente finalizar a OS a mais de 300 metros de distância do local da visita.",
+      "Essas funções exigem que a localização GPS esteja ativa no celular do técnico."
+    ],
+    technicalDetails: "• **PWA/App:** Faz uso da API de Geolocation do browser associada ao Haversine formula para calcular distâncias esféricas.",
+    relatedFiles: [
+      "src/apps/tech/TechAppShell.tsx",
+      "src/components/admin/SystemSettings.tsx"
+    ]
   }
 ];
 
@@ -551,28 +616,9 @@ export async function analyzeAndDiscover(input: string): Promise<string | null> 
     .sort((a, b) => b.score - a.score)
     .slice(0, 3);
 
-  if (sortedMatches.length > 0) {
-    let response = `Fiz uma varredura completa no código-fonte mas não encontrei menções exatas. Porém, encontrei fluxos relacionados:\n\n`;
-    sortedMatches.forEach((match) => {
-      response += `• **${match.node.title}**\n  _${match.node.description}_\n\n`;
-    });
-    response += `*Pode refazer a pergunta usando termos mais específicos?*`;
-    return response;
-  }
-
-  // Fallback Geral (quando a varredura também falha)
-  let response = `🤖 **Duno Copilot — Central de Navegação**\n\n`;
-  response += `Fiz uma varredura profunda no sistema, mas não consegui identificar o fluxo ou a ação específica.\n\n`;
-  response += `👉 **Diga o que você precisa fazer utilizando verbos e termos claros. Exemplos:**\n`;
-  response += `• *"como criar um cliente"* ou *"onde edito o estoque?"*\n`;
-  response += `• *"como funciona o rate limit da api?"* ou *"configurar webhook"* \n`;
-  response += `• *"como imprimir etiquetas"* ou *"onde fica o pmoc?"*\n\n`;
-  response += `🛠️ **Módulos que tenho mapeados para você operar:**\n`;
-  COPILOT_MODULES.forEach(mod => {
-    response += `• **${mod.name}**\n`;
-  });
-  response += `\n*Qual tarefa deseja executar agora? Escreva abaixo!*`;
-  return response;
+  // Se chegou até aqui e o score dos fallbacks é baixo ou não há resultados, retorna null
+  // para permitir que o RAG ou outras fontes tentem responder.
+  return null;
 }
 
 export interface CopilotModule {
@@ -730,12 +776,40 @@ export const COPILOT_MODULES: CopilotModule[] = [
       read: "Veja a listagem de formulários ativos e vinculados a tipos de serviço específicos.",
       report: "As respostas coletadas pelos técnicos em campo ficam anexadas na OS correspondente (aba Formulários)."
     }
+  },
+  {
+    name: "WhatsApp Bot",
+    nouns: ['whatsapp', 'bot', 'zap', 'robo', 'triagem', 'solicitacoes', 'atendimento'],
+    menuPath: "Configurações > WhatsApp Bot ou Atividades > Solicitações",
+    filePath: "src/components/admin/WhatsAppSettings.tsx",
+    dbTable: "service_requests",
+    steps: {
+      create: "Acesse Atividades > Solicitações de Atendimento para ver os chamados capturados pelo WhatsApp.",
+      update: "Aprove ou Rejeite o chamado. Ao aprovar, ele vira uma OS (Ordem de Serviço).",
+      delete: "Você pode rejeitar o chamado se for inválido.",
+      read: "Veja toda a lista de chamados aguardando triagem no painel de solicitações.",
+      report: "Nenhuma funcionalidade de PDF para caixas de entrada de triagem."
+    }
+  },
+  {
+    name: "Contas a Pagar",
+    nouns: ['despesa', 'despesas', 'conta', 'fornecedor', 'pagar', 'pagamento parcial', 'multa', 'juros', 'boleto', 'boletos', 'fatura', 'faturas', 'lancamento', 'lancamentos'],
+    menuPath: "Menu Principal > Financeiro > Aba Contas a Pagar",
+    filePath: "src/components/admin/AccountsPayableTab.tsx",
+    dbTable: "accounts_payable",
+    steps: {
+      create: "Acesse o Financeiro, aba Contas a Pagar e clique em '+ Nova Conta'.",
+      update: "Edite valores ou registre uma baixa (pagamento parcial ou total) clicando no item listado.",
+      delete: "Cancele a conta apagando seu registro através do botão de lixeira.",
+      read: "Visualize os lançamentos e organize por vencimentos, pendentes e atrasados.",
+      report: "Adicione anexos (PDF, recibos) no ato da baixa."
+    }
   }
 ];
 
 function detectVerb(query: string): 'create' | 'update' | 'delete' | 'read' | 'report' | null {
   const q = removeAccents(query);
-  if (/(criar|criacao|novo|nova|cadastr|adicion|abrir|gerar|inserir|adicionar)/.test(q)) return 'create';
+  if (/(criar|criacao|novo|nova|cadastr|adicion|abrir|gerar|inserir|adicionar|lanc|registr)/.test(q)) return 'create';
   if (/(edit|alter|modific|muda|atualiz|salvar|alterar|inativ|desativ|bloque)/.test(q)) return 'update';
   if (/(delet|exclui|remov|apaga|cancel|revoga|exclusao)/.test(q)) return 'delete';
   if (/(imprim|pdf|relatori|baixa|export|etiqueta|impressao)/.test(q)) return 'report';

@@ -458,7 +458,7 @@ export const TechDashboardV2: React.FC = () => {
 
                         setSelectedOrder(updatedOrder);
 
-                        updateOrderStatus(selectedOrder.id, status, notes, formData).catch(err => {
+                        updateOrderStatus(selectedOrder.id, status, notes, formData, selectedOrder.items).catch(err => {
                             console.error("[Tech-V2] Background Sync Failed:", err);
                         });
 

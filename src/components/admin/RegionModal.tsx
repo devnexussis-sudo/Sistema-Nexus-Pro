@@ -1,5 +1,6 @@
 // src/components/admin/RegionModal.tsx
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Region } from "../../types/region";
 import { Button } from "../ui/Button";
 import { DataService } from "../../services/dataService";
@@ -114,8 +115,8 @@ export const RegionModal: React.FC<RegionModalProps> = ({ region, onClose, onSav
     });
   };
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
         <div className="px-6 py-5 border-b border-slate-100 shrink-0 flex items-center justify-between">
           <div>
@@ -317,6 +318,7 @@ export const RegionModal: React.FC<RegionModalProps> = ({ region, onClose, onSav
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 };

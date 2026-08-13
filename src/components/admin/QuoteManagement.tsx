@@ -70,8 +70,15 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
     // ── Filter States ─────────────────────────────────────────────
     const [statusFilter, setStatusFilter] = useState('ALL');
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
+    const getDefaultDates = () => {
+        const dEnd = new Date();
+        const dStart = new Date();
+        dStart.setMonth(dStart.getMonth() - 6);
+        return { start: dStart.toISOString().split('T')[0], end: dEnd.toISOString().split('T')[0] };
+    };
+    const { start: initStart, end: initEnd } = getDefaultDates();
+    const [startDate, setStartDate] = useState(initStart);
+    const [endDate, setEndDate] = useState(initEnd);
 
     const [currentPage, setCurrentPage] = useState(1);
     const PAGE_SIZE = 20;
@@ -660,14 +667,14 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         onChange={toggleSelectAll}
                                     />
                                 </th>
-                                <th className="px-4 py-3">Orçamento ID</th>
-                                <th className="px-4 py-3">Criado em</th>
-                                <th className="px-4 py-3">Cliente</th>
-                                <th className="px-4 py-3">Validade</th>
-                                <th className="px-4 py-3 text-right">Valor Total</th>
-                                <th className="px-4 py-3">Vínculo O.S.</th>
+                                <th className="px-4 py-3 text-center">Orçamento ID</th>
+                                <th className="px-4 py-3 text-center">Criado em</th>
+                                <th className="px-4 py-3 text-center">Cliente</th>
+                                <th className="px-4 py-3 text-center">Validade</th>
+                                <th className="px-4 py-3 text-center">Valor Total</th>
+                                <th className="px-4 py-3 text-center">Vínculo O.S.</th>
                                 <th className="px-4 py-3 text-center">{t.common.status}</th>
-                                <th className="px-4 py-3 text-right pr-6">{t.common.actions}</th>
+                                <th className="px-4 py-3 text-center">{t.common.actions}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -695,7 +702,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         />
                                     </td>
                                     <td className="px-4 py-1.5">
-                                        <div className="flex flex-col truncate max-w-[140px]">
+                                        <div className="flex flex-col items-center truncate max-w-[140px]">
                                             <span className="text-[13px] font-medium text-primary-600 tracking-tighter truncate" title={quote.id}>
                                                 {getQuoteDisplayId(quote)}
                                             </span>
@@ -703,27 +710,29 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         </div>
                                     </td>
                                     <td className="px-4 py-1.5">
-                                        <div className="flex items-center gap-1.5 whitespace-nowrap">
+                                        <div className="flex justify-center items-center gap-1.5 whitespace-nowrap">
                                             <Clock size={12} className="text-slate-400" />
                                             <span className="text-[12px] text-slate-600">{new Date(quote.createdAt).toLocaleDateString()}</span>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-1.5 text-[12px] text-slate-700 truncate max-w-[150px]">{quote.customerName}</td>
+                                    <td className="px-4 py-1.5 text-[12px] text-center text-slate-700 truncate max-w-[150px]">{quote.customerName}</td>
                                     <td className="px-4 py-1.5">
-                                        <div className="flex items-center gap-1.5 whitespace-nowrap">
+                                        <div className="flex justify-center items-center gap-1.5 whitespace-nowrap">
                                             <Calendar size={12} className="text-slate-400" />
                                             <span className="text-[12px] text-slate-600">{quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : 'N/D'}</span>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-1.5 text-[13px] font-medium text-emerald-600 whitespace-nowrap">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                    <td className="px-4 py-1.5 text-[12px] text-slate-600 whitespace-nowrap">
+                                    <td className="px-4 py-1.5 text-[13px] text-center font-medium text-emerald-600 whitespace-nowrap">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                    <td className="px-4 py-1.5 text-[12px] text-center text-slate-600 whitespace-nowrap">
                                         {quote.linkedOrderId ? (() => {
                                             const linkedOrder = orders.find(o => o.id === quote.linkedOrderId || o.displayId === quote.linkedOrderId);
                                             const label = linkedOrder?.displayId || linkedOrder?.id?.slice(0, 10) || quote.linkedOrderId.slice(0, 10);
                                             return (
-                                                <span className="px-1.5 py-0.5 bg-slate-50 text-[#1c2d4f] rounded-lg border border-slate-200 flex items-center gap-1 w-fit" title={quote.linkedOrderId}>
-                                                    <Link2 size={10} /> {label}
-                                                </span>
+                                                <div className="flex justify-center">
+                                                    <span className="px-1.5 py-0.5 bg-slate-50 text-[#1c2d4f] rounded-lg border border-slate-200 flex items-center gap-1 w-fit" title={quote.linkedOrderId}>
+                                                        <Link2 size={10} /> {label}
+                                                    </span>
+                                                </div>
                                             );
                                         })() : (
                                             <span className="text-slate-300">Sem Vínculo</span>
@@ -746,18 +755,17 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                             </div>
                                         )}
                                     </td>
-                                    <td className="px-6 py-2 text-right pr-6">
-                                        <div className="flex justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <td className="px-4 py-2 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                        <div className="flex justify-center items-center gap-1">
                                             <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    const url = `${window.location.origin}/#/view-quote/${quote.publicToken || quote.id}`;
-                                                    window.open(url, '_blank');
+                                                onClick={() => {
+                                                    setViewQuote(quote);
+                                                    setIsViewModalOpen(true);
                                                 }}
-                                                className="p-2 text-primary-600 bg-primary-50 hover:bg-primary-600 hover:text-white rounded-lg border border-primary-200 hover:border-primary-600 transition-all shadow-sm"
-                                                title="Visualizar"
+                                                className="p-1 text-slate-400 hover:text-primary-700 hover:bg-primary-50 rounded transition-colors"
+                                                title="Visualizar Orçamento"
                                             >
-                                                <Eye size={16} />
+                                                <Eye size={14} />
                                             </button>
                                         </div>
                                     </td>

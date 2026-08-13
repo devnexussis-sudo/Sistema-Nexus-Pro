@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bot, X, Send, User as UserIcon, Loader2, Phone, Minus } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { findBestMatch } from '../../data/dunoKnowledge';
 import { analyzeAndDiscover } from '../../services/dunoBrain';
 import { aiKnowledgeService } from '../../services/aiKnowledgeService';
 import { getCurrentTenantId } from '../../lib/tenantContext';
@@ -89,7 +90,11 @@ export const GlobalChatBot: React.FC = () => {
       const tenantId = getCurrentTenantId();
       let responseContent: string | null = null;
       
-      if (tenantId) {
+      // 1. Tenta achar resposta exata no Manual do Sistema (dunoKnowledge.ts)
+      const systemMatch = findBestMatch(userText);
+      if (systemMatch) {
+        responseContent = systemMatch;
+      } else if (tenantId) {
         // 2. Usa o Motor RAG chamando a Edge Function com a persona 'chat'
         responseContent = await aiKnowledgeService.searchKnowledge(userText, tenantId, 7, 'chat');
       }
@@ -122,6 +127,47 @@ export const GlobalChatBot: React.FC = () => {
     }
   };
 
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef({ startX: 0, startY: 0, initialX: 0, initialY: 0 });
+  const hasDragged = useRef(false);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    
+    hasDragged.current = false;
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX: pos.x,
+      initialY: pos.y
+    };
+    
+    const handlePointerMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - dragRef.current.startX;
+      const dy = ev.clientY - dragRef.current.startY;
+      
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+         hasDragged.current = true;
+         setIsDragging(true);
+      }
+      
+      setPos({
+        x: dragRef.current.initialX + dx,
+        y: dragRef.current.initialY + dy
+      });
+    };
+    
+    const handlePointerUp = () => {
+      setIsDragging(false);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+    
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -136,20 +182,26 @@ export const GlobalChatBot: React.FC = () => {
   };
 
   return (
-    <div className={`fixed right-4 sm:right-6 flex flex-col items-end print:hidden transition-all duration-300 ${isOpen ? 'z-[9999]' : 'z-[40]'} ${
-      isWhatsAppPage 
-        ? 'bottom-40 lg:bottom-32' 
-        : (isOpen ? 'bottom-4 lg:bottom-6' : 'bottom-20 lg:bottom-20')
-    }`}>
+    <div 
+      className={`fixed right-4 sm:right-6 flex flex-col items-end print:hidden ${isDragging ? '' : 'transition-all duration-300'} ${isOpen ? 'z-[999999]' : 'z-[40]'} ${
+        isOpen 
+          ? 'top-1/2 -translate-y-1/2' 
+          : (isWhatsAppPage ? 'bottom-40 lg:bottom-32' : 'bottom-20 lg:bottom-20')
+      }`}
+      style={isOpen ? {} : { transform: `translate(${pos.x}px, ${pos.y}px)`, touchAction: 'none' }}
+    >
       
       {/* ── JANELA DO CHAT (Aberta) ── */}
       {isOpen && (
-        <div className="bg-white/95 backdrop-blur-xl w-[360px] h-[520px] max-h-[80vh] shadow-2xl rounded-2xl flex flex-col mb-4 border border-slate-200/60 overflow-hidden animate-in slide-in-from-bottom-5 fade-in duration-300">
+        <div id="duno-chat-window" className="bg-white/95 backdrop-blur-xl w-[360px] h-[520px] max-h-[80vh] shadow-2xl rounded-2xl flex flex-col mb-4 border border-slate-200/60 overflow-hidden animate-in slide-in-from-bottom-5 fade-in duration-300">
           
           {/* Header */}
-          <div className="bg-gradient-to-r from-[#1c2d4f] to-[#2a4a7f] px-4 py-3 flex items-center justify-between shrink-0 shadow-md relative overflow-hidden">
+          <div 
+            className="bg-gradient-to-r from-[#1c2d4f] to-[#2a4a7f] px-4 py-3 flex items-center justify-between shrink-0 shadow-md relative overflow-hidden cursor-move"
+            onPointerDown={handlePointerDown}
+          >
             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-400/10 rounded-full blur-2xl -mt-10 -mr-10 pointer-events-none" />
-            <div className="flex items-center gap-3 relative z-10">
+            <div className="flex items-center gap-3 relative z-10 pointer-events-none">
               <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white backdrop-blur-sm shadow-inner">
                 <Bot size={18} className="text-blue-100" />
               </div>
@@ -159,7 +211,10 @@ export const GlobalChatBot: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center gap-1 relative z-10">
-              <button onClick={() => setIsOpen(false)} className="w-7 h-7 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors">
+              <button 
+                onClick={(e) => { e.stopPropagation(); setIsOpen(false); }} 
+                className="w-7 h-7 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer"
+              >
                 <Minus size={16} />
               </button>
             </div>
@@ -252,13 +307,21 @@ export const GlobalChatBot: React.FC = () => {
       {/* ── BOTÃO FLUTUANTE (Fechado) ── */}
       {!isOpen && (
         <button
-          onClick={() => setIsOpen(true)}
-          className="group relative w-14 h-14 bg-gradient-to-br from-[#1c2d4f] to-[#2a4a7f] hover:from-[#152340] hover:to-[#1c2d4f] rounded-full flex items-center justify-center text-white shadow-[0_8px_30px_rgb(28,45,79,0.3)] hover:shadow-[0_8px_40px_rgb(28,45,79,0.4)] transition-all duration-300 transform hover:-translate-y-1 hover:scale-105 border border-[#ffffff1a]"
+          id="duno-bot-button"
+          onPointerDown={handlePointerDown}
+          onClick={(e) => {
+            if (hasDragged.current) {
+              e.preventDefault();
+              return;
+            }
+            setIsOpen(true);
+          }}
+          className={`group relative w-14 h-14 bg-gradient-to-br from-[#1c2d4f] to-[#2a4a7f] hover:from-[#152340] hover:to-[#1c2d4f] rounded-full flex items-center justify-center text-white shadow-[0_8px_30px_rgb(28,45,79,0.3)] hover:shadow-[0_8px_40px_rgb(28,45,79,0.4)] transition-all transform ${isDragging ? 'scale-105 cursor-grabbing' : 'hover:-translate-y-1 hover:scale-105 cursor-grab duration-300'} border border-[#ffffff1a]`}
         >
           {/* Animação de anel de brilho externo */}
           <div className="absolute inset-0 rounded-full border-2 border-white/20 animate-ping opacity-20 duration-1000" />
           
-          <Bot size={26} className="relative z-10 group-hover:animate-bounce" />
+          <Bot size={26} className={`relative z-10 ${isDragging ? '' : 'group-hover:animate-bounce'}`} />
           
           {/* Tooltip */}
           <div className="absolute right-full mr-4 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-slate-800 text-white text-[11px] font-bold rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap pointer-events-none after:content-[''] after:absolute after:left-full after:top-1/2 after:-translate-y-1/2 after:border-4 after:border-transparent after:border-l-slate-800">

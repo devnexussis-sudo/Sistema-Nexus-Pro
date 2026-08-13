@@ -68,6 +68,16 @@ const getInitialDateRange = () => {
     };
 };
 
+const getSixMonthsDateRange = () => {
+    const end = new Date();
+    const start = new Date();
+    start.setMonth(start.getMonth() - 6);
+    return {
+        start: start.toISOString().split('T')[0],
+        end: end.toISOString().split('T')[0]
+    };
+};
+
 /**
  * 🛡️ RouteGuard — Big Tech Standard Loading Guard
  * 
@@ -115,7 +125,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     const location = useLocation();
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [overviewDateRange, setOverviewDateRange] = useState(getInitialDateRange());
-    const [activitiesDateRange, setActivitiesDateRange] = useState({ start: '', end: '' });
+    const [activitiesDateRange, setActivitiesDateRange] = useState(getSixMonthsDateRange());
 
     const handleDateValidation = (start: string, end: string, setter: (val: {start: string, end: string}) => void) => {
         if (start && end) {

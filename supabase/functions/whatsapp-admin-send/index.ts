@@ -63,13 +63,24 @@ serve(async (req: Request) => {
         .single();
       const agentName = agentData?.name || extra.agent_name || "Agente";
 
+      // NORMALIZAÇÃO DE NÚMERO BRASILEIRO (Com e Sem o 9)
+      let possiblePhones = [phone_number];
+      if (phone_number.startsWith('55') && phone_number.length === 12) {
+        possiblePhones.push(`55${phone_number.substring(2, 4)}9${phone_number.substring(4)}`);
+      } else if (phone_number.startsWith('55') && phone_number.length === 13 && phone_number[4] === '9') {
+        possiblePhones.push(`55${phone_number.substring(2, 4)}${phone_number.substring(5)}`);
+      }
+
       // Verificar se a conversa já existe
-      const { data: existingConv } = await supabaseAdmin
+      const { data: existingConvs } = await supabaseAdmin
         .from("whatsapp_conversations")
         .select("*")
         .eq("tenant_id", targetTenantId)
-        .eq("phone_number", phone_number)
-        .maybeSingle();
+        .in("phone_number", possiblePhones)
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .limit(1);
+
+      const existingConv = existingConvs?.[0] || null;
 
       let convId = existingConv?.id;
 
@@ -427,6 +438,7 @@ async function sendWhatsAppMessage(
   if (!res.ok) {
     const errText = await res.text();
     console.error("[Admin Send] ❌ Falha Z-API:", res.status, errText);
+  }
 }
 
 async function sendWhatsAppSticker(

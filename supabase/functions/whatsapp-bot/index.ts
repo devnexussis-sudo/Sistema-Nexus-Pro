@@ -267,30 +267,31 @@ serve(async (req: Request) => {
     // --- MEDIA INTERCEPTION ---
     // Detectar tipo de mídia em múltiplos formatos (Z-API, UAZAPI, Evolution API)
     const msgType = payload.type || '';
-    const msgData = getActualMessageObj(payload);
+    const msgData = getActualMessageObj(payload) || {};
     
-    // Detectar pelo campo 'type' top-level
+    // Detectar pelo campo 'type' top-level (Z-API)
     const typeStr = String(msgType).toLowerCase();
     
-    // Detectar pelo conteúdo do objeto message (UAZAPI/Evolution envia assim)
-    const msgKeys = Object.keys(msgData).join(',').toLowerCase();
-    const hasImage    = typeStr.includes('image') || typeStr.includes('photo') || msgKeys.includes('image');
-    const hasVideo    = typeStr.includes('video') || msgKeys.includes('video');
-    const hasAudio    = typeStr.includes('audio') || typeStr === 'ptt' || typeStr.includes('voice') || msgKeys.includes('audio') || msgKeys.includes('ptt');
-    const hasDoc      = typeStr.includes('document') || typeStr.includes('file') || msgKeys.includes('document');
-    const hasSticker  = typeStr.includes('sticker') || msgKeys.includes('sticker');
-    const hasLocation = typeStr.includes('location') || msgKeys.includes('location');
-    const hasContact  = typeStr.includes('contact') || msgKeys.includes('contact');
+    // Baileys / Evolution API costumam enviar chaves como imageMessage mesmo para textos, mas com valor null.
+    // Portanto, devemos checar se o valor é truthy.
+    const hasImage    = typeStr.includes('image') || typeStr.includes('photo') || !!msgData.imageMessage;
+    const hasVideo    = typeStr.includes('video') || !!msgData.videoMessage;
+    const hasAudio    = typeStr.includes('audio') || typeStr === 'ptt' || typeStr.includes('voice') || !!msgData.audioMessage || !!msgData.pttMessage;
+    const hasDoc      = typeStr.includes('document') || typeStr.includes('file') || !!msgData.documentMessage || !!msgData.documentWithCaptionMessage;
+    const hasSticker  = typeStr.includes('sticker') || !!msgData.stickerMessage;
+    const hasLocation = typeStr.includes('location') || !!msgData.locationMessage;
+    const hasContact  = typeStr.includes('contact') || !!msgData.contactMessage || !!msgData.contactsArrayMessage;
     
     // Suporte ao formato UAZAPI 'EventType: messages'
-    const isUazapiMedia = typeof payload.message?.content === 'object';
+    // Garantir que content seja um objeto E não nulo
+    const isUazapiMedia = typeof payload.message?.content === 'object' && payload.message?.content !== null;
     const waLastMsgType = String(payload.chat?.wa_lastMessageType || '');
-    const isUazapiImage = isUazapiMedia && (waLastMsgType === 'ImageMessage' || String(payload.message.content.mimetype).includes('image'));
-    const isUazapiVideo = isUazapiMedia && (waLastMsgType === 'VideoMessage' || String(payload.message.content.mimetype).includes('video'));
-    const isUazapiAudio = isUazapiMedia && (waLastMsgType === 'AudioMessage' || String(payload.message.content.mimetype).includes('audio'));
+    const isUazapiImage = isUazapiMedia && (waLastMsgType === 'ImageMessage' || String(payload.message?.content?.mimetype || '').includes('image'));
+    const isUazapiVideo = isUazapiMedia && (waLastMsgType === 'VideoMessage' || String(payload.message?.content?.mimetype || '').includes('video'));
+    const isUazapiAudio = isUazapiMedia && (waLastMsgType === 'AudioMessage' || String(payload.message?.content?.mimetype || '').includes('audio'));
     const isUazapiDoc   = isUazapiMedia && waLastMsgType === 'DocumentMessage';
 
-    const isMedia = hasImage || hasVideo || hasAudio || hasDoc || hasSticker || hasLocation || hasContact || isUazapiMedia;
+    const isMedia = hasImage || hasVideo || hasAudio || hasDoc || hasSticker || hasLocation || hasContact || (isUazapiMedia && (isUazapiImage || isUazapiVideo || isUazapiAudio || isUazapiDoc));
 
     if (isMedia || !text) {
       // Tenta pegar a melhor representação da mídia (thumbnail base64 ou URL direta)
@@ -415,13 +416,24 @@ serve(async (req: Request) => {
       });
     }
 
+    // NORMALIZAÇÃO DE NÚMERO BRASILEIRO (Com e Sem o 9)
+    let possiblePhones = [phone];
+    if (phone.startsWith('55') && phone.length === 12) {
+      possiblePhones.push(`55${phone.substring(2, 4)}9${phone.substring(4)}`);
+    } else if (phone.startsWith('55') && phone.length === 13 && phone[4] === '9') {
+      possiblePhones.push(`55${phone.substring(2, 4)}${phone.substring(5)}`);
+    }
+
     // ── Carregar ou criar sessão de conversa
-    const { data: existingConv } = await supabase
+    const { data: existingConvs } = await supabase
       .from("whatsapp_conversations")
       .select("*")
-      .eq("phone_number", phone)
+      .in("phone_number", possiblePhones)
       .eq("tenant_id", tenant.id)
-      .maybeSingle();
+      .order("last_message_at", { ascending: false, nullsFirst: false })
+      .limit(1);
+      
+    const existingConv = existingConvs?.[0] || null;
 
     let conversation: Conversation;
 
@@ -493,10 +505,10 @@ serve(async (req: Request) => {
       }
       
       let updatedHistory = [
-        ...conversation.history,
+        ...(Array.isArray(conversation.history) ? conversation.history : []),
         { role: "user", content: humanVisibleText, timestamp: new Date().toISOString() },
       ];
-      if (updatedHistory.length > 100) updatedHistory = updatedHistory.slice(-100);
+      if (updatedHistory.length > 30) updatedHistory = updatedHistory.slice(-30);
       await supabase
         .from("whatsapp_conversations")
         .update({ history: updatedHistory, last_message_at: new Date().toISOString() })
@@ -548,11 +560,11 @@ serve(async (req: Request) => {
     // ── Atualizar sessão no banco
     const safeReply = reply.substring(0, 2000);
     let updatedHistory = [
-      ...conversation.history,
+      ...(Array.isArray(conversation.history) ? conversation.history : []),
       { role: "user", content: safeText, timestamp: new Date().toISOString() },
       { role: "bot", content: safeReply, timestamp: new Date().toISOString() },
     ];
-    if (updatedHistory.length > 100) updatedHistory = updatedHistory.slice(-100);
+    if (updatedHistory.length > 30) updatedHistory = updatedHistory.slice(-30);
 
     await supabase.from("whatsapp_conversations").update({
       state: new_state || conversation.state,

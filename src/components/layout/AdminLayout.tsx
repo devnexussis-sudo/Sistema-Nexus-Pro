@@ -17,6 +17,7 @@ import { useI18n } from '../../i18n';
 import { usePermissions } from '../../hooks/usePermissions';
 import { GlobalChatBot } from '../common/GlobalChatBot';
 import { useGlobalWhatsAppNotifications } from '../../hooks/useGlobalWhatsAppNotifications';
+import { useWhatsAppMonitor } from '../../hooks/useWhatsAppMonitor';
 
 interface AdminLayoutProps {
     children: React.ReactNode;
@@ -43,33 +44,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
     const { t } = useI18n();
     const { canAccessMenu, isAdmin, can } = usePermissions();
+    const isStandalone = location.search.includes('standalone=true') || window.location.hash.includes('standalone=true');
 
     // Hook global que verifica mensagens novas independente da aba aberta
     const { alertCount } = useGlobalWhatsAppNotifications(user?.id || null, isAdmin, location.pathname);
 
-    // 🚦 Big Tech Route Transition Progress Bar
-    const [isNavigating, setIsNavigating] = useState(false);
-    const [progress, setProgress] = useState(0);
-
-    useEffect(() => {
-        setIsNavigating(true);
-        setProgress(20);
-
-        const t1 = setTimeout(() => setProgress(55), 50);
-        const t2 = setTimeout(() => setProgress(85), 110);
-        const t3 = setTimeout(() => setProgress(100), 190);
-        const t4 = setTimeout(() => {
-            setIsNavigating(false);
-            setProgress(0);
-        }, 360);
-
-        return () => {
-            clearTimeout(t1);
-            clearTimeout(t2);
-            clearTimeout(t3);
-            clearTimeout(t4);
-        };
-    }, [location.pathname]);
+    // 📡 Monitoramento Global da Conexão do WhatsApp
+    const { isDisconnected: isWppDisconnected } = useWhatsAppMonitor(tenant, isAdmin);
 
     // Buscar contador de WhatsApp aguardando humano
     useEffect(() => {
@@ -294,17 +275,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
     return (
         <div className="flex flex-col h-screen bg-slate-50 overflow-hidden font-poppins print:h-auto print:overflow-visible print:block relative">
-            {/* 🚦 Big Tech Top Route Progress Bar */}
-            {isNavigating && (
-                <div className="fixed top-0 left-0 right-0 h-[3px] bg-slate-200/50 z-[99999] overflow-hidden pointer-events-none">
-                    <div
-                        className="h-full bg-gradient-to-r from-[#1c2d4f] via-[#253a66] to-[#3e5b99] transition-all duration-200 ease-out shadow-[0_0_12px_rgba(28,45,79,0.7)]"
-                        style={{ width: `${progress}%` }}
-                    />
-                </div>
-            )}
-
             {/* Header Global */}
+            {!isStandalone && (
             <header className="h-12 bg-white text-slate-900 flex justify-between items-center z-[100] shadow-sm shrink-0 border-b border-slate-200 print:hidden">
                 <div className="flex items-center">
                     {/* Mobile: Hamburger button */}
@@ -441,6 +413,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     </div>
                 </div>
             </header>
+            )}
 
             {/* UNREAD NOTIFICATION POPUP (MODAL) */}
             {systemNotifications
@@ -502,7 +475,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
             <div className="flex flex-1 overflow-hidden print:overflow-visible print:block">
                 {/* ── Mobile Sidebar Overlay ─────────────────────────────── */}
-                {isMobileSidebarOpen && (
+                {!isStandalone && isMobileSidebarOpen && (
                     <div className="fixed inset-0 z-[300] lg:hidden print:hidden">
                         {/* Backdrop */}
                         <div 
@@ -565,6 +538,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 )}
 
                 {/* ── Desktop Sidebar ───────────────────────────────────── */}
+                {!isStandalone && (
                 <aside className={`hidden lg:flex ${isSidebarCollapsed ? 'w-16' : 'w-52'} bg-[#1c2d4f] h-full flex-col shadow-none z-50 transition-all duration-300 ease-in-out relative border-r border-white/5 print:hidden`}>
                     <button
                         onClick={onToggleSidebar}
@@ -594,21 +568,43 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                         </button>
                     </div>
                 </aside>
+                )}
 
                 <main className="flex-1 min-w-0 overflow-hidden flex flex-col relative bg-slate-50/50 print:bg-transparent print:overflow-visible print:block print:h-auto">
+                    {/* 🚨 Alerta de Desconexão do WhatsApp */}
+                    {isWppDisconnected && (
+                        <div className="bg-red-50 border-b border-red-200 px-4 py-3 shrink-0 flex items-center justify-between z-10 animate-fade-in print:hidden">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-red-100 text-red-600 rounded-full animate-pulse shrink-0">
+                                    <WifiOff size={16} />
+                                </div>
+                                <div>
+                                    <p className="text-xs font-bold text-red-800 uppercase tracking-wide">Alerta: WhatsApp Desconectado</p>
+                                    <p className="text-[10px] font-medium text-red-600 mt-0.5 leading-tight">O sistema não está enviando ou recebendo mensagens. O robô está inativo.</p>
+                                </div>
+                            </div>
+                            <Link to="/admin/settings" className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold uppercase tracking-widest rounded-lg shadow-sm transition-colors whitespace-nowrap shrink-0">
+                                Resolver
+                            </Link>
+                        </div>
+                    )}
+
                     {/* Mobile: Page title bar */}
+                    {!isStandalone && (
                     <div className="lg:hidden flex items-center h-10 px-4 bg-white border-b border-slate-100 shrink-0 print:hidden">
                         <h2 className="text-xs font-semibold text-slate-700 lowercase tracking-tight">
                             {activeItem?.label || 'dashboard'}
                         </h2>
                     </div>
-                    <div key={location.pathname} className="flex-1 overflow-y-auto relative custom-scrollbar print:overflow-visible print:block pb-16 lg:pb-0 animate-fade-in duration-300">
+                    )}
+                    <div key={location.pathname} className={`flex-1 overflow-y-auto relative custom-scrollbar print:overflow-visible print:block ${!isStandalone ? 'pb-16 lg:pb-0' : ''} animate-fade-in duration-300`}>
                         {children}
                     </div>
                 </main>
             </div>
             
             {/* Bottom Tab Bar (Mobile) */}
+            {!isStandalone && (
             <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] flex items-center justify-around z-[150] pb-safe print:hidden px-2">
                 <Link to="/admin" className={`flex flex-col items-center justify-center gap-1 w-16 h-full transition-colors ${location.pathname === '/admin' ? 'text-primary-600' : 'text-slate-400 hover:text-slate-600'}`}>
                     <LayoutDashboard size={20} className={location.pathname === '/admin' ? 'fill-primary-50 text-primary-600' : ''} />
@@ -634,8 +630,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     <span className="text-[9px] font-semibold tracking-wide">Menu</span>
                 </button>
             </nav>
+            )}
 
-            <GlobalChatBot />
+            {!isStandalone && <GlobalChatBot />}
         </div>
     );
 };

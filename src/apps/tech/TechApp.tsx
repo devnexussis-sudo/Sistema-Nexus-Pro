@@ -166,8 +166,8 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
         }
     }, [auth.user, currentPage]);
 
-    const handleUpdateStatus = useCallback(async (id: string, s: OrderStatus, n?: string, d?: any) => {
-        await DataService.updateOrderStatus(id, s, n, d);
+    const handleUpdateStatus = useCallback(async (id: string, s: OrderStatus, n?: string, d?: any, items?: any[]) => {
+        await DataService.updateOrderStatus(id, s, n, d, items);
         await handleRefresh();
     }, [handleRefresh]);
 

@@ -374,6 +374,16 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
     console.log('=== INICIANDO CRIAÇÃO DE ORDEM ===');
     console.log('FormData:', formData);
 
+    if (!selectedClientId) {
+      alert('A seleção de um cliente é obrigatória. Por favor, retorne à etapa 1 e selecione um cliente.');
+      return;
+    }
+
+    if (selectedEquipIds.length === 0) {
+      alert('A seleção de um ativo é obrigatória. Por favor, retorne à etapa 1 e selecione um ativo.');
+      return;
+    }
+
     if (!formData.scheduledDate) {
       alert('A data de agendamento é obrigatória.');
       return;

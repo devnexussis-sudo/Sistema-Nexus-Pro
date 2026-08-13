@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertCircle, AlertTriangle, CheckCircle2, ChevronRight, ClipboardCheck, Clock,
-  MessageCircle, Phone, RefreshCw, Search, User as UserIcon, X, XCircle, Eye, FileText, Package, Edit3, Save, Shield, Cpu
+  MessageCircle, Phone, RefreshCw, Search, User as UserIcon, X, XCircle, Eye, FileText, Package, Edit3, Save, Shield, Cpu, Filter, Calendar
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { DataService } from '../../services/dataService';
@@ -92,6 +92,17 @@ export const SolicitacoesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [search, setSearch] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+
+  const getDefaultDates = () => {
+    const dEnd = new Date();
+    const dStart = new Date();
+    dStart.setMonth(dStart.getMonth() - 6);
+    return { start: dStart.toISOString().split('T')[0], end: dEnd.toISOString().split('T')[0] };
+  };
+  const { start: initStart, end: initEnd } = getDefaultDates();
+  const [startDate, setStartDate] = useState(initStart);
+  const [endDate, setEndDate] = useState(initEnd);
   const [selectedReq, setSelectedReq] = useState<ServiceRequest | null>(null);
   const [viewingReq, setViewingReq] = useState<ServiceRequest | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -281,16 +292,33 @@ export const SolicitacoesPage: React.FC = () => {
 
   const filtered = requests.filter(r => {
     if (filter !== 'ALL' && r.status !== filter) return false;
+
+    if (startDate || endDate) {
+      const rDate = r.created_at.split('T')[0];
+      if (startDate && rDate < startDate) return false;
+      if (endDate && rDate > endDate) return false;
+    }
+
     if (search.trim()) {
-      const q = search.toLowerCase().replace('#', '');
-      const ticketCode = r.id.substring(0, 6).toUpperCase();
+      const q = search.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace('#', '');
+      const ticketCode = r.id.substring(0, 6).toLowerCase();
+      const cName = r.customer_name ? r.customer_name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
+      const probDesc = r.problem_description ? r.problem_description.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
+      const formattedPhone = formatPhone(r.phone_number).toLowerCase();
+      const phoneDigits = r.phone_number ? r.phone_number.replace(/\D/g, '') : '';
+      const searchDigits = q.replace(/\D/g, '');
+
       if (
-        !(r.customer_name?.toLowerCase().includes(q) ||
+        !(cName.includes(q) ||
+          (q.includes('nao identificado') && !r.customer_name) ||
           r.phone_number?.includes(q) ||
+          formattedPhone.includes(q) ||
+          (searchDigits && phoneDigits.includes(searchDigits)) ||
           r.customer_document?.includes(q) ||
+          (searchDigits && r.customer_document?.replace(/\D/g, '').includes(searchDigits)) ||
           r.equipment_serial?.toLowerCase().includes(q) ||
-          r.problem_description?.toLowerCase().includes(q) ||
-          ticketCode.toLowerCase().includes(q))
+          probDesc.includes(q) ||
+          ticketCode.includes(q))
       ) return false;
     }
     return true;
@@ -298,7 +326,7 @@ export const SolicitacoesPage: React.FC = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, filter]);
+  }, [search, filter, startDate, endDate]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE) || 1;
   const pagedRequests = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -491,21 +519,13 @@ export const SolicitacoesPage: React.FC = () => {
             />
           </div>
 
-          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full xl:w-auto justify-end flex-1">
-            <div className="flex items-center gap-1 bg-white border border-[#1c2d4f]/10 p-1 rounded-xl shadow-sm overflow-x-auto custom-scrollbar shrink-0">
-              {(['PENDING', 'ACCEPTED', 'REJECTED', 'ALL'] as FilterType[]).map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={`h-8 px-3 text-[10px] uppercase font-bold rounded-lg transition-all whitespace-nowrap flex items-center gap-1.5 ${filter === f ? 'bg-[#1c2d4f] text-white' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-slate-50'}`}
-                >
-                  {f === 'PENDING' ? 'Pendentes' : f === 'ACCEPTED' ? 'Aceitas' : f === 'REJECTED' ? 'Rejeitadas' : 'Todas'}
-                  {f === 'PENDING' && pendingCount > 0 && (
-                     <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${filter === f ? 'bg-white text-[#1c2d4f]' : 'bg-amber-400 text-white'}`}>{pendingCount}</span>
-                  )}
-                </button>
-              ))}
-            </div>
+          <div className="flex items-center gap-2 w-full lg:w-auto justify-end shrink-0">
+            <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex items-center gap-1.5 px-3 h-10 rounded-xl border transition-all text-[10px] ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-[#1c2d4f]/5 shadow-sm'}`}
+            >
+                <Filter size={14} /> <span className="hidden sm:inline">{showFilters ? 'Ocultar' : 'Filtros'}</span>
+            </button>
 
             <button
               onClick={() => fetchRequests()}
@@ -519,6 +539,61 @@ export const SolicitacoesPage: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Collapsible Filters */}
+        {showFilters && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 p-3 bg-white/60 rounded-xl border border-[#1c2d4f]/10 animate-in fade-in slide-in-from-top-2 duration-200">
+                {/* Date Range */}
+                <div className="flex flex-col gap-1 lg:col-span-2">
+                    <label className="text-[9px] text-slate-400 uppercase tracking-wider px-1">Período (criação)</label>
+                    <div className="flex items-center gap-1 bg-white border border-[#1c2d4f]/20 p-1 rounded-lg shadow-sm h-9">
+                        <Calendar size={13} className="text-slate-400 ml-1 shrink-0" />
+                        <div className="flex items-center gap-1 px-1 flex-1 justify-between">
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={e => { setStartDate(e.target.value); setCurrentPage(1); }}
+                                className="bg-transparent border-none text-[10px] text-slate-600 outline-none focus:text-slate-900 w-full"
+                            />
+                            <span className="text-[9px] text-slate-300 uppercase mx-1">até</span>
+                            <input
+                                type="date"
+                                value={endDate}
+                                onChange={e => { setEndDate(e.target.value); setCurrentPage(1); }}
+                                className="bg-transparent border-none text-[10px] text-slate-600 outline-none focus:text-slate-900 w-full"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Status */}
+                <div className="flex flex-col gap-1 lg:col-span-2">
+                    <label className="text-[9px] text-slate-400 uppercase tracking-wider px-1">Status</label>
+                    <div className="flex bg-white border border-[#1c2d4f]/20 rounded-lg h-9 p-0.5 gap-0.5 shadow-sm">
+                        {(['ALL', 'PENDING', 'ACCEPTED', 'REJECTED'] as FilterType[]).map(opt => (
+                            <button
+                                key={opt}
+                                onClick={() => { setFilter(opt); setCurrentPage(1); }}
+                                className={`flex-1 rounded-md text-[8px] font-medium uppercase tracking-wide transition-all whitespace-nowrap px-1 relative ${filter === opt
+                                    ? opt === 'PENDING' ? 'bg-amber-500 text-white shadow-sm'
+                                    : opt === 'ACCEPTED' ? 'bg-emerald-500 text-white shadow-sm'
+                                    : opt === 'REJECTED' ? 'bg-rose-500 text-white shadow-sm'
+                                    : 'bg-[#1c2d4f] text-white shadow-sm'
+                                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                                    }`}
+                            >
+                                <div className="flex items-center justify-center gap-1">
+                                  {opt === 'ALL' ? 'Todos' : opt === 'PENDING' ? 'Pendentes' : opt === 'ACCEPTED' ? 'Aceitas' : 'Rejeitadas'}
+                                  {opt === 'PENDING' && pendingCount > 0 && (
+                                     <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${filter === opt ? 'bg-white text-amber-600' : 'bg-amber-400 text-white'}`}>{pendingCount}</span>
+                                  )}
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        )}
       </div>
 
       {/* Table Area */}
@@ -603,24 +678,13 @@ export const SolicitacoesPage: React.FC = () => {
                             <MessageCircle size={15} />
                           </button>
                           
-                          {req.customer_id ? (
-                            <button
-                              onClick={() => handleAccept(req)}
-                              disabled={isActing}
-                              className="px-2 py-1 flex items-center gap-1 text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs text-[10px] font-bold uppercase transition-colors"
-                              title="Aceitar e Abrir OS"
-                            >
-                              {isActing ? <RefreshCw size={13} className="animate-spin" /> : <CheckCircle2 size={13} />} Aceitar
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => setViewingReq(req)}
-                              className="px-2 py-1 flex items-center gap-1 text-amber-700 bg-amber-50 rounded-lg border border-amber-200 text-[10px] font-bold uppercase hover:bg-amber-100 transition-colors"
-                              title="Ver pendências de cadastro"
-                            >
-                              <AlertTriangle size={13} className="text-amber-500" /> Triage
-                            </button>
-                          )}
+                          <button
+                            onClick={() => setViewingReq(req)}
+                            className="px-2 py-1 flex items-center gap-1 text-amber-700 bg-amber-50 rounded-lg border border-amber-200 text-[10px] font-bold uppercase hover:bg-amber-100 transition-colors"
+                            title="Triar e Verificar Cadastros"
+                          >
+                            <AlertTriangle size={13} className="text-amber-500" /> Triagem
+                          </button>
                           
                           <button
                             onClick={(e) => { e.stopPropagation(); setRejectId(req.id); setRejectReason(''); }}

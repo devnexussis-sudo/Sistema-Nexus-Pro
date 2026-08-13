@@ -34,7 +34,7 @@ interface TechContextType {
     login: (email: string, pass: string) => Promise<void>;
     logout: () => void;
     refreshData: (params?: { page?: number; newFilters?: Partial<FilterState>; silent?: boolean }) => Promise<void>;
-    updateOrderStatus: (id: string, status: OrderStatus, notes?: string, formData?: any) => Promise<void>;
+    updateOrderStatus: (id: string, status: OrderStatus, notes?: string, formData?: any, items?: any[]) => Promise<void>;
     toast: { message: string; type: 'success' | 'error' | 'info' } | null;
     clearToast: () => void;
 }
@@ -452,15 +452,15 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
     }, [auth.isAuthenticated, logout]);
 
-    const updateOrderStatus = useCallback(async (id: string, status: OrderStatus, notes?: string, formData?: any) => {
+    const updateOrderStatus = useCallback(async (id: string, status: OrderStatus, notes?: string, formData?: any, items?: any[]) => {
         try {
-            await DataService.updateOrderStatus(id, status, notes, formData);
+            await DataService.updateOrderStatus(id, status, notes, formData, items);
             if (mountedRef.current) {
                 // Atualização Otimista local
-                setOrders(prev => prev.map(o => o.id === id ? { ...o, status, notes, formData: { ...o.formData, ...formData } } : o));
+                setOrders(prev => prev.map(o => o.id === id ? { ...o, status, notes, formData: { ...o.formData, ...formData }, items: items || o.items } : o));
 
                 // Atualiza cache
-                const updated = orders.map(o => o.id === id ? { ...o, status, notes, formData: { ...o.formData, ...formData } } : o);
+                const updated = orders.map(o => o.id === id ? { ...o, status, notes, formData: { ...o.formData, ...formData }, items: items || o.items } : o);
                 localStorage.setItem(STORAGE_KEYS.CACHE, JSON.stringify(updated));
             }
         } catch (e) {

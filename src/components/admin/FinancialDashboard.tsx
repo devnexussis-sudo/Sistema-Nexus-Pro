@@ -21,6 +21,7 @@ import { MercadoPagoPaymentModal } from './MercadoPagoPaymentModal';
 import { PaymentAuditModal } from './PaymentAuditModal';
 import { supabase } from '../../lib/supabase';
 import { PaymentService } from '../../services/paymentService';
+import { AccountsPayableTab } from './AccountsPayableTab';
 
 interface FinancialDashboardProps {
     orders: ServiceOrder[];
@@ -38,11 +39,12 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
     const printRef = useRef<HTMLDivElement>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [mainTab, setMainTab] = useState<'RECEIVABLES' | 'PAYABLES'>('RECEIVABLES');
 
     const getDefaultDates = () => {
         const dEnd = new Date();
         const dStart = new Date();
-        dStart.setMonth(dStart.getMonth() - 2);
+        dStart.setMonth(dStart.getMonth() - 6);
         return { start: dStart.toISOString().split('T')[0], end: dEnd.toISOString().split('T')[0] };
     };
     const { start: initStart, end: initEnd } = getDefaultDates();
@@ -165,7 +167,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
         key: 'date',
-        direction: 'desc'
+        direction: 'asc'
     });
 
     // Orçamentos disponíveis para vincular
@@ -1145,11 +1147,37 @@ ${container.innerHTML}
 
     return (
         <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden relative font-sans">
+            
+            {/* ── TOP LEVEL TAB SWITCHER ── */}
+            <div className="flex bg-white rounded-xl p-1 shadow-sm border border-slate-200 w-full sm:w-fit mb-4 shrink-0">
+                <button
+                    onClick={() => setMainTab('RECEIVABLES')}
+                    className={`flex-1 sm:flex-none px-6 py-2 text-[11px] font-bold uppercase tracking-widest rounded-lg transition-all ${
+                        mainTab === 'RECEIVABLES' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'
+                    }`}
+                >
+                    Contas a Receber
+                </button>
+                <button
+                    onClick={() => setMainTab('PAYABLES')}
+                    className={`flex-1 sm:flex-none px-6 py-2 text-[11px] font-bold uppercase tracking-widest rounded-lg transition-all ${
+                        mainTab === 'PAYABLES' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'
+                    }`}
+                >
+                    Contas a Pagar
+                </button>
+            </div>
 
-            {/* ── FILTROS + STATS ── */}
-            <div className="flex-shrink-0 space-y-2.5 mb-2.5">
-                {/* Row 1: Search & Toggle & Export */}
-                <div className="flex flex-col xl:flex-row gap-2.5 items-center w-full">
+            {mainTab === 'PAYABLES' && (
+                <AccountsPayableTab tenantId={tenant?.id || ''} />
+            )}
+
+            {mainTab === 'RECEIVABLES' && (
+                <>
+                {/* ── FILTROS + STATS ── */}
+                <div className="flex-shrink-0 space-y-2.5 mb-2.5">
+                    {/* Row 1: Search & Toggle & Export */}
+                    <div className="flex flex-col xl:flex-row gap-2.5 items-center w-full">
                     <div className="flex w-full xl:w-auto flex-1 gap-2.5">
                         <div className="relative flex-1 group">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#1c2d4f] transition-colors" size={14} />
@@ -3184,6 +3212,8 @@ ${container.innerHTML}
                     .print\\:hidden { visibility: hidden !important; display: none !important; }
                 }
             `}</style>
+                </>
+            )}
         </div>
     );
 };

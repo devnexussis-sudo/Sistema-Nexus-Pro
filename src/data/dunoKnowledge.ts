@@ -125,9 +125,30 @@ export const KNOWLEDGE_BASE: KnowledgeEntry[] = [
 
   { keywords: ['quem é você','o que você faz','qual seu nome','sobre você'],
     response: `Eu sou a **Duno IA**, a inteligência artificial integrada ao sistema **Duno**.\n\n**Minha função:**\n• Responder dúvidas sobre todas as funcionalidades.\\n• Explicar como usar cada módulo passo a passo.\\n• Aprender novas informações que você me ensinar.\\n\\n**Limitações:**\\n• Não acesso dados sensíveis (clientes, OS, financeiro).\\n• Não executo ações — apenas oriento.\\n• Conhecimento sobre funcionalidades, não dados operacionais.` },
+
+  // ── ATUALIZAÇÕES RECENTES (ÚLTIMOS 4 MESES) ──
+  { keywords: [
+      'contas a pagar','conta a pagar','despesas','despesa','fornecedor','fornecedores','categoria de despesa','pagamento parcial','juros','multa','financeiro contas',
+      'cadastrar conta','cadastrar despesa','lancamento','lançamento','fatura','boleto','lançar boleto','pagar conta','como cadastrar conta a pagar',
+      'como lancar conta a pagar','como lancar despesa','cadastrar uma conta a pagar','cadastrar boleto','novo boleto','nova despesa','lancar despesa'
+    ],
+    response: ` O **Módulo Financeiro — Contas a Pagar** permite cadastrar, controlar e dar baixa em todas as despesas da empresa!\n\n**Passo a Passo para Cadastrar uma Conta a Pagar:**\n1. Acesse o menu **"Financeiro"** na barra lateral esquerda.\n2. No topo da tela do Financeiro, selecione a aba **"Contas a Pagar"**.\n3. Clique no botão **"+ Nova Conta"** (no canto superior direito).\n4. Preencha os campos do formulário:\n   • **Descrição:** Título ou motivo da despesa (ex: Conta de Luz, Boleto Fornecedor X).\n   • **Fornecedor:** Selecione o fornecedor cadastrado (ou insira o nome).\n   • **Valor e Vencimento:** Insira o valor total (R$) e a data de vencimento.\n   • **Categoria:** Selecione a categoria da despesa (ex: Operacional, Peças, Aluguel).\n   • **Anexo:** Faça o upload do boleto (PDF) ou comprovante.\n5. Clique em **"Salvar Conta"**.\n\n**Recursos Importantes:**\n• **Baixa e Pagamento Parcial:** Ao dar baixa, você pode registrar o valor pago parcial. O sistema manterá o saldo restante como pendente.\n• **Juros e Multas:** Em pagamentos com atraso, adicione o valor dos acréscimos ao quitar.\n• **Gerenciar Categorias:** Clique em **"Categorias"** para criar novas seções de despesas.` },
+
+  { keywords: ['whatsapp bot','bot do whatsapp','atendimento automático','robô do zap','chatbot','respostas automáticas'],
+    response: `A **Duno IA agora atende no WhatsApp!** 🤖📱\n\nVocê pode conectar o seu número corporativo na aba **"Configurações > WhatsApp Bot"**.\n\n**O que a IA faz:**\n• Recebe os clientes 24/7 e tira dúvidas básicas.\n• Entende se o cliente é novo ou recorrente.\n• Transforma relatos de problemas em **Solicitações de Atendimento** estruturadas direto no seu painel (Módulo Atividade).\n• Coleta dados de clientes não cadastrados automaticamente.` },
+
+  { keywords: ['solicitação de atendimento','triagem','aprovar solicitação','rejeitar solicitação','inbox de os'],
+    response: `As **Solicitações de Atendimento** são a nova caixa de entrada de serviços!\n\n• Quando um cliente relata um problema via WhatsApp Bot ou Link Público, o pedido cai na aba **"Solicitações de Atendimento"** (na tela de Atividades).\n• **Triagem Inteligente:** O painel avisa se o cliente já existe no sistema ou se é necessário cadastrá-lo.\n• **Aceitar:** Com 1 clique, você aprova a solicitação, e ela se transforma em uma Ordem de Serviço real atribuída a um técnico.\n• **Rejeitar:** Pode negar o chamado informando o motivo.` },
+
+  { keywords: ['check-in automático','checkin automatico','raio de atendimento','chegada automática'],
+    response: `Nova funcionalidade no APP do Técnico: **Check-in Automático**! 📍\n\n• Habilite em **"Configurações > APP do Técnico"**.\n• O app usa GPS para identificar automaticamente quando o técnico entra em um raio de 50 metros do endereço do cliente.\n• Após 10 minutos no local, a OS inicia sozinha, registrando o status "Cheguei no Cliente" sem intervenção manual.` },
+
+  { keywords: ['restringir execução','geofencing','bloqueio de os','300 metros','cerca de bloqueio'],
+    response: `Mais segurança na operação: **Restrição de Execução por Localização (Geofencing)**.\n\n• Ativável em **"Configurações > APP do Técnico"**.\n• O técnico é impedido de iniciar ou dar andamento na OS caso esteja a mais de 300 metros do cliente.\n• Garante que a equipe de campo só preencha os formulários e assine a OS quando estiver fisicamente no local.` },
 ];
 
-export const findBestMatch = (input: string): string => {
+
+export const findBestMatch = (input: string): string | null => {
   const lower = input.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   let bestMatch: KnowledgeEntry | null = null;
   let bestScore = 0;
@@ -143,36 +164,5 @@ export const findBestMatch = (input: string): string => {
   }
   
   if (bestMatch && bestScore >= 3) return bestMatch.response;
-  
-  // 2. Simulação de "Varredura do Sistema" (Fallback Inteligente)
-  // Mapeia palavras-chave para módulos para sugerir caminhos, caso não haja resposta pronta.
-  const moduleHints: Record<string, string[]> = {
-    'Configurações': ['senha', 'logo', 'empresa', 'cnpj', 'fuso horário', 'idioma', 'notificação', 'notificações', 'gps', 'tempo real'],
-    'Financeiro': ['pagamento', 'fatura', 'boleto', 'receber', 'pagar', 'caixa', 'dinheiro', 'lucro'],
-    'Usuários': ['permissão', 'acesso', 'bloquear', 'senha', 'esqueci', 'login', 'grupo', 'cargo'],
-    'Estoque': ['peça', 'material', 'quantidade', 'falta', 'compra', 'fornecedor'],
-    'Atividade (OS)': ['imprimir os', 'pdf', 'pdf os', 'relatório os', 'foto os', 'vídeo os', 'fechar os', 'reabrir os'],
-    'Orçamentos': ['aprovar', 'recusar', 'enviar proposta', 'proposta', 'email cliente'],
-    'App do Técnico': ['celular', 'aplicativo', 'app', 'offline', 'sincronizar', 'bateria', 'gps técnico']
-  };
- 
-  for (const [module, keywords] of Object.entries(moduleHints)) {
-    if (keywords.some(k => new RegExp(`(^|\\b|\\s)${k.normalize('NFD').replace(/[\u0300-\u036f]/g, '')}(\\b|\\s|$)`).test(lower))) {
-      const intros = [
-        `Dei uma varrida no sistema e, analisando o que você pediu, vi que isso geralmente é feito no módulo **${module}**. 🔍\n\nTente dar uma olhada lá! Se não encontrar, me dê mais detalhes para eu ajudar.`,
-        `Hmm, fiz uma análise rápida nas telas do sistema Duno... Você deve encontrar opções para isso acessando **${module}** no menu lateral. 🚀`,
-        `Olha só, eu vasculhei as permissões e telas do sistema aqui. Acredito que o caminho certo para resolver isso seja indo em **${module}**. 😉`
-      ];
-      return intros[Math.floor(Math.random() * intros.length)];
-    }
-  }
-
-  // 3. Fallback Honesto (Assistente em treinamento)
-  const fallbacks = [
-    `Desculpe, ainda não fui treinada para responder sobre esse fluxo específico. 🤔\n\nComo sou uma inteligência em constante evolução, você pode me ensinar! É só digitar:\n\n**"Saiba que..."** seguido da explicação, e eu gravo pra sempre! 🧠`,
-    `Ainda não tenho essa informação exata nos meus registros internos. 😅\n\nSe você já souber como faz, pode me treinar para as próximas vezes usando o comando:\n\n**"Aprenda que [sua explicação]"**!`,
-    `Ainda não mapeei a resposta para essa pergunta específica. 🧐\n\nVocê pode tentar perguntar usando outros termos (ex: nome da tela ou ação), ou me ensinar digitando:\n\n**"Grava que..."** e o passo a passo!`
-  ];
-  
-  return fallbacks[Math.floor(Math.random() * fallbacks.length)];
+  return null;
 };
