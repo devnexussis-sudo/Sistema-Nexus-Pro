@@ -4,6 +4,7 @@ import {
     Calculator,
     Calendar,
     Clock,
+    Download,
     Edit3,
     Eye,
     FileSpreadsheet,
@@ -154,88 +155,6 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const getQuoteDisplayId = (quote: Quote): string => {
         if (quote.displayId) return quote.displayId;
         return `#${quote.id.slice(0, 8).toUpperCase()}`;
-    };
-
-    // ── Print handler (isolated window with inline A4 constraints) ──
-    const handlePrintQuote = () => {
-        if (!viewQuote) return;
-
-        const container = document.getElementById('quote-print-container');
-        if (!container) return;
-
-        const printWindow = window.open('', '_blank', 'width=900,height=700');
-        if (!printWindow) {
-            showAlert('Por favor, permita pop-ups neste site para imprimir.', 'warning');
-            return;
-        }
-
-        const styleLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
-            .map(el => el.outerHTML)
-            .join('\n');
-
-        printWindow.document.write(`<!DOCTYPE html>
-        <html>
-            <head>
-                <title>Proposta Comercial - ${viewQuote.displayId || viewQuote.id}</title>
-                ${styleLinks}
-                <style>
-                    @page { size: A4; margin: 10mm; }
-                    *, *::before, *::after { box-sizing: border-box !important; }
-                    html, body {
-                        margin: 0 !important;
-                        padding: 0 !important;
-                        width: 100% !important;
-                        overflow: hidden !important;
-                        background: white !important;
-                    }
-                    .print-root {
-                        width: 100% !important;
-                        max-width: 100% !important;
-                        overflow: hidden !important;
-                        padding: 0 !important;
-                        margin: 0 auto !important;
-                    }
-                    table {
-                        width: 100% !important;
-                        max-width: 100% !important;
-                        table-layout: fixed !important;
-                        border-collapse: collapse !important;
-                        overflow: hidden !important;
-                    }
-                    td, th {
-                        overflow: hidden !important;
-                        text-overflow: ellipsis !important;
-                        word-wrap: break-word !important;
-                        overflow-wrap: break-word !important;
-                    }
-                    img { max-width: 100% !important; }
-                    @media print {
-                        html, body {
-                            width: 100% !important;
-                            overflow: visible !important;
-                        }
-                        .print-root {
-                            width: 100% !important;
-                            max-width: 100% !important;
-                        }
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="print-root">
-                    ${container.innerHTML}
-                </div>
-                <script>
-                    window.onload = () => {
-                        setTimeout(() => {
-                            window.print();
-                            window.close();
-                        }, 500);
-                    };
-                </script>
-            </body>
-        </html>`);
-        printWindow.document.close();
     };
 
     const previewId = useMemo(() => {
@@ -871,7 +790,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
             {isModalOpen && createPortal(
                 <div className="fixed inset-0 z-[1200] flex items-end md:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 md:p-8 overflow-hidden animate-in fade-in duration-300">
                     <div className="bg-white md:rounded-2xl w-full max-w-6xl h-full md:h-[92vh] shadow-2xl md:border border-slate-200 overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-300">
-                        <div className="px-8 py-5 border-b border-slate-200 flex justify-between items-center bg-white">
+                        <div className="px-4 sm:px-8 py-3.5 sm:py-5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
                             <div className="flex items-center gap-4">
                                 <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center text-[#1c2d4f] border border-slate-200">
                                     <Calculator size={18} />
@@ -1070,18 +989,20 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                 )}
 
                                 {activeModalTab === 'produtos' && (
-                                    <div className="flex-1 flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[400px]">
-                                        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-white z-10">
-                                            <h3 className="text-sm font-medium text-slate-900 flex items-center gap-2">
+                                    <div className="flex-1 flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[300px] md:min-h-[400px]">
+                                        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 flex items-center justify-between bg-white z-10">
+                                            <h3 className="text-xs sm:text-sm font-medium text-slate-900 flex items-center gap-2">
                                                 <ListPlus size={16} className="text-emerald-500" /> Itens e Composição
                                             </h3>
-                                            <button onClick={handleAddItem} className="flex items-center gap-2 px-4 py-2 bg-[#1c2d4f] text-white rounded-xl text-xs font-medium hover:bg-[#253a66] transition-all shadow-md active:scale-95">
+                                            <button onClick={handleAddItem} className="flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-[#1c2d4f] text-white rounded-xl text-xs font-medium hover:bg-[#253a66] transition-all shadow-md active:scale-95">
                                                 <Plus size={16} /> Adicionar Item
                                             </button>
                                         </div>
-                                        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
-                                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-visible">
-                                                <table className="w-full text-left table-fixed lg:table-auto overflow-visible">
+                                        <div className="flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-50/50 custom-scrollbar space-y-3">
+                                            
+                                            {/* 🖥️ DESKTOP TABLE VIEW */}
+                                            <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-visible">
+                                                <table className="w-full text-left table-auto overflow-visible">
                                                     <thead className="bg-slate-50 border-b border-slate-200">
                                                         <tr className="text-[10px] font-medium text-slate-400 uppercase">
                                                             <th className="px-6 py-3 w-28">Código</th>
@@ -1116,12 +1037,12 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                                             className="w-full bg-transparent border-none text-sm font-semibold text-slate-700 outline-none p-0 focus:ring-0"
                                                                         />
                                                                         {isStockListOpen[index] && item.description.length > 0 && (
-                                                                            <div className="absolute z-[1300] top-full left-0 w-[450px] mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto custom-scrollbar animate-scale-up">
+                                                                            <div className="absolute z-[1300] top-full left-0 w-full sm:w-[450px] mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto custom-scrollbar animate-scale-up">
                                                                                 <button
                                                                                     onClick={() => setIsStockListOpen(prev => ({ ...prev, [index]: false }))}
-                                                                                    className="w-full text-left px-5 py-3 hover:bg-slate-50 border-b border-slate-100 bg-primary-50/50 text-[#1c2d4f] font-medium text-[11px] uppercase transition-colors flex items-center justify-between"
+                                                                                    className="w-full text-left px-4 py-2.5 hover:bg-slate-50 border-b border-slate-100 bg-primary-50/50 text-[#1c2d4f] font-medium text-[11px] uppercase transition-colors flex items-center justify-between"
                                                                                 >
-                                                                                    <span>Usar como item avulso: "{item.description.slice(0, 25)}..."</span>
+                                                                                    <span>Usar avulso: "{item.description.slice(0, 25)}..."</span>
                                                                                     <Plus size={14} />
                                                                                 </button>
                                                                                 {stockItems
@@ -1136,7 +1057,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                                                                 updateItem(index, { description: s.description, unitPrice: s.sellPrice, stockCode: s.code });
                                                                                                 setIsStockListOpen(prev => ({ ...prev, [index]: false }));
                                                                                             }}
-                                                                                            className="w-full text-left px-5 py-4 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors group/item"
+                                                                                            className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors group/item"
                                                                                         >
                                                                                             <div className="flex justify-between items-start">
                                                                                                 <div>
@@ -1160,39 +1081,147 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                         ))}
                                                     </tbody>
                                                 </table>
-                                                {items.length === 0 && (
-                                                    <div className="py-20 text-center flex flex-col items-center gap-4">
-                                                        <ShoppingCart size={48} className="text-slate-200" />
-                                                        <p className="text-sm font-medium text-slate-400">Nenhum item na proposta</p>
-                                                    </div>
-                                                )}
                                             </div>
+
+                                            {/* 📱 MOBILE CARDS VIEW */}
+                                            <div className="md:hidden space-y-3">
+                                                {items.map((item, index) => (
+                                                    <div key={item.id} className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-3 relative">
+                                                        <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="w-6 h-6 rounded-full bg-[#1c2d4f]/10 text-[#1c2d4f] text-xs font-bold flex items-center justify-center">
+                                                                    {index + 1}
+                                                                </span>
+                                                                <span className="text-xs font-bold text-slate-700">Item #{index + 1}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <input
+                                                                    placeholder="SKU (opcional)"
+                                                                    value={item.stockCode || ''}
+                                                                    onChange={e => updateItem(index, { stockCode: e.target.value })}
+                                                                    className="w-24 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold py-1 px-2 font-mono uppercase"
+                                                                />
+                                                                <button onClick={() => setItems(items.filter((_, i) => i !== index))} className="p-1 text-rose-400 hover:text-rose-600 transition-colors">
+                                                                    <Trash2 size={16} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Description Search Field */}
+                                                        <div className="space-y-1 relative">
+                                                            <label className="text-[9px] font-bold text-slate-400 uppercase">Descrição / Item</label>
+                                                            <div className="relative">
+                                                                <input
+                                                                    placeholder="Buscar produto ou digitar..."
+                                                                    value={item.description}
+                                                                    onFocus={() => setIsStockListOpen(prev => ({ ...prev, [index]: true }))}
+                                                                    onChange={e => {
+                                                                        updateItem(index, { description: e.target.value });
+                                                                        setIsStockListOpen(prev => ({ ...prev, [index]: true }));
+                                                                    }}
+                                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f]"
+                                                                />
+                                                                {isStockListOpen[index] && item.description.length > 0 && (
+                                                                    <div className="absolute z-[1300] top-full left-0 right-0 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-52 overflow-y-auto custom-scrollbar">
+                                                                        <button
+                                                                            onClick={() => setIsStockListOpen(prev => ({ ...prev, [index]: false }))}
+                                                                            className="w-full text-left px-3 py-2 hover:bg-slate-50 border-b border-slate-100 bg-primary-50/50 text-[#1c2d4f] font-bold text-[10px] uppercase flex items-center justify-between"
+                                                                        >
+                                                                            <span className="truncate">Usar avulso: "{item.description.slice(0, 20)}..."</span>
+                                                                            <Plus size={14} className="shrink-0" />
+                                                                        </button>
+                                                                        {stockItems
+                                                                            .filter(s => s.active !== false && (
+                                                                                s.description.toLowerCase().includes(item.description.toLowerCase()) ||
+                                                                                (s.code && s.code.toLowerCase().includes(item.description.toLowerCase()))
+                                                                            ))
+                                                                            .map(s => (
+                                                                                <button
+                                                                                    key={s.id}
+                                                                                    onClick={() => {
+                                                                                        updateItem(index, { description: s.description, unitPrice: s.sellPrice, stockCode: s.code });
+                                                                                        setIsStockListOpen(prev => ({ ...prev, [index]: false }));
+                                                                                    }}
+                                                                                    className="w-full text-left px-3 py-2.5 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors"
+                                                                                >
+                                                                                    <div className="flex justify-between items-start gap-2">
+                                                                                        <div className="min-w-0 flex-1">
+                                                                                            <p className="text-xs font-bold text-slate-800 truncate">{s.description}</p>
+                                                                                            <p className="text-[9px] text-slate-400 font-bold">SKU: {s.code}</p>
+                                                                                        </div>
+                                                                                        <p className="text-xs font-bold text-emerald-600 shrink-0">R$ {s.sellPrice?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                                                    </div>
+                                                                                </button>
+                                                                            ))
+                                                                        }
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Qtd, Unitario, Subtotal */}
+                                                        <div className="grid grid-cols-3 gap-2 pt-1">
+                                                            <div className="space-y-1">
+                                                                <label className="text-[9px] font-bold text-slate-400 uppercase">Qtd</label>
+                                                                <input
+                                                                    type="number"
+                                                                    value={item.quantity}
+                                                                    onChange={e => updateItem(index, { quantity: Number(e.target.value) })}
+                                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-center text-xs font-bold py-2 outline-none"
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                <label className="text-[9px] font-bold text-slate-400 uppercase">Unitário</label>
+                                                                <input
+                                                                    type="number"
+                                                                    value={item.unitPrice}
+                                                                    onChange={e => updateItem(index, { unitPrice: Number(e.target.value) })}
+                                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-center text-xs font-bold py-2 outline-none"
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1 text-right flex flex-col justify-end">
+                                                                <label className="text-[9px] font-bold text-slate-400 uppercase">Subtotal</label>
+                                                                <div className="bg-emerald-50 border border-emerald-100 rounded-xl py-2 px-1 text-center">
+                                                                    <span className="text-xs font-bold text-emerald-700">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            {items.length === 0 && (
+                                                <div className="py-16 text-center flex flex-col items-center gap-3">
+                                                    <ShoppingCart size={40} className="text-slate-300" />
+                                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nenhum item na proposta</p>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        <div className="px-8 py-6 border-t border-slate-200 bg-white flex justify-between items-center bg-slate-50/50">
-                            <div className="flex items-center gap-6">
+                        <div className="px-4 sm:px-8 py-3 sm:py-5 border-t border-slate-200 bg-white flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 shrink-0 shadow-lg sticky bottom-0 z-30">
+                            <div className="flex items-center gap-4 sm:gap-6 justify-between sm:justify-start">
                                 {/* Resumo financeiro */}
-                                <div className="space-y-1 min-w-[220px]">
-                                    <div className="flex justify-between items-center gap-8">
+                                <div className="space-y-1 min-w-0 flex-1 sm:flex-initial sm:min-w-[220px]">
+                                    <div className="flex justify-between items-center gap-4 sm:gap-8">
                                         <p className="text-[10px] font-medium text-slate-400 uppercase">Subtotal</p>
-                                        <p className="text-sm font-medium text-slate-600">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                        <p className="text-xs sm:text-sm font-medium text-slate-600">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                     </div>
-                                    <div className="flex justify-between items-center gap-4">
+                                    <div className="flex justify-between items-center gap-2 sm:gap-4">
                                         <p className="text-[10px] font-medium text-slate-400 uppercase">Desconto</p>
                                         <div className="flex items-center gap-1.5">
                                             {/* Toggle R$ / % */}
-                                            <div className="flex border border-rose-200 rounded-lg overflow-hidden text-[9px] font-semibold">
+                                            <div className="flex border border-rose-200 rounded-lg overflow-hidden text-[9px] font-semibold shrink-0">
                                                 <button
                                                     onClick={() => setDiscountType('fixed')}
-                                                    className={`px-2 py-1 transition-all ${discountType === 'fixed' ? 'bg-rose-500 text-white' : 'bg-white text-slate-400 hover:bg-rose-50'}`}
+                                                    className={`px-1.5 py-0.5 sm:px-2 sm:py-1 transition-all ${discountType === 'fixed' ? 'bg-rose-500 text-white' : 'bg-white text-slate-400 hover:bg-rose-50'}`}
                                                 >R$</button>
                                                 <button
                                                     onClick={() => setDiscountType('percent')}
-                                                    className={`px-2 py-1 transition-all ${discountType === 'percent' ? 'bg-rose-500 text-white' : 'bg-white text-slate-400 hover:bg-rose-50'}`}
+                                                    className={`px-1.5 py-0.5 sm:px-2 sm:py-1 transition-all ${discountType === 'percent' ? 'bg-rose-500 text-white' : 'bg-white text-slate-400 hover:bg-rose-50'}`}
                                                 >%</button>
                                             </div>
                                             <input
@@ -1203,7 +1232,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 value={discount || ''}
                                                 onChange={e => setDiscount(parseFloat(e.target.value) || 0)}
                                                 placeholder="0"
-                                                className="w-20 text-right text-sm font-medium text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-rose-300 transition-all"
+                                                className="w-16 sm:w-20 text-right text-xs sm:text-sm font-medium text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-rose-300 transition-all"
                                             />
                                         </div>
                                     </div>
@@ -1212,20 +1241,20 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                             - R$ {discountAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                         </p>
                                     )}
-                                    <div className="flex justify-between items-center gap-8 pt-1 border-t border-slate-200">
+                                    <div className="flex justify-between items-center gap-4 sm:gap-8 pt-1 border-t border-slate-200">
                                         <p className="text-[10px] font-medium text-slate-500 uppercase">Total</p>
-                                        <p className="text-base font-semibold text-[#1c2d4f]">R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                        <p className="text-sm sm:text-base font-semibold text-[#1c2d4f]">R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex gap-4">
-                                <button onClick={() => setIsModalOpen(false)} className="px-8 py-3 text-sm font-medium text-slate-500 hover:bg-slate-100 rounded-xl transition-all">{t.common.cancel}</button>
+                            <div className="flex items-center gap-2 sm:gap-4 shrink-0 w-full sm:w-auto">
+                                <button onClick={() => setIsModalOpen(false)} className="flex-1 sm:flex-initial px-4 sm:px-8 py-2.5 sm:py-3 text-xs sm:text-sm font-medium text-slate-500 hover:bg-slate-100 rounded-xl border border-slate-200 sm:border-none transition-all text-center justify-center">{t.common.cancel}</button>
                                 <button
                                     onClick={handleSaveQuote}
                                     disabled={!customerName || !title || items.length === 0 || loading}
-                                    className="px-12 py-3 bg-[#1c2d4f] text-white rounded-xl text-sm font-medium shadow-lg hover:bg-[#253a66] disabled:opacity-50 transition-all active:scale-95 flex items-center gap-2"
+                                    className="flex-1 sm:flex-initial px-5 sm:px-12 py-2.5 sm:py-3 bg-[#1c2d4f] text-white rounded-xl text-xs sm:text-sm font-medium shadow-lg hover:bg-[#253a66] disabled:opacity-50 transition-all active:scale-95 flex items-center justify-center gap-2"
                                 >
-                                    {loading ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar e Salvar'}
+                                    {loading ? <Loader2 size={16} className="animate-spin" /> : 'Confirmar e Salvar'}
                                 </button>
                             </div>
                         </div>
@@ -1235,33 +1264,38 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
             {/* MODAL DE VISUALIZAÇÃO */}
             {isViewModalOpen && viewQuote && createPortal(
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
-                    <div className="bg-white rounded-xl w-full max-w-6xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+                <div className="fixed inset-0 z-[1200] flex items-end md:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 md:p-6 overflow-hidden animate-in fade-in">
+                    <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-6xl h-[95vh] md:h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
 
-                        {/* HEADER — same pattern as Activity OS modal */}
-                        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center shrink-0 bg-white">
-                            <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-lg flex items-center justify-center border bg-slate-50 border-slate-200 text-slate-400">
-                                    <FileText size={20} />
-                                </div>
-                                <div>
-                                    <div className="flex items-center gap-3">
-                                        <h2 className="text-base font-semibold text-slate-900 font-poppins">Orçamento #{getQuoteDisplayId(viewQuote)}</h2>
-                                        <div className={`px-2.5 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wider ${viewQuote.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                                            viewQuote.status === 'REJEITADO' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
-                                                viewQuote.status === 'CONVERTIDO' ? 'bg-slate-900 text-emerald-400 border border-slate-700' :
-                                                    'bg-primary-50 text-primary-600 border border-primary-100'
-                                            }`}>
-                                            {viewQuote.status}
-                                        </div>
+                        {/* HEADER */}
+                        <div className="px-4 sm:px-6 py-3.5 sm:py-5 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-stretch sm:items-center shrink-0 bg-white gap-3">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center border bg-slate-50 border-slate-200 text-slate-400 shrink-0">
+                                        <FileText size={18} />
                                     </div>
-                                    <p className="text-xs text-slate-500 font-medium mt-0.5">
-                                        {viewQuote.customerName} • {viewQuote.customerAddress || 'Endereço não informado'}
-                                    </p>
+                                    <div>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <h2 className="text-sm sm:text-base font-semibold text-slate-900 font-poppins">Orçamento #{getQuoteDisplayId(viewQuote)}</h2>
+                                            <div className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-medium uppercase tracking-wider ${viewQuote.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                                viewQuote.status === 'REJEITADO' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
+                                                    viewQuote.status === 'CONVERTIDO' ? 'bg-slate-900 text-emerald-400 border border-slate-700' :
+                                                        'bg-primary-50 text-primary-600 border border-primary-100'
+                                                }`}>
+                                                {viewQuote.status}
+                                            </div>
+                                        </div>
+                                        <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 truncate max-w-[240px] sm:max-w-md">
+                                            {viewQuote.customerName} • {viewQuote.customerAddress || 'Endereço não informado'}
+                                        </p>
+                                    </div>
                                 </div>
+                                <button onClick={() => setIsViewModalOpen(false)} className="sm:hidden p-1.5 text-slate-400 hover:text-slate-900 transition-all rounded-lg hover:bg-slate-100">
+                                    <X size={20} />
+                                </button>
                             </div>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1 sm:pb-0 shrink-0">
                                 {(() => {
                                     const isLocked = viewQuote.status === 'APROVADO' || viewQuote.status === 'CONVERTIDO' || viewQuote.billingStatus === 'PAID';
                                     return (
@@ -1269,27 +1303,16 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                             onClick={(e) => {
                                                 if (!canEdit('quotes')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
                                                 if (isLocked) { e.preventDefault(); showAlert('Propostas aprovadas ou faturadas não podem ser editadas.'); return; }
-                                                const quote = viewQuote;
-                                                setSelectedQuote(quote);
-                                                setCustomerName(quote.customerName);
-                                                setTitle(quote.title);
-                                                setDescription(quote.description);
-                                                setItems(quote.items);
-                                                setValidUntil(quote.validUntil || '');
-                                                setDiscount(Number(quote.discount) || 0);
-                                                setDiscountType(quote.discountType || 'fixed');
-                                                setLinkedOrderId(quote.linkedOrderId || '');
                                                 setIsViewModalOpen(false);
-                                                setIsModalOpen(true);
+                                                handleOpenCreateModal(viewQuote);
                                             }}
-                                            className={`h-9 px-4 gap-2 border rounded-lg text-xs font-medium transition-all flex items-center ${isLocked
-                                                ? 'bg-slate-50 border-slate-100 text-slate-400 cursor-not-allowed opacity-60'
-                                                : 'border-blue-200 text-blue-700 hover:bg-blue-50 active:scale-95 shadow-sm'
-                                                } ${!canEdit('quotes') ? 'opacity-50 !cursor-not-allowed' : ''}`}
-                                            title={isLocked ? "Propostas aprovadas ou faturadas não podem ser editadas" : "Editar proposta"}
+                                            className={`inline-flex items-center justify-center min-w-max h-8 sm:h-9 px-3 sm:px-3.5 gap-1.5 border rounded-lg text-xs font-medium transition-all shrink-0 whitespace-nowrap ${isLocked
+                                                ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
+                                                : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
+                                                }`}
                                         >
-                                            {isLocked ? <Lock size={14} /> : <Edit3 size={14} />}
-                                            {isLocked ? 'Bloqueado' : 'Editar'}
+                                            {isLocked ? <Lock size={14} className="shrink-0" /> : <Edit3 size={14} className="shrink-0" />}
+                                            <span className="leading-none">{isLocked ? 'Bloqueado' : 'Editar'}</span>
                                         </button>
                                     );
                                 })()}
@@ -1298,16 +1321,12 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         const url = `${window.location.origin}/#/view-quote/${viewQuote.publicToken || viewQuote.id}`;
                                         window.open(url, '_blank');
                                     }}
-                                    className="h-9 px-4 gap-2 border border-primary-200 text-primary-700 hover:bg-primary-50 rounded-lg text-xs font-medium transition-all flex items-center"
+                                    className="inline-flex items-center justify-center min-w-max h-8 sm:h-9 px-3 sm:px-3.5 gap-1.5 border border-primary-200 text-primary-700 hover:bg-primary-50 rounded-lg text-xs font-medium transition-all shrink-0 whitespace-nowrap"
                                 >
-                                    <Eye size={14} /> Visualizar
+                                    <Eye size={14} className="shrink-0" />
+                                    <span className="leading-none">Visualizar</span>
                                 </button>
-                                <button
-                                    onClick={handlePrintQuote}
-                                    className="h-9 px-4 gap-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-medium transition-all flex items-center"
-                                >
-                                    <Printer size={14} /> Imprimir PDF
-                                </button>
+
                                 <button
                                     onClick={(e) => {
                                         if (!canDelete('quotes')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
@@ -1317,65 +1336,66 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                             setIsViewModalOpen(false);
                                         }, 'Excluir Proposta', 'Excluir', true);
                                     }}
-                                    className={`h-9 px-4 gap-2 border rounded-lg text-xs font-medium transition-all flex items-center ${(viewQuote.status === 'APROVADO' || viewQuote.status === 'CONVERTIDO' || viewQuote.billingStatus === 'PAID')
+                                    className={`inline-flex items-center justify-center min-w-max h-8 sm:h-9 px-3 sm:px-3.5 gap-1.5 border rounded-lg text-xs font-medium transition-all shrink-0 whitespace-nowrap ${(viewQuote.status === 'APROVADO' || viewQuote.status === 'CONVERTIDO' || viewQuote.billingStatus === 'PAID')
                                         ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
                                         : 'bg-white hover:bg-rose-50 border-rose-200 text-rose-600 hover:text-rose-600 hover:border-rose-200'
                                         } ${!canDelete('quotes') ? 'opacity-50 !cursor-not-allowed' : ''}`}
                                 >
-                                    <Trash2 size={14} /> Excluir
+                                    <Trash2 size={14} className="shrink-0" />
+                                    <span className="leading-none">Excluir</span>
                                 </button>
-                                <div className="h-6 w-px bg-slate-200 mx-2"></div>
-                                <button onClick={() => setIsViewModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
+                                <div className="hidden sm:block h-6 w-px bg-slate-200 mx-1"></div>
+                                <button onClick={() => setIsViewModalOpen(false)} className="hidden sm:block p-2 text-slate-400 hover:text-slate-900 transition-all">
                                     <X size={20} />
                                 </button>
                             </div>
                         </div>
 
                         {/* CONTENT AREA */}
-                        <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50 custom-scrollbar">
-                            <div className="grid grid-cols-12 gap-8">
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-50/50 custom-scrollbar">
+                            <div className="grid grid-cols-12 gap-4 sm:gap-8">
 
                                 {/* Left Column: Details */}
-                                <div className="col-span-12 lg:col-span-8 space-y-6">
+                                <div className="col-span-12 lg:col-span-8 space-y-4 sm:space-y-6">
 
                                     {/* Client Info Card */}
-                                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
-                                        <h3 className="text-sm font-medium text-slate-900 mb-6 flex items-center gap-2">
+                                    <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm">
+                                        <h3 className="text-xs sm:text-sm font-medium text-slate-900 mb-4 sm:mb-6 flex items-center gap-2">
                                             <User size={18} className="text-slate-400" /> Informações do Cliente
                                         </h3>
                                         {(() => {
                                             const c = customers.find(cust => cust.name === viewQuote.customerName);
                                             return (
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-y-6 gap-x-8">
-                                                    <div className="space-y-1.5 md:col-span-2">
-                                                        <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Cliente / Razão Social</label>
-                                                        <div className="text-sm font-semibold text-slate-900">{viewQuote.customerName}</div>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-y-6 sm:gap-x-8">
+                                                    <div className="space-y-1 sm:col-span-2">
+                                                        <label className="text-[10px] sm:text-[11px] font-medium text-slate-400 mb-0.5 block">Cliente / Razão Social</label>
+                                                        <div className="text-xs sm:text-sm font-semibold text-slate-900">{viewQuote.customerName}</div>
                                                     </div>
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">CPF / CNPJ</label>
-                                                        <div className="text-sm text-slate-600 font-medium">{c?.document || viewQuote.customerDocument || 'Não informado'}</div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] sm:text-[11px] font-medium text-slate-400 mb-0.5 block">CPF / CNPJ</label>
+                                                        <div className="text-xs sm:text-sm text-slate-600 font-medium">{c?.document || viewQuote.customerDocument || 'Não informado'}</div>
                                                     </div>
-                                                    <div className="space-y-1.5 md:col-span-2">
-                                                        <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Endereço Completo</label>
-                                                        <div className="text-sm text-slate-600 font-medium leading-relaxed">
+                                                    <div className="space-y-1 sm:col-span-2">
+                                                        <label className="text-[10px] sm:text-[11px] font-medium text-slate-400 mb-0.5 block">Endereço Completo</label>
+                                                        <div className="text-xs sm:text-sm text-slate-600 font-medium leading-relaxed">
                                                             {c ? [c.address, c.number, c.complement, c.neighborhood, c.city, c.state ? `/${c.state}` : null, c.zip ? `CEP: ${c.zip}` : null].filter(Boolean).join(' - ').replace(' - /', '/') : (viewQuote.customerAddress || 'Não informado')}
                                                         </div>
                                                     </div>
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">{t.common.email}</label>
-                                                        <div className="text-sm text-slate-600 font-medium break-all">{c?.email || 'Não informado'}</div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] sm:text-[11px] font-medium text-slate-400 mb-0.5 block">{t.common.email}</label>
+                                                        <div className="text-xs sm:text-sm text-slate-600 font-medium break-all">{c?.email || 'Não informado'}</div>
                                                     </div>
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">{t.common.phone}</label>
-                                                        <div className="text-sm text-slate-600 font-medium">{c?.phone || 'Não informado'}</div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] sm:text-[11px] font-medium text-slate-400 mb-0.5 block">{t.common.phone}</label>
+                                                        <div className="text-xs sm:text-sm text-slate-600 font-medium">{c?.phone || 'Não informado'}</div>
                                                     </div>
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">WhatsApp</label>
-                                                        <div className="text-sm text-slate-600 font-medium">{c?.whatsapp || 'Não informado'}</div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] sm:text-[11px] font-medium text-slate-400 mb-0.5 block">WhatsApp</label>
+                                                        <div className="text-xs sm:text-sm text-slate-600 font-medium">{c?.whatsapp || 'Não informado'}</div>
                                                     </div>
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Validade da Proposta</label>
-                                                        <div className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] sm:text-[11px] font-medium text-slate-400 mb-0.5 block">Validade da Proposta</label>
+                                                        <div className="text-xs sm:text-sm font-medium text-slate-700 flex items-center gap-2">
                                                             <Calendar size={14} className="text-slate-400" />
                                                             {viewQuote.validUntil ? new Date(viewQuote.validUntil).toLocaleDateString('pt-BR') : 'Não definida'}
                                                         </div>
@@ -1386,39 +1406,41 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     </div>
 
                                     {/* Description Card */}
-                                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
-                                        <h3 className="text-sm font-medium text-slate-900 mb-6 flex items-center gap-2">
+                                    <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm">
+                                        <h3 className="text-xs sm:text-sm font-medium text-slate-900 mb-4 sm:mb-6 flex items-center gap-2">
                                             <FileText size={18} className="text-slate-400" /> Objeto da Proposta
                                         </h3>
                                         <div className="space-y-4">
-                                            <div className="space-y-2">
-                                                <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Título</label>
-                                                <div className="text-sm font-semibold text-slate-900">{viewQuote.title}</div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] sm:text-[11px] font-medium text-slate-400 block">Título</label>
+                                                <div className="text-xs sm:text-sm font-semibold text-slate-900">{viewQuote.title}</div>
                                             </div>
-                                            <div className="space-y-2">
-                                                <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Descrição Detalhada</label>
-                                                <div className="p-4 bg-slate-50/50 rounded-md border border-slate-100 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap min-h-[80px] font-medium">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] sm:text-[11px] font-medium text-slate-400 block">Descrição Detalhada</label>
+                                                <div className="p-3 sm:p-4 bg-slate-50/50 rounded-xl border border-slate-100 text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-wrap min-h-[70px] font-medium">
                                                     {viewQuote.description || 'Nenhuma observação técnica registrada.'}
                                                 </div>
                                             </div>
                                             {viewQuote.notes && (
-                                                <div className="space-y-2">
-                                                    <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Observações</label>
-                                                    <div className="p-4 bg-primary-50 border border-primary-100 rounded-md text-sm font-medium text-slate-700 leading-relaxed">{viewQuote.notes}</div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] sm:text-[11px] font-medium text-slate-400 block">Observações</label>
+                                                    <div className="p-3 sm:p-4 bg-primary-50 border border-primary-100 rounded-xl text-xs sm:text-sm font-medium text-slate-700 leading-relaxed">{viewQuote.notes}</div>
                                                 </div>
                                             )}
                                         </div>
                                     </div>
 
                                     {/* Items Table Card */}
-                                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
-                                        <div className="flex items-center justify-between mb-6">
-                                            <h3 className="text-sm font-medium text-slate-900 flex items-center gap-2">
+                                    <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm">
+                                        <div className="flex items-center justify-between mb-4 sm:mb-6">
+                                            <h3 className="text-xs sm:text-sm font-medium text-slate-900 flex items-center gap-2">
                                                 <ListPlus size={18} className="text-slate-400" /> Itens e Serviços
                                             </h3>
                                             <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">{viewQuote.items.length} {viewQuote.items.length === 1 ? 'Item' : 'Itens'}</span>
                                         </div>
-                                        <div className="border border-slate-100 rounded-lg overflow-hidden">
+
+                                        {/* Desktop Table */}
+                                        <div className="hidden md:block border border-slate-100 rounded-lg overflow-hidden">
                                             <table className="w-full text-left">
                                                 <thead className="bg-slate-50 border-b border-slate-200">
                                                     <tr className="text-[10px] font-medium text-slate-400 uppercase">
@@ -1442,7 +1464,24 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 </tbody>
                                             </table>
                                         </div>
-                                        <div className="mt-4 flex flex-col items-end gap-2">
+
+                                        {/* Mobile Cards */}
+                                        <div className="md:hidden space-y-2.5">
+                                            {viewQuote.items.map((item, idx) => (
+                                                <div key={idx} className="bg-slate-50/70 p-3 rounded-xl border border-slate-200/70 space-y-2">
+                                                    <div className="flex justify-between items-start gap-2">
+                                                        <span className="text-[10px] font-bold text-slate-400">#{String(idx + 1).padStart(2, '0')}</span>
+                                                        <p className="text-xs font-bold text-slate-800 flex-1">{item.description}</p>
+                                                    </div>
+                                                    <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200/50">
+                                                        <span className="text-slate-500 font-medium">{item.quantity}x R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                        <span className="font-bold text-[#1c2d4f]">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="mt-4 flex flex-col items-end gap-2 w-full">
                                             {(() => {
                                                 const subtotal = viewQuote.items.reduce((acc, item) => acc + (item.total || 0), 0);
                                                 let discountValue = viewQuote.discountType === 'percent'
@@ -1454,24 +1493,24 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 }
 
                                                 return (
-                                                    <>
-                                                        <div className="bg-slate-50 border border-slate-100 px-6 py-3 rounded-lg flex flex-col gap-2 min-w-[300px]">
+                                                    <div className="w-full sm:w-auto sm:min-w-[300px] flex flex-col gap-2">
+                                                        <div className="bg-slate-50 border border-slate-100 px-4 sm:px-6 py-3 rounded-xl flex flex-col gap-2">
                                                             <div className="flex justify-between items-center w-full">
                                                                 <span className="text-[10px] uppercase font-medium tracking-widest text-slate-400">Subtotal</span>
-                                                                <span className="text-sm font-medium text-slate-600 font-mono">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                                <span className="text-xs sm:text-sm font-medium text-slate-600 font-mono">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                                             </div>
                                                             {discountValue > 0 && (
                                                                 <div className="flex justify-between items-center w-full pt-2 border-t border-slate-200/50">
                                                                     <span className="text-[10px] uppercase font-medium tracking-widest text-rose-400">Desconto {viewQuote.discountType === 'percent' ? `(${viewQuote.discount}%)` : ''}</span>
-                                                                    <span className="text-sm font-medium text-rose-500 font-mono">- R$ {discountValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                                    <span className="text-xs sm:text-sm font-medium text-rose-500 font-mono">- R$ {discountValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        <div className="bg-slate-900 text-white px-6 py-4 rounded-lg flex items-center justify-between gap-6 min-w-[300px] shadow-lg shadow-slate-900/10 mt-1">
+                                                        <div className="bg-slate-900 text-white px-4 sm:px-6 py-3.5 sm:py-4 rounded-xl flex items-center justify-between gap-4 shadow-lg shadow-slate-900/10 mt-1">
                                                             <span className="text-[10px] font-medium uppercase tracking-widest opacity-60">Total Líquido</span>
-                                                            <span className="text-2xl font-semibold tracking-tighter">R$ {viewQuote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                            <span className="text-xl sm:text-2xl font-semibold tracking-tighter text-emerald-400">R$ {viewQuote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                                         </div>
-                                                    </>
+                                                    </div>
                                                 );
                                             })()}
                                         </div>
@@ -1479,24 +1518,24 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                 </div>
 
                                 {/* Right Column: Metadata */}
-                                <div className="col-span-12 lg:col-span-4 space-y-6">
+                                <div className="col-span-12 lg:col-span-4 space-y-4 sm:space-y-6">
 
                                     {/* Timeline Card */}
-                                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-lg shadow-slate-200/50">
+                                    <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm">
                                         <h3 className="text-xs font-medium text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2">
                                             <Clock size={16} className="text-slate-400" /> Cronograma
                                         </h3>
-                                        <div className="space-y-4">
-                                            <div className="flex justify-between items-center pb-3 border-b border-slate-200">
+                                        <div className="space-y-3 sm:space-y-4">
+                                            <div className="flex justify-between items-center pb-2.5 border-b border-slate-100">
                                                 <span className="text-xs font-semibold text-slate-400">Criação</span>
                                                 <span className="text-xs font-medium text-slate-700">{new Date(viewQuote.createdAt).toLocaleDateString('pt-BR')}</span>
                                             </div>
-                                            <div className="flex justify-between items-center pb-3 border-b border-slate-200">
+                                            <div className="flex justify-between items-center pb-2.5 border-b border-slate-100">
                                                 <span className="text-xs font-semibold text-slate-400">Validade</span>
                                                 <span className="text-xs font-medium text-[#1c2d4f]">{viewQuote.validUntil ? new Date(viewQuote.validUntil).toLocaleDateString('pt-BR') : 'N/D'}</span>
                                             </div>
                                             {viewQuote.status === 'APROVADO' && (
-                                                <div className="p-3 bg-emerald-50 rounded-md border border-emerald-100">
+                                                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
                                                     <div className="flex justify-between items-center mb-1">
                                                         <span className="text-[10px] font-medium text-emerald-600 uppercase">Aprovação</span>
                                                     </div>
@@ -1696,11 +1735,36 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                             )}
                         </div>
                         <div className="col-span-5 p-2.5 grid grid-cols-2 gap-3 bg-slate-50/30">
-                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Criação</label><div className="font-medium">{fmt(quote.createdAt)}</div></div>
-                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Validade</label><div className="font-medium">{quote.validUntil ? fmt(quote.validUntil) : '—'}</div></div>
-                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Status</label><div className="font-medium text-[9px] border border-slate-200 px-1.5 py-0.5 rounded inline-block bg-white uppercase">{quote.status}</div></div>
+                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase mb-0.5">Criação</label><div className="font-medium">{fmt(quote.createdAt)}</div></div>
+                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase mb-0.5">Validade</label><div className="font-medium">{quote.validUntil ? fmt(quote.validUntil) : '—'}</div></div>
+                            <div className="flex flex-col justify-start">
+                                <span className="block text-[8px] font-medium text-slate-400 uppercase mb-1">Status</span>
+                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                    <span
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            height: '20px',
+                                            padding: '0 8px',
+                                            fontSize: '9px',
+                                            fontWeight: 600,
+                                            letterSpacing: '0.05em',
+                                            textTransform: 'uppercase',
+                                            border: '1px solid #cbd5e1',
+                                            borderRadius: '4px',
+                                            backgroundColor: '#ffffff',
+                                            color: '#1e293b',
+                                            boxSizing: 'border-box',
+                                            lineHeight: '20px'
+                                        }}
+                                    >
+                                        {quote.status}
+                                    </span>
+                                </div>
+                            </div>
                             {quote.linkedOrderId && (
-                                <div><label className="block text-[8px] font-medium text-slate-400 uppercase">O.S. Vinculada</label><div className="font-medium uppercase">{quote.linkedOrderId.slice(0, 8)}</div></div>
+                                <div><label className="block text-[8px] font-medium text-slate-400 uppercase mb-0.5">O.S. Vinculada</label><div className="font-medium uppercase">{quote.linkedOrderId.slice(0, 8)}</div></div>
                             )}
                         </div>
                     </div>

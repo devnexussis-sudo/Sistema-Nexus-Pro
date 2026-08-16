@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
     Hexagon, Calculator, CheckCircle, Clock, MapPin,
-    User, FileText, AlertCircle, Share2, Printer,
+    User, FileText, AlertCircle, Share2, Printer, Download,
     ArrowRight, Lock, Signature as SignatureIcon, Send,
     Calendar, ShieldCheck, DollarSign, XCircle, Mail, Phone,
     X, Loader2, Globe
@@ -198,36 +198,37 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
         };
     };
 
-    const enterSignatureMode = async (mode: 'approve' | 'reject') => {
-        if (window.innerWidth <= 768) {
-            try {
-                if (document.documentElement.requestFullscreen) {
-                    await document.documentElement.requestFullscreen();
-                }
-                if (screen.orientation && screen.orientation.lock) {
-                    await screen.orientation.lock('landscape');
-                }
-            } catch (e) {
-                console.warn('Nexus: Falha ao forçar landscape mode', e);
-            }
+    const approveFormRef = useRef<HTMLDivElement>(null);
+    const rejectFormRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (isApproveMode) {
+            setTimeout(() => {
+                approveFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 150);
         }
+    }, [isApproveMode]);
+
+    useEffect(() => {
+        if (isRejectMode) {
+            setTimeout(() => {
+                rejectFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 150);
+        }
+    }, [isRejectMode]);
+
+    const enterSignatureMode = async (mode: 'approve' | 'reject') => {
         if (mode === 'approve') setIsApproveMode(true);
         if (mode === 'reject') setIsRejectMode(true);
     };
 
     const exitSignatureMode = async (mode: 'approve' | 'reject') => {
-        try {
-            if (document.fullscreenElement && document.exitFullscreen) {
-                await document.exitFullscreen();
-            }
-            if (screen.orientation && screen.orientation.unlock) {
-                screen.orientation.unlock();
-            }
-        } catch (e) {
-            console.warn('Nexus: Falha ao sair do landscape mode', e);
-        }
         if (mode === 'approve') setIsApproveMode(false);
         if (mode === 'reject') setIsRejectMode(false);
+    };
+
+    const handlePrintQuote = () => {
+        window.print();
     };
 
     const handleApprove = async () => {
@@ -474,6 +475,9 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                     </div>
                     <div className="text-xs font-bold text-slate-400 uppercase mt-0.5">
                         Validade: {quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : 'A combinar'}
+                    </div>
+                    <div className="text-xs font-bold text-slate-500 uppercase mt-1">
+                        Status: <span className="text-slate-900 font-bold px-2 py-0.5 rounded border border-slate-300 bg-white inline-block">{quote.status}</span>
                     </div>
                 </div>
             </div>
@@ -778,18 +782,14 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                             </div>
                         </div>
 
-                        {/* Print button */}
+                        {/* Print Quote Button */}
                         <button
-                            onClick={() => {
-                                const originalTitle = window.document.title;
-                                window.document.title = `Proposta-${quote.displayId || quote.id.slice(0, 8).toUpperCase()}`;
-                                window.print();
-                                window.document.title = originalTitle;
-                            }}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-[#1c2d4f] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0"
+                            onClick={handlePrintQuote}
+                            className="inline-flex items-center justify-center min-w-max h-9 sm:h-10 px-4 py-2 bg-[#1c2d4f] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0 whitespace-nowrap"
+                            title="Imprimir Orçamento"
                         >
-                            <Printer size={14} />
-                            <span className="hidden sm:inline">Imprimir PDF</span>
+                            <Printer size={16} className="text-white shrink-0" />
+                            <span className="leading-none">Imprimir</span>
                         </button>
                     </div>
                 </header>
@@ -1054,62 +1054,68 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
 
                     {/* AREA DE RECUSA TEMÁTICA - Form */}
                     {isRejectMode && (
-                        <div className="bg-white border-2 border-rose-100 rounded-3xl shadow-2xl shadow-rose-100/30 p-8 sm:p-10 animate-fade-in-up print:hidden">
-                            <SectionHeader icon={<XCircle size={15} />} title="Formalizar Recusa da Proposta" color="text-rose-600" />
+                        <div ref={rejectFormRef} className="bg-white border-2 border-rose-200 rounded-3xl shadow-2xl shadow-rose-100/30 p-5 sm:p-8 md:p-10 animate-fade-in-up print:hidden space-y-6">
+                            <SectionHeader icon={<XCircle size={18} />} title="Formalizar Recusa da Proposta" color="text-rose-600" />
 
-                            <div className="space-y-6">
+                            <div className="space-y-5">
                                 <div>
-                                    <label className="text-xs font-bold text-slate-400 uppercase mb-2 block tracking-widest">Motivo da Recusa (Obrigatório)</label>
+                                    <label className="text-xs font-bold text-slate-700 uppercase mb-1.5 block tracking-widest">Motivo da Recusa (Obrigatório)</label>
                                     <textarea
                                         value={rejectionReason}
                                         onChange={e => setRejectionReason(e.target.value)}
-                                        placeholder="Por que esta proposta está sendo recusada?"
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-rose-200 transition-all min-h-[80px]"
+                                        placeholder="Descreva o motivo da recusa..."
+                                        className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:bg-white focus:border-rose-400 focus:ring-4 focus:ring-rose-100 transition-all min-h-[90px]"
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-400 uppercase mb-2 block tracking-widest">Nome do Responsável</label>
-                                        <input
-                                            type="text"
-                                            value={approverName}
-                                            onChange={e => setApproverName(e.target.value)}
-                                            placeholder="Nome completo"
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-rose-200 transition-all"
-                                        />
-                                    </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-700 uppercase mb-1.5 block tracking-widest">Nome do Responsável pela Recusa</label>
+                                    <input
+                                        type="text"
+                                        value={approverName}
+                                        onChange={e => setApproverName(e.target.value)}
+                                        placeholder={quote.customerName ? `Ex: ${quote.customerName}` : "Nome completo"}
+                                        className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-sm sm:text-base font-bold text-slate-800 outline-none focus:bg-white focus:border-rose-400 focus:ring-4 focus:ring-rose-100 transition-all"
+                                    />
                                 </div>
 
                                 <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-400 uppercase mb-2 block tracking-widest flex items-center gap-2"><SignatureIcon size={12} /> Assine para validar o declínio</label>
-                                    <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-inner">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-bold text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
+                                            <SignatureIcon size={14} className="text-rose-500" /> Assine no Campo Abaixo
+                                        </label>
+                                        <button onClick={() => sigCanvas.current?.clear()} className="text-xs font-bold text-rose-500 hover:text-rose-700 uppercase tracking-wider px-2 py-1 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200">
+                                            Limpar Assinatura
+                                        </button>
+                                    </div>
+                                    <div className="bg-white border-2 border-dashed border-rose-300 rounded-2xl overflow-hidden shadow-inner relative touch-none">
                                         {SignaturePad ? (
                                             <SignaturePad
                                                 ref={sigCanvas}
                                                 penColor="#e11d48"
-                                                minWidth={0.5}
-                                                maxWidth={1.5}
-                                                canvasProps={{ className: "w-full h-32 sm:h-40 cursor-crosshair", style: { touchAction: 'none' } }}
+                                                minWidth={1.5}
+                                                maxWidth={3.5}
+                                                canvasProps={{ className: "w-full h-56 sm:h-72 cursor-crosshair bg-slate-50/50 touch-none", style: { touchAction: 'none' } }}
                                             />
                                         ) : (
-                                            <div className="h-32 flex flex-col items-center justify-center p-4">
+                                            <div className="h-48 flex flex-col items-center justify-center p-4">
                                                 <p className="text-xs font-bold text-rose-500 uppercase tracking-widest text-center">Desculpe, a assinatura falhou. Recarregue a página.</p>
                                             </div>
                                         )}
-                                    </div>
-                                    <div className="flex justify-end">
-                                        <button onClick={() => sigCanvas.current?.clear()} className="text-xs font-bold text-slate-400 uppercase hover:text-slate-600 transition-colors">Limpar Apontamento</button>
+                                        <div className="absolute bottom-3 left-6 right-6 border-b border-slate-300/60 pointer-events-none flex justify-between items-center pb-1">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Assine acima da linha</span>
+                                            <span className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">Recusa Registrada</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="flex gap-4 pt-6 mt-6 border-t border-slate-200">
-                                <button disabled={isSubmitting} onClick={() => exitSignatureMode('reject')} className="flex-1 py-4 text-xs font-bold uppercase text-slate-400 hover:text-slate-600 transition-all tracking-widest bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100">Cancelar</button>
+                            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 border-t border-slate-200">
+                                <button disabled={isSubmitting} onClick={() => exitSignatureMode('reject')} className="w-full sm:w-auto px-6 py-3.5 text-xs font-bold uppercase text-slate-500 hover:text-slate-700 transition-all tracking-widest bg-slate-100 rounded-2xl border border-slate-200 text-center">Cancelar</button>
                                 <button
                                     disabled={isSubmitting}
                                     onClick={handleConfirmReject}
-                                    className="flex-[2] py-4 bg-rose-600 text-white rounded-xl text-xs sm:text-sm font-bold uppercase shadow-lg shadow-rose-600/20 flex items-center justify-center gap-2 hover:bg-rose-700 transition-all hover:-translate-y-0.5"
+                                    className="flex-1 py-4 bg-rose-600 text-white rounded-2xl text-xs sm:text-sm font-bold uppercase tracking-wider shadow-lg shadow-rose-600/20 flex items-center justify-center gap-2 hover:bg-rose-700 transition-all active:scale-[0.98]"
                                 >
                                     {isSubmitting ? <span className="animate-spin"><Loader2 size={16} /></span> : <><Send size={16} /> Enviar Recusa Oficial</>}
                                 </button>
@@ -1119,54 +1125,93 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
 
                     {/* AREA DE APROVAÇÃO - Form */}
                     {isApproveMode && (
-                        <div className="bg-white border-2 border-emerald-100 rounded-3xl shadow-2xl shadow-emerald-100/30 p-8 sm:p-10 animate-fade-in-up print:hidden">
-                            <SectionHeader icon={<ShieldCheck size={15} />} title="Aprovação Segura de Proposta Comercial" color="text-emerald-600" />
+                        <div ref={approveFormRef} className="bg-white border-2 border-emerald-500/30 rounded-3xl shadow-2xl shadow-emerald-500/10 p-5 sm:p-8 md:p-10 animate-fade-in-up print:hidden space-y-6">
+                            <SectionHeader icon={<ShieldCheck size={20} />} title="Aprovação e Aceite Digital da Proposta" color="text-emerald-700" />
 
                             <div className="space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-400 uppercase mb-2 block tracking-widest">Nome do Responsável</label>
-                                        <input
-                                            type="text"
-                                            value={approverName}
-                                            onChange={e => setApproverName(e.target.value)}
-                                            placeholder="Nome completo"
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-emerald-200 transition-all"
-                                        />
-                                    </div>
+                                {/* Campo Nome do Aprovador */}
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
+                                        <User size={14} className="text-emerald-600" /> Nome do Responsável pela Aprovação <span className="text-rose-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={approverName}
+                                        onChange={e => setApproverName(e.target.value)}
+                                        placeholder={quote.customerName ? `Ex: ${quote.customerName}` : "Digite seu nome completo..."}
+                                        className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-sm sm:text-base font-bold text-slate-800 outline-none focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all shadow-sm"
+                                        autoFocus
+                                    />
+                                    <p className="text-[11px] text-slate-400 font-medium">Digite o nome completo da pessoa que está autorizando a proposta comercial.</p>
                                 </div>
 
+                                {/* Campo Assinatura Digital Expandido */}
                                 <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-400 uppercase mb-2 block tracking-widest flex items-center gap-2"><SignatureIcon size={12} /> Assine para validar aprovação</label>
-                                    <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-inner">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-bold text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
+                                            <SignatureIcon size={14} className="text-emerald-600" /> Assinatura Digital no Campo Abaixo <span className="text-rose-500">*</span>
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => sigCanvas.current?.clear()}
+                                            className="text-xs font-bold text-rose-500 hover:text-rose-700 uppercase tracking-wider px-2.5 py-1 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200 transition-colors"
+                                        >
+                                            Limpar Assinatura
+                                        </button>
+                                    </div>
+
+                                    {/* Contêiner de Assinatura com Área Expandida */}
+                                    <div className="bg-white border-2 border-dashed border-emerald-400/80 rounded-2xl overflow-hidden shadow-inner relative group touch-none">
                                         {SignaturePad ? (
                                             <SignaturePad
                                                 ref={sigCanvas}
                                                 penColor="#0f172a"
-                                                minWidth={0.5}
-                                                maxWidth={1.5}
-                                                canvasProps={{ className: "w-full h-32 sm:h-40 cursor-crosshair", style: { touchAction: 'none' } }}
+                                                minWidth={1.5}
+                                                maxWidth={3.5}
+                                                canvasProps={{
+                                                    className: "w-full h-64 sm:h-80 md:h-96 cursor-crosshair bg-slate-50/50 touch-none",
+                                                    style: { touchAction: 'none' }
+                                                }}
                                             />
                                         ) : (
-                                            <div className="h-32 flex flex-col items-center justify-center p-4">
-                                                <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest text-center">Desculpe, a assinatura falhou. Recarregue a página.</p>
+                                            <div className="h-64 flex flex-col items-center justify-center p-4">
+                                                <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest text-center">Desculpe, a assinatura falhou ao carregar. Recarregue a página.</p>
                                             </div>
                                         )}
+                                        <div className="absolute bottom-4 left-6 right-6 border-b border-slate-300/60 pointer-events-none flex justify-between items-center pb-1">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Assine acima da linha com o dedo ou mouse</span>
+                                            <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Aceite Digital Certificado</span>
+                                        </div>
                                     </div>
-                                    <div className="flex justify-end">
-                                        <button onClick={() => sigCanvas.current?.clear()} className="text-xs font-bold text-slate-400 uppercase hover:text-slate-600 transition-colors">Limpar Apontamento</button>
-                                    </div>
+                                    <p className="text-[11px] text-slate-400 font-medium">Use o dedo na tela do celular para desenhar a sua assinatura na caixa acima.</p>
                                 </div>
                             </div>
 
-                            <div className="flex gap-4 pt-6 mt-6 border-t border-slate-200">
-                                <button disabled={isSubmitting} onClick={() => exitSignatureMode('approve')} className="flex-1 py-4 text-xs font-bold uppercase text-slate-400 hover:text-slate-600 transition-all tracking-widest bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100">Cancelar</button>
+                            {/* Botões de confirmação */}
+                            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 border-t border-slate-100">
+                                <button
+                                    disabled={isSubmitting}
+                                    onClick={() => exitSignatureMode('approve')}
+                                    className="w-full sm:w-auto px-6 py-3.5 text-xs font-bold uppercase text-slate-500 hover:text-slate-700 transition-all tracking-widest bg-slate-100 hover:bg-slate-200 rounded-2xl border border-slate-200 text-center"
+                                >
+                                    Cancelar
+                                </button>
                                 <button
                                     disabled={isSubmitting}
                                     onClick={handleApprove}
-                                    className="flex-[2] py-4 bg-emerald-600 text-white rounded-xl text-xs sm:text-sm font-bold uppercase shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all hover:-translate-y-0.5"
+                                    className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs sm:text-sm font-bold uppercase tracking-wider shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
                                 >
-                                    {isSubmitting ? <span className="animate-spin"><Loader2 size={16} /></span> : <><Send size={16} /> Assinar e Aprovar Online</>}
+                                    {isSubmitting ? (
+                                        <>
+                                            <Loader2 size={18} className="animate-spin" />
+                                            <span>Registrando Aceite...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Send size={18} />
+                                            <span>Confirmar e Enviar Aprovação</span>
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </div>

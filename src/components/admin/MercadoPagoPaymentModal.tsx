@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { PaymentService } from '../../services/paymentService';
 import { supabase } from '../../lib/supabase';
 import { 
@@ -151,6 +152,7 @@ export const MercadoPagoPaymentModal: React.FC<MercadoPagoPaymentModalProps> = (
   const finalAmount = Math.max(0, Math.round(baseValue * 100) / 100);
 
   if (!isOpen || !item) return null;
+  if (typeof document === 'undefined') return null;
 
   const handleGenerateCharge = async (paymentMethodType: 'pix' | 'card_link' | 'boleto') => {
     if (finalAmount <= 0) {
@@ -211,47 +213,47 @@ export const MercadoPagoPaymentModal: React.FC<MercadoPagoPaymentModalProps> = (
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
 
-  return (
-    <div className="fixed inset-0 z-[1300] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in font-poppins">
-      <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden border border-slate-200/80 flex flex-col transition-all">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fade-in font-poppins overflow-hidden">
+      <div className="bg-white rounded-2xl sm:rounded-3xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-200/80 flex flex-col my-auto transition-all animate-scale-up">
         {/* Header Premium Big-Tech */}
-        <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-[#004A75] text-white p-5 flex items-center justify-between relative overflow-hidden border-b border-sky-500/20">
+        <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-[#004A75] text-white px-4 py-3 flex items-center justify-between relative overflow-hidden border-b border-sky-500/20 shrink-0">
           <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/10 rounded-full blur-2xl pointer-events-none" />
           
-          <div className="flex items-center gap-3.5 relative z-10">
-            <div className="w-11 h-11 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shrink-0 text-[#009EE3]">
-              <CreditCard size={22} />
+          <div className="flex items-center gap-2.5 relative z-10">
+            <div className="w-8 h-8 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shrink-0 text-[#009EE3]">
+              <CreditCard size={17} />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-sm text-white tracking-tight">Checkout Mercado Pago 2.0</h3>
-                <span className="bg-sky-500/20 text-sky-300 text-[9px] font-bold px-2 py-0.5 rounded-full border border-sky-400/30 uppercase tracking-widest">
+              <div className="flex items-center gap-1.5">
+                <h3 className="font-bold text-xs sm:text-sm text-white tracking-tight">Checkout Mercado Pago 2.0</h3>
+                <span className="bg-sky-500/20 text-sky-300 text-[8px] font-bold px-1.5 py-0.2 rounded-full border border-sky-400/30 uppercase tracking-widest">
                   Live API
                 </span>
               </div>
-              <p className="text-[11px] text-slate-300">
+              <p className="text-[10px] text-slate-300 truncate max-w-[240px]">
                 {item.customerName} • #{item.displayId || item.id.slice(0, 8)}
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:text-white transition-colors rounded-xl hover:bg-white/10">
-            <X size={20} />
+          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-white/10">
+            <X size={16} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-5 max-h-[85vh] overflow-y-auto">
+        <div className="p-4 sm:p-5 space-y-3 bg-slate-50/20 max-h-[85vh] overflow-y-auto custom-scrollbar">
           {/* SE A TRANSAÇÃO JÁ ESTIVER LIQUIDADA/PAGA */}
           {(isPaidConfirmed || (item as any).billingStatus === 'PAID' || item.gatewayStatus === 'approved') ? (
-            <div className="space-y-4">
-              <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-5 shadow-lg border border-emerald-400/30 text-center space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center mx-auto text-white">
-                  <CheckCircle2 size={28} />
+            <div className="space-y-3">
+              <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-xl p-4 shadow-md border border-emerald-400/30 text-center space-y-2.5">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center mx-auto text-white">
+                  <CheckCircle2 size={24} />
                 </div>
                 <div>
-                  <h4 className="font-bold text-sm uppercase tracking-wider">Transação Liquidada e Conciliada</h4>
-                  <p className="text-xs text-emerald-100 mt-1 leading-relaxed">
-                    Esta transação já foi <strong className="text-white">Faturada</strong> no caixa da empresa. Os botões de gerar nova cobrança estão inibidos para proteger a conta contra pagamentos duplicados.
+                  <h4 className="font-bold text-xs uppercase tracking-wider">Transação Liquidada e Conciliada</h4>
+                  <p className="text-[11px] text-emerald-100 mt-0.5 leading-relaxed">
+                    Esta transação já foi <strong className="text-white">Faturada</strong> no caixa da empresa. Os botões de gerar nova cobrança estão inibidos.
                   </p>
                 </div>
 
@@ -259,32 +261,32 @@ export const MercadoPagoPaymentModal: React.FC<MercadoPagoPaymentModalProps> = (
                   type="button"
                   onClick={handleManualCheckStatus}
                   disabled={isVerifying}
-                  className="w-full py-3 bg-slate-950 hover:bg-slate-900 text-white rounded-xl font-bold text-xs transition-all shadow-md flex items-center justify-center gap-2 border border-white/20 active:scale-95 cursor-pointer"
+                  className="w-full py-2 bg-slate-950 hover:bg-slate-900 text-white rounded-lg font-bold text-xs transition-all shadow-md flex items-center justify-center gap-1.5 border border-white/20 active:scale-95 cursor-pointer"
                 >
-                  {isVerifying ? <Loader2 size={16} className="animate-spin text-emerald-400" /> : <RefreshCw size={16} className="text-emerald-400" />}
-                  {isVerifying ? 'Consultando Mercado Pago...' : '⚡ Consultar Status em Tempo Real no Mercado Pago'}
+                  {isVerifying ? <Loader2 size={14} className="animate-spin text-emerald-400" /> : <RefreshCw size={14} className="text-emerald-400" />}
+                  {isVerifying ? 'Consultando...' : '⚡ Consultar Status no Mercado Pago'}
                 </button>
               </div>
 
               {error && (
-                <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs p-3.5 rounded-2xl font-medium flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                <div className="bg-rose-50 border border-rose-200 text-rose-700 text-[11px] p-2.5 rounded-xl font-medium flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
                   {error}
                 </div>
               )}
             </div>
           ) : !paymentResult ? (
             /* SE FOR PENDENTE E AINDA NÃO GEROU COBRANÇA */
-            <div className="space-y-5">
+            <div className="space-y-3">
               {/* Banner de Verificação Instantânea Mercado Pago */}
-              <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-4 shadow-lg shadow-emerald-500/15 flex flex-col sm:flex-row items-center justify-between gap-3 font-poppins border border-emerald-400/30">
-                <div className="flex items-center gap-3 text-left">
-                  <div className="w-10 h-10 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center shrink-0">
-                    <RefreshCw size={20} className={isVerifying ? 'animate-spin' : ''} />
+              <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-xl p-3 shadow-md shadow-emerald-500/10 flex items-center justify-between gap-2 font-poppins border border-emerald-400/30">
+                <div className="flex items-center gap-2 text-left min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-white/15 backdrop-blur-sm flex items-center justify-center shrink-0">
+                    <RefreshCw size={16} className={isVerifying ? 'animate-spin' : ''} />
                   </div>
-                  <div>
-                    <h4 className="font-bold text-xs">Já efetuou o pagamento no Banco?</h4>
-                    <p className="text-[10px] text-emerald-100">Consulte a conciliação do Mercado Pago em tempo real</p>
+                  <div className="min-w-0">
+                    <h4 className="font-bold text-[11px] truncate">Já pagou no Banco?</h4>
+                    <p className="text-[9px] text-emerald-100 truncate">Verifique em tempo real</p>
                   </div>
                 </div>
 
@@ -292,52 +294,52 @@ export const MercadoPagoPaymentModal: React.FC<MercadoPagoPaymentModalProps> = (
                   type="button"
                   onClick={handleManualCheckStatus}
                   disabled={isVerifying}
-                  className="w-full sm:w-auto px-4 py-2.5 bg-slate-950 hover:bg-slate-900 text-white rounded-xl font-bold text-xs transition-all shadow-md flex items-center justify-center gap-2 shrink-0 active:scale-95 border border-white/20"
+                  className="px-3 py-1.5 bg-slate-950 hover:bg-slate-900 text-white rounded-lg font-bold text-[11px] transition-all shadow-md flex items-center justify-center gap-1.5 shrink-0 active:scale-95 border border-white/20"
                 >
-                  {isVerifying ? <Loader2 size={15} className="animate-spin text-emerald-400" /> : <RefreshCw size={15} className="text-emerald-400" />}
-                  {isVerifying ? 'Consultando...' : '⚡ Verificar Agora'}
+                  {isVerifying ? <Loader2 size={13} className="animate-spin text-emerald-400" /> : <RefreshCw size={13} className="text-emerald-400" />}
+                  {isVerifying ? 'Consultando...' : '⚡ Verificar'}
                 </button>
               </div>
 
               {error && (
-                <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs p-3.5 rounded-2xl font-medium flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                <div className="bg-rose-50 border border-rose-200 text-rose-700 text-[11px] p-2.5 rounded-xl font-medium flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
                   {error}
                 </div>
               )}
 
               {/* Exibição do Valor Total (Fixo) */}
-              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+              <div className="bg-white border border-slate-200/80 rounded-xl p-3 shadow-xs flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">Valor a Cobrar</span>
-                  <span className="text-[10px] text-slate-500 font-medium">Descontos já aplicados na O.S.</span>
+                  <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider block">Valor a Cobrar</span>
+                  <span className="text-[9px] text-slate-400 font-medium">Líquido da O.S.</span>
                 </div>
-                <span className="text-2xl font-black text-[#009EE3]">
+                <span className="text-xl font-black text-[#009EE3]">
                   R$ {finalAmount.toFixed(2)}
                 </span>
               </div>
 
-              <div className="flex items-center justify-between text-[11px] text-amber-700 bg-amber-50 border border-amber-200 p-2.5 rounded-xl font-medium">
-                <span>⏱️ <strong>Validade do Link:</strong> Expira em 1 hora se não for pago.</span>
+              <div className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200/80 px-2.5 py-1.5 rounded-lg font-medium text-center">
+                ⏱️ <strong>Validade:</strong> Expira em 1 hora se não for pago.
               </div>
 
-              <p className="text-xs text-slate-500 font-medium">Selecione a forma de cobrança desejada:</p>
+              <p className="text-[11px] text-slate-500 font-medium pt-0.5">Selecione a forma de cobrança:</p>
               
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <button
                   type="button"
                   onClick={() => handleGenerateCharge('pix')}
                   disabled={loading}
-                  className={`w-full p-3.5 rounded-2xl border-2 transition-all group text-left flex items-center gap-3.5 ${
-                    loadingMethod === 'pix' ? 'border-[#009EE3] bg-sky-50' : 'border-slate-100 hover:border-[#009EE3] hover:bg-sky-50/50'
+                  className={`w-full p-2.5 rounded-xl border transition-all group text-left flex items-center gap-3 ${
+                    loadingMethod === 'pix' ? 'border-[#009EE3] bg-sky-50' : 'border-slate-200/80 bg-white hover:border-[#009EE3] hover:bg-sky-50/50'
                   }`}
                 >
-                  <div className="w-11 h-11 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                    {loadingMethod === 'pix' ? <Loader2 size={22} className="animate-spin text-[#009EE3]" /> : <QrCode size={22} />}
+                  <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    {loadingMethod === 'pix' ? <Loader2 size={16} className="animate-spin text-[#009EE3]" /> : <QrCode size={16} />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="font-bold text-xs text-slate-800 block">PIX Instantâneo</span>
-                    <span className="text-[10px] text-slate-500">Gera QR Code + Copia e Cola com liquidação imediata.</span>
+                    <span className="font-bold text-xs text-slate-800 block leading-tight">PIX Instantâneo</span>
+                    <span className="text-[9px] text-slate-400 leading-tight block">QR Code + Copia e Cola com liquidação imediata.</span>
                   </div>
                 </button>
 
@@ -345,16 +347,16 @@ export const MercadoPagoPaymentModal: React.FC<MercadoPagoPaymentModalProps> = (
                   type="button"
                   onClick={() => handleGenerateCharge('card_link')}
                   disabled={loading}
-                  className={`w-full p-3.5 rounded-2xl border-2 transition-all group text-left flex items-center gap-3.5 ${
-                    loadingMethod === 'card_link' ? 'border-[#009EE3] bg-sky-50' : 'border-slate-100 hover:border-[#009EE3] hover:bg-sky-50/50'
+                  className={`w-full p-2.5 rounded-xl border transition-all group text-left flex items-center gap-3 ${
+                    loadingMethod === 'card_link' ? 'border-[#009EE3] bg-sky-50' : 'border-slate-200/80 bg-white hover:border-[#009EE3] hover:bg-sky-50/50'
                   }`}
                 >
-                  <div className="w-11 h-11 rounded-xl bg-sky-50 text-[#009EE3] flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                    {loadingMethod === 'card_link' ? <Loader2 size={22} className="animate-spin text-[#009EE3]" /> : <CreditCard size={22} />}
+                  <div className="w-8 h-8 rounded-lg bg-sky-50 text-[#009EE3] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    {loadingMethod === 'card_link' ? <Loader2 size={16} className="animate-spin text-[#009EE3]" /> : <CreditCard size={16} />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="font-bold text-xs text-slate-800 block">Link de Cartão de Crédito</span>
-                    <span className="text-[10px] text-slate-500">Checkout transparente para parcelamento no cartão em até 12x.</span>
+                    <span className="font-bold text-xs text-slate-800 block leading-tight">Link de Cartão de Crédito</span>
+                    <span className="text-[9px] text-slate-400 leading-tight block">Checkout transparente em até 12x.</span>
                   </div>
                 </button>
 
@@ -362,78 +364,78 @@ export const MercadoPagoPaymentModal: React.FC<MercadoPagoPaymentModalProps> = (
                   type="button"
                   onClick={() => handleGenerateCharge('boleto')}
                   disabled={loading}
-                  className={`w-full p-3.5 rounded-2xl border-2 transition-all group text-left flex items-center gap-3.5 ${
-                    loadingMethod === 'boleto' ? 'border-[#009EE3] bg-sky-50' : 'border-slate-100 hover:border-[#009EE3] hover:bg-sky-50/50'
+                  className={`w-full p-2.5 rounded-xl border transition-all group text-left flex items-center gap-3 ${
+                    loadingMethod === 'boleto' ? 'border-[#009EE3] bg-sky-50' : 'border-slate-200/80 bg-white hover:border-[#009EE3] hover:bg-sky-50/50'
                   }`}
                 >
-                  <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                    {loadingMethod === 'boleto' ? <Loader2 size={22} className="animate-spin text-[#009EE3]" /> : <ExternalLink size={22} />}
+                  <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    {loadingMethod === 'boleto' ? <Loader2 size={16} className="animate-spin text-[#009EE3]" /> : <ExternalLink size={16} />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="font-bold text-xs text-slate-800 block">Boleto Bancário</span>
-                    <span className="text-[10px] text-slate-500">Gera boleto bancário oficial do Mercado Pago com linha digitável.</span>
+                    <span className="font-bold text-xs text-slate-800 block leading-tight">Boleto Bancário</span>
+                    <span className="text-[9px] text-slate-400 leading-tight block">Boleto bancário oficial Mercado Pago.</span>
                   </div>
                 </button>
               </div>
 
               {loading && (
                 <div className="flex items-center justify-center gap-2 text-xs font-bold text-[#009EE3] py-2 bg-sky-50 rounded-xl border border-sky-100">
-                  <Loader2 size={16} className="animate-spin" /> Conectando ao Mercado Pago e gerando cobrança...
+                  <Loader2 size={14} className="animate-spin" /> Conectando ao Mercado Pago...
                 </div>
               )}
             </div>
           ) : (
             /* SE A COBRANÇA JÁ FOI GERADA E ESTÁ AGUARDANDO PAGAMENTO */
-            <div className="space-y-5 animate-fade-in text-center">
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto ${
-                isPaidConfirmed ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30' : 'bg-emerald-100 text-emerald-600'
+            <div className="space-y-3 animate-fade-in text-center">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto ${
+                isPaidConfirmed ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30' : 'bg-emerald-100 text-emerald-600'
               }`}>
-                <CheckCircle2 size={28} />
+                <CheckCircle2 size={22} />
               </div>
 
               <div>
-                <h4 className="font-bold text-slate-800 text-base">
+                <h4 className="font-bold text-slate-800 text-sm">
                   {isPaidConfirmed ? '🟢 Pagamento Liquidado com Sucesso!' : 'Cobrança Emitida com Sucesso!'}
                 </h4>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-[11px] text-slate-500 mt-0.5">
                   {isPaidConfirmed 
                     ? 'A transação foi confirmada pelo Mercado Pago e reconciliada no sistema.'
-                    : 'Envie o código Pix ou Link para o cliente efetuar o pagamento. O sistema atualizará sozinho assim que pago.'}
+                    : 'Envie o código Pix ou Link para o cliente efetuar o pagamento.'}
                 </p>
               </div>
 
               {/* Botão de Verificação Manual Instantânea */}
               {!isPaidConfirmed && (
-                <div className="bg-[#009EE3]/10 border border-[#009EE3]/30 rounded-2xl p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2 text-left">
-                    <RefreshCw size={16} className="text-[#009EE3] shrink-0 animate-spin" />
-                    <div>
-                      <span className="text-[#009EE3] font-bold block text-xs">Verificação de Pagamento</span>
-                      <span className="text-[10px] text-slate-500">Já efetuou o pagamento no app do banco?</span>
+                <div className="bg-[#009EE3]/10 border border-[#009EE3]/30 rounded-xl p-2.5 flex items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2 text-left min-w-0">
+                    <RefreshCw size={14} className="text-[#009EE3] shrink-0 animate-spin" />
+                    <div className="min-w-0">
+                      <span className="text-[#009EE3] font-bold block text-[11px] truncate">Verificação de Pagamento</span>
+                      <span className="text-[9px] text-slate-500 truncate block">Já efetuou o pagamento no app?</span>
                     </div>
                   </div>
                   <button
                     onClick={handleManualCheckStatus}
                     disabled={isVerifying}
-                    className="w-full sm:w-auto px-4 py-2 bg-[#009EE3] hover:bg-[#0089c7] text-white rounded-xl font-bold text-xs transition-all shadow-md shadow-[#009EE3]/20 flex items-center justify-center gap-2 shrink-0 active:scale-95"
+                    className="px-3 py-1.5 bg-[#009EE3] hover:bg-[#0089c7] text-white rounded-lg font-bold text-[11px] transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 active:scale-95"
                   >
-                    {isVerifying ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                    {isVerifying ? 'Consultando Mercado Pago...' : '⚡ Verificar Pagamento Agora'}
+                    {isVerifying ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                    {isVerifying ? 'Consultando...' : '⚡ Verificar Agora'}
                   </button>
                 </div>
               )}
 
               {/* Box Pix Copia e Cola */}
               {paymentResult.pixCopiaECola && !isPaidConfirmed && (
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 text-left space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Código PIX Copia e Cola</label>
-                  <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200">
-                    <code className="text-xs font-mono text-slate-700 truncate flex-1">{paymentResult.pixCopiaECola}</code>
+                <div className="bg-white border border-slate-200/80 rounded-xl p-2.5 text-left space-y-1.5 shadow-xs">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Código PIX Copia e Cola</label>
+                  <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                    <code className="text-[11px] font-mono text-slate-700 truncate flex-1">{paymentResult.pixCopiaECola}</code>
                     <button
                       onClick={handleCopyPix}
-                      className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-slate-800 transition-all shrink-0 flex items-center gap-1"
+                      className="px-2.5 py-1 bg-slate-900 text-white rounded-md text-[11px] font-semibold hover:bg-slate-800 transition-all shrink-0 flex items-center gap-1 active:scale-95"
                     >
-                      {copied ? <CheckCircle2 size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                      {copied ? <CheckCircle2 size={12} className="text-emerald-400" /> : <Copy size={12} />}
                       {copied ? 'Copiado!' : 'Copiar'}
                     </button>
                   </div>
@@ -441,35 +443,37 @@ export const MercadoPagoPaymentModal: React.FC<MercadoPagoPaymentModalProps> = (
               )}
 
               {/* Botões de Ação */}
-              <div className="grid grid-cols-2 gap-3 pt-2">
+              <div className="grid grid-cols-2 gap-2 pt-0.5">
                 <button
                   onClick={handleSendWhatsApp}
-                  className="flex items-center justify-center gap-2 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-2xl transition-all shadow-md shadow-emerald-600/20"
+                  className="flex items-center justify-center gap-1.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-emerald-600/20 active:scale-95"
                 >
-                  <Share2 size={16} /> WhatsApp
+                  <Share2 size={14} /> WhatsApp
                 </button>
                 {paymentResult.ticketUrl && (
                   <button
                     onClick={() => window.open(paymentResult.ticketUrl, '_blank')}
-                    className="flex items-center justify-center gap-2 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-2xl transition-all"
+                    className="flex items-center justify-center gap-1.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all active:scale-95"
                   >
-                    <ExternalLink size={16} /> Abrir Link
+                    <ExternalLink size={14} /> Abrir Link
                   </button>
                 )}
               </div>
 
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+              {/* Rodapé Interno Formatado */}
+              <div className="pt-2 border-t border-slate-200/80 flex items-center justify-center">
                 <button
                   onClick={() => setPaymentResult(null)}
-                  className="text-xs font-bold text-[#009EE3] hover:underline py-1 transition-all"
+                  className="inline-flex items-center justify-center gap-1 text-[11px] font-bold text-[#009EE3] hover:text-[#0082bc] transition-colors py-1"
                 >
-                  🔁 Gerar Nova Cobrança ou Alterar Valor
+                  <RefreshCw size={12} /> Gerar Nova Cobrança ou Alterar Valor
                 </button>
               </div>
             </div>
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { safeCreatePortal } from '../utils/portal';
 import { AlertTriangle, CheckCircle2, Info, X } from 'lucide-react';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -86,7 +86,7 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       {children}
 
       {/* ── Alert Modal ───────────────────────────────────────────────────── */}
-      {alertState && createPortal(
+      {alertState && safeCreatePortal(
         <div className="fixed inset-0 z-[99999] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden">
             <div className="p-6">
@@ -112,12 +112,11 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               </button>
             </div>
           </div>
-        </div>,
-        document.body
+        </div>
       )}
 
       {/* ── Confirm Modal ────────────────────────────────────────────────── */}
-      {confirmState && createPortal(
+      {confirmState && safeCreatePortal(
         <div className="fixed inset-0 z-[99999] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
             <div className="p-6">
@@ -146,8 +145,7 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               </button>
             </div>
           </div>
-        </div>,
-        document.body
+        </div>
       )}
     </DialogContext.Provider>
   );

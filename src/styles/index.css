@@ -12,6 +12,18 @@ body {
 body {
   background-color: #f8fafc;
   font-family: 'Poppins', sans-serif;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 📱 PWA MOBILE TOUCH & SAFE AREA INSETS */
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 1rem)) !important;
+}
+
+.pt-safe {
+  padding-top: max(0.5rem, env(safe-area-inset-top, 0.5rem)) !important;
 }
 
 /* Forçar Poppins em todos os elementos para garantir padronização total */

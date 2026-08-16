@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { WifiOff, Loader2 } from 'lucide-react';
-import { createPortal } from 'react-dom';
+import { safeCreatePortal } from '../../utils/portal';
 
 export const NetworkStatusIndicator: React.FC = () => {
     const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -49,7 +49,7 @@ export const NetworkStatusIndicator: React.FC = () => {
 
     if (!isVisible) return null;
 
-    return createPortal(
+    return safeCreatePortal(
         <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] transition-all duration-500 ease-out transform ${isVisible ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-8 opacity-0 scale-95'}`}>
             <div className={`px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-4 border ${isOffline ? 'bg-rose-50 border-rose-200 text-rose-700 shadow-rose-900/10' : 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-emerald-900/10'}`}>
                 {isOffline ? (
@@ -71,7 +71,6 @@ export const NetworkStatusIndicator: React.FC = () => {
                     </p>
                 </div>
             </div>
-        </div>,
-        document.body
+        </div>
     );
 };

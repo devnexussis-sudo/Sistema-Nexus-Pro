@@ -1191,20 +1191,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <div className="flex flex-col gap-1 md:col-span-2 xl:col-span-5">
               <label className="text-xs font-medium text-slate-500 px-1">Período</label>
-              <div className="flex items-center gap-1 bg-white border border-[#1c2d4f]/20 p-1 rounded-xl shadow-sm h-10 hover:border-[#1c2d4f]/40 transition-colors focus-within:ring-2 focus-within:ring-primary-500/20">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 bg-white border border-[#1c2d4f]/20 p-1.5 rounded-xl shadow-sm sm:h-10 hover:border-[#1c2d4f]/40 transition-colors focus-within:ring-2 focus-within:ring-primary-500/20">
                 <select
                   value={dateTypeFilter}
                   onChange={(e) => { setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed'); setCurrentPage(1); }}
-                  className="bg-transparent text-xs text-slate-700 outline-none cursor-pointer border-r border-slate-100 pr-2 pl-2 hover:text-primary-600 transition-colors"
+                  className="bg-transparent text-xs text-slate-700 outline-none cursor-pointer border-b sm:border-b-0 sm:border-r border-slate-200 pb-1 sm:pb-0 pr-2 pl-1 hover:text-primary-600 transition-colors"
                 >
                   <option value="scheduled">Agendamento</option>
                   <option value="created">Abertura</option>
                   <option value="completed">Conclusão</option>
                 </select>
-                <div className="flex items-center gap-1 px-1 flex-1 min-w-0 justify-between h-full">
-                  <input type="date" value={startDate} onChange={e => { onDateChange(e.target.value, endDate); setCurrentPage(1); }} className="bg-transparent border-none text-[11px] text-slate-700 outline-none hover:text-primary-600 focus:text-primary-600 cursor-pointer flex-1 min-w-[90px] h-full [&::-webkit-calendar-picker-indicator]:w-5 [&::-webkit-calendar-picker-indicator]:h-5 [&::-webkit-calendar-picker-indicator]:opacity-50 hover:[&::-webkit-calendar-picker-indicator]:opacity-100 transition-opacity" />
+                <div className="flex items-center gap-1 px-1 flex-1 min-w-0 justify-between">
+                  <input type="date" value={startDate} onChange={e => { onDateChange(e.target.value, endDate); setCurrentPage(1); }} className="bg-transparent border-none text-xs text-slate-700 outline-none hover:text-primary-600 focus:text-primary-600 cursor-pointer flex-1 min-w-0 max-w-full w-full [&::-webkit-calendar-picker-indicator]:w-4 [&::-webkit-calendar-picker-indicator]:h-4 [&::-webkit-calendar-picker-indicator]:opacity-50 hover:[&::-webkit-calendar-picker-indicator]:opacity-100 transition-opacity" />
                   <span className="text-[10px] text-slate-400 shrink-0">até</span>
-                  <input type="date" value={endDate} onChange={e => { onDateChange(startDate, e.target.value); setCurrentPage(1); }} className="bg-transparent border-none text-[11px] text-slate-700 outline-none hover:text-primary-600 focus:text-primary-600 cursor-pointer flex-1 min-w-[90px] h-full [&::-webkit-calendar-picker-indicator]:w-5 [&::-webkit-calendar-picker-indicator]:h-5 [&::-webkit-calendar-picker-indicator]:opacity-50 hover:[&::-webkit-calendar-picker-indicator]:opacity-100 transition-opacity" />
+                  <input type="date" value={endDate} onChange={e => { onDateChange(startDate, e.target.value); setCurrentPage(1); }} className="bg-transparent border-none text-xs text-slate-700 outline-none hover:text-primary-600 focus:text-primary-600 cursor-pointer flex-1 min-w-0 max-w-full w-full [&::-webkit-calendar-picker-indicator]:w-4 [&::-webkit-calendar-picker-indicator]:h-4 [&::-webkit-calendar-picker-indicator]:opacity-50 hover:[&::-webkit-calendar-picker-indicator]:opacity-100 transition-opacity" />
                 </div>
               </div>
             </div>
@@ -1223,7 +1223,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <ChevronDown size={14} className="text-slate-400 shrink-0" />
                 </button>
                 {isStatusDropdownOpen && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2">
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl z-[1300] py-1 max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2">
                     <button 
                       className={`w-full text-left px-2 py-1 text-xs hover:bg-slate-50 transition-colors ${statusFilter === 'ALL' ? 'font-medium text-primary-600 bg-primary-50/50' : 'text-slate-600'}`}
                       onClick={() => { setStatusFilter('ALL'); setIsStatusDropdownOpen(false); setCurrentPage(1); }}

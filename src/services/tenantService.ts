@@ -576,6 +576,8 @@ export const TenantService = {
 
             if (!userId) throw new Error("Falha ao gerar UID para o novo gestor.");
 
+            const generatedAvatar = userData.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.name || 'User')}&background=random&color=fff&bold=true`;
+
             // 2. Create/Update DB User Entry (Promove para o papel definido na aba de usuários)
             const dbUser: any = {
                 id: userId,
@@ -586,7 +588,7 @@ export const TenantService = {
                 tenant_id: userData.tenantId,
                 group_id: userData.groupId,
                 group_ids: userData.groupIds,
-                avatar: userData.avatar,
+                avatar: generatedAvatar,
                 permissions: userData.permissions
             };
 

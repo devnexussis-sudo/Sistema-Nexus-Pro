@@ -2,12 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '../../i18n';
 import { createPortal } from 'react-dom';
+import { safeCreatePortal } from '../../utils/portal';
 import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
 import {
   Plus, Box, Laptop, Search, Trash2, Edit2, X, Save,
   Power, PowerOff, Info, User, Tag, Hash, LayoutGrid,
-  Layers, Settings2, MapPin, Filter, Calendar, ChevronLeft, ChevronRight
+  Layers, Settings2, MapPin, Filter, Calendar, ChevronLeft, ChevronRight, Sparkles
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -79,13 +80,19 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
   }, []);
 
 
-  const [families, setFamilies] = useState<EquipmentFamily[]>([
-    { id: 'f-refri', name: 'Refrigeração Industrial', description: 'Chillers, balcões refrigerados e câmaras frias', active: true },
-    { id: 'f-eletrica', name: 'Elétrica', description: 'Painéis, geradores e quadros de força', active: true },
-    { id: 'f-clima', name: 'Climatização', description: 'Ar condicionados e cortinas de ar', active: true },
-    { id: 'f-seg', name: 'Segurança Eletrônica', description: 'Câmeras IP, Alarmes e Sensores', active: true },
-    { id: 'f-ti', name: 'Redes e TI', description: 'Roteadores, Switches e Servidores', active: true }
-  ]);
+  const [families, setFamilies] = useState<EquipmentFamily[]>([]);
+
+  useEffect(() => {
+    async function loadFamilies() {
+      try {
+        const loaded = await EquipmentService.getEquipmentFamilies();
+        setFamilies(loaded);
+      } catch (err) {
+        console.warn("Erro ao carregar famílias de ativos:", err);
+      }
+    }
+    loadFamilies();
+  }, []);
 
 
 
@@ -160,11 +167,40 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
     }
   }, [isModalOpen, activeTab, editingId, modalTab]);
 
+  const generateRandomSerial = () => {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  };
+
   const handleSaveEquipment = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!eqFormData.serialNumber || !eqFormData.serialNumber.trim()) {
+      alert("Atenção: É obrigatório informar ou gerar um Número de Série para o ativo antes de salvar.");
+      return;
+    }
+
+    if (!eqFormData.familyId) {
+      alert("Atenção: É obrigatório selecionar a Família Técnica do ativo antes de salvar.");
+      return;
+    }
+
+    if (!eqFormData.customerId) {
+      alert("Atenção: É obrigatório selecionar o Cliente Proprietário do ativo antes de salvar.");
+      return;
+    }
+
     const selectedClient = customers.find(c => c.id === eqFormData.customerId);
     const selectedFamily = families.find(f => f.id === eqFormData.familyId);
+
+    if (!selectedFamily) {
+      alert("Atenção: Por favor, selecione uma Família Técnica válida da lista.");
+      return;
+    }
+
+    if (!selectedClient) {
+      alert("Atenção: Por favor, selecione um Cliente Proprietário válido da lista.");
+      return;
+    }
 
     const syncData = {
       customerName: selectedClient?.name || 'Não vinculado',
@@ -211,15 +247,38 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
 
 
 
-  const handleSaveFamily = (e: React.FormEvent) => {
+  const handleSaveFamily = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingId) {
-      setFamilies(families.map(f => f.id === editingId ? { ...f, ...familyFormData } as EquipmentFamily : f));
-    } else {
-      const newFam = { ...familyFormData, id: `f-${Date.now()}`, active: true } as EquipmentFamily;
-      setFamilies([...families, newFam]);
+    if (!familyFormData.name?.trim()) {
+      alert("Atenção: É obrigatório informar o Nome da Categoria (Família).");
+      return;
     }
-    closeModal();
+
+    try {
+      if (editingId) {
+        const updatedFam = {
+          ...families.find(f => f.id === editingId),
+          ...familyFormData,
+          name: familyFormData.name.trim()
+        } as EquipmentFamily;
+        const saved = await EquipmentService.saveEquipmentFamily(updatedFam);
+        setFamilies(families.map(f => f.id === editingId ? saved : f));
+      } else {
+        const newFam = {
+          ...familyFormData,
+          id: `f-${Date.now()}`,
+          name: familyFormData.name.trim(),
+          description: familyFormData.description?.trim() || '',
+          active: true
+        } as EquipmentFamily;
+        const saved = await EquipmentService.saveEquipmentFamily(newFam);
+        setFamilies([saved, ...families]);
+      }
+      closeModal();
+    } catch (err: any) {
+      console.error("Erro ao salvar família de equipamentos:", err);
+      alert(`Erro ao salvar categoria: ${err.message || 'Falha na conexão'}`);
+    }
   };
 
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -430,9 +489,11 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                     <td className="px-3 py-1 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
                       <div className="flex items-center justify-end gap-1.5">
                           <>
-                            <button onClick={(evt) => {
+                            <button onClick={async (evt) => {
                               if (!canEdit('equipments')) { evt.preventDefault(); evt.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
-                              setFamilies(families.map(item => item.id === f.id ? { ...item, active: !item.active } : item));
+                              const updatedFam = { ...f, active: !f.active };
+                              await EquipmentService.saveEquipmentFamily(updatedFam);
+                              setFamilies(families.map(item => item.id === f.id ? updatedFam : item));
                             }} className={`p-2.5 rounded-lg shadow-sm border border-transparent transition-all active:scale-95 ${f.active ? 'bg-slate-50 text-amber-500 hover:bg-amber-50' : 'bg-slate-50 text-emerald-500 hover:bg-emerald-50'} ${!canEdit('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`}>
                               {f.active ? <PowerOff size={16} /> : <Power size={16} />}
                             </button>
@@ -550,7 +611,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
       </div>
 
       {
-        isModalOpen && createPortal(
+        isModalOpen && safeCreatePortal(
           <div className="fixed inset-0 z-[1000] flex items-end md:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 md:p-8 animate-in fade-in duration-300">
             <div className="bg-white md:rounded-2xl w-full max-w-6xl h-full md:h-[92vh] shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-300">
 
@@ -627,7 +688,40 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                           />
                         </div>
                         <Input label="Modelo" required icon={<Laptop size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={eqFormData.model || ''} onChange={e => setEqFormData({ ...eqFormData, model: e.target.value })} />
-                        <Input label="Número de Série (Serial)" required icon={<Hash size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={eqFormData.serialNumber || ''} onChange={e => setEqFormData({ ...eqFormData, serialNumber: e.target.value })} />
+                        
+                        <div className="w-full relative">
+                          <label className="text-[10px] font-bold text-slate-400 mb-1.5 flex items-center justify-between ml-1">
+                            <span>Número de Série (Serial) <span className="text-rose-500 font-bold">*</span></span>
+                            {!eqFormData.serialNumber?.trim() && (
+                              <span className="text-[9px] font-bold text-rose-500 uppercase bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">Obrigatório</span>
+                            )}
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <div className="relative flex-1">
+                              <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                              <input
+                                type="text"
+                                required
+                                placeholder="Ex: 849204"
+                                value={eqFormData.serialNumber || ''}
+                                onChange={e => setEqFormData({ ...eqFormData, serialNumber: e.target.value })}
+                                className={`w-full h-12 pl-10 pr-4 bg-slate-50 border rounded-xl text-xs font-bold font-mono text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all ${!eqFormData.serialNumber?.trim() ? 'border-amber-300' : 'border-slate-200'}`}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const generated = generateRandomSerial();
+                                setEqFormData({ ...eqFormData, serialNumber: generated });
+                              }}
+                              className="h-12 px-3.5 bg-primary-50/70 hover:bg-primary-100/80 border border-primary-200/80 text-primary-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-sm active:scale-95 shrink-0"
+                              title="Gerar número de série automático"
+                            >
+                              <Sparkles size={15} className="text-primary-600" />
+                              <span className="hidden sm:inline">Gerar Serial</span>
+                            </button>
+                          </div>
+                        </div>
                         
                         <Input type="date" label="Data de Fabricação" icon={<Calendar size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={eqFormData.manufactureDate || ''} onChange={e => setEqFormData({ ...eqFormData, manufactureDate: e.target.value })} />
                         <Input type="number" label="Garantia (Meses)" icon={<Calendar size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={eqFormData.warrantyMonths || ''} onChange={e => setEqFormData({ ...eqFormData, warrantyMonths: e.target.value ? parseInt(e.target.value) : undefined })} />
@@ -654,7 +748,12 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                         </div>
 
                         <div className="w-full relative">
-                          <label className="text-[10px] font-bold text-slate-400 mb-1.5 block ml-1">Família Técnica</label>
+                          <label className="text-[10px] font-bold text-slate-400 mb-1.5 flex items-center justify-between ml-1">
+                            <span>Família Técnica <span className="text-rose-500 font-bold">*</span></span>
+                            {!eqFormData.familyId && (
+                              <span className="text-[9px] font-bold text-rose-500 uppercase bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">Obrigatório</span>
+                            )}
+                          </label>
                           <div className="relative">
                             <Layers className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                             <input
@@ -669,7 +768,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                               }}
                               onFocus={() => setIsFamilyListOpen(true)}
                               onBlur={() => setTimeout(() => setIsFamilyListOpen(false), 200)}
-                              className="w-full h-12 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all"
+                              className={`w-full h-12 pl-10 pr-4 bg-slate-50 border rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all ${!eqFormData.familyId ? 'border-amber-300' : 'border-slate-200'}`}
                             />
                             {eqFormData.familyId && (
                               <button 
@@ -708,7 +807,12 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                           )}
                         </div>
                         <div className="w-full relative">
-                          <label className="text-[10px] font-bold text-slate-400 mb-1.5 block ml-1">Cliente Proprietário</label>
+                          <label className="text-[10px] font-bold text-slate-400 mb-1.5 flex items-center justify-between ml-1">
+                            <span>Cliente Proprietário <span className="text-rose-500 font-bold">*</span></span>
+                            {!eqFormData.customerId && (
+                              <span className="text-[9px] font-bold text-rose-500 uppercase bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">Obrigatório</span>
+                            )}
+                          </label>
                           <div className="relative">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                             <input
@@ -723,7 +827,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                               }}
                               onFocus={() => setIsClientListOpen(true)}
                               onBlur={() => setTimeout(() => setIsClientListOpen(false), 200)}
-                              className="w-full h-12 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all"
+                              className={`w-full h-12 pl-10 pr-4 bg-slate-50 border rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all ${!eqFormData.customerId ? 'border-amber-300' : 'border-slate-200'}`}
                             />
                             {eqFormData.customerId && (
                               <button 

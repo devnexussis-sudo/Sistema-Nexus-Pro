@@ -2,12 +2,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useI18n } from '../../i18n';
 import { createPortal } from 'react-dom';
-import { Plus, FileText, Trash2, Edit2, X, Save, GripVertical, CheckCircle2, List, Settings, Settings2, Tag, Layers, ArrowRight, Info, Box, Cpu, Workflow, Search, Filter, Loader2, ChevronLeft, RefreshCw, ChevronUp, ChevronDown } from 'lucide-react';
+import { safeCreatePortal } from '../../utils/portal';
+import { Plus, FileText, Trash2, Edit2, X, Save, GripVertical, CheckCircle2, List, Settings, Settings2, Tag, Layers, ArrowRight, Info, Box, Cpu, Workflow, Search, Filter, Loader2, ChevronLeft, RefreshCw, ChevronUp, ChevronDown, Power, PowerOff } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { FormTemplate, FormField, FormFieldType } from '../../types';
+import { FormTemplate, FormField, FormFieldType, EquipmentFamily } from '../../types';
 import { DataService } from '../../services/dataService';
+import { EquipmentService } from '../../services/equipmentService';
 import { useForms, useServiceTypes, useActivationRules, useTenant, NexusQueryClient } from '../../hooks/nexusHooks';
 import { usePermissions } from '../../hooks/usePermissions';
 
@@ -24,6 +26,7 @@ export const EQUIPMENT_FAMILIES = [
 interface ServiceType {
   id: string;
   name: string;
+  active?: boolean;
 }
 
 interface ActivationRule {
@@ -132,6 +135,39 @@ export const FormManagement: React.FC = () => {
   const [editingForm, setEditingForm] = useState<Partial<FormTemplate> | null>(null);
   const [editingRule, setEditingRule] = useState<Partial<ActivationRule> | null>(null);
 
+  const [equipmentFamilies, setEquipmentFamilies] = useState<EquipmentFamily[]>([]);
+  const [ruleSearchType, setRuleSearchType] = useState('');
+  const [ruleSearchFamily, setRuleSearchFamily] = useState('');
+  const [ruleSearchForm, setRuleSearchForm] = useState('');
+  const [ruleSearchFinForm, setRuleSearchFinForm] = useState('');
+
+  const loadEquipmentFamilies = useCallback(async () => {
+    try {
+      const loaded = await EquipmentService.getEquipmentFamilies();
+      setEquipmentFamilies(loaded);
+    } catch (e) {
+      console.warn('[FormManagement] Erro ao carregar famílias:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isRuleModalOpen || activeTab === 'rules') {
+      loadEquipmentFamilies();
+    }
+  }, [isRuleModalOpen, activeTab, loadEquipmentFamilies]);
+
+  const allFamilyNames = React.useMemo(() => {
+    const set = new Set<string>();
+    equipmentFamilies.forEach(f => {
+      if (f.active !== false && f.name?.trim()) set.add(f.name.trim());
+    });
+    EQUIPMENT_FAMILIES.forEach(fam => set.add(fam));
+    rules.forEach(r => {
+      if (r.equipmentFamily?.trim()) set.add(r.equipmentFamily.trim());
+    });
+    return Array.from(set);
+  }, [equipmentFamilies, rules]);
+
   const [draggedFieldIndex, setDraggedFieldIndex] = useState<number | null>(null);
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
@@ -176,9 +212,24 @@ export const FormManagement: React.FC = () => {
 
   // Handlers para Tipos (Cloud)
   const handleSaveType = async () => {
-    if (!editingType?.name) return;
+    const name = editingType?.name?.trim();
+    if (!name) {
+      alert("Atenção: Por favor, informe o nome do Tipo de Atendimento.");
+      return;
+    }
+
+    const normalizedNew = name.toLowerCase();
+    const isDuplicate = serviceTypes.some(
+      t => t.id !== editingType.id && t.name.trim().toLowerCase() === normalizedNew
+    );
+
+    if (isDuplicate) {
+      alert(`Atenção: Já existe um Tipo de Atendimento cadastrado com o nome "${name}". Por favor, informe um nome diferente.`);
+      return;
+    }
+
     try {
-      await DataService.saveServiceType(editingType);
+      await DataService.saveServiceType({ ...editingType, name });
       await refetchTypes();
       setIsTypeModalOpen(false);
     } catch (e: any) {
@@ -187,13 +238,19 @@ export const FormManagement: React.FC = () => {
     }
   };
 
-  const handleDeleteType = async (id: string, e: React.MouseEvent) => {
+  const handleToggleTypeStatus = async (type: ServiceType, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("Deseja realmente excluir este tipo? Isso pode afetar regras existentes.")) return;
+    const nextStatus = type.active === false ? true : false;
+    const actionText = nextStatus ? 'ativar' : 'inativar';
+    if (!confirm(`Deseja realmente ${actionText} o tipo de atendimento "${type.name}"?`)) return;
+
     try {
-      await DataService.deleteServiceType(id);
+      await DataService.saveServiceType({ ...type, active: nextStatus });
       await refetchTypes();
-    } catch (e) { alert("Erro ao deletar."); }
+    } catch (err: any) {
+      console.error("Erro ao alterar status do tipo:", err);
+      alert(`Falha ao alterar status: ${err.message || 'Erro desconhecido'}`);
+    }
   };
 
   // Handlers para Formulários (Cloud)
@@ -413,8 +470,9 @@ export const FormManagement: React.FC = () => {
                 <div className="flex-1 overflow-auto custom-scrollbar">
                   <table className="w-full border-collapse">
                     <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
-                      <tr className="text-[11px] font-bold text-slate-500 text-center">
-                        <th className="px-4 py-3">tipo de atendimento</th>
+                      <tr className="text-[11px] font-bold text-slate-500">
+                        <th className="px-4 py-3 text-left">tipo de atendimento</th>
+                        <th className="px-4 py-3 text-center">status</th>
                         <th className="px-4 py-3 text-right">ações</th>
                       </tr>
                     </thead>
@@ -423,9 +481,14 @@ export const FormManagement: React.FC = () => {
                         <tr key={type.id} className="hover:bg-slate-50 transition-colors group">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
-                              <Tag size={16} className="text-primary-600" />
-                              <span className="text-slate-700 text-[13px] font-medium">{type.name}</span>
+                              <Tag size={16} className={type.active === false ? "text-slate-300" : "text-primary-600"} />
+                              <span className={`text-[13px] font-medium ${type.active === false ? "text-slate-400 line-through" : "text-slate-700"}`}>{type.name}</span>
                             </div>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`inline-flex items-center text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${type.active === false ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                              {type.active === false ? 'Inativo' : 'Ativo'}
+                            </span>
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
@@ -434,15 +497,17 @@ export const FormManagement: React.FC = () => {
                                 setEditingType(type); setIsTypeModalOpen(true);
                               }} className={`p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar"><Edit2 size={16} /></button>
                               <button onClick={(e) => {
-                                if (!canDelete('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
-                                handleDeleteType(type.id, e);
-                              }} className={`p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Excluir"><Trash2 size={16} /></button>
+                                if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para inativar.'); return; }
+                                handleToggleTypeStatus(type, e);
+                              }} className={`p-2 rounded-lg transition-all ${type.active === false ? 'text-emerald-600 hover:bg-emerald-50' : 'text-amber-600 hover:bg-amber-50'} ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title={type.active === false ? 'Ativar Tipo' : 'Inativar Tipo'}>
+                                {type.active === false ? <Power size={16} /> : <PowerOff size={16} />}
+                              </button>
                             </div>
                           </td>
                         </tr>
                       ))}
                       {paginatedTypes.length === 0 && (
-                        <tr><td colSpan={2} className="py-10 text-center text-slate-400 text-xs font-bold">Nenhum tipo encontrado.</td></tr>
+                        <tr><td colSpan={3} className="py-10 text-center text-slate-400 text-xs font-bold">Nenhum tipo encontrado.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -578,7 +643,7 @@ export const FormManagement: React.FC = () => {
 
       {/* MODAL 1: TIPO DE SERVIÇO */}
       {
-        isTypeModalOpen && editingType && createPortal(
+        isTypeModalOpen && editingType && safeCreatePortal(
           <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
             <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up">
 
@@ -624,7 +689,7 @@ export const FormManagement: React.FC = () => {
 
       {/* MODAL 2: CONSTRUTOR DE FORMULÁRIO */}
       {
-        isModalOpen && editingForm && createPortal(
+        isModalOpen && editingForm && safeCreatePortal(
           <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 lg:p-4 animate-in fade-in">
             <div className="bg-white rounded-none lg:rounded-xl w-full max-w-4xl h-full lg:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200">
               {/* HEADER — Padrão CreateOrderModal */}
@@ -929,7 +994,7 @@ export const FormManagement: React.FC = () => {
 
       {/* MODAL 3: REGRA DE VINCULAÇÃO */}
       {
-        isRuleModalOpen && editingRule && createPortal(
+        isRuleModalOpen && editingRule && safeCreatePortal(
           <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
             <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up">
 
@@ -955,18 +1020,38 @@ export const FormManagement: React.FC = () => {
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-medium text-slate-400 ml-1 block">Tipo de Serviço</label>
                     <div className="relative">
-                      <button type="button" onClick={() => setRuleDropdown(ruleDropdown === 'type' ? null : 'type')} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium text-left flex items-center justify-between transition-all hover:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] outline-none">
-                        <span className={editingRule.serviceTypeId ? 'text-slate-700' : 'text-slate-400'}>{serviceTypes.find(s => s.id === editingRule.serviceTypeId)?.name || 'Selecione um Tipo...'}</span>
+                      <button type="button" onClick={() => { setRuleDropdown(ruleDropdown === 'type' ? null : 'type'); setRuleSearchType(''); }} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium text-left flex items-center justify-between transition-all hover:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] outline-none">
+                        <span className={editingRule.serviceTypeId ? 'text-slate-700 font-bold' : 'text-slate-400'}>{serviceTypes.find(s => s.id === editingRule.serviceTypeId)?.name || 'Selecione um Tipo...'}</span>
                         <ChevronDown size={14} className={`text-slate-400 transition-transform ${ruleDropdown === 'type' ? 'rotate-180' : ''}`} />
                       </button>
                       {ruleDropdown === 'type' && (
-                        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto custom-scrollbar animate-fade-in">
-                          {serviceTypes.map(st => (
-                            <button key={st.id} type="button" onClick={() => { setEditingRule({ ...editingRule, serviceTypeId: st.id }); setRuleDropdown(null); }} className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors flex items-center gap-2 ${editingRule.serviceTypeId === st.id ? 'bg-[#1c2d4f]/5 text-[#1c2d4f]' : 'text-slate-600 hover:bg-slate-50'}`}>
-                              {editingRule.serviceTypeId === st.id && <CheckCircle2 size={14} className="text-[#1c2d4f] shrink-0" />}
-                              <span>{st.name}</span>
-                            </button>
-                          ))}
+                        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto custom-scrollbar animate-fade-in">
+                          <div className="p-2 border-b border-slate-100 sticky top-0 bg-white z-10">
+                            <div className="relative">
+                              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                              <input
+                                type="text"
+                                autoFocus
+                                placeholder="Digitar para buscar tipo..."
+                                value={ruleSearchType}
+                                onChange={e => setRuleSearchType(e.target.value)}
+                                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:border-[#1c2d4f] font-medium text-slate-700"
+                                onClick={e => e.stopPropagation()}
+                              />
+                            </div>
+                          </div>
+                          {serviceTypes
+                            .filter(st => st.active !== false && st.name.toLowerCase().includes(ruleSearchType.toLowerCase()))
+                            .map(st => (
+                              <button key={st.id} type="button" onClick={() => { setEditingRule({ ...editingRule, serviceTypeId: st.id }); setRuleDropdown(null); }} className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors flex items-center gap-2 ${editingRule.serviceTypeId === st.id ? 'bg-[#1c2d4f]/5 text-[#1c2d4f] font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>
+                                {editingRule.serviceTypeId === st.id && <CheckCircle2 size={14} className="text-[#1c2d4f] shrink-0" />}
+                                <span>{st.name}</span>
+                              </button>
+                            ))
+                          }
+                          {serviceTypes.filter(st => st.active !== false && st.name.toLowerCase().includes(ruleSearchType.toLowerCase())).length === 0 && (
+                            <div className="p-3 text-center text-xs text-slate-400 font-medium">Nenhum tipo localizado</div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -974,20 +1059,40 @@ export const FormManagement: React.FC = () => {
 
                   {/* Família do Equipamento */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-medium text-slate-400 ml-1 block">Família do Equipamento</label>
+                    <label className="text-[10px] font-medium text-slate-400 ml-1 block">Família do Equipamento (Atualizada)</label>
                     <div className="relative">
-                      <button type="button" onClick={() => setRuleDropdown(ruleDropdown === 'family' ? null : 'family')} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium text-left flex items-center justify-between transition-all hover:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] outline-none">
-                        <span className={editingRule.equipmentFamily ? 'text-slate-700' : 'text-slate-400'}>{editingRule.equipmentFamily || 'Selecione uma Família...'}</span>
+                      <button type="button" onClick={() => { setRuleDropdown(ruleDropdown === 'family' ? null : 'family'); setRuleSearchFamily(''); }} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium text-left flex items-center justify-between transition-all hover:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] outline-none">
+                        <span className={editingRule.equipmentFamily ? 'text-slate-700 font-bold' : 'text-slate-400'}>{editingRule.equipmentFamily || 'Selecione uma Família...'}</span>
                         <ChevronDown size={14} className={`text-slate-400 transition-transform ${ruleDropdown === 'family' ? 'rotate-180' : ''}`} />
                       </button>
                       {ruleDropdown === 'family' && (
-                        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto custom-scrollbar animate-fade-in">
-                          {EQUIPMENT_FAMILIES.map(fam => (
-                            <button key={fam} type="button" onClick={() => { setEditingRule({ ...editingRule, equipmentFamily: fam }); setRuleDropdown(null); }} className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors flex items-center gap-2 ${editingRule.equipmentFamily === fam ? 'bg-[#1c2d4f]/5 text-[#1c2d4f]' : 'text-slate-600 hover:bg-slate-50'}`}>
-                              {editingRule.equipmentFamily === fam && <CheckCircle2 size={14} className="text-[#1c2d4f] shrink-0" />}
-                              <span>{fam}</span>
-                            </button>
-                          ))}
+                        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto custom-scrollbar animate-fade-in">
+                          <div className="p-2 border-b border-slate-100 sticky top-0 bg-white z-10">
+                            <div className="relative">
+                              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                              <input
+                                type="text"
+                                autoFocus
+                                placeholder="Digitar para buscar família..."
+                                value={ruleSearchFamily}
+                                onChange={e => setRuleSearchFamily(e.target.value)}
+                                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:border-[#1c2d4f] font-medium text-slate-700"
+                                onClick={e => e.stopPropagation()}
+                              />
+                            </div>
+                          </div>
+                          {allFamilyNames
+                            .filter(fam => fam.toLowerCase().includes(ruleSearchFamily.toLowerCase()))
+                            .map(fam => (
+                              <button key={fam} type="button" onClick={() => { setEditingRule({ ...editingRule, equipmentFamily: fam }); setRuleDropdown(null); }} className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors flex items-center gap-2 ${editingRule.equipmentFamily === fam ? 'bg-[#1c2d4f]/5 text-[#1c2d4f] font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>
+                                {editingRule.equipmentFamily === fam && <CheckCircle2 size={14} className="text-[#1c2d4f] shrink-0" />}
+                                <span>{fam}</span>
+                              </button>
+                            ))
+                          }
+                          {allFamilyNames.filter(fam => fam.toLowerCase().includes(ruleSearchFamily.toLowerCase())).length === 0 && (
+                            <div className="p-3 text-center text-xs text-slate-400 font-medium">Nenhuma família localizada</div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -997,18 +1102,38 @@ export const FormManagement: React.FC = () => {
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-medium text-slate-400 ml-1 block">Checklist Técnico Vinculado</label>
                     <div className="relative">
-                      <button type="button" onClick={() => setRuleDropdown(ruleDropdown === 'form' ? null : 'form')} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium text-left flex items-center justify-between transition-all hover:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] outline-none">
-                        <span className={editingRule.formId ? 'text-slate-700' : 'text-slate-400'}>{forms.find(f => f.id === editingRule.formId)?.title || 'Selecione um Checklist Técnico...'}</span>
+                      <button type="button" onClick={() => { setRuleDropdown(ruleDropdown === 'form' ? null : 'form'); setRuleSearchForm(''); }} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium text-left flex items-center justify-between transition-all hover:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] outline-none">
+                        <span className={editingRule.formId ? 'text-slate-700 font-bold' : 'text-slate-400'}>{forms.find(f => f.id === editingRule.formId)?.title || 'Selecione um Checklist Técnico...'}</span>
                         <ChevronDown size={14} className={`text-slate-400 transition-transform ${ruleDropdown === 'form' ? 'rotate-180' : ''}`} />
                       </button>
                       {ruleDropdown === 'form' && (
-                        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto custom-scrollbar animate-fade-in">
-                          {forms.filter(f => f.category !== 'FINANCIAL').map(f => (
-                            <button key={f.id} type="button" onClick={() => { setEditingRule({ ...editingRule, formId: f.id }); setRuleDropdown(null); }} className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors flex items-center gap-2 ${editingRule.formId === f.id ? 'bg-[#1c2d4f]/5 text-[#1c2d4f]' : 'text-slate-600 hover:bg-slate-50'}`}>
-                              {editingRule.formId === f.id && <CheckCircle2 size={14} className="text-[#1c2d4f] shrink-0" />}
-                              <span>{f.title}</span>
-                            </button>
-                          ))}
+                        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto custom-scrollbar animate-fade-in">
+                          <div className="p-2 border-b border-slate-100 sticky top-0 bg-white z-10">
+                            <div className="relative">
+                              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                              <input
+                                type="text"
+                                autoFocus
+                                placeholder="Digitar para buscar modelo técnico..."
+                                value={ruleSearchForm}
+                                onChange={e => setRuleSearchForm(e.target.value)}
+                                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:border-[#1c2d4f] font-medium text-slate-700"
+                                onClick={e => e.stopPropagation()}
+                              />
+                            </div>
+                          </div>
+                          {forms
+                            .filter(f => f.category !== 'FINANCIAL' && f.active !== false && f.title.toLowerCase().includes(ruleSearchForm.toLowerCase()))
+                            .map(f => (
+                              <button key={f.id} type="button" onClick={() => { setEditingRule({ ...editingRule, formId: f.id }); setRuleDropdown(null); }} className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors flex items-center gap-2 ${editingRule.formId === f.id ? 'bg-[#1c2d4f]/5 text-[#1c2d4f] font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>
+                                {editingRule.formId === f.id && <CheckCircle2 size={14} className="text-[#1c2d4f] shrink-0" />}
+                                <span>{f.title}</span>
+                              </button>
+                            ))
+                          }
+                          {forms.filter(f => f.category !== 'FINANCIAL' && f.active !== false && f.title.toLowerCase().includes(ruleSearchForm.toLowerCase())).length === 0 && (
+                            <div className="p-3 text-center text-xs text-slate-400 font-medium">Nenhum modelo localizado</div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1018,22 +1143,42 @@ export const FormManagement: React.FC = () => {
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-medium text-slate-400 ml-1 block">Checklist Financeiro/Custos Vinculado (Opcional)</label>
                     <div className="relative">
-                      <button type="button" onClick={() => setRuleDropdown(ruleDropdown === 'finForm' ? null : 'finForm')} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium text-left flex items-center justify-between transition-all hover:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] outline-none">
-                        <span className={(editingRule as any).financialFormId ? 'text-slate-700' : 'text-slate-400'}>{forms.find(f => f.id === (editingRule as any).financialFormId)?.title || 'Nenhum Checklist Financeiro...'}</span>
+                      <button type="button" onClick={() => { setRuleDropdown(ruleDropdown === 'finForm' ? null : 'finForm'); setRuleSearchFinForm(''); }} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium text-left flex items-center justify-between transition-all hover:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] outline-none">
+                        <span className={(editingRule as any).financialFormId ? 'text-slate-700 font-bold' : 'text-slate-400'}>{forms.find(f => f.id === (editingRule as any).financialFormId)?.title || 'Nenhum Checklist Financeiro...'}</span>
                         <ChevronDown size={14} className={`text-slate-400 transition-transform ${ruleDropdown === 'finForm' ? 'rotate-180' : ''}`} />
                       </button>
                       {ruleDropdown === 'finForm' && (
-                        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto custom-scrollbar animate-fade-in">
+                        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto custom-scrollbar animate-fade-in">
+                          <div className="p-2 border-b border-slate-100 sticky top-0 bg-white z-10">
+                            <div className="relative">
+                              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                              <input
+                                type="text"
+                                autoFocus
+                                placeholder="Digitar para buscar modelo financeiro..."
+                                value={ruleSearchFinForm}
+                                onChange={e => setRuleSearchFinForm(e.target.value)}
+                                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:border-[#1c2d4f] font-medium text-slate-700"
+                                onClick={e => e.stopPropagation()}
+                              />
+                            </div>
+                          </div>
                           <button type="button" onClick={() => { setEditingRule({ ...editingRule, financialFormId: null } as any); setRuleDropdown(null); }} className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors flex items-center gap-2 ${!(editingRule as any).financialFormId ? 'bg-rose-50 text-rose-600' : 'text-slate-500 hover:bg-slate-50'}`}>
                             <X size={14} className="shrink-0" />
                             <span>Nenhum / Remover Vínculo</span>
                           </button>
-                          {forms.filter(f => f.category === 'FINANCIAL').map(f => (
-                            <button key={f.id} type="button" onClick={() => { setEditingRule({ ...editingRule, financialFormId: f.id } as any); setRuleDropdown(null); }} className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors flex items-center gap-2 ${(editingRule as any).financialFormId === f.id ? 'bg-[#1c2d4f]/5 text-[#1c2d4f]' : 'text-slate-600 hover:bg-slate-50'}`}>
-                              {(editingRule as any).financialFormId === f.id && <CheckCircle2 size={14} className="text-[#1c2d4f] shrink-0" />}
-                              <span>{f.title}</span>
-                            </button>
-                          ))}
+                          {forms
+                            .filter(f => f.category === 'FINANCIAL' && f.active !== false && f.title.toLowerCase().includes(ruleSearchFinForm.toLowerCase()))
+                            .map(f => (
+                              <button key={f.id} type="button" onClick={() => { setEditingRule({ ...editingRule, financialFormId: f.id } as any); setRuleDropdown(null); }} className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors flex items-center gap-2 ${(editingRule as any).financialFormId === f.id ? 'bg-[#1c2d4f]/5 text-[#1c2d4f] font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>
+                                {(editingRule as any).financialFormId === f.id && <CheckCircle2 size={14} className="text-[#1c2d4f] shrink-0" />}
+                                <span>{f.title}</span>
+                              </button>
+                            ))
+                          }
+                          {forms.filter(f => f.category === 'FINANCIAL' && f.active !== false && f.title.toLowerCase().includes(ruleSearchFinForm.toLowerCase())).length === 0 && (
+                            <div className="p-3 text-center text-xs text-slate-400 font-medium">Nenhum modelo localizado</div>
+                          )}
                         </div>
                       )}
                     </div>

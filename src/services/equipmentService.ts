@@ -1,9 +1,17 @@
 
 import { supabase } from '../lib/supabase';
-import { Equipment } from '../types';
+import { Equipment, EquipmentFamily } from '../types';
 import type { DbEquipment } from '../types/database';
 import { CacheManager } from '../lib/cache';
 import { getCurrentTenantId } from '../lib/tenantContext';
+
+export const DEFAULT_EQUIPMENT_FAMILIES: EquipmentFamily[] = [
+  { id: 'f-refri', name: 'Refrigeração Industrial', description: 'Chillers, balcões refrigerados e câmaras frias', active: true },
+  { id: 'f-eletrica', name: 'Elétrica', description: 'Painéis, geradores e quadros de força', active: true },
+  { id: 'f-clima', name: 'Climatização', description: 'Ar condicionados e cortinas de ar', active: true },
+  { id: 'f-seg', name: 'Segurança Eletrônica', description: 'Câmeras IP, Alarmes e Sensores', active: true },
+  { id: 'f-ti', name: 'Redes e TI', description: 'Roteadores, Switches e Servidores', active: true }
+];
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
@@ -217,5 +225,88 @@ export const EquipmentService = {
         }
 
         return updated;
+    },
+
+    getEquipmentFamilies: async (signal?: AbortSignal): Promise<EquipmentFamily[]> => {
+        const tid = getCurrentTenantId();
+        const localKey = `nexus_equipment_families_${tid || 'default'}`;
+
+        let localFamilies: EquipmentFamily[] = [];
+        try {
+            const raw = localStorage.getItem(localKey);
+            if (raw) {
+                localFamilies = JSON.parse(raw);
+            }
+        } catch (e) {
+            console.warn('[EquipmentService] Erro ao ler famílias do localStorage:', e);
+        }
+
+        if (!localFamilies || localFamilies.length === 0) {
+            localFamilies = DEFAULT_EQUIPMENT_FAMILIES;
+            try {
+                localStorage.setItem(localKey, JSON.stringify(localFamilies));
+            } catch (e) {}
+        }
+
+        if (isCloudEnabled && tid) {
+            try {
+                let query = supabase.from('equipment_families')
+                    .select('*')
+                    .eq('tenant_id', tid)
+                    .order('name');
+
+                if (signal) query = query.abortSignal(signal);
+
+                const { data, error } = await query;
+                if (!error && data && data.length > 0) {
+                    const mapped: EquipmentFamily[] = data.map(d => ({
+                        id: d.id,
+                        name: d.name,
+                        description: d.description || '',
+                        active: d.active ?? d.is_active ?? true
+                    }));
+                    localStorage.setItem(localKey, JSON.stringify(mapped));
+                    return mapped;
+                }
+            } catch (e) {
+                console.warn('[EquipmentService] Supabase equipment_families inacessível, usando cache local.');
+            }
+        }
+
+        return localFamilies;
+    },
+
+    saveEquipmentFamily: async (family: EquipmentFamily): Promise<EquipmentFamily> => {
+        const tid = getCurrentTenantId();
+        const localKey = `nexus_equipment_families_${tid || 'default'}`;
+
+        let localList = await EquipmentService.getEquipmentFamilies();
+        const exists = localList.some(f => f.id === family.id);
+
+        if (exists) {
+            localList = localList.map(f => f.id === family.id ? family : f);
+        } else {
+            localList = [family, ...localList];
+        }
+        localStorage.setItem(localKey, JSON.stringify(localList));
+
+        if (isCloudEnabled && tid) {
+            try {
+                const dbPayload = {
+                    id: family.id,
+                    name: family.name,
+                    description: family.description,
+                    active: family.active ?? true,
+                    tenant_id: tid,
+                    updated_at: new Date().toISOString()
+                };
+
+                await supabase.from('equipment_families').upsert([dbPayload]);
+            } catch (e) {
+                console.warn('[EquipmentService] Erro ao sincronizar família no Supabase (salvo localmente):', e);
+            }
+        }
+
+        return family;
     }
 };

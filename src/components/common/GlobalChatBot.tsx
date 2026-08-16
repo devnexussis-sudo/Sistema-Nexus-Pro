@@ -51,7 +51,7 @@ export const GlobalChatBot: React.FC = () => {
         {
           id: 'welcome',
           role: 'assistant',
-          content: `E aí, **${firstName}**! 👋 Tudo tranquilo por aí? Sou a IA oficial da Duno! 🤖✨\n\nTô por aqui pra tirar suas dúvidas sobre a plataforma e dar aquela força no dia a dia. Pode me perguntar o que quiser! 🚀\n\nSe a coisa ficar muito técnica ou se só quiser bater um papo com um **Suporte Humano** de carne e osso, é só clicar no botão abaixo e chamar nossa equipe no zap:\n\n[📱 Chamar Suporte Técnico no WhatsApp](https://wa.me/553534227420) 💬`
+          content: `E aí, **${firstName}**! 👋 Tudo tranquilo por aí? Sou a IA oficial da Duno! 🤖✨\n\nTô por aqui pra tirar suas dúvidas sobre a plataforma e dar aquela força no dia a dia. Pode me perguntar o que quiser! 🚀\n\nSe a coisa ficar muito técnica ou se só quiser bater um papo com um **Suporte Humano** de carne e osso, é só clicar no botão abaixo e chamar nossa equipe no zap:\n\n[📱 Chamar Suporte Técnico no WhatsApp](https://wa.me/5535984274972) 💬`
         }
       ]);
     }
@@ -106,7 +106,7 @@ export const GlobalChatBot: React.FC = () => {
       
       // 3. Se a IA não achar contexto ou falhar na geração
       if (!responseContent) {
-        responseContent = `🤔 Hmm... não encontrei informações exatas sobre isso nos meus manuais, **${firstName}**.\n\nMas relaxa! 🚀 Nossa equipe técnica tá sempre de olho e pode te ajudar com isso num piscar de olhos pelo WhatsApp! Chama lá: [📱 Falar com o Suporte](https://wa.me/553534227420)`;
+        responseContent = `🤔 Hmm... não encontrei informações exatas sobre isso nos meus manuais, **${firstName}**.\n\nMas relaxa! 🚀 Nossa equipe técnica tá sempre de olho e pode te ajudar com isso num piscar de olhos pelo WhatsApp! Chama lá: [📱 Falar com o Suporte](https://wa.me/5535984274972)`;
       }
 
       setMessages(prev => [...prev, {
@@ -292,7 +292,7 @@ export const GlobalChatBot: React.FC = () => {
             
             <div className="text-center mt-2 flex justify-center">
               <a 
-                href="https://wa.me/553534227420" 
+                href="https://wa.me/5535984274972" 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="inline-flex items-center gap-1 text-[10px] text-slate-400 hover:text-emerald-600 transition-colors font-medium"

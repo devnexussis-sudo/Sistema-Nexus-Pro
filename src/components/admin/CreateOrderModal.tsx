@@ -161,10 +161,11 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
       setRegions(loadedRegions || []);
 
       if (loadedServiceTypes && loadedServiceTypes.length > 0) {
-        setServiceTypes(loadedServiceTypes);
-        // If creating new order, set default to first available type
-        if (!initialData) {
-          setFormData(prev => ({ ...prev, operationType: loadedServiceTypes[0].name }));
+        const activeTypes = loadedServiceTypes.filter(t => t.active !== false && t.is_active !== false);
+        const typesToUse = activeTypes.length > 0 ? activeTypes : loadedServiceTypes;
+        setServiceTypes(typesToUse);
+        if (!initialData && typesToUse.length > 0) {
+          setFormData(prev => ({ ...prev, operationType: typesToUse[0].name }));
         }
       }
 
@@ -888,7 +889,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                           </button>
                           {isOperationTypeOpen && (
                             <div className="absolute z-[170] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2">
-                              {serviceTypes.map(type => (
+                              {serviceTypes.filter(type => type.active !== false && type.is_active !== false).map(type => (
                                 <button
                                   key={type.id || type.name}
                                   type="button"

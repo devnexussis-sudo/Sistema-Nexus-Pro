@@ -1,20 +1,25 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
     Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Calendar,
     Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck,
     Settings, LogOut, Bell, Package, ArrowRight, FileText,
-    AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff, X, Phone, Menu, Bot, Code2, BookOpen, MapPin, MessageCircle, ClipboardCheck
+    AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff, X, Phone, Menu, Bot, Code2, BookOpen, MapPin, MessageCircle, ClipboardCheck,
+    Camera, Upload, Sparkles, Check, Loader2, Key, Mail, FolderTree
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { NexusBranding } from '../ui/NexusBranding';
 import { User } from '../../types';
 
-import SessionStorage from '../../lib/sessionStorage';
+import SessionStorage, { GlobalStorage } from '../../lib/sessionStorage';
 import { supabase } from '../../lib/supabase';
 import { Button } from '../ui/Button';
 import { ResilienceIndicator } from '../ResilienceIndicator';
 import { useI18n } from '../../i18n';
 import { usePermissions } from '../../hooks/usePermissions';
+import { useAuth } from '../../contexts/AuthContext';
+import { StorageService } from '../../services/storageService';
+import { AuthService } from '../../services/authService';
 import { GlobalChatBot } from '../common/GlobalChatBot';
 import { useGlobalWhatsAppNotifications } from '../../hooks/useGlobalWhatsAppNotifications';
 import { useWhatsAppMonitor } from '../../hooks/useWhatsAppMonitor';
@@ -41,6 +46,133 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     const [locallyDismissed, setLocallyDismissed] = useState<string[]>([]);
     const [whatsappWaitingCount, setWhatsappWaitingCount] = useState(0);
     const [solicitacoesCount, setSolicitacoesCount] = useState(0);
+    const { setAuth, logout } = useAuth();
+    const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+    const [avatarInput, setAvatarInput] = useState('');
+    const [isSavingAvatar, setIsSavingAvatar] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const userMenuRef = useRef<HTMLDivElement>(null);
+
+    // Fechar popover ao clicar fora
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+                setIsAvatarModalOpen(false);
+            }
+        };
+        if (isAvatarModalOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isAvatarModalOpen]);
+
+    // Estado da aba de perfil (Foto / Alterar Senha)
+    const [profileTab, setProfileTab] = useState<'avatar' | 'password'>('avatar');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [passwordError, setPasswordError] = useState('');
+    const [passwordSuccess, setPasswordSuccess] = useState(false);
+    const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+    const [isSendingResetEmail, setIsSendingResetEmail] = useState(false);
+    const [isEmailSent, setIsEmailSent] = useState(false);
+
+    const handleAvatarFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        try {
+            setIsSavingAvatar(true);
+            const uploadedUrl = await StorageService.uploadUserAvatar(file, user?.id || 'user');
+            setAvatarInput(uploadedUrl);
+        } catch (err) {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                if (evt.target?.result) {
+                    setAvatarInput(evt.target.result as string);
+                }
+            };
+            reader.readAsDataURL(file);
+        } finally {
+            setIsSavingAvatar(false);
+        }
+    };
+
+    const handleSaveAvatar = async () => {
+        if (!user) return;
+        try {
+            setIsSavingAvatar(true);
+            await supabase.from('users').update({ avatar: avatarInput }).eq('id', user.id);
+
+            const updatedUser = { ...user, avatar: avatarInput };
+            SessionStorage.set('user', updatedUser);
+            GlobalStorage.set('persistent_user', updatedUser);
+            setAuth(prev => ({ ...prev, user: updatedUser }));
+
+            setIsAvatarModalOpen(false);
+        } catch (err: any) {
+            console.error('Error saving avatar:', err);
+            alert('Erro ao salvar avatar: ' + (err.message || 'Falha na conexão'));
+        } finally {
+            setIsSavingAvatar(false);
+        }
+    };
+
+    const handleUpdatePassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (isUpdatingPassword) return;
+
+        const pass = newPassword.trim();
+        const confirm = confirmPassword.trim();
+
+        // 🛡️ Validação BigTech Standard (8+ chars, 1 maiúscula, 1 número)
+        const passwordRegex = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
+        if (!passwordRegex.test(pass)) {
+            setPasswordError('A senha deve ter pelo menos 8 caracteres, incluindo 1 letra maiúscula e 1 número.');
+            return;
+        }
+
+        if (pass !== confirm) {
+            setPasswordError('As senhas não coincidem.');
+            return;
+        }
+
+        try {
+            setPasswordError('');
+            setIsUpdatingPassword(true);
+
+            const { error } = await supabase.auth.updateUser({ password: pass });
+            if (error) throw error;
+
+            setPasswordSuccess(true);
+
+            // 🔐 Padrão BigTech: encerra sessão e força logoff para o usuário logar com a nova senha
+            setTimeout(async () => {
+                await logout();
+                window.location.href = '/#/login?reason=password_changed';
+            }, 2500);
+
+        } catch (err: any) {
+            console.error('Erro ao atualizar senha:', err);
+            setPasswordError(err.message || 'Falha ao atualizar senha.');
+            setIsUpdatingPassword(false);
+        }
+    };
+
+    const handleSendResetEmail = async () => {
+        if (!user?.email || isSendingResetEmail) return;
+        try {
+            setIsSendingResetEmail(true);
+            await AuthService.resetPasswordForEmail(user.email);
+            setIsEmailSent(true);
+        } catch (err: any) {
+            console.error('Erro ao enviar e-mail de redefinição:', err);
+            alert('Erro ao enviar e-mail de redefinição: ' + (err.message || 'Falha na conexão'));
+        } finally {
+            setIsSendingResetEmail(false);
+        }
+    };
 
     const { t } = useI18n();
     const { canAccessMenu, isAdmin, can } = usePermissions();
@@ -251,7 +383,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
             <div className="pt-4 border-t border-white/5 mx-2">
                 <a
-                    href="https://wa.me/553534227420"
+                    href="https://wa.me/5535984274972"
                     target="_blank"
                     rel="noopener noreferrer"
                     className={`w-full flex items-center ${isSidebarCollapsed && !onItemClick ? 'justify-center px-0' : 'px-3 justify-start'} py-2.5 rounded-lg transition-all duration-200 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 group`}
@@ -323,10 +455,187 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2 sm:gap-6 pr-2 sm:pr-4">
-                    {/* User info — hidden on very small screens */}
-                    <div className="hidden sm:flex flex-col items-end border-r border-slate-100 pr-6">
-                        <span className="text-sm font-semibold text-slate-900 tracking-tight">{user?.name}</span>
-                        <span className="text-[10px] font-medium text-slate-400  tracking-tighter">{user?.groupName || t.layout.adminRole}</span>
+                    {/* User info & clickable avatar with Dropdown Popover */}
+                    <div className="flex items-center gap-3 border-r border-slate-100 pr-3 sm:pr-6 relative" ref={userMenuRef}>
+                        <div className="hidden sm:flex flex-col items-end">
+                            <span className="text-sm font-semibold text-slate-900 tracking-tight">{user?.name}</span>
+                            <span className="text-[10px] font-medium text-slate-400 tracking-tighter">{user?.groupName || t.layout.adminRole}</span>
+                        </div>
+                        <div 
+                            onClick={() => {
+                                setAvatarInput(user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random&color=fff&bold=true`);
+                                setIsEmailSent(false);
+                                setProfileTab('avatar');
+                                setIsAvatarModalOpen(!isAvatarModalOpen);
+                            }}
+                            className="relative group cursor-pointer shrink-0"
+                            title="Perfil e Configurações"
+                        >
+                            <img
+                                src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random&color=fff&bold=true`}
+                                alt={user?.name || 'Avatar'}
+                                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover border-2 border-slate-200 group-hover:border-primary-500 shadow-sm transition-all bg-slate-100"
+                                onError={(e) => {
+                                    (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random&color=fff&bold=true`;
+                                }}
+                            />
+                            <div className="absolute inset-0 bg-slate-900/40 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                <Camera size={12} className="text-white" />
+                            </div>
+                        </div>
+
+                        {/* POPOVER DROPDOWN MENU — BigTech Standard */}
+                        {isAvatarModalOpen && (
+                            <div className="absolute top-full right-0 mt-2 w-80 sm:w-96 bg-white rounded-3xl shadow-2xl border border-slate-200 p-5 z-[9999] animate-in fade-in slide-in-from-top-2 duration-200 font-poppins flex flex-col gap-4">
+                                
+                                {/* 1. Header do Usuário + Grupo */}
+                                <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                                    <img
+                                        src={avatarInput || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random&color=fff&bold=true`}
+                                        alt={user?.name || 'Avatar'}
+                                        className="w-12 h-12 rounded-full object-cover border-2 border-primary-500 shadow-sm bg-slate-50 shrink-0"
+                                        onError={(e) => {
+                                            (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random&color=fff&bold=true`;
+                                        }}
+                                    />
+                                    <div className="truncate min-w-0">
+                                        <h3 className="text-sm font-bold text-slate-900 truncate leading-tight">{user?.name}</h3>
+                                        <p className="text-[11px] font-medium text-slate-400 truncate">{user?.email}</p>
+                                        
+                                        {/* Badge do Grupo de Acesso */}
+                                        <div className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 border border-amber-200 text-amber-700">
+                                            <FolderTree size={10} className="text-amber-500" />
+                                            <span>Grupo: {user?.groupName || 'Administradores'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 2. Abas: Foto / Alterar Senha */}
+                                <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                                    <button
+                                        type="button"
+                                        onClick={() => setProfileTab('avatar')}
+                                        className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                                            profileTab === 'avatar' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                                        }`}
+                                    >
+                                        <Camera size={13} /> Foto de Perfil
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setProfileTab('password')}
+                                        className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                                            profileTab === 'password' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                                        }`}
+                                    >
+                                        <Key size={13} /> Alterar Senha
+                                    </button>
+                                </div>
+
+                                {/* 3. Conteúdo Aba 1: Foto */}
+                                {profileTab === 'avatar' && (
+                                    <div className="space-y-3">
+                                        <div className="space-y-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="w-full py-2.5 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 transition-all flex items-center justify-center gap-2 shadow-sm"
+                                            >
+                                                <Upload size={15} className="text-primary-600" /> Alterar Foto do Perfil
+                                            </button>
+                                            <input
+                                                ref={fileInputRef}
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                onChange={handleAvatarFileUpload}
+                                            />
+
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setAvatarInput(`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=random&color=fff&bold=true`);
+                                                }}
+                                                className="w-full py-2.5 px-3 bg-primary-50/60 hover:bg-primary-50 border border-primary-100 rounded-xl text-xs font-bold text-primary-700 transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <Sparkles size={15} className="text-primary-600" /> Gerar Avatar
+                                            </button>
+                                        </div>
+
+                                        <button
+                                            onClick={handleSaveAvatar}
+                                            disabled={isSavingAvatar}
+                                            className="w-full py-2.5 bg-[#1c2d4f] hover:bg-[#253a66] text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                                        >
+                                            {isSavingAvatar ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+                                            {isSavingAvatar ? 'Salvando...' : 'Salvar Foto'}
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* 4. Conteúdo Aba 2: Alterar Senha (LGPD Email Mandatory) */}
+                                {profileTab === 'password' && (
+                                    <div className="space-y-3 font-poppins">
+                                        {isEmailSent ? (
+                                            <div className="p-4 bg-emerald-50/90 border border-emerald-200 rounded-2xl text-center space-y-2.5 animate-in fade-in">
+                                                <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-sm">
+                                                    <Mail size={20} />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-xs font-bold text-emerald-950">E-mail Enviado! ✨</h4>
+                                                    <p className="text-[10px] font-medium text-emerald-700 mt-0.5 leading-relaxed">
+                                                        Enviamos o link seguro para: <br />
+                                                        <span className="font-bold text-emerald-900 bg-emerald-100/70 px-2 py-0.5 rounded inline-block mt-0.5">{user?.email}</span>
+                                                    </p>
+                                                </div>
+                                                <p className="text-[9px] text-emerald-800 font-semibold italic">
+                                                    Acesse seu e-mail para redefinir sua senha com segurança.
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-100 flex items-start gap-2.5">
+                                                    <Key size={15} className="text-blue-600 shrink-0 mt-0.5" />
+                                                    <p className="text-[10px] text-blue-700 font-medium leading-relaxed">
+                                                        Em conformidade com a <span className="font-bold">LGPD</span>, alterações de senha são enviadas via link de verificação para o seu e-mail cadastrado.
+                                                    </p>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={handleSendResetEmail}
+                                                    disabled={isSendingResetEmail}
+                                                    className="w-full py-2.5 bg-[#1c2d4f] hover:bg-[#253a66] text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    {isSendingResetEmail ? <Loader2 size={15} className="animate-spin" /> : <Mail size={15} />}
+                                                    {isSendingResetEmail ? 'Enviando...' : 'Enviar Link de Redefinição de Senha'}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* 5. Rodapé fixo do Popover: Botão Sair da Conta (Logoff) */}
+                                <div className="pt-3 border-t border-slate-100 flex items-center justify-between w-full">
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Sessão Conectada</span>
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            if (onLogout) {
+                                                onLogout();
+                                            } else {
+                                                await logout();
+                                                window.location.href = '/#/login';
+                                            }
+                                        }}
+                                        className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/80 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+                                    >
+                                        <LogOut size={13} /> Sair da Conta
+                                    </button>
+                                </div>
+
+                            </div>
+                        )}
                     </div>
                     <div className="flex items-center gap-2 relative">
                         <button onClick={() => setShowInbox(!showInbox)} className="p-2 text-slate-400 hover:text-[#1c2d4f] hover:bg-slate-50 rounded-md transition-all relative">
@@ -597,7 +906,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                         </h2>
                     </div>
                     )}
-                    <div key={location.pathname} className={`flex-1 overflow-y-auto relative custom-scrollbar print:overflow-visible print:block ${!isStandalone ? 'pb-16 lg:pb-0' : ''} animate-fade-in duration-300`}>
+                    <div key={location.pathname} className={`flex-1 overflow-y-auto relative custom-scrollbar print:overflow-visible print:block ${!isStandalone ? 'pb-24 lg:pb-0' : ''} animate-fade-in duration-300`}>
                         {children}
                     </div>
                 </main>
@@ -633,6 +942,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             )}
 
             {!isStandalone && <GlobalChatBot />}
+
+
         </div>
     );
 };

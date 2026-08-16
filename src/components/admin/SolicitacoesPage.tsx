@@ -598,7 +598,8 @@ export const SolicitacoesPage: React.FC = () => {
 
       {/* Table Area */}
       <div className="flex-1 bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden flex flex-col relative os-table-container">
-        <div className="overflow-x-auto flex-1 custom-scrollbar">
+        {/* Table View (Desktop) */}
+        <div className="hidden md:block overflow-x-auto flex-1 custom-scrollbar">
           <table className="w-full text-left border-collapse">
             <thead className="bg-slate-100/90 backdrop-blur-md sticky top-0 z-20 border-b border-slate-200 shadow-xs font-poppins">
               <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">
@@ -731,6 +732,114 @@ export const SolicitacoesPage: React.FC = () => {
           </table>
         </div>
 
+        {/* Mobile Cards View (PWA) */}
+        <div className="md:hidden flex-1 overflow-y-auto custom-scrollbar bg-slate-50/50 p-2.5 space-y-2.5 pb-28">
+          {loading || isPageChanging ? (
+            <div className="py-16 text-center">
+              <RefreshCw size={24} className="animate-spin text-primary-400 mx-auto mb-2" />
+              <span className="text-xs font-medium uppercase tracking-widest text-slate-400">Carregando solicitações...</span>
+            </div>
+          ) : pagedRequests.length > 0 ? (
+            pagedRequests.map(req => {
+              const isPending = req.status === 'PENDING';
+              const isActing = actionLoading === req.id;
+              return (
+                <div
+                  key={req.id}
+                  onClick={() => setViewingReq(req)}
+                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer space-y-2.5 shadow-sm active:scale-[0.99] ${
+                    isPending ? 'bg-amber-50/40 border-amber-200/80' : 'bg-white border-slate-200'
+                  }`}
+                >
+                  {/* Card Header: Ticket + Status */}
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono text-slate-800 font-bold bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">
+                        #{req.id.substring(0, 6).toUpperCase()}
+                      </span>
+                      {req.order_id && <OSNumberCell orderId={req.order_id} tenantId={req.tenant_id} />}
+                    </div>
+                    <StatusBadge status={req.status} />
+                  </div>
+
+                  {/* Customer Info */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-0.5 min-w-0 flex-1">
+                      <p className="text-xs font-bold text-slate-900 truncate">
+                        {req.customer_name || <span className="text-slate-400 font-normal italic">Cliente não identificado</span>}
+                      </p>
+                      <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                        <span className="font-mono">{formatPhone(req.phone_number)}</span>
+                        {req.customer_document && (
+                          <span className="font-mono text-[9px] bg-slate-100 px-1.5 py-0.5 rounded font-semibold">{req.customer_document}</span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-slate-400 shrink-0 font-medium">{formatDateDisplay(req.created_at)}</span>
+                  </div>
+
+                  {/* Equipment Info if exists */}
+                  {(req.equipment_name || req.equipment_serial) && (
+                    <div className="p-2 bg-slate-100/60 rounded-xl flex items-center justify-between text-[11px]">
+                      <span className="font-medium text-slate-700 truncate">{req.equipment_name || 'Equipamento'}</span>
+                      {req.equipment_serial && <span className="font-mono text-[9px] text-slate-400 shrink-0">SN: {req.equipment_serial}</span>}
+                    </div>
+                  )}
+
+                  {/* Problem Description */}
+                  <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed bg-white/70 p-2 rounded-xl border border-slate-100">
+                    {req.problem_description}
+                  </p>
+
+                  {/* Actions Bar */}
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => navigate('/admin/whatsapp', { state: { selectedConvId: req.conversation_id } })}
+                      className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl text-[10px] font-bold flex items-center gap-1.5 border border-blue-200"
+                    >
+                      <MessageCircle size={13} /> Chat WhatsApp
+                    </button>
+
+                    <div className="flex items-center gap-1.5">
+                      {isPending ? (
+                        <>
+                          <button
+                            onClick={() => setViewingReq(req)}
+                            className="px-3 py-1.5 bg-amber-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm active:scale-95"
+                          >
+                            <AlertTriangle size={12} /> Triagem
+                          </button>
+                          <button
+                            onClick={() => { setRejectId(req.id); setRejectReason(''); }}
+                            disabled={isActing}
+                            className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-xl border border-rose-200"
+                            title="Rejeitar"
+                          >
+                            <XCircle size={15} />
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => setViewingReq(req)}
+                          className="px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl text-[10px] font-bold flex items-center gap-1"
+                        >
+                          <Eye size={13} /> Detalhes
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="py-20 text-center bg-white rounded-2xl border border-slate-200">
+              <Search size={28} className="text-slate-300 mx-auto mb-2" />
+              <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">Nenhuma solicitação</p>
+              <p className="text-[11px] text-slate-400 mt-1">Ajuste os filtros de busca</p>
+            </div>
+          )}
+        </div>
+
         {/* Paginação Padrão do Sistema */}
         <Pagination
           currentPage={currentPage}
@@ -749,9 +858,9 @@ export const SolicitacoesPage: React.FC = () => {
       </div>
 
       {/* Reject Modal */}
-      {rejectId && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border border-slate-100">
+      {rejectId && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border border-slate-100 animate-in zoom-in-95 duration-200">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center">
                 <XCircle size={20} className="text-rose-500" />
@@ -787,7 +896,8 @@ export const SolicitacoesPage: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* CreateOrderModal */}
@@ -812,7 +922,7 @@ export const SolicitacoesPage: React.FC = () => {
 
       {/* Detail Modal */}
       {viewingReq && createPortal(
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-0 lg:p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-0 lg:p-4 animate-in fade-in">
           <div className="bg-white rounded-none lg:rounded-xl w-full max-w-6xl h-full lg:h-auto lg:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200">
             {/* HEADER */}
             <div className="px-3 sm:px-6 py-3 sm:py-5 border-b border-slate-100 flex justify-between items-start sm:items-center shrink-0 transition-colors bg-white">

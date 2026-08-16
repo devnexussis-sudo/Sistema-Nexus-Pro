@@ -984,7 +984,7 @@ export const DocsPage: React.FC = () => {
                             Para dúvidas fiscais, suporte no faturamento ou integrações profundas com ERPs legados.
                         </p>
                         <a
-                            href="https://wa.me/553534227420"
+                            href="https://wa.me/5535984274972"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="w-full py-2.5 text-center text-xs font-bold text-slate-600 hover:text-slate-800 border border-slate-200 hover:border-slate-300 rounded-xl transition-all flex items-center justify-center gap-1.5 bg-slate-50 hover:bg-slate-100"

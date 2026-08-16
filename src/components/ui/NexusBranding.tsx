@@ -43,14 +43,16 @@ export const NexusBranding: React.FC<NexusBrandingProps> = ({
                         if (svg) svg.classList.remove('hidden');
                     }}
                 />
-                <svg
-                    viewBox="0 0 24 24"
-                    style={{ height: current.heightPx, width: 'auto' }}
-                    className={`${variant === 'light' ? 'text-white' : 'text-[#1c2d4f]'} fill-current hidden`}
-                    xmlns="http://www.w3.org/2000/svg"
-                >
-                    <path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-4.5-9h9c.28 0 .5.22.5.5s-.22.5-.5.5h-9c-.28 0-.5-.22-.5-.5s.22-.5.5-.5z" />
-                </svg>
+                {!imageLoaded && (
+                    <svg
+                        viewBox="0 0 24 24"
+                        style={{ height: current.heightPx, width: 'auto' }}
+                        className={`${variant === 'light' ? 'text-white' : 'text-[#1c2d4f]'} fill-current`}
+                        xmlns="http://www.w3.org/2000/svg"
+                    >
+                        <path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-4.5-9h9c.28 0 .5.22.5.5s-.22.5-.5.5h-9c-.28 0-.5-.22-.5-.5s.22-.5.5-.5z" />
+                    </svg>
+                )}
             </div>
             {showText && !imageLoaded && (
                 <div className="flex flex-col leading-none">

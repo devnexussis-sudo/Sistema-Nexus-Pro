@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw, X, BellRing, Bell, Volume2, ArrowRight, ArrowLeft, Sticker, FileVideo, Mic, FileText, Download, AlertCircle, Plus, Search, Loader2, CheckCircle2, ExternalLink } from 'lucide-react';
@@ -1444,8 +1445,8 @@ export const WhatsAppInbox: React.FC = () => {
       )}
 
       {/* Modal de Confirmação para Reiniciar Bot */}
-      {showResetConfirm && selected && (
-        <div className="absolute inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+      {showResetConfirm && selected && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white border border-[#1c2d4f]/20 rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="bg-[#1c2d4f] px-6 py-4 flex items-center gap-3">
               <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center text-white">
@@ -1473,13 +1474,14 @@ export const WhatsAppInbox: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── Modal de Transferir Conversa ── */}
-      {transferModal && selected && (
-        <div className="fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+      {transferModal && selected && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh] animate-in zoom-in-95 duration-200">
             {/* Header */}
             <div className="bg-[#1c2d4f] px-6 py-5 flex items-center justify-between text-white shrink-0">
               <div className="flex items-center gap-3">
@@ -1582,13 +1584,14 @@ export const WhatsAppInbox: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── Modal de Nova Conversa ── */}
-      {isNewChatOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+      {isNewChatOpen && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-6 overflow-hidden animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh] animate-in zoom-in-95 duration-200">
             {/* Header */}
             <div className="px-6 py-5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
               <div className="flex items-center gap-4">
@@ -1801,7 +1804,8 @@ export const WhatsAppInbox: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <style>{`

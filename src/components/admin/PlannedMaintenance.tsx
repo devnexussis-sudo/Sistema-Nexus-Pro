@@ -1,5 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { safeCreatePortal } from '../../utils/portal';
 import { useI18n } from '../../i18n';
 import { ServiceOrder, User, OrderStatus, OrderPriority, Customer, Equipment, Contract } from '../../types';
 import { Button } from '../ui/Button';
@@ -364,9 +366,10 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('ALL');
     const getDefaultDates = () => {
-        const dEnd = new Date();
         const dStart = new Date();
-        dStart.setMonth(dStart.getMonth() - 2);
+        dStart.setMonth(dStart.getMonth() - 6);
+        const dEnd = new Date();
+        dEnd.setMonth(dEnd.getMonth() + 6);
         return { start: dStart.toISOString().split('T')[0], end: dEnd.toISOString().split('T')[0] };
     };
     const { start: initStart, end: initEnd } = getDefaultDates();
@@ -517,7 +520,8 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-auto custom-scrollbar">
+                {/* Desktop View */}
+                <div className="hidden md:block flex-1 overflow-auto custom-scrollbar">
                     <table className="w-full border-separate border-spacing-y-0">
                         <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10 text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] text-center">
                             <tr className="border-b border-slate-200">
@@ -565,6 +569,63 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                         </tbody>
                     </table>
                 </div>
+
+                {/* Mobile Cards View (PWA) */}
+                <div className="md:hidden flex-1 overflow-auto custom-scrollbar bg-slate-50/50 p-2.5 space-y-2.5 pb-28">
+                    {paginatedContracts.length === 0 ? (
+                        <div className="py-16 text-center text-slate-400 font-bold uppercase text-[10px]">
+                            Nenhum contrato localizado com estes critérios
+                        </div>
+                    ) : (
+                        paginatedContracts.map(contract => (
+                            <div key={contract.id} className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-2.5">
+                                <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[11px] font-bold text-primary-600 bg-primary-50 px-2 py-0.5 rounded-md">
+                                            {contract.pmocCode}
+                                        </span>
+                                        <span className="text-[10px] font-bold text-slate-400">
+                                            Dia {contract.maintenanceDay || '1'}º
+                                        </span>
+                                    </div>
+                                    <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${contract.status === OrderStatus.CANCELED ? 'bg-red-50 text-red-500 border border-red-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${contract.status === OrderStatus.CANCELED ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                                        {contract.status === OrderStatus.CANCELED ? 'Inativo' : 'Ativo'}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h4 className="text-xs font-bold text-slate-800 uppercase line-clamp-1">
+                                        {contract.title.replace('CONTRATO Master: ', '')}
+                                    </h4>
+                                    <p className="text-[11px] font-medium text-slate-500 truncate mt-0.5">
+                                        {contract.customerName}
+                                    </p>
+                                </div>
+
+                                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                                    <div>
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase block">Mensalidade</span>
+                                        <span className="text-sm font-black text-emerald-600">
+                                            R$ {contract.contractValue?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <button onClick={() => { setSelectedContract(contract); setViewTab('details'); setIsViewModalOpen(true); }} className="p-2 text-slate-500 bg-slate-50 border border-slate-200 rounded-xl" title="Detalhes">
+                                            <Eye size={15} />
+                                        </button>
+                                        <button onClick={() => handleOpenEdit(contract)} className="p-2 text-primary-600 bg-primary-50 border border-primary-100 rounded-xl" title="Editar">
+                                            <Edit3 size={15} />
+                                        </button>
+                                        <button onClick={() => initToggleStatus(contract)} className={`p-2 rounded-xl border ${contract.status === OrderStatus.CANCELED ? 'text-emerald-600 bg-emerald-50 border-emerald-100' : 'text-rose-500 bg-rose-50 border-rose-100'}`} title={contract.status === OrderStatus.CANCELED ? 'Reativar' : 'Suspender'}>
+                                            <ShieldAlert size={15} />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
                 <Pagination
                     currentPage={currentPage}
                     totalPages={totalPages}
@@ -574,38 +635,30 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                 />
             </div>
 
-            {/* EDIT/CREATE MODAL - STANDARDIZED TO OS STYLE */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-0 lg:p-4 animate-in fade-in">
-                    <div className="bg-white rounded-none lg:rounded-xl w-full max-w-6xl h-full lg:h-auto lg:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200">
-                        {/* HEADER - Nexus Premium Standard */}
-                        <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 flex justify-between items-start sm:items-center shrink-0 bg-white">
-                            <div className="flex items-center gap-4">
-                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center border bg-slate-50 border-slate-200 text-[#1c2d4f] shrink-0">
+            {/* EDIT/CREATE MODAL */}
+            {isModalOpen && safeCreatePortal(
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in">
+                    <div className="bg-white rounded-none sm:rounded-2xl w-full max-w-6xl h-full sm:h-auto sm:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 sm:border border-slate-200">
+                        {/* HEADER */}
+                        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-100 flex justify-between items-center shrink-0 bg-white gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center border bg-slate-50 border-slate-200 text-[#1c2d4f] shrink-0">
                                     <Layers size={18} />
                                 </div>
-                                <div>
-                                    <h2 className="text-sm sm:text-base font-semibold text-slate-900 font-poppins">
-                                        {pendingAction === 'EDIT' ? 'Editar Contrato Master' : 'Novo Registro de Contrato'}
+                                <div className="min-w-0">
+                                    <h2 className="text-sm sm:text-base font-bold text-slate-900 font-poppins truncate">
+                                        {pendingAction === 'EDIT' ? 'Editar Contrato Master' : 'Novo Contrato'}
                                     </h2>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{pmocCode}</span>
-                                        <div className="w-1 h-1 rounded-full bg-slate-300" />
-                                        <span className="text-[9px] font-bold text-primary-600 uppercase tracking-widest">Protocolo Nexus Line</span>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest truncate">{pmocCode}</span>
+                                        <div className="w-1 h-1 rounded-full bg-slate-300 shrink-0" />
+                                        <span className="text-[9px] font-bold text-primary-600 uppercase tracking-widest hidden sm:inline">Protocolo Nexus Line</span>
                                     </div>
                                 </div>
                             </div>
                             
-                            <div className="flex items-center gap-3">
-                                <Button
-                                    onClick={() => setIsModalOpen(false)}
-                                    variant="secondary"
-                                    size="sm"
-                                    className="h-10 px-6 gap-2 text-slate-500 border-slate-200"
-                                >
-                                    <X size={16} /> Cancelar
-                                </Button>
-                                <Button
+                            <div className="flex items-center gap-2 shrink-0">
+                                <button
                                     onClick={() => {
                                         if (selectedEquipIds.length === 0) {
                                             alert("⚠️ Selecione pelo menos um equipamento no 'Dados Técnicos' para prosseguir.");
@@ -613,12 +666,16 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                         }
                                         setIsAuditModalOpen(true);
                                     }}
-                                    variant="primary"
-                                    size="sm"
-                                    className={`h-10 px-8 gap-2 bg-[#1c2d4f] hover:bg-[#253a66] shadow-lg shadow-primary-900/20 ${selectedEquipIds.length === 0 ? 'opacity-50 grayscale' : ''}`}
+                                    className={`hidden sm:flex h-9 px-4 bg-[#1c2d4f] hover:bg-[#253a66] text-white text-xs font-bold rounded-xl shadow-md transition-all items-center gap-1.5 ${selectedEquipIds.length === 0 ? 'opacity-50 grayscale' : ''}`}
                                 >
-                                    <Save size={16} /> Salvar Alterações
-                                </Button>
+                                    <Save size={14} /> Salvar
+                                </button>
+                                <button 
+                                    onClick={() => setIsModalOpen(false)} 
+                                    className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all"
+                                >
+                                    <X size={20} />
+                                </button>
                             </div>
                         </div>
 
@@ -668,7 +725,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                         {/* CONTENT AREA */}
                         <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-50/30 custom-scrollbar">
                             {modalTab === 'technical' && (
-                                <div className="grid grid-cols-2 gap-10 animate-fade-in">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 animate-fade-in">
                                     <div className="space-y-6">
                                         <div className="p-5 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm">
                                             <div className="space-y-6">
@@ -863,7 +920,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                             <div className="space-y-5 pt-4 border-t border-slate-100 animate-in fade-in slide-in-from-top-2 duration-300">
                                                 <div>
                                                     <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-3">Duração do Contrato (em meses)</label>
-                                                    <div className="grid grid-cols-4 gap-2">
+                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                                         {[6, 12, 24, 36].map(m => (
                                                             <button
                                                                 key={m}
@@ -910,7 +967,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                         )}
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-8">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8">
                                         <div className="p-5 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm">
                                             <label className="text-[9px] font-bold text-slate-400 uppercase mb-4 block tracking-widest">Mensalidade do Contrato</label>
                                             <div className="relative">
@@ -1010,28 +1067,54 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                             )}
                         </div>
                         </div>
-                    </div>
-                </div>
-            )}
 
-
-            {isAuditModalOpen && (
-                <div className="fixed inset-0 z-[1500] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 lg:p-4 animate-in fade-in">
-                    <div className="bg-white rounded-xl shadow-2xl p-10 max-w-sm w-full text-center border border-slate-200">
-                        <div className="w-16 h-16 bg-primary-50 text-primary-600 rounded-2xl mx-auto flex items-center justify-center mb-6"><MessageSquare size={32} /></div>
-                        <h2 className="text-xl font-bold text-slate-900 uppercase mb-2 tracking-tighter">Protocolo de Auditoria</h2>
-                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-6 leading-loose underline decoration-primary-200 underline-offset-4">Justificativa obrigatória para registrar a transação no nexus.</p>
-                        <textarea autoFocus value={changeReason} onChange={e => setChangeReason(e.target.value)} placeholder="Motivo da abertura/revisão deste PMOC..." className="w-full h-32 bg-slate-50 border border-slate-200 rounded-xl p-4 text-[11px] font-medium mb-6 outline-none shadow-inner" />
-                        <div className="space-y-3">
-                            <button onClick={handleConfirmAction} disabled={isSubmitting || !changeReason} className="w-full py-5 bg-primary-600 text-white rounded-2xl text-[10px] font-bold uppercase shadow-xl flex items-center justify-center gap-2 hover:bg-primary-700 transition-all">{isSubmitting && <Loader2 className="animate-spin" size={16} />} Confirmar Transação <ArrowUpRight size={16} /></button>
-                            <button onClick={() => setIsAuditModalOpen(false)} className="w-full py-4 text-[10px] font-bold uppercase text-slate-400 hover:text-red-500 transition-colors">Abortar Transação</button>
+                        {/* FOOTER ACTIONS FOR MOBILE & DESKTOP */}
+                        <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => setIsModalOpen(false)}
+                                className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-100 transition-colors flex items-center gap-1.5"
+                            >
+                                <X size={15} /> Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (selectedEquipIds.length === 0) {
+                                        alert("⚠️ Selecione pelo menos um equipamento no 'Dados Técnicos' para prosseguir.");
+                                        return;
+                                    }
+                                    setIsAuditModalOpen(true);
+                                }}
+                                className={`flex-1 sm:flex-initial px-6 py-2.5 bg-[#1c2d4f] text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-[#253a66] transition-all shadow-md flex items-center justify-center gap-2 ${selectedEquipIds.length === 0 ? 'opacity-50 grayscale' : ''}`}
+                            >
+                                <Save size={15} /> Salvar Alterações
+                            </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
-            {isViewModalOpen && selectedContract && (
-                <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-0 lg:p-4 print:p-0 print:bg-white print:absolute print:top-0 print:left-0 print:right-0 print:h-auto print:block animate-in fade-in">
+
+            {isAuditModalOpen && safeCreatePortal(
+                <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
+                    <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-sm w-full text-center border border-slate-200">
+                        <div className="w-14 h-14 bg-primary-50 text-primary-600 rounded-2xl mx-auto flex items-center justify-center mb-4"><MessageSquare size={28} /></div>
+                        <h2 className="text-lg font-bold text-slate-900 uppercase mb-1 tracking-tighter">Protocolo de Auditoria</h2>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-4 leading-relaxed">Justificativa obrigatória para registrar a transação no Nexus.</p>
+                        <textarea autoFocus value={changeReason} onChange={e => setChangeReason(e.target.value)} placeholder="Motivo da abertura/revisão deste PMOC..." className="w-full h-28 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-medium mb-4 outline-none shadow-inner" />
+                        <div className="space-y-2">
+                            <button onClick={handleConfirmAction} disabled={isSubmitting || !changeReason} className="w-full py-3.5 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl text-xs font-bold uppercase shadow-md flex items-center justify-center gap-2 transition-all">{isSubmitting && <Loader2 className="animate-spin" size={16} />} Confirmar Transação <ArrowUpRight size={16} /></button>
+                            <button onClick={() => setIsAuditModalOpen(false)} className="w-full py-2.5 text-xs font-bold uppercase text-slate-400 hover:text-red-500 transition-colors">Abortar Transação</button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {isViewModalOpen && selectedContract && safeCreatePortal(
+                <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-0 sm:p-4 print:p-0 print:bg-white print:absolute print:top-0 print:left-0 print:right-0 print:h-auto print:block animate-in fade-in">
                     <style>{`
                         @media print {
                             @page { margin: 10mm; size: A4 portrait; }
@@ -1304,6 +1387,8 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
 // --- CONTRACT PRINT LAYOUT ---
 // Redeigned to match exactly the Order Service (OS) standard
 const ContractPrintLayout: React.FC<{ contract: any, tenant: any, equipments: Equipment[] }> = ({ contract, tenant, equipments }) => {
+    if (!contract || typeof document === 'undefined' || !document.body) return null;
+
     const companyName = tenant?.company_name || tenant?.name || 'Nexus Pro';
     const companyLogo = tenant?.logo_url;
     

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { DataService } from '../../services/dataService';
 import { NexusQueryClient, useTenant } from '../../hooks/nexusHooks';
 import SessionStorage from '../../lib/sessionStorage';
@@ -10,7 +11,7 @@ import {
   Navigation, Smartphone, Lock, Unlock, ListOrdered,
   ShieldAlert, X, UploadCloud, Languages,
   BellRing, Database, History, HardDrive, Loader2, Loader, Share2, PlayCircle, PieChart, Target, ImagePlus,
-  Monitor, MapPinned, MessageCircle, QrCode, Wifi, WifiOff, Clock
+  Monitor, MapPinned, MessageCircle, QrCode, Wifi, WifiOff, Clock, AlertTriangle, RefreshCw
 } from 'lucide-react';
 import { useI18n, TIMEZONE_OPTIONS, type SupportedLocale, type SupportedTimezone } from '../../i18n';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -65,6 +66,14 @@ interface SystemParams {
   autoCheckin: boolean;
 }
 
+export interface WhatsAppConnectionLog {
+  id: string;
+  timestamp: string;
+  status: 'connected' | 'disconnected' | 'connecting';
+  reason?: string;
+  details?: string;
+}
+
 interface WhatsAppConfig {
   uazapi_url: string;
   uazapi_instance: string;
@@ -83,7 +92,37 @@ interface WhatsAppConfig {
   business_end?: string;
   out_of_office_msg?: string;
   company_info?: string;
+  lastDisconnectReason?: string;
+  connectionLogs?: WhatsAppConnectionLog[];
 }
+
+const translateDisconnectReason = (reason?: string): string => {
+  if (!reason) return 'Nenhum motivo específico informado pela API.';
+  const r = reason.toLowerCase();
+
+  if (r.includes('logged out') || r.includes('logout') || r.includes('401') || r.includes('unauthorized')) {
+    return '🔒 Sessão encerrada no celular. O aplicativo WhatsApp no aparelho desconectou a integração UAZAPI. É necessário gerar um novo QR Code.';
+  }
+  if (r.includes('multidevice_mismatch') || r.includes('mismatch') || r.includes('405')) {
+    return '📱 Incompatibilidade de protocolo ou a sessão foi assumida por outro dispositivo.';
+  }
+  if (r.includes('connection_replaced') || r.includes('replaced')) {
+    return '⚠️ A conexão foi substituída por outra instância ou novo acesso UAZAPI usando a mesma chave.';
+  }
+  if (r.includes('timed out') || r.includes('timeout') || r.includes('408')) {
+    return '⏳ Tempo limite de comunicação excedido. O celular associado estava sem acesso à internet ou desligado.';
+  }
+  if (r.includes('connection closed') || r.includes('closed') || r.includes('500') || r.includes('503')) {
+    return '🌐 Conexão de rede fechada temporariamente pelo servidor UAZAPI / WhatsApp Meta.';
+  }
+  if (r.includes('banned') || r.includes('blocked')) {
+    return '🚫 Número temporariamente suspenso ou restrito pelas diretrizes de automação da Meta.';
+  }
+  if (r.includes('user_action_logout')) {
+    return '👤 Desconexão manual efetuada pelo painel de configurações.';
+  }
+  return `ℹ️ Retorno direto da API UAIZAP/Meta: "${reason}"`;
+};
 
 export const SettingsPage: React.FC = () => {
   const { t, locale, timezone, setLocale, setTimezone } = useI18n();
@@ -138,6 +177,97 @@ export const SettingsPage: React.FC = () => {
   const [wppTestStatus, setWppTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [wppQrCode, setWppQrCode] = useState<string | null>(null);
   const [wppConnected, setWppConnected] = useState(false);
+  const [lastDisconnectReason, setLastDisconnectReason] = useState<string>('');
+  const [connectionLogs, setConnectionLogs] = useState<WhatsAppConnectionLog[]>([]);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isFetchingServerLogs, setIsFetchingServerLogs] = useState(false);
+
+  const fetchServerLogs = async () => {
+    if (!whatsapp.uazapi_url || !whatsapp.uazapi_token) return;
+    setIsFetchingServerLogs(true);
+    try {
+      let baseUrl = whatsapp.uazapi_url.trim();
+      if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+      const token = whatsapp.uazapi_token.trim();
+      const headers = { 
+        'apikey': token,
+        'token': token,
+        'Content-Type': 'application/json'
+      };
+
+      // 1. Fetch main status
+      const statusRes = await fetch(`${baseUrl}/instance/status`, { headers }).catch(() => null);
+      let statusJson: any = null;
+      if (statusRes && statusRes.ok) {
+        statusJson = await statusRes.json().catch(() => null);
+      }
+
+      // 2. Try fetching server logs / history if available on UAZAPI API
+      let serverLogsJson: any = null;
+      const logsRes = await fetch(`${baseUrl}/instance/logs`, { headers }).catch(() => null);
+      if (logsRes && logsRes.ok) {
+        serverLogsJson = await logsRes.json().catch(() => null);
+      }
+
+      const fetchedEvents: WhatsAppConnectionLog[] = [];
+
+      // Parse statusJson
+      if (statusJson) {
+        const connected = statusJson?.connected === true || statusJson?.instance?.status === 'connected' || statusJson?.instance?.state === 'open' || statusJson?.state === 'open' || statusJson?.status === 'connected';
+        const reason = statusJson?.lastDisconnectReason || statusJson?.instance?.lastDisconnectReason || statusJson?.reason;
+
+        if (reason) {
+          setLastDisconnectReason(reason);
+        }
+
+        fetchedEvents.push({
+          id: 'status_check_' + Date.now(),
+          timestamp: new Date().toLocaleString('pt-BR'),
+          status: connected ? 'connected' : 'disconnected',
+          reason: reason || (connected ? 'connected_ok' : 'disconnected'),
+          details: connected 
+            ? 'Sessão UAZAPI ativa no servidor.' 
+            : translateDisconnectReason(reason || 'instância desconectada')
+        });
+      }
+
+      // Parse serverLogsJson
+      if (serverLogsJson) {
+        const rawList = Array.isArray(serverLogsJson) 
+          ? serverLogsJson 
+          : (serverLogsJson?.logs || serverLogsJson?.events || serverLogsJson?.data || []);
+
+        if (Array.isArray(rawList) && rawList.length > 0) {
+          rawList.forEach((item: any, idx: number) => {
+            const itemReason = item.reason || item.lastDisconnectReason || item.event || item.message || 'server_log';
+            const itemStatus = (item.status === 'connected' || item.state === 'open' || item.type === 'connected') ? 'connected' : 'disconnected';
+            const time = item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
+
+            fetchedEvents.push({
+              id: `server_${idx}_${Date.now()}`,
+              timestamp: time,
+              status: itemStatus,
+              reason: itemReason,
+              details: itemStatus === 'connected' ? 'Sessão iniciada no servidor UAZAPI' : translateDisconnectReason(itemReason)
+            });
+          });
+        }
+      }
+
+      // Merge with current connectionLogs without duplicates
+      if (fetchedEvents.length > 0) {
+        setConnectionLogs(prev => {
+          const combined = [...fetchedEvents, ...prev];
+          const unique = combined.filter((v, i, a) => a.findIndex(t => (t.timestamp === v.timestamp && t.reason === v.reason)) === i);
+          return unique.slice(0, 100);
+        });
+      }
+    } catch (err) {
+      console.error('[UAZAPI Server Logs] Error fetching logs:', err);
+    } finally {
+      setIsFetchingServerLogs(false);
+    }
+  };
 
   // Estados com Inicialização por LocalStorage (como fallback inicial)
   const [company, setCompany] = useState<CompanyData>({
@@ -264,6 +394,8 @@ export const SettingsPage: React.FC = () => {
             company_info: ws.company_info || '',
           });
           setWppConnected(ws.connected ?? false);
+          setLastDisconnectReason(ws.lastDisconnectReason || '');
+          setConnectionLogs(ws.connectionLogs || []);
         }
         wppSyncedRef.current = true;
       }
@@ -407,6 +539,8 @@ export const SettingsPage: React.FC = () => {
           ...whatsapp,
           zapi_instance_id: whatsapp.uazapi_instance || whatsapp.zapi_instance_id,
           connected: wppConnected,
+          lastDisconnectReason: lastDisconnectReason,
+          connectionLogs: connectionLogs,
         },
         metadata: {
           ...data?.metadata,
@@ -1237,12 +1371,23 @@ export const SettingsPage: React.FC = () => {
                       </h2>
                       <p className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mt-1">Automação de atendimento via WhatsApp</p>
                     </div>
-                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                      wppConnected ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-gray-50 text-gray-400 border-gray-200'
-                    }`}>
-                      {wppConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
-                      {wppConnected ? 'Conectado' : 'Desconectado'}
-                    </div>
+                    
+                    {/* Status Badge Transformado em Botão Clicável de Histórico */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        fetchServerLogs();
+                        setIsHistoryModalOpen(true);
+                      }}
+                      title="Clique para abrir o Histórico de Conexões & Desconexões UAIZAP"
+                      className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer ${
+                        wppConnected ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100'
+                      }`}
+                    >
+                      {wppConnected ? <Wifi size={13} className="text-emerald-600 animate-pulse" /> : <WifiOff size={13} className="text-rose-600" />}
+                      <span>{wppConnected ? 'Conectado' : 'Desconectado'}</span>
+                      <History size={13} className="ml-1 opacity-70 text-slate-500" />
+                    </button>
                   </div>
 
                   {/* UAZAPI Credentials */}
@@ -1316,12 +1461,40 @@ export const SettingsPage: React.FC = () => {
                             const res = await fetch(`${baseUrl}/instance/status`, { headers });
                             const json = await res.json();
                             const connected = json?.connected === true || json?.instance?.status === 'connected' || json?.instance?.state === 'open' || json?.state === 'open' || json?.status === 'connected';
+                            
+                            const rawReason = json?.lastDisconnectReason || json?.instance?.lastDisconnectReason || json?.reason || json?.error || (connected ? '' : 'instance_disconnected');
+
                             if (connected) {
                               setWppConnected(true);
                               setWppTestStatus('ok');
+                              
+                              const newLog: WhatsAppConnectionLog = {
+                                id: Date.now().toString(),
+                                timestamp: new Date().toLocaleString('pt-BR'),
+                                status: 'connected',
+                                reason: 'connected_ok',
+                                details: 'Instância UAZAPI conectada e respondendo normalmente.'
+                              };
+                              setConnectionLogs(prev => {
+                                if (prev.length > 0 && prev[0].status === 'connected') return prev;
+                                return [newLog, ...prev.slice(0, 49)];
+                              });
                             } else {
                               setWppConnected(false);
                               setWppTestStatus('connecting');
+                              setLastDisconnectReason(rawReason);
+
+                              const newLog: WhatsAppConnectionLog = {
+                                id: Date.now().toString(),
+                                timestamp: new Date().toLocaleString('pt-BR'),
+                                status: 'disconnected',
+                                reason: rawReason,
+                                details: translateDisconnectReason(rawReason)
+                              };
+                              setConnectionLogs(prev => {
+                                if (prev.length > 0 && prev[0].status === 'disconnected' && prev[0].reason === rawReason) return prev;
+                                return [newLog, ...prev.slice(0, 49)];
+                              });
                             }
                           } catch (e) {
                             console.error('Teste conexão erro:', e);
@@ -1388,6 +1561,17 @@ export const SettingsPage: React.FC = () => {
 
                       <button
                         type="button"
+                        onClick={() => {
+                          fetchServerLogs();
+                          setIsHistoryModalOpen(true);
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wide border bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200 transition-all shadow-xs"
+                      >
+                        <History size={14} className="text-[#1c2d4f]" /> Ver Histórico de Conexões
+                      </button>
+
+                      <button
+                        type="button"
                         disabled={!wppConnected}
                         onClick={() => {
                           if (!whatsapp.uazapi_url || !whatsapp.uazapi_token || !whatsapp.uazapi_instance) return;
@@ -1421,6 +1605,16 @@ export const SettingsPage: React.FC = () => {
                                 showAlert("Sessão desconectada com sucesso!", "success");
                                 setWppConnected(false);
                                 setWppQrCode(null);
+                                setLastDisconnectReason('user_action_logout');
+
+                                const logoutLog: WhatsAppConnectionLog = {
+                                  id: Date.now().toString(),
+                                  timestamp: new Date().toLocaleString('pt-BR'),
+                                  status: 'disconnected',
+                                  reason: 'user_action_logout',
+                                  details: 'Desconexão manual solicitada pelo painel.'
+                                };
+                                setConnectionLogs(prev => [logoutLog, ...prev.slice(0, 49)]);
                               } catch (e: any) {
                                 console.error('[Logout] Erro:', e);
                                 showAlert(`Erro ao desconectar: ${e?.message || 'Desconhecido'}`, "error");
@@ -1663,6 +1857,143 @@ export const SettingsPage: React.FC = () => {
             )}
         </div>
       </div>
+
+      {/* Modal Portal: Histórico de Conexões e Desconexões UAIZAP */}
+      {isHistoryModalOpen && createPortal(
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full border border-slate-200 flex flex-col max-h-[85vh] overflow-hidden animate-scale-up font-poppins">
+            
+            {/* Modal Header */}
+            <div className="p-5 sm:p-6 border-b border-slate-100 flex items-start justify-between bg-slate-50/50 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl border border-emerald-100 shadow-sm">
+                  <History size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 leading-tight flex items-center gap-2">
+                    Histórico de Conexões UAIZAP
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider ${
+                      wppConnected ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
+                    }`}>
+                      {wppConnected ? 'Conectado' : 'Desconectado'}
+                    </span>
+                  </h3>
+                  <p className="text-[11px] font-medium text-slate-400 mt-0.5">
+                    Instância: <span className="font-bold text-slate-700">{whatsapp.uazapi_instance || 'duno'}</span> | Servidor: <span className="font-mono text-slate-700">{whatsapp.uazapi_url || 'N/A'}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsHistoryModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Bar Action & Diagnostics */}
+            <div className="p-4 sm:px-6 bg-slate-100/60 border-b border-slate-200/80 flex flex-wrap items-center justify-between gap-3 shrink-0">
+              {lastDisconnectReason ? (
+                <div className="flex items-center gap-2 text-xs font-semibold text-amber-800 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 shrink-0 max-w-full truncate">
+                  <AlertTriangle size={14} className="text-amber-600 shrink-0" />
+                  <span className="truncate">Última Desconexão:</span>
+                  <span className="font-mono font-bold text-amber-900 bg-amber-100 px-1.5 py-0.5 rounded text-[10px]">{lastDisconnectReason}</span>
+                </div>
+              ) : (
+                <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
+                  ✓ Sem quedas recentes registradas no servidor
+                </span>
+              )}
+
+              <button
+                type="button"
+                disabled={isFetchingServerLogs}
+                onClick={fetchServerLogs}
+                className="px-3.5 py-1.5 bg-[#1c2d4f] hover:bg-[#253a66] text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 ml-auto"
+              >
+                <RefreshCw size={13} className={isFetchingServerLogs ? 'animate-spin' : ''} />
+                {isFetchingServerLogs ? 'Buscando do Servidor...' : 'Puxar Histórico da API'}
+              </button>
+            </div>
+
+            {/* Scrollable History List */}
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-3 font-poppins">
+              {connectionLogs.length === 0 ? (
+                <div className="text-center py-10 space-y-3">
+                  <History size={40} className="mx-auto text-slate-300 stroke-1" />
+                  <p className="text-xs font-medium text-slate-500 max-w-sm mx-auto">
+                    Nenhum evento gravado localmente. Clique no botão <span className="font-bold text-slate-700">"Puxar Histórico da API"</span> para buscar os registros diretamente do servidor UAIZAP.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {connectionLogs.map((log, idx) => (
+                    <div key={log.id || idx} className="p-3.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200/80 rounded-2xl transition-all flex items-start gap-3 text-xs">
+                      <div className="pt-0.5 shrink-0">
+                        {log.status === 'connected' ? (
+                          <div className="w-3 h-3 bg-emerald-500 rounded-full shadow-sm shadow-emerald-300 ring-4 ring-emerald-100" title="Conectado" />
+                        ) : (
+                          <div className="w-3 h-3 bg-rose-500 rounded-full shadow-sm shadow-rose-300 ring-4 ring-rose-100" title="Desconectado" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                              log.status === 'connected' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'
+                            }`}>
+                              {log.status === 'connected' ? 'Conectado' : 'Desconectado'}
+                            </span>
+                            {log.reason && (
+                              <span className="text-[9px] font-mono text-slate-600 bg-white border border-slate-200 px-2 py-0.5 rounded-md shadow-2xs">
+                                {log.reason}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-semibold shrink-0">{log.timestamp}</span>
+                        </div>
+                        {log.details && (
+                          <p className="text-[11px] text-slate-700 font-medium mt-1.5 leading-relaxed bg-white/60 p-2.5 rounded-xl border border-slate-100">
+                            {log.details}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
+              <span className="text-[11px] font-bold text-slate-400">
+                Total de registros: {connectionLogs.length}
+              </span>
+              <div className="flex items-center gap-2">
+                {connectionLogs.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setConnectionLogs([])}
+                    className="px-3 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-xl transition-all"
+                  >
+                    Limpar Lista
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsHistoryModalOpen(false)}
+                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl transition-all"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

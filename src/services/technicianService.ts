@@ -394,8 +394,8 @@ export const TechnicianService = {
                     }
                 } catch(e) { }
 
-                // 1. Upload da Imagem usando StorageService
-                const publicUrl = await StorageService.uploadFile(base64Image, `technicians/${techName}/avatar`);
+                // 1. Upload da Imagem usando StorageService (Salva sob ${tenantId}/avatars/users/${userId}/...)
+                const publicUrl = await StorageService.uploadUserAvatar(base64Image, userId);
 
                 console.log(`[Avatar] ✅ Upload concluído: ${publicUrl}`);
 

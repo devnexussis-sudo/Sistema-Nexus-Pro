@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   format,
   addMonths,
@@ -455,48 +456,48 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
       </main>
 
       {/* ── MODAL: LISTAGEM DO DIA ── */}
-      {selectedDayData && !selectedOrder && (
+      {selectedDayData && !selectedOrder && createPortal(
         <div
-          className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-md animate-in fade-in font-poppins"
           onClick={() => setSelectedDayData(null)}
         >
           <div
-            className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-slate-100 animate-scale-up"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="bg-gradient-to-br from-[#1c2d4f] to-[#2a457a] px-8 py-6 shrink-0 relative overflow-hidden">
+            <div className="bg-gradient-to-br from-[#1c2d4f] via-[#233862] to-[#2a457a] px-6 sm:px-8 py-6 shrink-0 relative overflow-hidden text-white">
               <div className="absolute top-0 right-0 p-6 opacity-5">
                 <CalendarIcon size={120} className="rotate-12" />
               </div>
               <button
                 onClick={() => setSelectedDayData(null)}
-                className="absolute top-4 right-4 p-2.5 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white transition-all"
+                className="absolute top-5 right-5 p-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white transition-all active:scale-95"
               >
                 <X size={18} />
               </button>
-              <p className="text-[10px] font-semibold text-white/60 tracking-[0.25em] uppercase mb-1">agenda do dia</p>
-              <h3 className="text-3xl font-semibold text-white capitalize leading-none">
+              <p className="text-[10px] font-bold text-sky-300 tracking-[0.2em] uppercase mb-1">Agenda do Dia</p>
+              <h3 className="text-2xl sm:text-3xl font-bold text-white capitalize leading-none tracking-tight">
                 {format(selectedDayData.day, "dd ", { locale: ptBR })}
-                <span className="font-light">{format(selectedDayData.day, "MMMM yyyy", { locale: ptBR })}</span>
+                <span className="font-normal opacity-90">{format(selectedDayData.day, "MMMM yyyy", { locale: ptBR })}</span>
               </h3>
-              <div className="mt-3 flex items-center gap-3 flex-wrap">
-                <div className="inline-flex items-center gap-1.5 bg-white/15 border border-white/20 rounded-lg px-3 py-1.5">
-                  <span className="text-white text-[11px] font-semibold">{selectedDayData.orders.length}</span>
-                  <span className="text-white/70 text-[10px] font-medium">ordens de serviço</span>
+              <div className="mt-3.5 flex items-center gap-2.5 flex-wrap">
+                <div className="inline-flex items-center gap-1.5 bg-white/15 border border-white/20 rounded-xl px-3 py-1.5 shadow-xs">
+                  <span className="text-white text-xs font-bold">{selectedDayData.orders.length}</span>
+                  <span className="text-white/80 text-[10px] font-semibold uppercase tracking-wider">Ordens de Serviço</span>
                 </div>
                 {/* mini legenda de status */}
                 {Array.from(new Set(selectedDayData.orders.map(o => o.status))).map(s => (
-                  <div key={s} className="inline-flex items-center gap-1.5 bg-white/10 border border-white/15 rounded-lg px-2.5 py-1">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: getStatusHexColor(s) }} />
-                    <span className="text-white/70 text-[9px] font-medium uppercase tracking-wider">{STATUS_LABELS[s] || s}: {selectedDayData.orders.filter(o => o.status === s).length}</span>
+                  <div key={s} className="inline-flex items-center gap-1.5 bg-white/10 border border-white/15 rounded-xl px-2.5 py-1">
+                    <span className="w-2 h-2 rounded-full shadow-xs" style={{ backgroundColor: getStatusHexColor(s) }} />
+                    <span className="text-white/90 text-[9px] font-bold uppercase tracking-wider">{STATUS_LABELS[s] || s}: {selectedDayData.orders.filter(o => o.status === s).length}</span>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Lista */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar bg-slate-50/80">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-2.5 custom-scrollbar bg-slate-50/80">
               {selectedDayData.orders.map(order => {
                 const tech = techs.find(t => t.id === order.assignedTo);
                 const color = getStatusHexColor(order.status);
@@ -504,39 +505,39 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                   <div
                     key={order.id}
                     onClick={() => setSelectedOrder(order)}
-                    className="bg-white rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md hover:border-primary-200 transition-all active:scale-[0.99] group overflow-hidden"
+                    className="bg-white rounded-2xl border border-slate-200/80 shadow-xs cursor-pointer hover:shadow-md hover:border-primary-300 transition-all active:scale-[0.99] group overflow-hidden"
                   >
                     {/* Faixa de status */}
                     <div className="h-[4px] w-full" style={{ backgroundColor: color }} />
 
-                    <div className="flex items-center gap-3 px-4 py-2.5">
+                    <div className="flex items-center gap-3 px-4 py-3">
                       {/* Bloco de hora */}
                       <div
-                        className="flex flex-col items-center justify-center w-[58px] shrink-0 rounded-lg py-2 border"
+                        className="flex flex-col items-center justify-center w-[62px] shrink-0 rounded-xl py-2 border shadow-2xs"
                         style={{ backgroundColor: `${color}12`, borderColor: `${color}30` }}
                       >
-                        <span className="text-[17px] font-semibold leading-none" style={{ color }}>
+                        <span className="text-base font-bold leading-none" style={{ color }}>
                           {order.scheduledTime?.substring(0, 5) || '--:--'}
                         </span>
-                        <span className="text-[7px] font-medium uppercase tracking-widest mt-0.5" style={{ color: `${color}99` }}>hora</span>
+                        <span className="text-[7px] font-bold uppercase tracking-widest mt-1" style={{ color: `${color}99` }}>HORA</span>
                       </div>
 
                       {/* Conteúdo */}
                       <div className="flex-1 min-w-0">
                         {/* Linha 1: título + ID */}
                         <div className="flex items-center gap-2 min-w-0">
-                          <p className="text-[13px] font-semibold text-slate-800 truncate leading-tight group-hover:text-primary-700 transition-colors flex-1">
-                            {order.title || 'sem título'}
+                          <p className="text-xs sm:text-sm font-bold text-slate-800 truncate leading-tight group-hover:text-primary-700 transition-colors flex-1">
+                            {order.title || 'Manutenção Programada'}
                           </p>
-                          <span className="text-[8px] font-medium text-slate-400 uppercase tracking-widest shrink-0">
+                          <span className="text-[9px] font-mono font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0 border border-slate-200">
                             #{order.displayId || order.id.split('-')[0].toUpperCase()}
                           </span>
                         </div>
 
                         {/* Linha 2: cliente + endereço */}
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <MapPin size={9} className="text-slate-400 shrink-0" />
-                          <span className="text-[10px] font-medium text-slate-600 truncate">
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <MapPin size={11} className="text-slate-400 shrink-0" />
+                          <span className="text-[11px] font-medium text-slate-600 truncate">
                             {order.customerName || '—'}
                             {order.customerAddress && (
                               <span className="font-normal text-slate-400"> · {order.customerAddress}</span>
@@ -545,93 +546,88 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                         </div>
 
                         {/* Linha 3: status + técnico + equipamento + tipo inline */}
-                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                           <span
-                            className="inline-flex items-center gap-1 text-[8px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full border shrink-0"
+                            className="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border shrink-0"
                             style={{ color, backgroundColor: `${color}15`, borderColor: `${color}30` }}
                           >
-                            <span className="w-1 h-1 rounded-full" style={{ backgroundColor: color }} />
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
                             {STATUS_LABELS[order.status] || order.status}
                           </span>
 
                           {order.priority && order.priority !== 'MÉDIA' && (
-                            <span className={`text-[9px] font-semibold uppercase px-2 py-0.5 rounded shrink-0 ${
-                              order.priority === 'CRÍTICA' ? 'bg-rose-100 text-rose-600' : 
-                              order.priority === 'ALTA' ? 'bg-amber-100 text-amber-600' : 
-                              'bg-slate-100 text-slate-500'
+                            <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full shrink-0 border ${
+                              order.priority === 'CRÍTICA' ? 'bg-rose-50 text-rose-700 border-rose-200' : 
+                              order.priority === 'ALTA' ? 'bg-amber-50 text-amber-700 border-amber-200' : 
+                              'bg-slate-50 text-slate-600 border-slate-200'
                             }`}>
-                              {order.priority === 'CRÍTICA' ? '🔴 crítica' : 
-                               order.priority === 'ALTA' ? '🟡 alta' : 
-                               'baixa'}
+                              {order.priority === 'CRÍTICA' ? '🔴 Crítica' : 
+                               order.priority === 'ALTA' ? '🟡 Alta' : 
+                               'Baixa'}
                             </span>
                           )}
 
                           {tech && (
-                            <span className="flex items-center gap-1 text-[9px] font-medium text-primary-600 shrink-0">
-                              <User size={9} />
+                            <span className="flex items-center gap-1 text-[10px] font-semibold text-primary-700 bg-primary-50 px-2 py-0.5 rounded-full border border-primary-200 shrink-0">
+                              <User size={10} />
                               {tech.name.split(' ')[0]}
                             </span>
                           )}
 
                           {(order.equipmentName || order.equipmentModel) && (
-                            <span className="flex items-center gap-1 text-[9px] font-medium text-amber-600 shrink-0">
-                              <Box size={9} />
+                            <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
+                              <Box size={10} />
                               {(order.equipmentName || order.equipmentModel || '').split(' ').slice(0, 2).join(' ')}
-                            </span>
-                          )}
-
-                          {order.operationType && (
-                            <span className="text-[8px] font-medium text-slate-400 uppercase tracking-widest bg-slate-100 px-1.5 py-0.5 rounded shrink-0">
-                              {order.operationType}
                             </span>
                           )}
                         </div>
                       </div>
 
                       {/* Seta */}
-                      <ChevronRight size={15} className="text-slate-300 group-hover:text-primary-500 group-hover:translate-x-0.5 transition-all shrink-0" />
+                      <ChevronRight size={16} className="text-slate-300 group-hover:text-primary-600 group-hover:translate-x-0.5 transition-all shrink-0" />
                     </div>
                   </div>
                 );
               })}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── MODAL: DETALHES DA OS ── */}
-      {selectedOrder && (
+      {selectedOrder && createPortal(
         <div
-          className="fixed inset-0 z-[600] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md"
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-md animate-in fade-in font-poppins"
           onClick={() => setSelectedOrder(null)}
         >
           <div
-            className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+            className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-100 animate-scale-up"
             onClick={e => e.stopPropagation()}
           >
             {/* Header colorido por status */}
             <div
-              className="relative p-8 shrink-0 overflow-hidden"
+              className="relative p-6 sm:p-8 shrink-0 overflow-hidden text-white"
               style={{ backgroundColor: getStatusHexColor(selectedOrder.status) }}
             >
               <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '20px 20px' }} />
               <div className="absolute -top-20 -right-20 w-56 h-56 bg-white/10 rounded-full blur-3xl" />
 
               <div className="relative z-10 flex justify-between items-start">
-                <div className="text-white">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 text-[8px] font-semibold uppercase tracking-[0.2em] flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                <div className="text-white space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 text-[9px] font-bold uppercase tracking-[0.2em] flex items-center gap-1.5 shadow-xs">
+                      <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
                       {STATUS_LABELS[selectedOrder.status] || selectedOrder.status}
                     </div>
-                    <span className="px-2.5 py-1 rounded-full bg-black/20 border border-black/10 text-[8px] font-semibold uppercase">
+                    <span className="px-3 py-1 rounded-full bg-black/25 border border-black/10 text-[9px] font-mono font-bold uppercase tracking-wider">
                       OS #{selectedOrder.displayId || selectedOrder.id.split('-')[0]}
                     </span>
                     {selectedOrder.priority && (
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider shadow-sm ${
+                      <span className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider shadow-xs ${
                         selectedOrder.priority === 'CRÍTICA' ? 'bg-rose-500 text-white' : 
-                        selectedOrder.priority === 'ALTA' ? 'bg-amber-400 text-amber-900' :
-                        selectedOrder.priority === 'BAIXA' ? 'bg-slate-200 text-slate-600' :
+                        selectedOrder.priority === 'ALTA' ? 'bg-amber-400 text-amber-950' :
+                        selectedOrder.priority === 'BAIXA' ? 'bg-slate-200 text-slate-700' :
                         'bg-white/20 text-white'
                       }`}>
                         {selectedOrder.priority === 'CRÍTICA' ? '🔴 Crítica' : 
@@ -640,77 +636,84 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                       </span>
                     )}
                   </div>
-                  <h2 className="text-2xl font-semibold tracking-tight leading-tight max-w-[85%] drop-shadow-lg">
-                    {selectedOrder.title || 'manutenção programada'}
+                  <h2 className="text-xl sm:text-2xl font-bold tracking-tight leading-tight max-w-[90%] drop-shadow-md">
+                    {selectedOrder.title || 'Manutenção Programada'}
                   </h2>
                 </div>
 
                 <button
                   onClick={() => setSelectedOrder(null)}
-                  className="p-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-2xl text-white transition-all active:scale-75"
+                  className="p-2.5 bg-white/10 hover:bg-white/20 border border-white/20 rounded-2xl text-white transition-all active:scale-95 shrink-0"
                 >
-                  <X size={20} />
+                  <X size={18} />
                 </button>
               </div>
             </div>
 
             {/* Corpo */}
-            <div className="p-6 flex-1 overflow-y-auto custom-scrollbar bg-slate-50 space-y-6">
+            <div className="p-5 sm:p-6 flex-1 overflow-y-auto custom-scrollbar bg-slate-50 space-y-4 font-poppins">
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Cliente */}
-                <div className="bg-white p-5 rounded-2xl shadow-lg shadow-slate-200/50 border border-slate-200 flex gap-4 items-start">
-                  <div className="w-11 h-11 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
-                    <MapPin size={20} />
+                <div className="bg-white p-4.5 rounded-2xl shadow-xs border border-slate-200/80 flex gap-3.5 items-start">
+                  <div className="w-10 h-10 bg-sky-50 text-sky-600 rounded-xl flex items-center justify-center shrink-0 border border-sky-100">
+                    <MapPin size={18} />
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400 mb-1">cliente / local</p>
-                    <p className="text-sm font-medium text-slate-800 leading-tight">{selectedOrder.customerName}</p>
-                    <p className="text-[10px] font-medium text-slate-500 mt-1 truncate">{selectedOrder.customerAddress || 'endereço não cadastrado'}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Cliente / Local</p>
+                    <p className="text-xs sm:text-sm font-bold text-slate-800 leading-snug">{selectedOrder.customerName || 'Cliente sem nome'}</p>
+                    <p className="text-[11px] font-medium text-slate-500 mt-1 leading-snug">{selectedOrder.customerAddress || 'Endereço não informado'}</p>
                   </div>
                 </div>
 
                 {/* Data */}
-                <div className="bg-white p-5 rounded-2xl shadow-lg shadow-slate-200/50 border border-slate-200 flex gap-4 items-start">
-                  <div className="w-11 h-11 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center shrink-0">
-                    <Clock size={20} />
+                <div className="bg-white p-4.5 rounded-2xl shadow-xs border border-slate-200/80 flex gap-3.5 items-start">
+                  <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center shrink-0 border border-emerald-100">
+                    <Clock size={18} />
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400 mb-1">agendamento</p>
-                    <p className="text-sm font-medium text-slate-800 capitalize leading-tight">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Agendamento</p>
+                    <p className="text-xs sm:text-sm font-bold text-slate-800 capitalize leading-snug">
                       {selectedOrder.scheduledDate
                         ? format(parseISO(selectedOrder.scheduledDate), "EEEE, dd 'de' MMMM", { locale: ptBR })
-                        : 'data indefinida'}
+                        : 'Data indefinida'}
                     </p>
-                    <p className="text-[10px] font-semibold text-emerald-600 mt-1 uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded w-fit">
-                      {selectedOrder.scheduledTime || '--:--'}
-                    </p>
+                    <div className="mt-1.5 inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
+                      <Clock size={11} /> {selectedOrder.scheduledTime || '--:--'}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Técnico */}
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50">
-                  <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400 mb-2">responsável técnico</p>
+                <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Responsável Técnico</p>
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-slate-900 text-white rounded-full flex items-center justify-center font-semibold text-sm shrink-0">
+                    <div className="w-9 h-9 bg-[#1c2d4f] text-white rounded-xl flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
                       {techs.find(t => t.id === selectedOrder.assignedTo)?.name?.charAt(0) || <User size={14} />}
                     </div>
-                    <p className="text-sm font-medium text-slate-800">
-                      {techs.find(t => t.id === selectedOrder.assignedTo)?.name || 'não atribuído'}
-                    </p>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-slate-800">
+                        {techs.find(t => t.id === selectedOrder.assignedTo)?.name || 'Não Atribuído'}
+                      </p>
+                      <p className="text-[10px] font-medium text-slate-400">
+                        {techs.find(t => t.id === selectedOrder.assignedTo)?.email || 'Técnico responsável'}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
                 {/* Equipamento */}
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50">
-                  <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400 mb-2">ativo vinculado</p>
+                <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Ativo Vinculado</p>
                   <div className="flex items-center gap-3">
-                    <div className="bg-amber-50 text-amber-600 p-2 rounded-lg shrink-0"><Box size={16} /></div>
-                    <div>
-                      <p className="text-xs font-medium text-slate-800">{selectedOrder.equipmentName || 'manutenção geral'}</p>
-                      <p className="text-[10px] text-slate-500 font-medium">{selectedOrder.equipmentModel || '--'}</p>
+                    <div className="w-9 h-9 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center shrink-0 border border-amber-100">
+                      <Box size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-slate-800 truncate">{selectedOrder.equipmentName || 'Manutenção Geral'}</p>
+                      <p className="text-[10px] font-medium text-slate-400">{selectedOrder.equipmentModel || 'Modelo não especificado'}</p>
                     </div>
                   </div>
                 </div>
@@ -718,11 +721,11 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
 
               {/* Descrição */}
               {selectedOrder.description && (
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50">
-                  <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5">
-                    <AlertCircle size={12} /> observações
+                <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs space-y-1.5">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+                    <AlertCircle size={13} className="text-amber-500" /> Observações & Descrição
                   </p>
-                  <p className="text-xs text-slate-600 leading-relaxed font-medium whitespace-pre-wrap">
+                  <p className="text-xs text-slate-700 leading-relaxed font-medium whitespace-pre-wrap bg-slate-50 p-3 rounded-xl border border-slate-100">
                     {selectedOrder.description}
                   </p>
                 </div>
@@ -730,19 +733,29 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
             </div>
 
             {/* Footer */}
-            <div className="p-5 bg-white border-t border-slate-200 flex justify-end shrink-0">
+            <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
               <button
+                type="button"
+                onClick={() => setSelectedOrder(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-xl transition-all"
+              >
+                Fechar
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   const url = `${window.location.origin}/#/order/view/${selectedOrder.publicToken || selectedOrder.id}`;
                   window.open(url, '_blank');
                 }}
-                className="flex items-center gap-2 px-6 py-3 bg-[#1c2d4f] text-white rounded-xl text-[10px] font-semibold tracking-[0.15em] hover:bg-[#253a66] transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 w-full md:w-auto justify-center"
+                className="flex items-center gap-2 px-5 py-2.5 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95"
               >
-                abrir detalhes da OS <ExternalLink size={13} />
+                <span>Abrir Detalhes da OS</span>
+                <ExternalLink size={14} />
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <style>{`

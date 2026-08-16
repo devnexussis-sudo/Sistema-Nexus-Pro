@@ -329,20 +329,22 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 p-3 bg-white/60 rounded-xl border border-[#1c2d4f]/10 animate-in fade-in slide-in-from-top-2 duration-200 mt-1">
             <div className="flex flex-col gap-1 lg:col-span-2">
               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Período de Análise</label>
-              <div className="flex items-center gap-1 bg-white border border-[#1c2d4f]/20 p-1 rounded-lg shadow-sm h-9">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 bg-white border border-[#1c2d4f]/20 p-1.5 rounded-lg shadow-sm sm:h-9">
                 <select
                   value={dateTypeFilter}
                   onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed')}
-                  className="bg-slate-50 text-[10px] font-bold text-[#1c2d4f] px-2 py-1 rounded border border-[#1c2d4f]/10 outline-none cursor-pointer w-24 shrink-0 h-full"
+                  className="bg-slate-50 text-[10px] font-bold text-[#1c2d4f] px-2 py-1 rounded border border-[#1c2d4f]/10 outline-none cursor-pointer w-full sm:w-24 shrink-0"
                 >
                   <option value="scheduled">Agenda</option>
                   <option value="created">Abertura</option>
                   <option value="completed">Conclusão</option>
                 </select>
-                <div className="w-px h-4 bg-[#1c2d4f]/10 mx-1" />
-                <input type="date" value={startDate} onChange={e => onDateChange(e.target.value, endDate)} className="bg-transparent text-[11px] font-bold text-slate-700 outline-none flex-1 px-1" />
-                <span className="text-[9px] font-bold text-slate-300">ATÉ</span>
-                <input type="date" value={endDate} onChange={e => onDateChange(startDate, e.target.value)} className="bg-transparent text-[11px] font-bold text-slate-700 outline-none flex-1 px-1" />
+                <div className="hidden sm:block w-px h-4 bg-[#1c2d4f]/10 mx-1" />
+                <div className="flex items-center gap-1 px-1 flex-1 min-w-0 justify-between">
+                  <input type="date" value={startDate} onChange={e => onDateChange(e.target.value, endDate)} className="bg-transparent text-xs font-bold text-slate-700 outline-none flex-1 min-w-0 max-w-full w-full px-1" />
+                  <span className="text-[9px] font-bold text-slate-300 shrink-0">ATÉ</span>
+                  <input type="date" value={endDate} onChange={e => onDateChange(startDate, e.target.value)} className="bg-transparent text-xs font-bold text-slate-700 outline-none flex-1 min-w-0 max-w-full w-full px-1" />
+                </div>
               </div>
             </div>
 

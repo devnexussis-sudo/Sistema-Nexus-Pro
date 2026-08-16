@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import { safeCreatePortal } from '../../utils/portal';
 import { AlertCircle, X, CheckCircle, Info } from 'lucide-react';
 
 // Substitui window.alert globalmente por toast notifications no padrão Nexus.
@@ -46,7 +46,7 @@ export const GlobalAlertProvider: React.FC = () => {
 
   if (alerts.length === 0) return null;
 
-  return createPortal(
+  return safeCreatePortal(
     <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-2 max-w-sm w-full pointer-events-none">
       {alerts.map(alert => (
         <div key={alert.id} className={`pointer-events-auto p-4 rounded-xl shadow-2xl border flex items-start gap-3 transform transition-all duration-300 animate-fade-in ${
@@ -74,7 +74,6 @@ export const GlobalAlertProvider: React.FC = () => {
           </button>
         </div>
       ))}
-    </div>,
-    document.body
+    </div>
   );
 };

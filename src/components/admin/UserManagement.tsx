@@ -29,13 +29,17 @@ import {
   Users,
   Workflow,
   X,
-  MessageCircle
+  MessageCircle,
+  Camera,
+  Upload,
+  Sparkles
 } from 'lucide-react';
 import { useUserGroups, useUsers } from '../../hooks/nexusHooks';
 import { useI18n } from '../../i18n/I18nContext';
 import { DataService } from '../../services/dataService';
 import { TenantService } from '../../services/tenantService';
 import { AuthService } from '../../services/authService';
+import { StorageService } from '../../services/storageService';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import { ADMIN_PERMISSIONS, DEFAULT_PERMISSIONS, User, UserGroup, UserPermissions, UserRole } from '../../types';
@@ -443,6 +447,7 @@ export const UserManagement: React.FC = () => {
   });
   const [groupSearch, setGroupSearch] = useState('');
   const [saveError, setSaveError] = useState<string | null>(null);
+  const userFileInputRef = React.useRef<HTMLInputElement>(null);
 
   const [groupFormData, setGroupFormData] = useState<Partial<UserGroup>>({
     name: '',
@@ -529,10 +534,11 @@ export const UserManagement: React.FC = () => {
         // Atualiza o cache local caso o usuário editado seja ele mesmo
         await AuthService.refreshUser();
       } else {
+        const defaultAvatar = formData.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.name || 'User')}&background=random&color=fff&bold=true`;
         const newUser = {
           ...dataToSave,
           role: UserRole.ADMIN,
-          avatar: '',
+          avatar: defaultAvatar,
           tenantId: DataService.getCurrentTenantId()
         } as any;
         await TenantService.createUser(newUser);
@@ -775,7 +781,7 @@ export const UserManagement: React.FC = () => {
       <div className="bg-white border border-slate-200 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
           {activeTab === 'users' ? (
-            <table className="w-full border-collapse">
+            <table className="w-full border-collapse min-w-[550px]">
               <thead className="sticky top-0 bg-slate-50 z-10">
                 <tr className="text-[10px] font-poppins font-bold text-slate-500 tracking-wider uppercase text-center border-b border-slate-200">
                   <th className="px-6 py-2.5 text-left">Administrador / Identidade</th>
@@ -789,9 +795,14 @@ export const UserManagement: React.FC = () => {
                     <td className="px-6 py-2">
                       <div className="flex items-center gap-4">
                         <div className="shrink-0">
-                          <div className="w-10 h-10 rounded-xl border border-slate-200 bg-slate-50 text-slate-400 flex items-center justify-center transition-all group-hover:text-[#1c2d4f] group-hover:bg-white group-hover:border-[#1c2d4f]/20 group-hover:shadow-sm">
-                            <Users size={18} />
-                          </div>
+                          <img
+                            src={user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=random&color=fff&bold=true`}
+                            alt={user.name}
+                            className="w-10 h-10 rounded-full object-cover border border-slate-200 shadow-sm bg-slate-50"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=random&color=fff&bold=true`;
+                            }}
+                          />
                         </div>
                         <div className="truncate text-left">
                           <p className="text-[13px] font-bold text-slate-900 truncate max-w-[200px]">{user.name}</p>
@@ -832,7 +843,7 @@ export const UserManagement: React.FC = () => {
               </tbody>
             </table>
           ) : (
-            <table className="w-full border-collapse">
+            <table className="w-full border-collapse min-w-[550px]">
               <thead className="sticky top-0 bg-slate-50 z-10">
                 <tr className="text-[10px] font-poppins font-bold text-slate-500 tracking-wider uppercase text-center border-b border-slate-200">
                   <th className="px-6 py-2.5 text-left">Grupo / Descrição</th>
@@ -965,6 +976,69 @@ export const UserManagement: React.FC = () => {
 
                     {/* Coluna esquerda: dados + status */}
                     <div className="md:col-span-2 space-y-8">
+
+                      {/* Foto de Perfil / Avatar */}
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 space-y-4">
+                        <h3 className="text-sm font-bold text-slate-900 border-l-4 border-violet-500 pl-3">Foto de Perfil (Avatar)</h3>
+                        <div className="flex flex-col sm:flex-row items-center gap-6">
+                          <div className="relative group shrink-0">
+                            <img
+                              src={formData.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.name || 'User')}&background=random&color=fff&bold=true`}
+                              alt="Avatar"
+                              className="w-20 h-20 rounded-full object-cover border-4 border-slate-100 shadow-md bg-slate-50"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.name || 'User')}&background=random&color=fff&bold=true`;
+                              }}
+                            />
+                          </div>
+                          <div className="flex flex-col gap-2.5 w-full">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => userFileInputRef.current?.click()}
+                                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all flex items-center gap-2"
+                              >
+                                <Upload size={14} className="text-primary-600" /> Alterar Foto do Perfil
+                              </button>
+                              <input
+                                ref={userFileInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  try {
+                                    const uploadedUrl = await StorageService.uploadUserAvatar(file, editingUser?.id || 'new_user');
+                                    setFormData(prev => ({ ...prev, avatar: uploadedUrl }));
+                                  } catch (err) {
+                                    const reader = new FileReader();
+                                    reader.onload = (evt) => {
+                                      if (evt.target?.result) {
+                                        setFormData(prev => ({ ...prev, avatar: evt.target?.result as string }));
+                                      }
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                              />
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFormData(prev => ({ ...prev, avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.name || 'User')}&background=random&color=fff&bold=true` }));
+                                }}
+                                className="px-4 py-2 bg-violet-50 hover:bg-violet-100 border border-violet-200 text-violet-700 text-xs font-bold rounded-xl transition-all flex items-center gap-2"
+                              >
+                                <Sparkles size={14} className="text-violet-600" /> Gerar Avatar
+                              </button>
+                            </div>
+                            <p className="text-[10px] text-slate-400 font-medium">
+                              Envie uma imagem do seu dispositivo ou gere um avatar com as iniciais do nome.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
 
                       {/* Dados Cadastrais */}
                       <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 space-y-6">

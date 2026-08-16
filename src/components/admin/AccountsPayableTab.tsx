@@ -3,7 +3,7 @@ import { useAccountsPayable, NexusQueryClient } from '../../hooks/nexusHooks';
 import { useI18n } from '../../i18n';
 import { useDialog } from '../../contexts/DialogContext';
 import { DataService } from '../../services/dataService';
-import { Search, Plus, Filter, CreditCard, Calendar, ArrowUpRight, DollarSign, Loader2, CheckCircle2, Tag, RefreshCcw, Trash2, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { Search, Plus, Filter, CreditCard, Calendar, ArrowUpRight, DollarSign, Loader2, CheckCircle2, Tag, RefreshCcw, Trash2, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { CreatePayableModal } from './CreatePayableModal';
 import { PayableCategoriesModal } from './PayableCategoriesModal';
@@ -38,12 +38,14 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 10;
-    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'dueDate', direction: 'asc' });
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'createdAt', direction: 'desc' });
 
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
     const [selectedItem, setSelectedItem] = useState<any | null>(null);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+    const [showFilters, setShowFilters] = useState(false);
 
     const { data: payables = [], isLoading, isFetching, refetch } = useAccountsPayable(true, { start: startDate, end: endDate, status: statusFilter });
 
@@ -213,7 +215,7 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
     };
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-4 pb-8">
             {/* Top Stats Banner */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex items-center justify-between">
@@ -244,83 +246,113 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
             </div>
 
             {/* Top Toolbar */}
-            <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[300px]">
-                    <div className="relative flex-1 min-w-[200px] max-w-sm">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-3">
+                    {/* Pesquisa */}
+                    <div className="relative flex-1 min-w-[200px]">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                         <input
                             type="text"
-                            placeholder="Buscar por descrição ou fornecedor..."
+                            placeholder="Pesquisar por descrição ou fornecedor..."
                             value={searchTerm}
                             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                            className="w-full h-9 pl-9 pr-4 text-[11px] font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1c2d4f] focus:border-transparent transition-shadow"
-                        />
-                    </div>
-                    
-                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-1 px-2 h-9 shrink-0">
-                        <Calendar size={14} className="text-slate-400" />
-                        <input
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => handleDateValidation(e.target.value, endDate)}
-                            className="text-[11px] font-medium text-slate-600 bg-transparent border-none p-0 outline-none w-[105px]"
-                        />
-                        <span className="text-slate-300">ate</span>
-                        <input
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => handleDateValidation(startDate, e.target.value)}
-                            className="text-[11px] font-medium text-slate-600 bg-transparent border-none p-0 outline-none w-[105px]"
+                            className="w-full h-9 pl-9 pr-4 text-xs font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1c2d4f]/10 transition-shadow shadow-sm"
                         />
                     </div>
 
-                    <div className="relative shrink-0 h-9 flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden">
-                        <Filter className="absolute left-3 text-slate-400" size={14} />
-                        <select
-                            value={statusFilter}
-                            onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-                            className="h-full pl-9 pr-8 py-0 text-[10px] font-bold uppercase tracking-widest text-slate-600 bg-transparent border-none focus:ring-0 outline-none cursor-pointer appearance-none"
+                    {/* Botões de Ação */}
+                    <div className="flex items-center gap-2 shrink-0">
+                        <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`h-9 px-3 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm ${
+                                showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                            }`}
                         >
-                            <option value="ALL">Todas</option>
-                            <option value="PENDING">Pendentes</option>
-                            <option value="PAID">Pagas</option>
-                            <option value="CANCELLED">Inativas</option>
-                        </select>
-                        <div className="absolute right-3 pointer-events-none text-slate-400">
-                            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
+                            <Filter size={14} /> <span>{showFilters ? 'Ocultar Filtros' : 'Filtros'}</span>
+                        </button>
+
+                        <button
+                            onClick={() => refetch()}
+                            disabled={isLoading || isFetching}
+                            className="h-9 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                            title="Atualizar Dados"
+                        >
+                            <RefreshCcw size={14} className={isLoading || isFetching ? 'animate-spin text-primary-600' : ''} />
+                        </button>
+
+                        <button
+                            onClick={() => setIsCategoriesModalOpen(true)}
+                            className="h-9 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5 hidden sm:flex"
+                            title="Gerenciar Categorias"
+                        >
+                            <Tag size={14} />
+                            <span>Categorias</span>
+                        </button>
+
+                        <button
+                            onClick={() => setIsCreateModalOpen(true)}
+                            className="h-9 px-4 bg-[#1c2d4f] hover:bg-[#2a4170] text-white rounded-lg text-xs font-semibold uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5 shrink-0"
+                        >
+                            <Plus size={16} /> Nova Conta
+                        </button>
+                    </div>
+                </div>
+
+                {/* Retractable Filters Panel */}
+                {showFilters && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 p-3 bg-white rounded-xl border border-slate-200/80 animate-in fade-in slide-in-from-top-2 duration-200">
+                        {/* De (Início) */}
+                        <div className="sm:col-span-1 lg:col-span-4 flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">De (Início)</label>
+                            <div className="relative flex items-center bg-slate-50 border border-slate-200 rounded-lg shadow-sm h-9 px-2.5">
+                                <Calendar size={14} className="text-slate-400 shrink-0 mr-2" />
+                                <input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => handleDateValidation(e.target.value, endDate)}
+                                    className="bg-transparent border-none text-xs font-semibold text-slate-800 outline-none cursor-pointer w-full"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Até (Fim) */}
+                        <div className="sm:col-span-1 lg:col-span-4 flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">Até (Fim)</label>
+                            <div className="relative flex items-center bg-slate-50 border border-slate-200 rounded-lg shadow-sm h-9 px-2.5">
+                                <Calendar size={14} className="text-slate-400 shrink-0 mr-2" />
+                                <input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => handleDateValidation(startDate, e.target.value)}
+                                    className="bg-transparent border-none text-xs font-semibold text-slate-800 outline-none cursor-pointer w-full"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Status Filter */}
+                        <div className="sm:col-span-2 lg:col-span-4 flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">Status</label>
+                            <div className="relative h-9 flex items-center bg-slate-50 border border-slate-200 rounded-lg shadow-sm">
+                                <Filter className="absolute left-2.5 text-slate-400 pointer-events-none" size={14} />
+                                <select
+                                    value={statusFilter}
+                                    onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                                    className="w-full h-full pl-8 pr-7 py-0 text-xs font-bold uppercase tracking-wider text-slate-700 bg-transparent border-none focus:ring-0 outline-none cursor-pointer appearance-none"
+                                >
+                                    <option value="ALL">Todas</option>
+                                    <option value="PENDING">Pendentes</option>
+                                    <option value="PAID">Pagas</option>
+                                    <option value="CANCELLED">Inativas</option>
+                                </select>
+                                <ChevronDown size={14} className="absolute right-2 text-slate-400 pointer-events-none" />
+                            </div>
                         </div>
                     </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    <button
-                        onClick={() => refetch()}
-                        disabled={isLoading || isFetching}
-                        className="h-9 px-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-500 rounded-lg text-[10px] font-bold uppercase tracking-widest shadow-sm transition-colors flex items-center gap-2 disabled:opacity-50"
-                        title="Atualizar Dados"
-                    >
-                        <RefreshCcw size={14} className={isLoading || isFetching ? 'animate-spin' : ''} />
-                    </button>
-                    <button
-                        onClick={() => setIsCategoriesModalOpen(true)}
-                        className="h-9 px-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-500 rounded-lg text-[10px] font-bold uppercase tracking-widest shadow-sm transition-colors flex items-center gap-2"
-                        title="Gerenciar Categorias"
-                    >
-                        <Tag size={14} />
-                    </button>
-                    <button
-                        onClick={() => setIsCreateModalOpen(true)}
-                        className="h-9 px-6 bg-[#1c2d4f] hover:bg-[#2a4170] text-white rounded-lg text-[10px] font-bold uppercase tracking-widest shadow-sm transition-all flex items-center gap-2 shrink-0"
-                    >
-                        <Plus size={16} /> Nova Conta
-                    </button>
-                </div>
+                )}
             </div>
 
-            {/* Tabela de Contas a Pagar */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            {/* Tabela de Contas a Pagar (DESKTOP VIEW) */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hidden md:block">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse min-w-[800px]">
                         <thead>
@@ -449,6 +481,113 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
 
                 {!isLoading && totalPages > 1 && (
                     <div className="p-4 border-t border-slate-100 shrink-0 bg-slate-50/50">
+                        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+                    </div>
+                )}
+            </div>
+
+            {/* 📱 CARDS VIEW (MOBILE & COMPACT SCREENS) */}
+            <div className="md:hidden space-y-2.5">
+                {isLoading ? (
+                    <div className="p-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
+                        <Loader2 className="animate-spin mx-auto mb-2 text-[#1c2d4f]" size={24} />
+                        <span className="text-xs uppercase font-medium tracking-widest">Carregando contas a pagar...</span>
+                    </div>
+                ) : paginatedItems.length === 0 ? (
+                    <div className="p-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
+                        <DollarSign className="mx-auto mb-2 opacity-20" size={32} />
+                        <span className="text-xs uppercase font-medium tracking-widest">Nenhuma conta encontrada.</span>
+                    </div>
+                ) : (
+                    paginatedItems.map((item) => (
+                        <div
+                            key={item.id}
+                            className={`bg-white p-3.5 rounded-xl shadow-sm border transition-all cursor-pointer relative ${
+                                item.status === 'CANCELLED' 
+                                    ? 'opacity-60 bg-slate-50/80 grayscale border-slate-200' 
+                                    : selectedIds.includes(item.id) 
+                                        ? 'border-indigo-400 ring-1 ring-indigo-100 bg-indigo-50/20' 
+                                        : 'border-slate-200 hover:border-slate-300'
+                            }`}
+                            onClick={() => { setSelectedItem(item); setIsCreateModalOpen(true); }}
+                        >
+                            {/* Checkbox & Status Header */}
+                            <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-100">
+                                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                    <input 
+                                        type="checkbox" 
+                                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                        checked={selectedIds.includes(item.id)}
+                                        onChange={(e) => toggleSelect(item.id, e as any)}
+                                    />
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                        Ref: #{item.id.slice(0, 6)}
+                                    </span>
+                                </div>
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                                    item.status === 'CANCELLED' ? 'bg-slate-200 text-slate-600' :
+                                    item.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                    item.dueDate < new Date().toISOString().split('T')[0] ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                                    'bg-amber-50 text-amber-700 border border-amber-200'
+                                }`}>
+                                    {item.status === 'CANCELLED' ? 'INATIVA' : item.status === 'PAID' ? 'PAGO' : item.dueDate < new Date().toISOString().split('T')[0] ? 'ATRASADO' : 'PENDENTE'}
+                                </span>
+                            </div>
+
+                            {/* Description & Value */}
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                                <div className="min-w-0 flex-1">
+                                    <h4 className="font-bold text-sm text-slate-800 uppercase leading-snug truncate">{item.description}</h4>
+                                    {item.supplierName && (
+                                        <p className="text-xs text-slate-500 font-medium truncate mt-0.5">{item.supplierName}</p>
+                                    )}
+                                </div>
+                                <div className="text-right shrink-0">
+                                    <span className="text-base font-black text-slate-900 block leading-none">
+                                        {item.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                    </span>
+                                    <span className="inline-block mt-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 uppercase">
+                                        {item.category}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Dates & Actions Footer */}
+                            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
+                                <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                                    <span className="flex items-center gap-1">
+                                        <Calendar size={12} className="text-slate-400" />
+                                        <span className="font-semibold text-slate-700">{new Date(item.dueDate + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                                    </span>
+                                </div>
+
+                                <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                                    {item.status !== 'PAID' && item.status !== 'CANCELLED' && (
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleMarkAsPaid(item); }} 
+                                            className="px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors flex items-center gap-1"
+                                            title="Dar Baixa"
+                                        >
+                                            <CheckCircle2 size={13} /> Pagar
+                                        </button>
+                                    )}
+                                    {item.status !== 'CANCELLED' && item.status !== 'PAID' && (
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} 
+                                            className="p-1 text-rose-500 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors" 
+                                            title="Inativar"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ))
+                )}
+
+                {!isLoading && totalPages > 1 && (
+                    <div className="p-4 bg-white rounded-xl border border-slate-200">
                         <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
                     </div>
                 )}

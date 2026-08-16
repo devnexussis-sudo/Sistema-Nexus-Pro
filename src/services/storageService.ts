@@ -333,6 +333,33 @@ export const StorageService = {
     },
 
     /**
+     * 👤 Upload Oficial de Avatares de Usuários e Técnicos
+     * Salva estritamente em: ${tenantId}/avatars/users/${userId}/avatar_${timestamp}.webp
+     */
+    uploadUserAvatar: async (fileOrBase64: File | Blob | string, userId: string, signal?: AbortSignal): Promise<string> => {
+        const cleanUserId = userId || 'user';
+        const folderPath = `avatars/users/${cleanUserId}`;
+
+        if (typeof fileOrBase64 === 'string') {
+            return await StorageService.uploadFile(fileOrBase64, folderPath);
+        }
+
+        if (!isCloudEnabled) return URL.createObjectURL(fileOrBase64);
+
+        if (fileOrBase64 instanceof File) {
+            const isImage = fileOrBase64.type.startsWith('image/');
+            if (isImage) {
+                const compressedBlob = await StorageService.processAndCompress(fileOrBase64, signal);
+                const webpFile = new File([compressedBlob], `avatar_${Date.now()}.webp`, { type: 'image/webp' });
+                return await StorageService._uploadCore(webpFile, folderPath, 2, signal, { contentType: 'image/webp', extension: 'webp' });
+            }
+            return await StorageService._uploadCore(fileOrBase64, folderPath, 2, signal);
+        }
+
+        return await StorageService.uploadBlob(fileOrBase64, folderPath, signal);
+    },
+
+    /**
      * Upload de evidência de OS (Alias para compatibilidade)
      */
     uploadServiceOrderEvidence: async (file: File, orderId: string, signal?: AbortSignal): Promise<string> => {

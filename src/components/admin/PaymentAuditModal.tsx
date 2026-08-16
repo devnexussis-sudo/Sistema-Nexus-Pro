@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, ShieldCheck, CheckCircle2, Clock, FileText, 
   Printer, DollarSign, CreditCard, Hash, Calendar, Building2, UserCheck, AlertCircle, Hexagon
@@ -49,6 +50,7 @@ export const PaymentAuditModal: React.FC<PaymentAuditModalProps> = ({
   }, [isOpen]);
 
   if (!isOpen || !item) return null;
+  if (typeof document === 'undefined') return null;
 
   // Extração ultra-resiliente de campos com múltiplos fallbacks (camelCase e snake_case)
   const orig = (item as any).original || {};
@@ -127,7 +129,7 @@ export const PaymentAuditModal: React.FC<PaymentAuditModalProps> = ({
     discountAmount = grossAmount - netAmount;
   }
 
-  return (
+  return createPortal(
     <>
       {/* Estilos Específicos de Impressão — Padrão Exato de Orçamentos e Ordens sem Quebra de Página */}
       <style font-poppins>{`
@@ -193,7 +195,7 @@ export const PaymentAuditModal: React.FC<PaymentAuditModalProps> = ({
         }
       `}</style>
 
-      <div id="audit-modal-backdrop" className="fixed inset-0 z-[1400] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in font-poppins">
+      <div id="audit-modal-backdrop" className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in font-poppins">
         <div className="bg-white rounded-3xl max-w-3xl w-full shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[92vh] printable-invoice-container">
           
           {/* Modal Screen Header (Hidden on Print) */}
@@ -434,6 +436,7 @@ export const PaymentAuditModal: React.FC<PaymentAuditModalProps> = ({
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 };

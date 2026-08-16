@@ -1,6 +1,7 @@
 
 import { AlertTriangle, Barcode, Box, Camera, DollarSign, Edit3, Filter, History, Info, Layers, LayoutDashboard, List, Loader2, Package, Plus, RefreshCw, Save, Scale, Search, Tag, Trash2, TrendingDown, TrendingUp, Users, Wand2, X, Image as ImageIcon, Printer, QrCode, ClipboardCheck, CheckCircle, FileText } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useI18n } from '../../i18n';
 import { useAuth } from '../../contexts/AuthContext';
 import { DataService } from '../../services/dataService';
@@ -81,13 +82,8 @@ export const StockManagement: React.FC = () => {
     const [itemMovements, setItemMovements] = useState<any[]>([]);
     const [movSearch, setMovSearch] = useState('');
     const [movTypeFilter, setMovTypeFilter] = useState('ALL');
-    const getDefaultDates = () => {
-        const today = new Date().toISOString().split('T')[0];
-        return { start: today, end: today };
-    };
-    const { start: initStart, end: initEnd } = getDefaultDates();
-    const [movDateFrom, setMovDateFrom] = useState(initStart);
-    const [movDateTo, setMovDateTo] = useState(initEnd);
+    const [movDateFrom, setMovDateFrom] = useState('');
+    const [movDateTo, setMovDateTo] = useState('');
 
     const handleDateValidation = (start: string, end: string) => {
         if (start && end) {
@@ -705,14 +701,43 @@ export const StockManagement: React.FC = () => {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        // 1. Validação de Formato (Apenas padrões de mercado: JPEG, PNG, WEBP, GIF, HEIC)
+        const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif'];
+        const isImageMime = allowedMimeTypes.includes(file.type.toLowerCase()) || file.type.startsWith('image/');
+        const isImageExt = /\.(jpg|jpeg|png|webp|gif|heic|heif)$/i.test(file.name);
+
+        if (!isImageMime && !isImageExt) {
+            alert('⚠️ Formato não permitido!\n\nPor favor, selecione apenas imagens válidas nos formatos JPEG, PNG, WEBP, GIF ou HEIC.');
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
+
+        // 2. Validação de Tamanho Máximo (Limite de Segurança de 10 MB)
+        const MAX_SIZE_MB = 10;
+        const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
+        if (file.size > MAX_SIZE_BYTES) {
+            const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+            alert(`⚠️ Imagem muito grande!\n\nO limite máximo permitido é de ${MAX_SIZE_MB} MB.\nA imagem selecionada possui ${fileSizeMB} MB. Por favor, escolha uma imagem menor.`);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
+
         setImageUploading(true);
         try {
+            // Compressa a imagem automaticamente para WebP de alta eficiência (~200KB) antes de enviar
+            let blobToUpload: Blob = file;
+            try {
+                blobToUpload = await StorageService.processAndCompress(file);
+            } catch (compressErr) {
+                console.warn('[StockManagement] Compression fallback, sending original file:', compressErr);
+            }
+
             const prefix = formData.code ? `items/${formData.code}` : `items/temp_${Date.now()}`;
-            const path = `inventory/${prefix}/${file.name}`;
-            const url = await StorageService.uploadBlob(file, path);
+            const path = `inventory/${prefix}/${file.name.replace(/\.[^/.]+$/, "")}.webp`;
+            const url = await StorageService.uploadBlob(blobToUpload, path);
             setFormData((prev: any) => ({ ...prev, imageUrl: url }));
-        } catch (error) {
-            alert('Erro ao enviar imagem. Verifique a conexão com o Supabase.');
+        } catch (error: any) {
+            alert(`Erro ao enviar imagem:\n${error?.message || 'Verifique a conexão com a nuvem R2.'}`);
             console.error(error);
         } finally {
             setImageUploading(false);
@@ -1079,7 +1104,7 @@ export const StockManagement: React.FC = () => {
                         {activeTab === 'items' && (
                             <Button
                                 onClick={() => setIsRestockModalOpen(true)}
-                                className="hidden sm:flex h-10 px-3 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white text-[10px] shadow-lg shadow-[#1c2d4f]/20 items-center gap-1.5 transition-all rounded-xl"
+                                className="flex h-10 px-3 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white text-[10px] shadow-lg shadow-[#1c2d4f]/20 items-center gap-1.5 transition-all rounded-xl"
                             >
                                 <Scale size={14} /> Entrada
                             </Button>
@@ -1091,7 +1116,7 @@ export const StockManagement: React.FC = () => {
                                     if (!canCreate('stock')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para esta ação.'); return; }
                                     activeTab === 'items' ? handleOpenModal() : handleOpenCategoryModal()
                                 }}
-                                className={`hidden sm:flex h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] shadow-lg shadow-[#10b981]/20 items-center gap-1.5 whitespace-nowrap transition-all rounded-xl ${!canCreate('stock') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                                className={`flex h-10 px-3 sm:px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] shadow-lg shadow-[#10b981]/20 items-center gap-1.5 whitespace-nowrap transition-all rounded-xl ${!canCreate('stock') ? 'opacity-50 !cursor-not-allowed' : ''}`}
                             >
                                 <Plus size={14} /> {activeTab === 'items' ? 'Novo Cadastro' : 'Nova Categoria'}
                             </Button>
@@ -1102,7 +1127,7 @@ export const StockManagement: React.FC = () => {
                                 <button
                                     onClick={handleExportExcelStock}
                                     title="Exportar para Excel / CSV"
-                                    className="h-10 px-3 bg-white border border-emerald-200 text-emerald-600 hover:bg-emerald-50 text-[10px] flex items-center gap-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap"
+                                    className="hidden sm:flex h-10 px-3 bg-white border border-emerald-200 text-emerald-600 hover:bg-emerald-50 text-[10px] items-center gap-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap"
                                 >
                                     <FileText size={14} /> Excel
                                     {selectedItems.size > 0 && <span className="ml-1 bg-emerald-100 text-emerald-700 text-[9px] font-black px-1.5 py-0.5 rounded-full">{selectedItems.size}</span>}
@@ -1110,7 +1135,7 @@ export const StockManagement: React.FC = () => {
                                 <button
                                     onClick={handlePrintStock}
                                     title="Imprimir relatório PDF paisagem"
-                                    className="h-10 px-3 bg-white border border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-slate-50 text-[10px] flex items-center gap-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap"
+                                    className="hidden sm:flex h-10 px-3 bg-white border border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-slate-50 text-[10px] items-center gap-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap"
                                 >
                                     <Printer size={14} /> PDF
                                     {selectedItems.size > 0 && <span className="ml-1 bg-[#1c2d4f]/10 text-[#1c2d4f] text-[9px] font-black px-1.5 py-0.5 rounded-full">{selectedItems.size}</span>}
@@ -1234,11 +1259,20 @@ export const StockManagement: React.FC = () => {
                                                             </div>
                                                         </td>
                                                         <td className="px-3 py-3 cursor-pointer" onClick={() => handleOpenModal(item)}>
-                                                            <p className="text-[12px] font-medium text-slate-700 truncate max-w-[220px]">{item?.description || 'Item sem descrição'}</p>
-                                                            <div className="flex gap-1.5 overflow-hidden">
-                                                                <span className="text-[10px] text-slate-400 truncate">{item?.category || '-'}</span>
-                                                                <span className="text-[10px] text-slate-300 shrink-0">•</span>
-                                                                <span className="text-[10px] text-slate-400 shrink-0">{item?.unit || 'UN'}</span>
+                                                            <div className="flex items-center gap-2.5">
+                                                                {item.imageUrl && (
+                                                                    <div className="w-8 h-8 rounded-lg border border-slate-200 bg-white overflow-hidden shrink-0 flex items-center justify-center p-0.5 shadow-2xs">
+                                                                        <img src={item.imageUrl} alt={item.description} className="w-full h-full object-contain" />
+                                                                    </div>
+                                                                )}
+                                                                <div className="min-w-0 flex-1">
+                                                                    <p className="text-[12px] font-medium text-slate-700 truncate max-w-[220px]">{item?.description || 'Item sem descrição'}</p>
+                                                                    <div className="flex gap-1.5 overflow-hidden">
+                                                                        <span className="text-[10px] text-slate-400 truncate">{item?.category || '-'}</span>
+                                                                        <span className="text-[10px] text-slate-300 shrink-0">•</span>
+                                                                        <span className="text-[10px] text-slate-400 shrink-0">{item?.unit || 'UN'}</span>
+                                                                    </div>
+                                                                </div>
                                                             </div>
                                                         </td>
                                                         <td className="px-3 py-3 text-[11px] text-slate-500 truncate max-w-[100px] cursor-pointer" onClick={() => handleOpenModal(item)}>{item?.location || '-'}</td>
@@ -1398,7 +1432,8 @@ export const StockManagement: React.FC = () => {
                                     </div>
                                 ) : (
                                     <div className="bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col flex-1 ring-1 ring-slate-200/80 stock-table-container">
-                                        <div className="flex-1 overflow-auto custom-scrollbar">
+                                        {/* Desktop Table View */}
+                                        <div className="hidden md:block flex-1 overflow-auto custom-scrollbar">
                                             <table className="w-full border-collapse">
                                                 <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm">
                                                     <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left">
@@ -1451,6 +1486,45 @@ export const StockManagement: React.FC = () => {
                                                     ))}
                                                 </tbody>
                                             </table>
+                                        </div>
+
+                                        {/* Mobile Cards View (PWA) */}
+                                        <div className="md:hidden flex-1 overflow-auto custom-scrollbar bg-slate-50/50 p-2.5 space-y-2 pb-28">
+                                            {categories.map(cat => (
+                                                <div key={cat.id} className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100 shrink-0">
+                                                            <Layers size={14} />
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className="text-xs font-bold text-slate-800 uppercase truncate">{cat.name}</p>
+                                                            <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded mt-0.5 border ${cat.active ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                                                                {cat.active ? 'Ativo' : 'Inativo'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 shrink-0">
+                                                        <button 
+                                                            onClick={(e) => {
+                                                                if (!canEdit('stock')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                                                                handleOpenCategoryModal(cat);
+                                                            }} 
+                                                            className="p-2 text-primary-600 bg-primary-50 rounded-lg border border-primary-100"
+                                                        >
+                                                            <Edit3 size={14} />
+                                                        </button>
+                                                        <button 
+                                                            onClick={(e) => {
+                                                                if (!canDelete('stock')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
+                                                                handleDeleteCategory(cat.id);
+                                                            }} 
+                                                            className="p-2 text-rose-500 bg-rose-50 rounded-lg border border-rose-100"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 )}
@@ -1652,8 +1726,14 @@ export const StockManagement: React.FC = () => {
                             const term = movSearch.toLowerCase();
                             const filtered = movements.filter(m => {
                                 if (movTypeFilter !== 'ALL' && m.type !== movTypeFilter) return false;
-                                if (movDateFrom) { const d = new Date(m.created_at); if (d < new Date(movDateFrom)) return false; }
-                                if (movDateTo) { const d = new Date(m.created_at); const end = new Date(movDateTo); end.setHours(23, 59, 59); if (d > end) return false; }
+                                if (movDateFrom) {
+                                    const itemDateStr = m.created_at ? m.created_at.split('T')[0] : '';
+                                    if (itemDateStr && itemDateStr < movDateFrom) return false;
+                                }
+                                if (movDateTo) {
+                                    const itemDateStr = m.created_at ? m.created_at.split('T')[0] : '';
+                                    if (itemDateStr && itemDateStr > movDateTo) return false;
+                                }
                                 if (term) {
                                     const haystack = [
                                         m.stock_items?.description, m.stock_items?.code,
@@ -1665,44 +1745,87 @@ export const StockManagement: React.FC = () => {
                                 return true;
                             }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
                             return (
-                                <div className="space-y-6">
-                                    <h3 className="text-xl font-black text-slate-800 uppercase flex items-center gap-3">
+                                <div className="space-y-4 font-poppins">
+                                    <h3 className="text-lg sm:text-xl font-black text-slate-800 uppercase flex items-center gap-3">
                                         <Scale className="text-slate-800" /> Auditoria de Movimentações
                                     </h3>
-                                    {/* Filtros */}
-                                    <div className="flex flex-wrap items-center gap-3">
-                                        <div className="relative flex-1 min-w-[180px]">
-                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                                            <input
-                                                type="text" placeholder="Buscar item, técnico, OS..."
-                                                value={movSearch} onChange={e => setMovSearch(e.target.value)}
-                                                className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-sm"
-                                            />
+                                    {/* Filtros Responsivos */}
+                                    <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-center">
+                                            {/* Pesquisa */}
+                                            <div className="relative sm:col-span-2 lg:col-span-5">
+                                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Buscar por produto, código, OS ou responsável..."
+                                                    value={movSearch}
+                                                    onChange={e => setMovSearch(e.target.value)}
+                                                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all"
+                                                />
+                                            </div>
+
+                                            {/* Tipo */}
+                                            <div className="sm:col-span-1 lg:col-span-3">
+                                                <div className="relative h-9 flex items-center bg-slate-50 border border-slate-200 rounded-xl px-2.5">
+                                                    <Filter size={14} className="text-slate-400 mr-2 shrink-0" />
+                                                    <select
+                                                        value={movTypeFilter}
+                                                        onChange={e => setMovTypeFilter(e.target.value)}
+                                                        className="w-full bg-transparent text-xs font-bold uppercase text-slate-700 outline-none cursor-pointer truncate"
+                                                    >
+                                                        <option value="ALL">Todos os Tipos</option>
+                                                        <option value="TRANSFER">Transferência</option>
+                                                        <option value="CONSUMPTION">Consumo</option>
+                                                        <option value="RESTOCK">Entrada</option>
+                                                        <option value="RETURN">Devolução</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            {/* Data De / Até (2 Colunas para não transbordar no mobile) */}
+                                            <div className="sm:col-span-1 lg:col-span-4 grid grid-cols-2 gap-2">
+                                                <div className="flex flex-col gap-0.5">
+                                                    <label className="text-[9px] font-bold text-slate-400 uppercase px-0.5">De (Início)</label>
+                                                    <input
+                                                        type="date"
+                                                        value={movDateFrom}
+                                                        onChange={e => handleDateValidation(e.target.value, movDateTo)}
+                                                        className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2 text-[11px] font-semibold text-slate-700 outline-none cursor-pointer"
+                                                    />
+                                                </div>
+                                                <div className="flex flex-col gap-0.5">
+                                                    <label className="text-[9px] font-bold text-slate-400 uppercase px-0.5">Até (Fim)</label>
+                                                    <input
+                                                        type="date"
+                                                        value={movDateTo}
+                                                        onChange={e => handleDateValidation(movDateFrom, e.target.value)}
+                                                        className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2 text-[11px] font-semibold text-slate-700 outline-none cursor-pointer"
+                                                    />
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 shadow-lg shadow-slate-200/50 h-[38px]">
-                                            <Filter size={12} className="text-slate-400 mr-2" />
-                                            <select value={movTypeFilter} onChange={e => setMovTypeFilter(e.target.value)} className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none cursor-pointer">
-                                                <option value="ALL">Todos Tipos</option>
-                                                <option value="TRANSFER">Transferência</option>
-                                                <option value="CONSUMPTION">Consumo</option>
-                                                <option value="RESTOCK">Entrada</option>
-                                                <option value="RETURN">Devolução</option>
-                                            </select>
+
+                                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                {filtered.length} registro(s) localizado(s)
+                                            </span>
+                                            {(movSearch || movTypeFilter !== 'ALL' || movDateFrom || movDateTo) && (
+                                                <button
+                                                    onClick={() => {
+                                                        setMovSearch('');
+                                                        setMovTypeFilter('ALL');
+                                                        setMovDateFrom('');
+                                                        setMovDateTo('');
+                                                    }}
+                                                    className="text-[10px] font-bold uppercase text-rose-500 hover:text-rose-700 transition-colors"
+                                                >
+                                                    Limpar Filtros
+                                                </button>
+                                            )}
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <input type="date" value={movDateFrom} onChange={e => handleDateValidation(e.target.value, movDateTo)} className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-600 outline-none focus:ring-4 focus:ring-primary-100 shadow-sm h-[38px]" />
-                                            <span className="text-[9px] font-black text-slate-400">ATÉ</span>
-                                            <input type="date" value={movDateTo} onChange={e => handleDateValidation(movDateFrom, e.target.value)} className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-600 outline-none focus:ring-4 focus:ring-primary-100 shadow-sm h-[38px]" />
-                                        </div>
-                                        {(movSearch || movTypeFilter !== 'ALL' || movDateFrom || movDateTo) && (
-                                            <button onClick={() => { setMovSearch(''); setMovTypeFilter('ALL'); setMovDateFrom(''); setMovDateTo(''); }} className="px-3 py-1.5 text-[9px] font-bold uppercase text-slate-400 hover:text-rose-500 transition-colors">
-                                                Limpar
-                                            </button>
-                                        )}
-                                        <span className="text-[9px] font-bold text-slate-400 ml-auto">{filtered.length} registro(s)</span>
                                     </div>
-                                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                                        <table className="w-full text-left">
+                                    <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto custom-scrollbar">
+                                        <table className="w-full text-left border-collapse min-w-[650px]">
                                             <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm font-poppins">
                                                 <tr className="text-[10px] font-semibold text-slate-600 tracking-tight text-center uppercase">
                                                     <th className="px-6 py-3 text-center">Data</th>
@@ -2119,46 +2242,47 @@ export const StockManagement: React.FC = () => {
                 </div>
             )}
 
-            {/* ITEM MODAL (Pattern igual a OS Atividades) */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
-                    <div className="bg-white rounded-none lg:rounded-xl w-full max-w-5xl h-full lg:h-auto lg:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200">
-                        {/* HEADER (Estilo Atividades/OS) */}
-                        <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between bg-white shrink-0 gap-4">
-                            <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center text-slate-400 transition-colors">
+            {/* ITEM MODAL */}
+            {isModalOpen && createPortal(
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in">
+                    <div className="bg-white rounded-none sm:rounded-2xl w-full max-w-5xl h-full sm:h-auto sm:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 sm:border border-slate-200">
+                        {/* HEADER */}
+                        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center text-slate-500 shrink-0">
                                     <Package size={20} />
                                 </div>
-                                <div>
-                                    <div className="flex items-center gap-3">
-                                        <h2 className="text-base font-semibold text-slate-900 font-poppins">
-                                            {editingItem ? `Produto SKU #${editingItem.code}` : 'Novo Cadastro de Produto'}
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-sm sm:text-base font-bold text-slate-900 truncate font-poppins">
+                                            {editingItem ? `Produto #${editingItem.code}` : 'Novo Produto'}
                                         </h2>
                                         {editingItem && (
-                                            <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${(editingItem.quantity || 0) > (editingItem.minQuantity || 0) ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                                            <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border shrink-0 hidden sm:inline-block ${(editingItem.quantity || 0) > (editingItem.minQuantity || 0) ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
                                                 {(editingItem.quantity || 0) > (editingItem.minQuantity || 0) ? 'Estoque Regular' : 'Baixo Estoque'}
                                             </span>
                                         )}
                                     </div>
-                                    <p className="text-xs text-slate-500 font-medium mt-0.5">
-                                        {formData.description || 'Gestão de Inventário e Patrimônio • Nexus Pro'}
+                                    <p className="text-[10px] sm:text-xs text-slate-400 font-medium truncate mt-0.5">
+                                        {formData.description || 'Preencha as informações do item de estoque'}
                                     </p>
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-4 sm:gap-2">
-                                <Button
+                            <div className="flex items-center gap-2 shrink-0">
+                                <button
                                     onClick={handleSubmit}
                                     form="stock-item-form"
-                                    variant="primary"
-                                    className="h-9 px-5 bg-[#1c2d4f] hover:bg-[#253a66] text-white text-xs font-bold rounded-lg shadow-md shadow-primary-500/20 transition-all flex items-center gap-2 w-full sm:w-auto justify-center"
+                                    className="hidden sm:flex h-9 px-4 bg-[#1c2d4f] hover:bg-[#253a66] text-white text-xs font-bold rounded-xl shadow-md transition-all items-center gap-1.5"
                                 >
                                     <Save size={14} /> Salvar
-                                </Button>
-                                <div className="hidden sm:block h-6 w-px bg-slate-200 mx-2"></div>
-                                <Button variant="ghost" onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all absolute top-4 right-4 sm:relative sm:top-0 sm:right-0">
+                                </button>
+                                <button 
+                                    onClick={() => setIsModalOpen(false)} 
+                                    className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all"
+                                >
                                     <X size={20} />
-                                </Button>
+                                </button>
                             </div>
                         </div>
 
@@ -2215,13 +2339,13 @@ export const StockManagement: React.FC = () => {
                                     <div className="max-w-3xl mx-auto space-y-6 pb-20">
                                             {/* Photo Upload Card at the Top */}
                                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-6 cursor-pointer hover:border-slate-300 transition-all group" onClick={() => fileInputRef.current?.click()}>
-                                                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+                                                <input type="file" ref={fileInputRef} className="hidden" accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif" onChange={handleImageUpload} />
                                                 <div className="flex items-center gap-6">
                                                     <div className="w-24 h-24 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden group-hover:border-primary-300 transition-colors shrink-0 relative">
                                                         {imageUploading ? (
                                                             <Loader2 size={24} className="text-primary-500 animate-spin" />
                                                         ) : formData.imageUrl ? (
-                                                            <img src={formData.imageUrl} className="w-full h-full object-cover" alt="Produto" />
+                                                            <img src={formData.imageUrl} className="w-full h-full object-contain p-1 rounded-xl bg-white" alt="Produto" />
                                                         ) : (
                                                             <Camera size={28} className="text-slate-300 group-hover:text-primary-400 transition-colors" />
                                                         )}
@@ -2483,8 +2607,27 @@ export const StockManagement: React.FC = () => {
                             </form>
                         </div>
                         </div>
+
+                        {/* FOOTER ACTIONS */}
+                        <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => setIsModalOpen(false)}
+                                className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-100 transition-colors flex items-center gap-1.5"
+                            >
+                                <X size={15} /> Cancelar
+                            </button>
+                            <button
+                                type="submit"
+                                form="stock-item-form"
+                                className="flex-1 sm:flex-initial px-6 py-2.5 bg-[#1c2d4f] text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-[#253a66] transition-all shadow-md flex items-center justify-center gap-2"
+                            >
+                                <Save size={15} /> Salvar Produto
+                            </button>
+                        </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* PRINT LABELS MODAL */}

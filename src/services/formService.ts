@@ -55,7 +55,8 @@ export const FormService = {
 
                 let types = (data || []).map(t => ({
                     ...t,
-                    name: t.name || (t as any).title
+                    name: t.name || (t as any).title,
+                    active: t.active ?? t.is_active ?? true
                 }));
 
                 if (types.length === 0) {
@@ -140,30 +141,56 @@ export const FormService = {
         const tid = getCurrentTenantId();
         if (isCloudEnabled) {
             try {
+                const isActiveVal = type.active ?? true;
                 if (type.id) {
                     // Atualização explícita
-                    const { data, error } = await supabase.from('service_types')
-                        .update({ name: type.name }) // Atualiza apenas campos permitidos
+                    let { data, error } = await supabase.from('service_types')
+                        .update({ name: type.name, is_active: isActiveVal })
                         .eq('id', type.id)
                         .eq('tenant_id', tid)
                         .select()
                         .single();
 
-                    if (error) throw error;
-                    return data;
+                    if (error && (error.message.includes('is_active') || error.code === '42703')) {
+                        console.warn('[FormService] Coluna is_active ausente em service_types, atualizando apenas name');
+                        const retry = await supabase.from('service_types')
+                            .update({ name: type.name })
+                            .eq('id', type.id)
+                            .eq('tenant_id', tid)
+                            .select()
+                            .single();
+                        if (retry.error) throw retry.error;
+                        data = retry.data;
+                    } else if (error) {
+                        throw error;
+                    }
+
+                    return { ...data, active: isActiveVal };
                 } else {
-                    const payload = {
+                    const payload: any = {
                         name: type.name,
+                        is_active: isActiveVal,
                         tenant_id: tid
                     };
 
-                    const { data, error } = await supabase.from('service_types')
+                    let { data, error } = await supabase.from('service_types')
                         .insert([payload])
                         .select()
                         .single();
 
-                    if (error) throw error;
-                    return data;
+                    if (error && (error.message.includes('is_active') || error.code === '42703')) {
+                        console.warn('[FormService] Coluna is_active ausente em service_types, inserindo apenas name');
+                        const retry = await supabase.from('service_types')
+                            .insert([{ name: type.name, tenant_id: tid }])
+                            .select()
+                            .single();
+                        if (retry.error) throw retry.error;
+                        data = retry.data;
+                    } else if (error) {
+                        throw error;
+                    }
+
+                    return { ...data, active: isActiveVal };
                 }
             } catch (err: any) {
                 console.error("❌ FormService: Erro ao salvar Tipo de Serviço:", err);

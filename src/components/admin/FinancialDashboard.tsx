@@ -167,7 +167,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
         key: 'date',
-        direction: 'asc'
+        direction: 'desc'
     });
 
     // Orçamentos disponíveis para vincular
@@ -1169,7 +1169,9 @@ ${container.innerHTML}
             </div>
 
             {mainTab === 'PAYABLES' && (
-                <AccountsPayableTab tenantId={tenant?.id || ''} />
+                <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-8">
+                    <AccountsPayableTab tenantId={tenant?.id || ''} />
+                </div>
             )}
 
             {mainTab === 'RECEIVABLES' && (
@@ -1260,36 +1262,58 @@ ${container.innerHTML}
 
                 {/* Collapsible Filters */}
                 {showFilters && (
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 p-3 bg-slate-50/50 rounded-xl border border-dashed border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
-                        <div className="md:col-span-4 flex flex-col gap-1">
-                            <label className="text-[9px] font-medium text-slate-400 uppercase tracking-widest px-1">Filtro de Data</label>
-                            <div className="flex bg-white border border-slate-200 rounded-lg shadow-sm items-center h-8 relative">
-                                <select 
-                                    value={dateFilterType}
-                                    onChange={e => setDateFilterType(e.target.value as any)}
-                                    className="bg-transparent border-none text-[9px] font-medium uppercase text-slate-500 outline-none cursor-pointer pl-2 pr-1 h-full max-w-[90px] min-w-[80px]"
-                                >
-                                    <option value="dueDate">Vencimento</option>
-                                    <option value="createdAt">Criação</option>
-                                    <option value="paidAt">Faturamento</option>
-                                </select>
-                                <div className="h-4 w-px bg-slate-200 shrink-0" />
-                                <div className="flex px-2 items-center w-full gap-1">
-                                    <Calendar size={12} className="text-slate-400 shrink-0" />
-                                    <input type="date" value={startDate} onChange={e => handleDateValidation(e.target.value, endDate)} className="bg-transparent border-none text-[10px] font-medium uppercase text-slate-600 outline-none cursor-pointer w-full py-1 h-full" />
-                                    <Slash size={10} className="text-slate-300 shrink-0 mx-0.5" />
-                                    <input type="date" value={endDate} onChange={e => handleDateValidation(startDate, e.target.value)} className="bg-transparent border-none text-[10px] font-medium uppercase text-slate-600 outline-none cursor-pointer w-full py-1 h-full" />
-                                </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200 shadow-sm">
+                        {/* Tipo de Data */}
+                        <div className="sm:col-span-1 lg:col-span-3 flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">Filtrar Data Por</label>
+                            <select 
+                                value={dateFilterType}
+                                onChange={e => setDateFilterType(e.target.value as any)}
+                                className="w-full bg-white border border-slate-200 text-xs font-semibold uppercase text-slate-700 outline-none cursor-pointer px-3 py-2 rounded-lg h-9 shadow-sm"
+                            >
+                                <option value="dueDate">Vencimento</option>
+                                <option value="createdAt">Criação</option>
+                                <option value="paidAt">Faturamento</option>
+                            </select>
+                        </div>
+
+                        {/* Data Inicial (De) */}
+                        <div className="sm:col-span-1 lg:col-span-3 flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">De (Início)</label>
+                            <div className="relative flex items-center bg-white border border-slate-200 rounded-lg shadow-sm h-9 px-2.5">
+                                <Calendar size={14} className="text-slate-400 shrink-0 mr-2" />
+                                <input 
+                                    type="date" 
+                                    value={startDate} 
+                                    onChange={e => handleDateValidation(e.target.value, endDate)} 
+                                    className="bg-transparent border-none text-xs font-semibold text-slate-800 outline-none cursor-pointer w-full" 
+                                />
                             </div>
                         </div>
-                        <div className="md:col-span-4 flex flex-col gap-1">
-                            <label className="text-[9px] font-medium text-slate-400 uppercase tracking-widest px-1">Técnico / Responsável</label>
-                            <div className="relative w-full h-8" ref={techDropdownRef}>
+
+                        {/* Data Final (Até) */}
+                        <div className="sm:col-span-1 lg:col-span-3 flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">Até (Fim)</label>
+                            <div className="relative flex items-center bg-white border border-slate-200 rounded-lg shadow-sm h-9 px-2.5">
+                                <Calendar size={14} className="text-slate-400 shrink-0 mr-2" />
+                                <input 
+                                    type="date" 
+                                    value={endDate} 
+                                    onChange={e => handleDateValidation(startDate, e.target.value)} 
+                                    className="bg-transparent border-none text-xs font-semibold text-slate-800 outline-none cursor-pointer w-full" 
+                                />
+                            </div>
+                        </div>
+
+                        {/* Técnico / Responsável */}
+                        <div className="sm:col-span-1 lg:col-span-3 flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">Técnico / Responsável</label>
+                            <div className="relative w-full min-h-9" ref={techDropdownRef}>
                                 <div 
-                                    className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-6 text-[10px] font-medium text-slate-700 cursor-pointer shadow-sm flex items-center h-full outline-none transition-all relative"
+                                    className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-6 text-xs font-medium text-slate-700 cursor-pointer shadow-sm flex items-center h-9 outline-none transition-all relative"
                                     onClick={() => setIsTechDropdownOpen(!isTechDropdownOpen)}
                                 >
-                                    <UserCheck size={12} className="absolute left-2.5 text-[#1c2d4f] shrink-0" />
+                                    <UserCheck size={13} className="absolute left-2.5 text-[#1c2d4f] shrink-0" />
                                     <span className="truncate uppercase">
                                         {techFilter === 'ALL' ? 'Técnicos (Todos)' : techFilter}
                                     </span>
@@ -1304,7 +1328,7 @@ ${container.innerHTML}
                                                 <input 
                                                     type="text" 
                                                     placeholder="Buscar técnico..." 
-                                                    className="w-full bg-white border border-slate-200 rounded-lg pl-7 pr-2 py-1 text-[10px] font-medium outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20"
+                                                    className="w-full bg-white border border-slate-200 rounded-lg pl-7 pr-2 py-1 text-xs font-medium outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20"
                                                     value={techSearchQuery}
                                                     onChange={e => setTechSearchQuery(e.target.value)}
                                                     onClick={e => e.stopPropagation()}
@@ -1314,7 +1338,7 @@ ${container.innerHTML}
                                         </div>
                                         <div className="max-h-48 overflow-y-auto custom-scrollbar">
                                             <div 
-                                                className={`px-3 py-2 cursor-pointer text-[10px] font-medium uppercase hover:bg-slate-50 transition-colors ${techFilter === 'ALL' ? 'bg-primary-50 text-primary-700' : 'text-slate-700'}`}
+                                                className={`px-3 py-2 cursor-pointer text-xs font-medium uppercase hover:bg-slate-50 transition-colors ${techFilter === 'ALL' ? 'bg-primary-50 text-primary-700' : 'text-slate-700'}`}
                                                 onClick={() => { setTechFilter('ALL'); setCurrentPage(1); setIsTechDropdownOpen(false); setTechSearchQuery(''); }}
                                             >
                                                 Técnicos (Todos)
@@ -1322,7 +1346,7 @@ ${container.innerHTML}
                                             {techs.filter(t => t.name.toLowerCase().includes(techSearchQuery.toLowerCase())).map(t => (
                                                 <div 
                                                     key={t.id} 
-                                                    className={`px-3 py-2 cursor-pointer text-[10px] font-medium uppercase transition-colors border-t border-slate-50 truncate ${techFilter === t.name ? 'bg-primary-50 text-primary-700' : 'hover:bg-slate-50 text-slate-700'}`}
+                                                    className={`px-3 py-2 cursor-pointer text-xs font-medium uppercase transition-colors border-t border-slate-50 truncate ${techFilter === t.name ? 'bg-primary-50 text-primary-700' : 'hover:bg-slate-50 text-slate-700'}`}
                                                     onClick={() => { setTechFilter(t.name); setCurrentPage(1); setIsTechDropdownOpen(false); setTechSearchQuery(''); }}
                                                 >
                                                     {t.name}
@@ -1330,7 +1354,7 @@ ${container.innerHTML}
                                             ))}
                                             {'administrador'.includes(techSearchQuery.toLowerCase()) && (
                                                 <div 
-                                                    className={`px-3 py-2 cursor-pointer text-[10px] font-medium uppercase transition-colors border-t border-slate-50 truncate ${techFilter === 'Administrador' ? 'bg-primary-50 text-primary-700' : 'hover:bg-slate-50 text-slate-700'}`}
+                                                    className={`px-3 py-2 cursor-pointer text-xs font-medium uppercase transition-colors border-t border-slate-50 truncate ${techFilter === 'Administrador' ? 'bg-primary-50 text-primary-700' : 'hover:bg-slate-50 text-slate-700'}`}
                                                     onClick={() => { setTechFilter('Administrador'); setCurrentPage(1); setIsTechDropdownOpen(false); setTechSearchQuery(''); }}
                                                 >
                                                     Administrador (Admin)
@@ -1341,9 +1365,11 @@ ${container.innerHTML}
                                 )}
                             </div>
                         </div>
-                        <div className="md:col-span-3 flex flex-col gap-1">
-                            <label className="text-[9px] font-medium text-slate-400 uppercase tracking-widest px-1">Estado do Lançamento</label>
-                            <div className="flex bg-white border border-slate-200 rounded-lg shadow-sm h-8 p-0.5 gap-0.5">
+
+                        {/* Estado do Lançamento */}
+                        <div className="sm:col-span-2 lg:col-span-12 flex flex-col gap-1 pt-1 border-t border-slate-200/60 mt-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">Estado do Lançamento</label>
+                            <div className="flex bg-white border border-slate-200 rounded-lg shadow-sm h-9 p-0.5 gap-1 max-w-md">
                                 {[
                                     { value: 'ALL', label: 'Todos' },
                                     { value: 'PENDING', label: 'Pendente' },
@@ -1352,7 +1378,7 @@ ${container.innerHTML}
                                     <button
                                         key={opt.value}
                                         onClick={() => { setStatusFilter(opt.value); setCurrentPage(1); }}
-                                        className={`flex-1 rounded-md text-[9px] font-medium uppercase tracking-wide transition-all ${
+                                        className={`flex-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${
                                             statusFilter === opt.value
                                                 ? opt.value === 'PENDING'
                                                     ? 'bg-amber-500 text-white shadow-sm'
@@ -1367,18 +1393,6 @@ ${container.innerHTML}
                                 ))}
                             </div>
                         </div>
-
-                        {(techFilter !== 'ALL' || statusFilter !== 'ALL') && (
-                            <div className="md:col-span-1 flex flex-col justify-end">
-                                <button
-                                    onClick={() => { setTechFilter('ALL'); setStatusFilter('ALL'); setCurrentPage(1); }}
-                                    className="h-8 px-3 bg-rose-50 hover:bg-rose-500 hover:text-white text-rose-500 rounded-lg transition-all shadow-sm flex items-center justify-center border border-rose-100"
-                                    title="Limpar Filtros"
-                                >
-                                    <X size={14} />
-                                </button>
-                            </div>
-                        )}
                     </div>
                 )}
 
@@ -2537,8 +2551,8 @@ ${container.innerHTML}
             , document.body)}
 
             {/* ── MODAL DE FATURAMENTO (Padrão OS Big Tech) ── */}
-            {isInvoiceModalOpen && (
-                <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in" onClick={() => setIsInvoiceModalOpen(false)}>
+            {isInvoiceModalOpen && createPortal(
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in" onClick={() => setIsInvoiceModalOpen(false)}>
                     <div className="bg-white rounded-xl w-full max-w-4xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200" onClick={e => e.stopPropagation()}>
                         
                         {/* HEADER - Padrão OS */}
@@ -2829,12 +2843,13 @@ ${container.innerHTML}
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* ── MODAL DE IMPRESSÃO / RECIBO DE FATURAMENTO ── */}
-            {isPrintModalOpen && printItem && (
-                <div className="fixed inset-0 z-[3000] bg-white flex items-center justify-center p-4 opacity-0 pointer-events-none print:opacity-100 print:pointer-events-auto print:fixed print:inset-0">
+            {isPrintModalOpen && printItem && createPortal(
+                <div className="fixed inset-0 z-[99999] bg-white flex items-center justify-center p-4 opacity-0 pointer-events-none print:opacity-100 print:pointer-events-auto print:fixed print:inset-0">
                     <div className="bg-white w-full max-w-3xl max-h-[95vh] overflow-y-auto print:max-w-none print:max-h-none print:overflow-visible">
 
                         {/* Barra de ação — oculta na impressão */}
@@ -3121,12 +3136,13 @@ ${container.innerHTML}
                             )}
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* ── POPUP: Imprimir comprovante? ── */}
-            {showAttachmentConfirmModal && pendingPrintItem && (
-                <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in">
+            {showAttachmentConfirmModal && pendingPrintItem && createPortal(
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden">
                         <div className="p-6">
                             <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mx-auto mb-4">
@@ -3172,7 +3188,8 @@ ${container.innerHTML}
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Modal de Cobrança Mercado Pago (Pix / Cartão) */}
