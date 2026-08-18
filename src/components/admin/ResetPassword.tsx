@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { Lock, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Lock, ShieldCheck, AlertCircle, Eye, EyeOff, Check, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { logger } from '../../lib/logger';
 
 export const ResetPassword: React.FC = () => {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
@@ -16,7 +18,13 @@ export const ResetPassword: React.FC = () => {
     const [isFromMobile, setIsFromMobile] = useState(false);
     const navigate = useNavigate();
 
-    // ─── 1. Captura e Injeção do Token ─────────────────────────────
+    // ─── Regras de Validação de Senha ──────────────────────────────
+    const hasMinLength = password.length >= 8;
+    const hasUpper = /[A-Z]/.test(password);
+    const hasLower = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecial = /[^A-Za-z0-9]/.test(password);
+
     // ─── 1. Captura e Injeção do Token ─────────────────────────────
     useEffect(() => {
         let mounted = true;
@@ -145,11 +153,9 @@ export const ResetPassword: React.FC = () => {
         const trimmedPassword = password.trim();
         const trimmedConfirm = confirmPassword.trim();
 
-        // 🛡️ Validação de Padrão (8+ char, 1 UpCase, 1 Num)
-        const passwordRegex = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
-
-        if (!passwordRegex.test(trimmedPassword)) {
-            return setError('A senha deve ter pelo menos 8 caracteres, incluindo uma letra maiúscula e um número.');
+        // 🛡️ Validação Completa (8+ char, Maiúscula, Minúscula, Número e Caractere Especial)
+        if (!hasMinLength || !hasUpper || !hasLower || !hasNumber || !hasSpecial) {
+            return setError('A senha deve atender a todos os requisitos solicitados (mínimo 8 caracteres, letras maiúsculas e minúsculas, número e caractere especial).');
         }
 
         if (trimmedPassword !== trimmedConfirm) {
@@ -226,9 +232,9 @@ export const ResetPassword: React.FC = () => {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-8">
-            <div className="w-full max-w-sm flex flex-col items-center justify-center relative space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700">
+            <div className="w-full max-w-sm flex flex-col items-center justify-center relative space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
                 <div className="flex flex-col items-center mb-2">
-                    <div className="p-6 bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-slate-200 mb-8 transition-transform hover:scale-105 duration-500">
+                    <div className="p-6 bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-slate-200 mb-6 transition-transform hover:scale-105 duration-500">
                         <img src="/nexus-logo.png" alt="DUNO Logo" className="h-16 w-auto max-w-[180px] object-contain" />
                     </div>
                     <div className="text-center">
@@ -239,50 +245,101 @@ export const ResetPassword: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="w-full space-y-6">
-                    <form onSubmit={handleSubmit} className="space-y-5">
-                        <div className="space-y-2">
+                <div className="w-full space-y-5">
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        {/* Nova Senha */}
+                        <div className="space-y-1.5">
                             <div className="flex justify-between items-center px-1">
                                 <label className="text-[10px] font-bold text-slate-500 ml-1">
                                     Nova Senha *
                                 </label>
                             </div>
                             <Input
-                                type="password"
+                                type={showPassword ? "text" : "password"}
                                 required
                                 value={password}
                                 onChange={(e) => {
                                     setPassword(e.target.value);
                                     if (error) setError('');
                                 }}
-                                placeholder="Mínimo 8 caracteres, A-Z e 0-9"
-                                className="bg-white border-slate-200 text-slate-900 placeholder:text-slate-300 rounded-2xl py-4.5 focus:ring-4 focus:ring-primary-100 transition-all font-medium text-sm shadow-sm"
+                                placeholder="Digite a nova senha"
+                                className="bg-white border-slate-200 text-slate-900 placeholder:text-slate-300 rounded-2xl py-4 focus:ring-4 focus:ring-primary-100 transition-all font-medium text-sm shadow-sm"
                                 icon={<Lock size={18} className="text-slate-300" />}
+                                rightElement={
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                                        tabIndex={-1}
+                                        title={showPassword ? "Ocultar Senha" : "Exibir Senha"}
+                                    >
+                                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                }
                             />
                         </div>
 
-                        <div className="space-y-2">
+                        {/* Repetir Senha */}
+                        <div className="space-y-1.5">
                             <div className="flex justify-between items-center px-1">
                                 <label className="text-[10px] font-bold text-slate-500 ml-1">
                                     Repetir Senha *
                                 </label>
                             </div>
                             <Input
-                                type="password"
+                                type={showConfirmPassword ? "text" : "password"}
                                 required
                                 value={confirmPassword}
                                 onChange={(e) => {
                                     setConfirmPassword(e.target.value);
                                     if (error) setError('');
                                 }}
-                                placeholder="Repita a senha"
-                                className="bg-white border-slate-200 text-slate-900 placeholder:text-slate-300 rounded-2xl py-4.5 focus:ring-4 focus:ring-primary-100 transition-all font-medium text-sm shadow-sm"
+                                placeholder="Repita a nova senha"
+                                className="bg-white border-slate-200 text-slate-900 placeholder:text-slate-300 rounded-2xl py-4 focus:ring-4 focus:ring-primary-100 transition-all font-medium text-sm shadow-sm"
                                 icon={<ShieldCheck size={18} className="text-slate-300" />}
+                                rightElement={
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                        className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                                        tabIndex={-1}
+                                        title={showConfirmPassword ? "Ocultar Senha" : "Exibir Senha"}
+                                    >
+                                        {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                }
                             />
                         </div>
 
+                        {/* Visual Helper de Requisitos de Senha */}
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 space-y-1.5 text-[11px] shadow-xs">
+                            <p className="font-bold text-slate-500 uppercase tracking-widest text-[9px] mb-1">Requisitos de Segurança da Senha:</p>
+                            <div className="grid grid-cols-2 gap-1.5 font-medium">
+                                <div className={`flex items-center gap-1.5 ${hasMinLength ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
+                                    {hasMinLength ? <Check size={13} className="text-emerald-500 shrink-0" /> : <X size={13} className="text-slate-300 shrink-0" />}
+                                    <span>Mínimo 8 caracteres</span>
+                                </div>
+                                <div className={`flex items-center gap-1.5 ${hasUpper ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
+                                    {hasUpper ? <Check size={13} className="text-emerald-500 shrink-0" /> : <X size={13} className="text-slate-300 shrink-0" />}
+                                    <span>Maiúscula (A-Z)</span>
+                                </div>
+                                <div className={`flex items-center gap-1.5 ${hasLower ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
+                                    {hasLower ? <Check size={13} className="text-emerald-500 shrink-0" /> : <X size={13} className="text-slate-300 shrink-0" />}
+                                    <span>Minúscula (a-z)</span>
+                                </div>
+                                <div className={`flex items-center gap-1.5 ${hasNumber ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
+                                    {hasNumber ? <Check size={13} className="text-emerald-500 shrink-0" /> : <X size={13} className="text-slate-300 shrink-0" />}
+                                    <span>Número (0-9)</span>
+                                </div>
+                                <div className={`flex items-center gap-1.5 ${hasSpecial ? 'text-emerald-600 font-bold' : 'text-slate-400'} col-span-2`}>
+                                    {hasSpecial ? <Check size={13} className="text-emerald-500 shrink-0" /> : <X size={13} className="text-slate-300 shrink-0" />}
+                                    <span>Caractere especial (!@#$%^&*...)</span>
+                                </div>
+                            </div>
+                        </div>
+
                         {error && (
-                            <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <div className="bg-rose-50 border border-rose-100 rounded-2xl p-3.5 animate-in fade-in slide-in-from-top-2 duration-300">
                                 <p className="text-rose-600 text-[11px] font-medium text-center italic leading-tight">{error}</p>
                             </div>
                         )}
@@ -290,7 +347,7 @@ export const ResetPassword: React.FC = () => {
                         <Button
                             type="submit"
                             disabled={loading}
-                            className={`w-full text-white rounded-2xl py-5 font-bold text-sm shadow-2xl border-none transition-all active:scale-[0.97] ${loading ? 'bg-slate-400 cursor-wait' : 'bg-[#1c2d4f] hover:bg-[#253a66] shadow-primary-900/20'
+                            className={`w-full text-white rounded-2xl py-4.5 font-bold text-sm shadow-xl border-none transition-all active:scale-[0.97] ${loading ? 'bg-slate-400 cursor-wait' : 'bg-[#1c2d4f] hover:bg-[#253a66] shadow-primary-900/20'
                                 }`}
                         >
                             {loading ? 'Validando...' : 'Atualizar Credencial'}
