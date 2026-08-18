@@ -312,6 +312,8 @@ export const AuthService = {
             }
         }
         return undefined;
+    },
+
     resetPasswordForEmail: async (email: string): Promise<void> => {
         if (isCloudEnabled) {
             const redirectUrl = `${window.location.origin}/#/reset-password`;

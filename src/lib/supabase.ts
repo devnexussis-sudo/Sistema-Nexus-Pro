@@ -18,8 +18,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
     console.error('🚨 CRITICAL: Supabase URL or ANON KEY missing!');
 }
 
-const safeUrl = supabaseUrl ?? 'https://placeholder.supabase.co';
-const safeKey = supabaseAnonKey ?? 'placeholder';
+export const safeUrl = supabaseUrl ?? 'https://placeholder.supabase.co';
+export const safeKey = supabaseAnonKey ?? 'placeholder';
 
 export const publicSupabase = createClient(safeUrl, safeKey, {
     auth: {
