@@ -54,8 +54,17 @@ export const ResetPassword: React.FC = () => {
 
                 let authSession: any = null;
 
-                // 1. Verifica se JÁ existe uma sessão ativa (ex: Supabase SDK recuperou do cookie/storage/hash)
-                const { data: { session: activeSession } } = await supabase.auth.getSession();
+                // 1. Verifica com respiro/retentativa se JÁ existe uma sessão ativa (dá tempo do detectSessionInUrl do SDK processar o hash/query)
+                let activeSession = null;
+                for (let i = 0; i < 4; i++) {
+                    const { data: { session: s } } = await supabase.auth.getSession();
+                    if (s?.user) {
+                        activeSession = s;
+                        break;
+                    }
+                    if (i < 3) await new Promise(r => setTimeout(r, 200));
+                }
+
                 if (activeSession?.user) {
                     logger.info('[ResetPassword] Sessão válida encontrada no cliente Supabase.');
                     authSession = activeSession;

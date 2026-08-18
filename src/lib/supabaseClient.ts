@@ -140,7 +140,7 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
         storageKey: 'nexus-line-auth',      // Chave única revisada
         persistSession: true,               // Sessão sobrevive a reload e fechamento de aba
         autoRefreshToken: true,             // SDK gerencia o refresh do JWT
-        detectSessionInUrl: false,          // Orchestrator: false
+        detectSessionInUrl: true,           // Habilitado para captura automática de links de recuperação e auth
         flowType: 'pkce',                   // Arquitetura moderna Pkce
         storage: customStorage,
     },
