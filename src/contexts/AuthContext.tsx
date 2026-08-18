@@ -98,8 +98,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 console.warn('[AuthContext] Erro ao recuperar sessão no bootstrap:', err);
             }
 
-            // Sem sessão no bolso — pode ser rota pública
-            if (window.location.href.includes('/view')) {
+            // Sem sessão no bolso — pode ser rota pública ou rota de redefinição de senha
+            const isPublicOrResetRoute = window.location.href.includes('/view') || window.location.href.includes('reset-password');
+            if (isPublicOrResetRoute) {
                 setIsAuthLoading(false);
                 return;
             }
@@ -126,9 +127,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setIsAuthLoading(false);
 
             if (!newSession) {
-                // 🛡️ IMPERSONATION GUARD: Não destruir sessão virtual
-                if (window.__NEXUS_IMPERSONATION || SessionStorage.get('is_impersonating')) {
-                    console.log('[AuthContext] 🛡️ Impersonation ativa — ignorando SIGNED_OUT/null session.');
+                // 🛡️ IMPERSONATION & RECOVERY GUARD: Não destruir sessão virtual nem limpar durante reset-password
+                if (window.__NEXUS_IMPERSONATION || SessionStorage.get('is_impersonating') || window.location.href.includes('reset-password')) {
+                    console.log('[AuthContext] 🛡️ Rota de reset-password ou impersonation ativa — ignorando expurgo de sessão.');
                     return;
                 }
                 // Se não há sessão válida (expirou silenciosamente ou INITIAL_SESSION veio nulo)

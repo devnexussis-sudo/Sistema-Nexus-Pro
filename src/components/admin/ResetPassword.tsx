@@ -175,20 +175,34 @@ export const ResetPassword: React.FC = () => {
         setLoading(true);
 
         try {
-            logger.info('[ResetPassword] Verificando identidade do usuário...');
-            const { data: { user } } = await supabase.auth.getUser();
-            logger.info(`[ResetPassword] Atualizando senha para: ${user?.email || 'Usuário desconhecido'}`);
+            logger.info('[ResetPassword] Verificando sessão ativa para atualização de senha...');
+            
+            // 🛡️ Garante que a sessão esteja presente no cliente Supabase
+            const { data: { session: activeSession } } = await supabase.auth.getSession();
+            
+            if (!activeSession) {
+                const { data: { user: currentUser } } = await supabase.auth.getUser();
+                if (!currentUser) {
+                    throw new Error('A sessão de recuperação expirou. Por favor, solicite um novo link de redefinição de senha.');
+                }
+            }
 
-            // ✅ Comando direto sem interferência do AuthContext global
+            logger.info('[ResetPassword] Executando updateUser com a nova senha...');
             const { error: updateError } = await supabase.auth.updateUser({
                 password: trimmedPassword
             });
 
-            if (updateError) throw updateError;
+            if (updateError) {
+                console.error('[ResetPassword] Erro ao atualizar senha no Supabase:', updateError);
+                if (updateError.message?.toLowerCase().includes('session missing') || updateError.message?.toLowerCase().includes('auth session')) {
+                    throw new Error('A sessão de recuperação expirou ou é inválida. Solicite um novo e-mail de recuperação.');
+                }
+                throw updateError;
+            }
 
             // Sucesso!
             setSuccess(true);
-            logger.info('[ResetPassword] Comando executado com sucesso.');
+            logger.info('[ResetPassword] Senha alterada com sucesso.');
 
             // Limpa qualquer sessão residual e força logout
             await supabase.auth.signOut().catch(() => { });
