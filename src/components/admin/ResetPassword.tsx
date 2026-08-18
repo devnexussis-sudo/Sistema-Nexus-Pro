@@ -17,83 +17,124 @@ export const ResetPassword: React.FC = () => {
     const navigate = useNavigate();
 
     // ─── 1. Captura e Injeção do Token ─────────────────────────────
+    // ─── 1. Captura e Injeção do Token ─────────────────────────────
     useEffect(() => {
         let mounted = true;
+
+        // Listener reativo de evento de Auth para capturar PASSWORD_RECOVERY instantaneamente
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (session && (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+                logger.info(`[ResetPassword] Evento de auth capturado: ${event}`);
+                if (mounted) setError('');
+            }
+        });
 
         const handleAuth = async () => {
             try {
                 const url = window.location.href;
+                const search = window.location.search;
 
                 const isMobileSource = url.includes('source=mobile');
-
-                // Detecta se vem do mobile para mudar o feedback no final
-                if (isMobileSource) {
+                if (isMobileSource && mounted) {
                     setIsFromMobile(true);
                 }
 
                 const access = url.match(/access_token=([^&#]*)/)?.[1];
                 const refresh = url.match(/refresh_token=([^&#]*)/)?.[1];
-                const code = url.match(/[?&]code=([^&#]*)/)?.[1];
+                const code = url.match(/[?&#]code=([^&#]*)/)?.[1] || new URLSearchParams(search).get('code');
+                const tokenHash = url.match(/[?&#]token_hash=([^&#]*)/)?.[1] || new URLSearchParams(search).get('token_hash');
 
-                let authSession = null;
-                let localError = '';
+                let authSession: any = null;
 
-                if (access) {
-                    logger.info('[ResetPassword] Injetando tokens de recuperação...');
+                // 1. Verifica se JÁ existe uma sessão ativa (ex: Supabase SDK recuperou do cookie/storage/hash)
+                const { data: { session: activeSession } } = await supabase.auth.getSession();
+                if (activeSession?.user) {
+                    logger.info('[ResetPassword] Sessão válida encontrada no cliente Supabase.');
+                    authSession = activeSession;
+                }
+
+                // 2. Se temos access_token (Implicit Flow)
+                if (!authSession && access) {
+                    logger.info('[ResetPassword] Injetando tokens de recuperação (Implicit)...');
                     const { error: sessionUpdateError, data } = await supabase.auth.setSession({
                         access_token: access,
                         refresh_token: refresh || '',
                     });
 
-                    if (sessionUpdateError) {
-                        console.error('[ResetPassword] Erro ao injetar sessão:', sessionUpdateError);
-                        if (mounted) setError(`Erro na sessão: ${sessionUpdateError.message}`);
-                    } else {
-                        authSession = data.session;
-                    }
-                } else if (code) {
-                    logger.info('[ResetPassword] Trocando código por sessão (PKCE)...');
-                    const { error: exchangeError, data } = await supabase.auth.exchangeCodeForSession(code);
-                    if (exchangeError) {
-                        console.error('[ResetPassword] Erro na troca do código:', exchangeError);
-                        localError = `Link expirado ou diferente. Abra o link no mesmo navegador onde solicitou.`;
-                        if (mounted) setError(localError);
-                    } else {
+                    if (!sessionUpdateError && data.session) {
                         authSession = data.session;
                     }
                 }
 
-                // Limpa URL para estética preservando o source para redirecionamento mobile
-                if (access || code) {
+                // 3. Se temos um código / token_hash (PKCE ou OTP Flow)
+                const recoveryToken = tokenHash || code;
+                if (!authSession && recoveryToken) {
+                    logger.info('[ResetPassword] Validando código de recuperação com o Supabase...');
+
+                    // 3a. Tenta primeiro verifyOtp (funciona em QUALQUER navegador/dispositivo sem depender do PKCE verifier no localStorage)
+                    const { error: otpError, data: otpData } = await supabase.auth.verifyOtp({
+                        token_hash: recoveryToken,
+                        type: 'recovery',
+                    });
+
+                    if (!otpError && otpData.session) {
+                        logger.info('[ResetPassword] Sessão iniciada com sucesso via verifyOtp!');
+                        authSession = otpData.session;
+                    } else {
+                        // 3b. Fallback: troca de código PKCE tradicional
+                        logger.info('[ResetPassword] Tentando troca de código PKCE...');
+                        const { error: exchangeError, data: exchangeData } = await supabase.auth.exchangeCodeForSession(recoveryToken);
+
+                        if (!exchangeError && exchangeData.session) {
+                            logger.info('[ResetPassword] Sessão obtida via exchangeCodeForSession!');
+                            authSession = exchangeData.session;
+                        } else {
+                            console.warn('[ResetPassword] Tentativas de validação de token retornaram:', { otpError, exchangeError });
+                        }
+                    }
+                }
+
+                // 4. Verificação final de garantia (Re-check)
+                if (!authSession) {
+                    const { data: { session: finalSession } } = await supabase.auth.getSession();
+                    authSession = finalSession;
+                }
+
+                if (!authSession) {
+                    const { data: { user: currentUser } } = await supabase.auth.getUser();
+                    if (currentUser) authSession = { user: currentUser };
+                }
+
+                // Limpa parâmetros temporários da URL sem perder a rota
+                if (access || recoveryToken) {
                     const params = isMobileSource ? '?source=mobile' : '';
                     const cleanUrl = window.location.origin + window.location.pathname + params + '#/reset-password';
                     window.history.replaceState(null, '', cleanUrl);
                 }
 
-                // Verifica se temos uma sessão ativa (seja automática, injetada ou já existente)
-                if (!authSession) {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    authSession = session;
-                }
-
-                if (!authSession && mounted && !localError) {
-                    setError('Não foi possível iniciar a sessão segura. Solicite um novo link e abra no mesmo navegador.');
+                // Se temos sessão, libera a UI para definir nova senha
+                if (authSession && mounted) {
+                    setError('');
+                } else if (mounted) {
+                    setError('Link de recuperação inválido ou expirado. Por favor, solicite um novo link.');
                 }
             } catch (err: any) {
                 console.error('[ResetPassword] Erro de inicialização:', err);
-                if (mounted) setError(`Erro interno: ${err.message || 'Falha ao validar credenciais'}`);
+                if (mounted) setError(`Erro ao validar credenciais: ${err.message || 'Falha na verificação'}`);
             } finally {
                 if (mounted) {
-                    // Pequeno delay para estética da UI
                     setTimeout(() => {
                         if (mounted) setIsChecking(false);
-                    }, 800);
+                    }, 400);
                 }
             }
         };
 
         handleAuth();
-        return () => { mounted = false; };
+        return () => {
+            mounted = false;
+            subscription.unsubscribe();
+        };
     }, []);
 
     // ─── 2. Execução do Comando (Nova Senha) ─────────────────────────

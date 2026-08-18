@@ -65,10 +65,10 @@ const AppRoutes: React.FC = () => {
       const newHash = '#/reset-password' + hash.replace('#', '&');
       window.location.hash = newHash;
     }
-    // Se a query string contém PKCE code (Novo Padrão)
-    else if (search.includes('code=') && !hash.includes('reset-password')) {
+    // Se a query string contém PKCE code ou token_hash (Novo Padrão)
+    else if ((search.includes('code=') || search.includes('token_hash=')) && !hash.includes('reset-password')) {
       console.log('[RecoveryInterceptor] Detectado lander PKCE. Redirecionando para /reset-password...');
-      navigate('/reset-password', { replace: true });
+      navigate('/reset-password' + search, { replace: true });
     }
   }, [navigate]);
 
