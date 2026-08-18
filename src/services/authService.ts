@@ -1,12 +1,24 @@
 
+import { createClient } from '@supabase/supabase-js';
 import { logger } from '../lib/logger';
 import { GlobalStorage, SessionStorage } from '../lib/sessionStorage';
-import { adminAuthProxy, supabase } from '../lib/supabase';
+import { adminAuthProxy, supabase, safeUrl, safeKey } from '../lib/supabase';
 import { getCurrentTenantId as _getTenantId } from '../lib/tenantContext';
 import { User, UserRole, ADMIN_PERMISSIONS, DEFAULT_PERMISSIONS } from '../types';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 const MOCK_USERS_POOL = []; // Removing mock data dependency for clean separation, assuming cloud first
+
+// Cliente de autenticação dedicado com flowType implicit para geração de links de recuperação
+// que funcionam em qualquer navegador/dispositivo sem depender do code_verifier do PKCE no localStorage
+const recoveryAuthClient = createClient(safeUrl, safeKey, {
+    auth: {
+        flowType: 'implicit',
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false
+    }
+});
 
 export const AuthService = {
 
@@ -300,12 +312,11 @@ export const AuthService = {
             }
         }
         return undefined;
-    },
-
     resetPasswordForEmail: async (email: string): Promise<void> => {
         if (isCloudEnabled) {
-            const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase(), {
-                redirectTo: `${window.location.origin}/#/reset-password`,
+            const redirectUrl = `${window.location.origin}/#/reset-password`;
+            const { error } = await recoveryAuthClient.auth.resetPasswordForEmail(email.toLowerCase().trim(), {
+                redirectTo: redirectUrl,
             });
             if (error) throw error;
         }

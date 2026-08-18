@@ -122,16 +122,14 @@ export const ResetPassword: React.FC = () => {
                     if (currentUser) authSession = { user: currentUser };
                 }
 
-                // Limpa parâmetros temporários da URL sem perder a rota
-                if (access || recoveryToken) {
-                    const params = isMobileSource ? '?source=mobile' : '';
-                    const cleanUrl = window.location.origin + window.location.pathname + params + '#/reset-password';
-                    window.history.replaceState(null, '', cleanUrl);
-                }
-
-                // Se temos sessão, libera a UI para definir nova senha
+                // Se temos sessão, libera a UI para definir nova senha e limpa a URL estética
                 if (authSession && mounted) {
                     setError('');
+                    if (access || recoveryToken) {
+                        const params = isMobileSource ? '?source=mobile' : '';
+                        const cleanUrl = window.location.origin + window.location.pathname + params + '#/reset-password';
+                        window.history.replaceState(null, '', cleanUrl);
+                    }
                 } else if (mounted) {
                     setError('Link de recuperação inválido ou expirado. Por favor, solicite um novo link.');
                 }
