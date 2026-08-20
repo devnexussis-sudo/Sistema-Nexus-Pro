@@ -9,9 +9,9 @@
       }
     },
     "preview": {
-      "image": "ubuntu-24.04",
       "node": "20.19.4",
       "android": {
+        "image": "ubuntu-24.04",
         "buildType": "apk"
       },
       "distribution": "internal",
