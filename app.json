@@ -29,7 +29,7 @@
       "newArchitectureEnabled": false,
       "package": "com.nexus.mobile",
       "versionCode": 11,
-      "softwareKeyboardLayoutMode": "pan",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/app-icon-duno-v6.png"
@@ -63,6 +63,7 @@
     },
     "plugins": [
       "./withCustomProguard.js",
+      "./withManifestMerger.js",
       "expo-router",
       [
         "expo-splash-screen",
@@ -111,7 +112,14 @@
           }
         }
       ],
-      "react-native-compressor"
+      "react-native-compressor",
+      [
+        "@react-native-voice/voice",
+        {
+          "microphonePermission": "Permitir acesso ao microfone para transcrição de voz nos laudos.",
+          "speechRecognitionPermission": "Permitir reconhecimento de fala para preencher os formulários automaticamente."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
