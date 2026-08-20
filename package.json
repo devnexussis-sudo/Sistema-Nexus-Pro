@@ -9,7 +9,7 @@
     "web": "expo start --web",
     "test": "jest --watchAll",
     "lint": "expo lint",
-    "postinstall": "node scripts/force-source.js && node scripts/fix-voice.js"
+    "postinstall": "node scripts/fix-voice.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -52,9 +52,9 @@
     "react-dom": "19.2.3",
     "react-native": "0.85.3",
     "react-native-calendars": "^1.1314.0",
-    "react-native-compressor": "^2.0.2",
+    "react-native-compressor": "^1.9.2",
     "react-native-gesture-handler": "~2.31.1",
-    "react-native-nitro-modules": "^0.37.0",
+
     "react-native-reanimated": "4.3.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "4.25.2",

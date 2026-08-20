@@ -793,17 +793,42 @@ export class OrderService {
                 if (url) signatureUrl = url;
             }
 
-            // Fetch current DB order to preserve existing form_data context
-            const { data: currentOrder } = await supabase.from('orders').select('form_data').eq('id', id).single();
+            // Fetch current DB order to preserve existing form_data and items context
+            const { data: currentOrder } = await supabase.from('orders').select('form_data, items').eq('id', id).single();
             const currentFormData = currentOrder?.form_data || {};
 
+            const existingItems = typeof currentOrder?.items === 'string' 
+                ? JSON.parse(currentOrder.items) 
+                : (currentOrder?.items || (currentFormData as any)?.items || []);
+
+            // 🛡️ NEXUS BULLETPROOF: Mesclar itens do app com itens do painel (DB)
+            // Como o app móvel não carrega os itens do DB no cache local, 
+            // details.items contém APENAS os itens adicionados pelo técnico na tela.
+            // Precisamos mesclá-los para não apagar os custos adicionados pelo painel!
+            const mergedItems = [...existingItems];
+            
+            if (details.items && Array.isArray(details.items)) {
+                for (const newItem of details.items) {
+                    // Evitar duplicatas caso o item já exista (ex: re-sincronização)
+                    const isDuplicate = mergedItems.some(ex => 
+                        (ex.id && newItem.id && ex.id === newItem.id) || 
+                        (ex.stockItemId && newItem.stockItemId && ex.stockItemId === newItem.stockItemId && ex.quantity === newItem.quantity)
+                    );
+                    if (!isDuplicate) {
+                        mergedItems.push(newItem);
+                    }
+                }
+            }
+
+            const finalItems = mergedItems;
+
             // 3. Process Stock Consumption (only if online and items provided)
-            if (details.items && details.items.length > 0) {
+            if (finalItems && finalItems.length > 0) {
                 const { data: userData } = await supabase.auth.getUser();
                 const uid = userData?.user?.id;
 
                 if (uid) {
-                    for (const item of details.items) {
+                    for (const item of finalItems) {
                         if (item.fromStock && item.stockItemId) {
                             try {
                                 await supabase.rpc('consume_tech_stock', {
@@ -822,7 +847,14 @@ export class OrderService {
             }
 
             // 4. Update DB
-            const itemsValue = details.items?.reduce((acc, i) => acc + (i.total || 0), 0) ?? 0;
+            const itemsValue = finalItems?.reduce((acc: number, i: any) => {
+                const total = Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0;
+                return acc + total;
+            }, 0) ?? 0;
+
+            const formTotal = Number((currentFormData as any)?.totalValue || (currentFormData as any)?.price || 0);
+            const totalOrderValue = itemsValue + formTotal;
+
             const updateData: any = {
                 status: 'CONCLUÍDO',
                 end_date: new Date().toISOString(),
@@ -834,13 +866,13 @@ export class OrderService {
                     completedAt: new Date().toISOString(),
                     clientName: details.clientName,
                     clientDoc: details.clientDoc,
-                    items: details.items || [],
+                    items: finalItems,
                     ...(details.formData || {})
                 },
-                items: details.items || [], // Save items structured list
+                items: finalItems, // Save items structured list
                 signature_url: signatureUrl,
                 video_url: details.videoUrl || null,
-                billing_status: itemsValue > 0 ? 'PENDING' : undefined
+                billing_status: totalOrderValue > 0 ? 'PENDING' : undefined
             };
 
             const { error } = await supabase

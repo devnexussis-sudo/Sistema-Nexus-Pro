@@ -23,7 +23,7 @@
  * - Apple: Strict lifecycle state machine
  */
 
-import { AppState, AppStateStatus, Platform } from 'react-native';
+import { AppState, AppStateStatus, Platform, NativeModules } from 'react-native';
 import Constants from 'expo-constants';
 import { supabase } from './supabase';
 import { authService } from './auth-service';
@@ -104,19 +104,7 @@ class AppLifecycleManager {
     private healthPingTimer: ReturnType<typeof setInterval> | null = null;
     private keepalivePingTimer: ReturnType<typeof setInterval> | null = null;
 
-    /**
-     * Força a atualização da UI buscando dados no servidor.
-     */
-    public forceUISync() {
-        if (this.executePollRef) {
-            this.executePollRef().catch(() => {});
-        } else {
-            // Fallback se não configurado
-            this.orderChangeListeners.forEach(cb => {
-                try { cb({ eventType: 'POLL_SYNC', new: {} }); } catch (e) { /* silent */ }
-            });
-        }
-    }
+
     private offlineQueue: Array<{
         id: string;
         operationId: string; // Garantia Idempotência Backend
@@ -303,6 +291,18 @@ class AppLifecycleManager {
                 err => console.warn('[Lifecycle] Push registration failed:', err)
             );
             this.setupNotificationListeners();
+
+            // 6.5 Solicitar permissões de Microfone para Transcrição de Voz
+            try {
+                if (NativeModules.ExponentAV) {
+                    const { Audio } = require('expo-av');
+                    await Audio.requestPermissionsAsync();
+                } else {
+                    console.log('[Lifecycle] ExponentAV nativo não encontrado (Build antigo ou Expo Go). Pulando permissão de microfone.');
+                }
+            } catch (err) {
+                console.warn('[Lifecycle] Erro ao pedir permissão do microfone:', err);
+            }
 
             // 7. START PRIMARY HTTP POLLING (always-on, CGNAT-proof)
             this.startPrimaryPolling();

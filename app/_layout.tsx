@@ -28,8 +28,9 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { I18nProvider, useI18n } from '@/services/i18n';
 import { appLifecycle } from '@/services/app-lifecycle';
 import { BootstrapService } from '@/services/bootstrap-service';
+import { resilientUpload } from '@/services/upload-resilient';
 import { autoCheckinEvents, AUTO_CHECKIN_EVENT } from '@/services/auto-checkin-service';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 
 // Keep the splash screen visible while we fetch resources
@@ -87,6 +88,8 @@ function LayoutContent() {
         router.replace('/login');
         setTimeout(() => { SplashScreen.hideAsync(); }, 200);
       } else {
+        // Resume any uploads that were pending before app was closed
+        resilientUpload.resumeAll();
         await SplashScreen.hideAsync();
       }
     };
@@ -177,5 +180,38 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  footerText: {
+    color: '#8E9CAF',
+    fontSize: 12,
+  },
+  // ── Upload Toast ────────────────────────────────────────────────────
+  uploadToast: {
+    position: 'absolute',
+    bottom: 90,
+    left: 20,
+    right: 20,
+    backgroundColor: '#1c2d4f',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 12,
+    zIndex: 9998,
+  },
+  uploadToastIcon: {
+    fontSize: 18,
+  },
+  uploadToastText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
   },
 });

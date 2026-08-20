@@ -8,7 +8,8 @@ import Checkbox from 'expo-checkbox';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Dimensions } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useI18n } from '@/services/i18n';
@@ -22,6 +23,22 @@ export default function LoginScreen() {
     const [keepConnected, setKeepConnected] = useState(false);
     const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', icon: 'warning-outline' as any, iconColor: '#ff3b30' });
     const { t } = useI18n();
+
+    useEffect(() => {
+        const loadSavedData = async () => {
+            try {
+                const savedKeepConnected = await AsyncStorage.getItem('@nexus_keep_connected');
+                if (savedKeepConnected === 'true') {
+                    setKeepConnected(true);
+                    const savedEmail = await AsyncStorage.getItem('@nexus_saved_email');
+                    if (savedEmail) {
+                        setEmail(savedEmail);
+                    }
+                }
+            } catch (e) {}
+        };
+        loadSavedData();
+    }, []);
 
     const showAlert = (title: string, message: string, icon = 'warning-outline' as any, iconColor = '#ff3b30') => {
         setAlertConfig({ visible: true, title, message, icon, iconColor });
@@ -40,6 +57,11 @@ export default function LoginScreen() {
         setIsLoading(false);
 
         if (result.success) {
+            if (keepConnected) {
+                await AsyncStorage.setItem('@nexus_saved_email', email.trim());
+            } else {
+                await AsyncStorage.removeItem('@nexus_saved_email');
+            }
             // Trigger the AppLifecycle to initialize GPS, Notifications, and Queues right after logging in on a fresh install
             await appLifecycle.initialize();
             router.replace('/');
@@ -96,12 +118,14 @@ const TopBlueBand = () => {
 };
 
     return (
-        <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={styles.container}
-        >
+        <View style={styles.container}>
             <StatusBar style="light" />
             <TopBlueBand />
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={styles.keyboardView}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+            >
             <NexusAlert 
                 visible={alertConfig.visible}
                 title={alertConfig.title}
@@ -200,12 +224,13 @@ const TopBlueBand = () => {
                 </View>
 
             </ScrollView>
+            </KeyboardAvoidingView>
 
-            {/* Footer moved outside ScrollView so it doesn't bias the vertical centering equation */}
+            {/* Footer restored to original position, strictly outside KeyboardAvoidingView so it never moves up */}
             <View style={styles.footer}>
                 <Text style={styles.footerText}>{t('menuVersion')} {Constants.expoConfig?.version || '03.01.26'}</Text>
             </View>
-        </KeyboardAvoidingView>
+        </View>
     );
 }
 
@@ -213,6 +238,9 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#f5f7fa', // Off-white for better contrast with the white form
+    },
+    keyboardView: {
+        flex: 1,
     },
     scrollContent: {
         flexGrow: 1,
@@ -357,10 +385,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingBottom: Platform.OS === 'ios' ? 20 : 16,
         paddingTop: 10,
-        backgroundColor: '#1c2d4f', // Matches bottom area natively
+        backgroundColor: 'transparent',
     },
     footerText: {
-        color: '#8E9CAF', // Ensures visibility over dark blue while staying subdued
+        color: '#1c2d4f', // Version number in blue
         fontSize: 12,
+        fontWeight: '500',
     },
 });

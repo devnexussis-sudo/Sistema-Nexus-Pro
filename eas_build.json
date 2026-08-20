@@ -1,0 +1,48 @@
+{
+  "id": "0eb17cdf-b578-429c-9378-a9ce73d2945d",
+  "status": "ERRORED",
+  "platform": "ANDROID",
+  "error": {
+    "errorCode": "EAS_BUILD_UNKNOWN_GRADLE_ERROR",
+    "message": "Gradle build failed with unknown error. See logs for the \"Run gradlew\" phase for more information."
+  },
+  "artifacts": {},
+  "fingerprint": {
+    "id": "019f50b6-046b-7305-a42e-e57171930adb",
+    "hash": "06bf2da3ab3c55aea3b73f940ec29643e281081f"
+  },
+  "initiatingActor": {
+    "id": "330dfe7a-0a14-42df-a05b-1e72bc7cb566",
+    "displayName": "alexcruzduno"
+  },
+  "logFiles": [
+    "https://storage.googleapis.com/eas-workflows-production/logs/c9b16e0f-37af-47bd-9ed8-48677de635e2/0eb17cdf-b578-429c-9378-a9ce73d2945d/2026-07-11T10%3A25%3A38Z-59fddae2-cc83-4a26-926f-832692bce60d.txt?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=www-production%40exponentjs.iam.gserviceaccount.com%2F20260711%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260711T112157Z&X-Goog-Expires=900&X-Goog-SignedHeaders=host&X-Goog-Signature=96adb714ac9b7bda171b246b0b92779282cecce6154f1f9b6440ce128b39f1a23556985bdef80044dd9ab3ee20c529fab22f67ea0cebe531be0be1b560bd8c683638decf4c29d45bae73b434b5c2168a9b7d42993badaa5df4c22e50fb3410ba62aed2d2a7f9c4c9743abf25f5408db6903410bb1cfc309977585428b7c5278971681a7511a3ee23567867e2eab67320175e466ff5b0abf254d78f324b95e7139eee8fb160d2562abdea7e6ba3aeaa134b1e0eaa1420b28cd0eb865eab5bf9506bcb22e1307754ed35198cd18e871b0480a75176922d41acb7f5991b9743ebee285e06b4e4991c056421700eab1919e8ed4e5b21846dc2c1f7acaa4d6f6daa30"
+  ],
+  "project": {
+    "id": "c9b16e0f-37af-47bd-9ed8-48677de635e2",
+    "name": "nexus-mobile",
+    "slug": "nexus-mobile",
+    "ownerAccount": {
+      "id": "fc2f2b67-5a14-42a2-a856-f9b9d17c30a3",
+      "name": "duno-up"
+    }
+  },
+  "distribution": "INTERNAL",
+  "buildProfile": "preview",
+  "sdkVersion": "56.0.0",
+  "appVersion": "03.01.26",
+  "appBuildVersion": "11",
+  "gitCommitHash": "4a6f0058a64f1df66212c3df206d655633f890f6",
+  "gitCommitMessage": "build: fix expo-modules-autolinking by removing publication from config",
+  "priority": "NORMAL",
+  "createdAt": "2026-07-11T10:25:33.760Z",
+  "updatedAt": "2026-07-11T10:42:26.029Z",
+  "completedAt": "2026-07-11T10:42:25.820Z",
+  "expirationDate": "2026-07-25T10:25:33.796Z",
+  "isForIosSimulator": false,
+  "metrics": {
+    "buildWaitTime": 4368,
+    "buildQueueTime": 4942,
+    "buildDuration": 1002750
+  }
+}

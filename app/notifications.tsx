@@ -22,6 +22,7 @@ export default function NotificationsScreen() {
     }, []);
 
     const fetchNotifications = async (pageIndex: number) => {
+        const startTime = Date.now();
         try {
             if (pageIndex === 0) setLoading(true);
             else setLoadingMore(true);
@@ -59,11 +60,19 @@ export default function NotificationsScreen() {
 
             const unreadIds = fetchedData.filter(n => !n.is_read && n.user_id === session.user.id).map(n => n.id);
             if (unreadIds.length > 0) {
-                await supabase.from('notifications').update({ is_read: true }).in('id', unreadIds);
+                // Fire and forget unread update
+                supabase.from('notifications').update({ is_read: true }).in('id', unreadIds).then(() => {
+                    DeviceEventEmitter.emit('refreshNotifications');
+                });
             }
         } catch (error) {
             console.error('Error fetching notifications:', error);
         } finally {
+            const elapsed = Date.now() - startTime;
+            const remaining = Math.max(0, 1000 - elapsed);
+            if (remaining > 0 && pageIndex === 0) {
+                await new Promise(resolve => setTimeout(resolve, remaining));
+            }
             setLoading(false);
             setLoadingMore(false);
         }

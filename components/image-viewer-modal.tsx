@@ -2,8 +2,7 @@
  * ImageViewerModal — Visualizador de Imagem Customizado e Robusto
  *
  * Implementação nativa usando FlatList e ScrollView (zoom no iOS)
- * Garante que não haja travamentos, telas pretas ou loops infinitos.
- * Resolve imagem via SecureImage pipeline (download resiliente).
+ * Respeita as áreas seguras (Safe Area Insets) no iOS (Apple) e Android.
  */
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
@@ -17,10 +16,14 @@ import {
     ActivityIndicator, 
     FlatList, 
     Dimensions,
-    ScrollView
+    ScrollView,
+    Platform,
+    StatusBar
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getSignedUrl } from '@/components/secure-image';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -31,8 +34,6 @@ interface ImageViewerModalProps {
     initialIndex?: number;
     onClose: () => void;
 }
-
-import { ImageZoom } from '@likashefqet/react-native-image-zoom';
 
 const GalleryItem = ({ uri }: { uri: string }) => {
     const [resolvedUri, setResolvedUri] = useState<string | null>(null);
@@ -62,21 +63,27 @@ const GalleryItem = ({ uri }: { uri: string }) => {
                     <ActivityIndicator size="large" color="#ffffff" />
                 </View>
             ) : (
-                <View style={styles.scrollContainer}>
-                    <ImageZoom
-                        uri={resolvedUri}
+                <ScrollView 
+                    style={styles.scrollContainer}
+                    contentContainerStyle={styles.scrollContent}
+                    maximumZoomScale={3}
+                    minimumZoomScale={1}
+                    showsHorizontalScrollIndicator={false}
+                    showsVerticalScrollIndicator={false}
+                >
+                    <Image
+                        source={{ uri: resolvedUri }}
                         style={styles.image}
                         resizeMode="contain"
                     />
-                </View>
+                </ScrollView>
             )}
         </View>
     );
 };
 
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-
 export function ImageViewerModal({ visible, imageUri, imageUris, initialIndex = 0, onClose }: ImageViewerModalProps) {
+    const insets = useSafeAreaInsets();
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
     const flatListRef = useRef<FlatList>(null);
 
@@ -86,7 +93,6 @@ export function ImageViewerModal({ visible, imageUri, imageUris, initialIndex = 
         return [];
     }, [imageUris, imageUri]);
 
-    // Force exact index scroll when modal becomes visible
     useEffect(() => {
         if (visible && urisToLoad.length > 0) {
             setCurrentIndex(initialIndex);
@@ -94,6 +100,9 @@ export function ImageViewerModal({ visible, imageUri, imageUris, initialIndex = 
     }, [visible, initialIndex, urisToLoad.length]);
 
     if (!visible || urisToLoad.length === 0) return null;
+
+    const topInset = Math.max(insets.top, Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight || 28));
+    const bottomInset = Math.max(insets.bottom, Platform.OS === 'ios' ? 24 : 16);
 
     return (
         <Modal visible={visible} transparent={true} onRequestClose={onClose} animationType="fade" statusBarTranslucent>
@@ -123,16 +132,16 @@ export function ImageViewerModal({ visible, imageUri, imageUris, initialIndex = 
                         removeClippedSubviews={false}
                     />
 
-                    {/* Header (Close Button) */}
-                    <Pressable style={styles.closeButton} onPress={onClose} hitSlop={20}>
+                    {/* Header (Close Button) - Posicionado com margem de segurança */}
+                    <Pressable style={[styles.closeButton, { top: topInset + 6 }]} onPress={onClose} hitSlop={20}>
                         <View style={styles.closeButtonBg}>
                             <Ionicons name="close" size={24} color="#ffffff" />
                         </View>
                     </Pressable>
 
-                    {/* Footer (Indicator) */}
+                    {/* Footer (Indicator) - Posicionado com margem de segurança */}
                     {urisToLoad.length > 1 && (
-                        <View style={styles.indicatorContainer}>
+                        <View style={[styles.indicatorContainer, { bottom: bottomInset + 10 }]}>
                             <View style={styles.indicatorBg}>
                                 <Ionicons name="images" size={14} color="#ffffff" />
                                 <Text style={styles.indicatorText}>{`${currentIndex + 1} / ${urisToLoad.length}`}</Text>
@@ -176,8 +185,7 @@ const styles = StyleSheet.create({
     },
     closeButton: {
         position: 'absolute',
-        top: 50,
-        right: 20,
+        right: 18,
         zIndex: 100,
     },
     closeButtonBg: {
@@ -192,7 +200,6 @@ const styles = StyleSheet.create({
     },
     indicatorContainer: {
         position: 'absolute',
-        bottom: 50,
         alignSelf: 'center',
         zIndex: 100,
     },

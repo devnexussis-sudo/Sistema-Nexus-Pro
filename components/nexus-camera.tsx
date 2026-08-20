@@ -111,7 +111,7 @@ export default function NexusCamera({ onClose, onVideoRecorded }: NexusCameraPro
                 style={styles.camera} 
                 facing={facing} 
                 mode="video"
-                videoQuality="480p" // Mágica do WhatsApp (Qualidade enxuta instantânea)
+                videoQuality="720p" // 720p garante a proporção 16:9 (tela cheia, evita o bug da tela pequena do 480p)
                 mute={false}
             >
                 {/* Header Actions */}

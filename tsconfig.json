@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "target": "ES2022",
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
@@ -38,8 +39,13 @@
     "APP Nexus"
   ],
   "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx",
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
+    "services/**/*.ts",
+    "contexts/**/*.ts",
+    "hooks/**/*.ts",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ],

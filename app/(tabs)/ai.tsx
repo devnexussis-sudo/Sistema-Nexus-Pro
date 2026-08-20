@@ -203,6 +203,15 @@ export default function DunoAIScreen() {
       const personal = detectPersonal(userMsg.content, fullName, firstName);
       if (personal) {
         response = personal;
+      } else if (/(quais\s+manuais|quais\s+(pdf|pdfs)|manuais\s+(disponiveis|estao|estão|na\s+memoria|na\s+memória)|sua\s+mem[oó]ria|o\s+que\s+voc[eê]\s+(sabe|conhece)|seus\s+manuais|lista\s+de\s+manuais)/i.test(userMsg.content)) {
+        const manualsList = await getAvailableManuals();
+        if (manualsList.length === 0) {
+          response = `No momento, não tenho nenhum manual técnico carregado na minha memória. 😕`;
+        } else {
+          response = `Eu tenho **${manualsList.length}** manuais técnicos na minha memória! 🧠\n\nAqui estão eles:\n` + 
+            manualsList.map(m => `• **${m.name}**`).join('\n') + 
+            `\n\nPode me perguntar sobre códigos de erro, especificações ou procedimentos de qualquer um deles! 🛠️`;
+        }
       } else {
         // 2️⃣ Busca no RAG de manuais e PDFs carregados com contexto conversacional e idioma
         const conversationHistory = messages
@@ -238,12 +247,8 @@ export default function DunoAIScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, isDark && styles.containerDark]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-    >
-      {/* ── Header Premium ── */}
+    <View style={[styles.container, isDark && styles.containerDark]}>
+      {/* ── Header Premium (Fixo, Imutável) ── */}
       <View style={[styles.header, isDark && styles.headerDark]}>
         <View style={styles.headerLeft}>
           <View style={styles.headerIconContainer}>
@@ -278,9 +283,14 @@ export default function DunoAIScreen() {
         </View>
       </View>
 
-      {/* ── Chat Area ── */}
-      <ScrollView
-        ref={scrollRef}
+      {/* ── Área Dinâmica do Chat (Encolhe com o teclado) ── */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior="padding"
+        keyboardVerticalOffset={90}
+      >
+        <ScrollView
+          ref={scrollRef}
         style={styles.chatArea}
         contentContainerStyle={[styles.chatContent, messages.length <= 1 && { flexGrow: 1, justifyContent: 'center' }]}
         keyboardShouldPersistTaps="handled"
@@ -387,6 +397,7 @@ export default function DunoAIScreen() {
           {t('aiDisclaimer')}
         </Text>
       </View>
+      </KeyboardAvoidingView>
 
       {/* ── Modal de Manuais Disponíveis ── */}
       <Modal
@@ -456,7 +467,7 @@ export default function DunoAIScreen() {
           </View>
         </View>
       </Modal>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

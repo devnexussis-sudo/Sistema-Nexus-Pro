@@ -2,6 +2,7 @@
 import { HeaderRightToggle } from '@/components/header-right-toggle';
 import { ImageViewerModal } from '@/components/image-viewer-modal';
 import { VideoViewerModal } from '@/components/video-viewer-modal';
+import { StandardVideoCard } from '@/components/standard-video-card';
 import { SecureImage, warmSignedUrlCacheBulk } from '@/components/secure-image';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -14,12 +15,13 @@ import { syncService } from '@/services/sync-service';
 import { TenantService } from '@/services/tenant-service';
 import { ImageService } from '@/services/image-service';
 import { authService } from '@/services/auth-service';
+import { VoiceTextInput } from '@/components/VoiceTextInput';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Tabs, useFocusEffect, useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { useGlobalLoading } from '@/contexts/GlobalLoadingContext';
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, KeyboardAvoidingView } from 'react-native';
+import { ActivityIndicator, Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, KeyboardAvoidingView, Share } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -635,10 +637,6 @@ export default function OrderDetailsScreen() {
     };
 
     const handleBlock = () => {
-        if (syncService.isOfflineModeEnabled()) {
-            Alert.alert(t('osOfflineMode'), t('osBlockOfflineMsg'));
-            return;
-        }
         setModalVisible(true);
     };
 
@@ -690,6 +688,54 @@ export default function OrderDetailsScreen() {
 
         try {
             setIsUploadingBlock(true);
+
+            if (syncService.isOfflineModeEnabled()) {
+                const localPhotosToSync: string[] = [];
+                for (const photo of impedimentPhotoUris) {
+                    if (photo.startsWith('file://')) localPhotosToSync.push(photo);
+                }
+
+                await syncService.addToQueue({
+                    type: 'block_os',
+                    orderId: order.id,
+                    payload: {
+                        reason: impedimentReason.trim(),
+                        blockPhotoUrls: impedimentPhotoUris,
+                        tenantId: order.tenantId,
+                    },
+                    localPhotos: localPhotosToSync
+                });
+
+                await AsyncStorage.removeItem(`os_cache_${order.id}`);
+
+                try {
+                    const todayOrders = await syncService.getTodayOrders();
+                    const updatedOrders = todayOrders.map(o => {
+                        if (o.id === order.id) {
+                            return { ...o, status: 'IMPEDIDO', updated_at: new Date().toISOString() };
+                        }
+                        return o;
+                    });
+                    await syncService.saveTodayOrders(updatedOrders);
+
+                    const orderDetail = await syncService.getOrderDetail(order.id);
+                    if (orderDetail) {
+                        orderDetail.status = 'IMPEDIDO';
+                        orderDetail.updated_at = new Date().toISOString();
+                        await syncService.saveOrderDetail(order.id, orderDetail);
+
+                        const mapped = OrderService.mapDbOrderToApp(orderDetail);
+                        mapped.equipments = orderDetail.equipments || [];
+                        setOrder(mapped);
+                    }
+                } catch (e) {}
+
+                customAlert(t('osBlockRegistered'), `[Offline] Motivo: ${impedimentReason}`);
+                setModalVisible(false);
+                setImpedimentReason('');
+                setImpedimentPhotoUris([]);
+                return;
+            }
 
             // Upload das fotos antes de bloquear
             let blockPhotoUrls: string[] = [];
@@ -1276,41 +1322,20 @@ export default function OrderDetailsScreen() {
 
                                                                                                     {/* VALUE RENDERERS */}
                                                                                                     {isSingleVideo || isVideoArray ? (
-                                                                                                        <View style={{ gap: 8 }}>
+                                                                                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
                                                                                                             {(Array.isArray(val) ? val : [val]).map((vUri: string, vIdx: number) => (
-                                                                                                                <Pressable
+                                                                                                                <StandardVideoCard
                                                                                                                     key={vIdx}
-                                                                                                                    style={{
-                                                                                                                        backgroundColor: '#0f172a',
-                                                                                                                        borderRadius: 12,
-                                                                                                                        padding: 14,
-                                                                                                                        flexDirection: 'row',
-                                                                                                                        alignItems: 'center',
-                                                                                                                        justifyContent: 'space-between',
-                                                                                                                        borderWidth: 1,
-                                                                                                                        borderColor: '#1e293b',
-                                                                                                                        shadowColor: '#000',
-                                                                                                                        shadowOffset: { width: 0, height: 1 },
-                                                                                                                        shadowOpacity: 0.1,
-                                                                                                                        shadowRadius: 2,
-                                                                                                                        elevation: 2
-                                                                                                                    }}
+                                                                                                                    videoUrl={vUri}
+                                                                                                                    title={`Vídeo ${vIdx + 1}`}
+                                                                                                                    width={90}
+                                                                                                                    height={90}
+                                                                                                                    accentColor="blue"
                                                                                                                     onPress={() => {
                                                                                                                         setSelectedVideoUrl(vUri);
                                                                                                                         setVideoModalVisible(true);
                                                                                                                     }}
-                                                                                                                >
-                                                                                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
-                                                                                                                        <View style={{ backgroundColor: 'rgba(16,185,129,0.2)', padding: 10, borderRadius: 50 }}>
-                                                                                                                            <Ionicons name="play-circle" size={26} color="#10b981" />
-                                                                                                                        </View>
-                                                                                                                        <View style={{ flex: 1 }}>
-                                                                                                                            <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '700' }}>Vídeo Gravado</Text>
-                                                                                                                            <Text style={{ color: '#94a3b8', fontSize: 11, marginTop: 2 }}>Tocar para reproduzir no player do celular</Text>
-                                                                                                                        </View>
-                                                                                                                    </View>
-                                                                                                                    <Ionicons name="open-outline" size={20} color="#94a3b8" />
-                                                                                                                </Pressable>
+                                                                                                                />
                                                                                                             ))}
                                                                                                         </View>
                                                                                                     ) : isImageArray ? (
@@ -1440,22 +1465,18 @@ export default function OrderDetailsScreen() {
                                                         <Text style={{ fontSize: 10, fontWeight: '800', color: '#475569', textTransform: 'uppercase', marginBottom: 6 }}>{t('osRecording')}</Text>
                                                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 10 }}>
                                                             {(typeof videoUrl === 'string' ? videoUrl.split(',') : []).map(u => u.trim()).filter(Boolean).map((vUrl, vIdx) => (
-                                                                <Pressable
-                                                                    key={vIdx}
-                                                                    onPress={() => {
-                                                                        setSelectedVideoUrl(vUrl);
-                                                                        setVideoModalVisible(true);
-                                                                    }}
-                                                                    style={{ width: 140, height: 100, borderRadius: 12, backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: 12, borderWidth: 1, borderColor: '#334155' }}
-                                                                >
-                                                                    <Ionicons name="film-outline" size={48} color="#1e293b" style={{ position: 'absolute' }} />
-                                                                    <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(220,38,38,0.9)', alignItems: 'center', justifyContent: 'center', paddingLeft: 4, zIndex: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 }}>
-                                                                        <Ionicons name="play" size={24} color="#ffffff" />
-                                                                    </View>
-                                                                    <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.7)', paddingVertical: 6, zIndex: 2 }}>
-                                                                        <Text style={{ color: '#ffffff', fontSize: 11, textAlign: 'center', fontWeight: 'bold' }}>Vídeo {vIdx + 1}</Text>
-                                                                    </View>
-                                                                </Pressable>
+                                                                <View key={vIdx} style={{ marginRight: 10 }}>
+                                                                    <StandardVideoCard
+                                                                        videoUrl={vUrl}
+                                                                        title={`Vídeo ${vIdx + 1}`}
+                                                                        horizontal
+                                                                        accentColor="green"
+                                                                        onPress={() => {
+                                                                            setSelectedVideoUrl(vUrl);
+                                                                            setVideoModalVisible(true);
+                                                                        }}
+                                                                    />
+                                                                </View>
                                                             ))}
                                                         </ScrollView>
                                                     </View>
@@ -1562,22 +1583,18 @@ export default function OrderDetailsScreen() {
                                             </View>
                                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 10, marginTop: 8 }}>
                                                 {(typeof order.videoUrl === 'string' ? order.videoUrl.split(',') : []).map(u => u.trim()).filter(Boolean).map((vUrl, vIdx) => (
-                                                    <Pressable
-                                                        key={vIdx}
-                                                        onPress={() => {
-                                                            setSelectedVideoUrl(vUrl);
-                                                            setVideoModalVisible(true);
-                                                        }}
-                                                        style={{ width: 140, height: 100, borderRadius: 12, backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: 12, borderWidth: 1, borderColor: '#334155' }}
-                                                    >
-                                                        <Ionicons name="film-outline" size={48} color="#1e293b" style={{ position: 'absolute' }} />
-                                                        <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(220,38,38,0.9)', alignItems: 'center', justifyContent: 'center', paddingLeft: 4, zIndex: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 }}>
-                                                            <Ionicons name="play" size={24} color="#ffffff" />
-                                                        </View>
-                                                        <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.7)', paddingVertical: 6, zIndex: 2 }}>
-                                                            <Text style={{ color: '#ffffff', fontSize: 11, textAlign: 'center', fontWeight: 'bold' }}>Vídeo {vIdx + 1}</Text>
-                                                        </View>
-                                                    </Pressable>
+                                                    <View key={vIdx} style={{ marginRight: 10 }}>
+                                                        <StandardVideoCard
+                                                            videoUrl={vUrl}
+                                                            title={`Vídeo ${vIdx + 1}`}
+                                                            horizontal
+                                                            accentColor="blue"
+                                                            onPress={() => {
+                                                                setSelectedVideoUrl(vUrl);
+                                                                setVideoModalVisible(true);
+                                                            }}
+                                                        />
+                                                    </View>
                                                 ))}
                                             </ScrollView>
                                         </View>
@@ -1622,8 +1639,8 @@ export default function OrderDetailsScreen() {
                     <View style={styles.modalContent}>
                         <Text style={styles.modalTitle}>{t('osBlockModalTitle')}</Text>
 
-                        <TextInput
-                            style={styles.input}
+                        <VoiceTextInput
+                            style={[styles.input, { backgroundColor: '#fff' }]}
                             placeholder={t('osBlockPlaceholder')}
                             multiline
                             numberOfLines={4}

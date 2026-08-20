@@ -31,6 +31,7 @@ export default function CalendarScreen() {
   const fetchIdRef = useRef(0);
 
   const fetchMonthOrders = async (isBackground = false) => {
+    const startTime = Date.now();
     const thisId = ++fetchIdRef.current;
     if (!isBackground) setIsLoading(true);
     try {
@@ -40,7 +41,6 @@ export default function CalendarScreen() {
         if (fetchIdRef.current !== thisId) return; // 🛡️ Stale
         if (cachedData && cachedData.length > 0) {
           setOrders(cachedData);
-          setIsLoading(false); // Cache was fast, remove loader!
         }
       }
 
@@ -51,6 +51,12 @@ export default function CalendarScreen() {
     } catch (e) {
       console.error(e);
     } finally {
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, 1000 - elapsed);
+      if (remaining > 0) {
+        await new Promise(resolve => setTimeout(resolve, remaining));
+      }
+      
       if (fetchIdRef.current === thisId) {
         setIsLoading(false);
       }

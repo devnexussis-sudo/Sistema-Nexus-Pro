@@ -8,7 +8,7 @@ const OFFLINE_ORDER_DETAIL_PREFIX = '@nexus_offline_order_';
 
 export interface SyncTask {
     id: string;
-    type: 'complete_os';
+    type: 'complete_os' | 'block_os';
     orderId: string;
     payload: any;
     status: 'pending' | 'syncing' | 'error';
@@ -112,6 +112,8 @@ class SyncService {
             try {
                 if (task.type === 'complete_os') {
                     await this.syncCompleteOS(task);
+                } else if (task.type === 'block_os') {
+                    await this.syncBlockOS(task);
                 }
                 // Only remove from queue after confirmed success
                 await this.removeFromQueue(task.id);
@@ -229,6 +231,8 @@ class SyncService {
             try {
                 if (task.type === 'complete_os') {
                     await this.syncCompleteOS(task);
+                } else if (task.type === 'block_os') {
+                    await this.syncBlockOS(task);
                 }
                 await this.removeFromQueue(task.id);
                 console.log(`[Sync] Tarefa ${task.id} sincronizada com sucesso.`);
@@ -329,18 +333,28 @@ class SyncService {
             }
         }
 
-        // 4. Processar videoUrl local, se houver
+        // 4. Processar videoUrls locais, se houver (agora suporta múltiplos separados por vírgula)
         let processedVideoUrl = payload.videoUrl || null;
-        if (processedVideoUrl && (typeof processedVideoUrl === 'string') && (processedVideoUrl.startsWith('file://') || (FileSystem.documentDirectory && processedVideoUrl.startsWith(FileSystem.documentDirectory)))) {
-            try {
-                const url = await OrderService.uploadFile(processedVideoUrl, `orders/${targetFolderId}/videos`, tenantId, 'video/mp4');
-                if (url) processedVideoUrl = url;
-            } catch (e) {
-                console.error('[Sync] Falha foto/video extra:', e);
+        if (processedVideoUrl && typeof processedVideoUrl === 'string') {
+            const urls = processedVideoUrl.split(',').map(u => u.trim()).filter(Boolean);
+            const uploadedUrls: string[] = [];
+            for (const vUri of urls) {
+                if (vUri.startsWith('file://') || (FileSystem.documentDirectory && vUri.startsWith(FileSystem.documentDirectory))) {
+                    try {
+                        const url = await OrderService.uploadFile(vUri, `orders/${targetFolderId}/videos`, tenantId, 'video/mp4');
+                        if (url) uploadedUrls.push(url);
+                        else uploadedUrls.push(vUri);
+                    } catch (e) {
+                        console.error('[Sync] Falha upload de vídeo:', e);
+                        uploadedUrls.push(vUri);
+                    }
+                } else {
+                    uploadedUrls.push(vUri);
+                }
             }
+            processedVideoUrl = uploadedUrls.length > 0 ? uploadedUrls.join(',') : null;
         }
 
-        // 5. Chamar completeOrder — exatamente como o modo online
         await OrderService.completeOrder(orderId, {
             technicalReport: payload.technical_report || '',
             partsUsed: payload.parts_used || '',
@@ -355,6 +369,62 @@ class SyncService {
         });
 
         console.log(`[Sync] OS ${orderId} sincronizada com sucesso via completeOrder.`);
+    }
+
+    private async syncBlockOS(task: SyncTask) {
+        const { orderId, payload } = task;
+        const { OrderService } = await import('./order-service');
+        const tenantId = payload.tenantId;
+
+        let targetFolderId = orderId;
+        try {
+            const dbOrder = await OrderService.getOrderById(orderId);
+            if (dbOrder?.displayId) targetFolderId = dbOrder.displayId;
+        } catch (e) {
+            console.warn('[Sync] Could not fetch DB order for displayId, defaulting to orderId');
+        }
+
+        const processedBlockPhotos: string[] = [];
+        if (payload.blockPhotoUrls && Array.isArray(payload.blockPhotoUrls)) {
+            for (const uri of payload.blockPhotoUrls) {
+                if (typeof uri === 'string' && (uri.startsWith('file://') || (FileSystem.documentDirectory && uri.startsWith(FileSystem.documentDirectory)))) {
+                    try {
+                        const url = await OrderService.uploadFile(uri, `orders/${targetFolderId}/block_photos`, tenantId);
+                        if (url) processedBlockPhotos.push(url);
+                    } catch (e) { console.error('[Sync] Falha foto block:', e); }
+                } else {
+                    processedBlockPhotos.push(uri);
+                }
+            }
+        }
+
+        let processedVideoUrl = payload.videoUrl || null;
+        if (processedVideoUrl && typeof processedVideoUrl === 'string') {
+            const urls = processedVideoUrl.split(',').map(u => u.trim()).filter(Boolean);
+            const uploadedUrls: string[] = [];
+            for (const vUri of urls) {
+                if (vUri.startsWith('file://') || (FileSystem.documentDirectory && vUri.startsWith(FileSystem.documentDirectory))) {
+                    try {
+                        const url = await OrderService.uploadFile(vUri, `orders/${targetFolderId}/videos`, tenantId, 'video/mp4');
+                        if (url) uploadedUrls.push(url);
+                        else uploadedUrls.push(vUri);
+                    } catch (e) {
+                        uploadedUrls.push(vUri);
+                    }
+                } else {
+                    uploadedUrls.push(vUri);
+                }
+            }
+            processedVideoUrl = uploadedUrls.length > 0 ? uploadedUrls.join(',') : null;
+        }
+
+        const finalFormData = payload.additionalData?.formData || {};
+        if (processedVideoUrl) {
+            finalFormData.video_url = processedVideoUrl;
+        }
+
+        await OrderService.blockOrder(orderId, payload.reason, processedBlockPhotos.length > 0 ? processedBlockPhotos : null, { formData: finalFormData, items: payload.additionalData?.items });
+        console.log(`[Sync] OS ${orderId} bloqueada com sucesso via blockOrder.`);
     }
 
     // ========== Listeners ========== //
@@ -488,7 +558,9 @@ class SyncService {
                 .gte('scheduled_date', todayStr)
                 .lte('scheduled_date', todayStr)
                 .not('status', 'in', '("CONCLUÍDO","CANCELADO","IMPEDIDO")')
-                .limit(100);
+                .order('scheduled_date', { ascending: false })
+                .order('created_at', { ascending: false })
+                .limit(20);
 
             // Também buscar OS em andamento (qualquer data)
             const { data: inProgressRaw } = await supabase
@@ -496,14 +568,16 @@ class SyncService {
                 .select('*, customers(*)')
                 .eq('assigned_to', userId)
                 .in('status', ['EM ANDAMENTO', 'EM DESLOCAMENTO', 'ATRIBUÍDO'])
-                .limit(50);
+                .order('scheduled_date', { ascending: false })
+                .order('created_at', { ascending: false })
+                .limit(20);
 
             if (error) throw error;
 
-            // Merge e deduplicar
+            // Merge e deduplicar, limitando a 20 no total para não travar o app
             const allOrdersMap = new Map<string, any>();
-            [...(ordersRaw || []), ...(inProgressRaw || [])].forEach(o => allOrdersMap.set(o.id, o));
-            const allOrders = Array.from(allOrdersMap.values());
+            [...(inProgressRaw || []), ...(ordersRaw || [])].forEach(o => allOrdersMap.set(o.id, o));
+            const allOrders = Array.from(allOrdersMap.values()).slice(0, 20);
 
             await this.saveTodayOrders(allOrders);
 

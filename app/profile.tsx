@@ -99,6 +99,8 @@ export default function ProfileScreen() {
     }, []);
 
     const fetchUserProfile = async () => {
+        const startTime = Date.now();
+        setLoading(true);
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session?.user) {
@@ -142,6 +144,11 @@ export default function ProfileScreen() {
         } catch (error) {
             console.error('[Profile] Error fetching profile:', error);
         } finally {
+            const elapsed = Date.now() - startTime;
+            const remaining = Math.max(0, 1000 - elapsed);
+            if (remaining > 0) {
+                await new Promise(resolve => setTimeout(resolve, remaining));
+            }
             setLoading(false);
         }
     };

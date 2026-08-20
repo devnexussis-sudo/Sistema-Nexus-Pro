@@ -11,7 +11,7 @@
     "preview": {
       "node": "20.19.4",
       "android": {
-        "image": "ubuntu-22.04-jdk-17-ndk-r26b",
+        "image": "ubuntu-24.04-jdk-17-ndk-r27b",
         "buildType": "apk"
       },
       "distribution": "internal",

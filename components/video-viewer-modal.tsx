@@ -1,9 +1,9 @@
 /**
  * VideoViewerModal — Visualizador de Vídeo Customizado e Universal (v3)
  *
- * Enquadramento perfeito com Safe Area Insets (Top Notch & Bottom Navigation Bar).
- * Evita que o player ou os controles fiquem atrás da barra de status, notch
- * ou botões/barra de navegação inferior do Android e iPhone.
+ * Utiliza o WebView nativo com HTML5 Video Player, respeitando as áreas
+ * seguras (Safe Area Insets) no iOS (Apple) e Android.
+ * Evita sobreposição no cabeçalho (Status Bar / Notch) e na barra de navegação inferior.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -14,14 +14,13 @@ import {
     Pressable, 
     Text, 
     ActivityIndicator, 
-    Dimensions 
+    Platform,
+    StatusBar
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getSignedUrl } from '@/components/secure-image';
-
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 interface VideoViewerModalProps {
     visible: boolean;
@@ -33,9 +32,6 @@ export function VideoViewerModal({ visible, videoUri, onClose }: VideoViewerModa
     const insets = useSafeAreaInsets();
     const [resolvedUri, setResolvedUri] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-
-    const topInset = Math.max(insets.top, 24);
-    const bottomInset = Math.max(insets.bottom, 24);
 
     useEffect(() => {
         let active = true;
@@ -75,6 +71,10 @@ export function VideoViewerModal({ visible, videoUri, onClose }: VideoViewerModa
 
     if (!visible || !videoUri) return null;
 
+    // Cálculo das margens seguras para Android e Apple (iOS)
+    const topInset = Math.max(insets.top, Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight || 28));
+    const bottomInset = Math.max(insets.bottom, Platform.OS === 'ios' ? 24 : 16);
+
     const htmlContent = resolvedUri ? `
     <!DOCTYPE html>
     <html>
@@ -82,24 +82,8 @@ export function VideoViewerModal({ visible, videoUri, onClose }: VideoViewerModa
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <style>
             * { box-sizing: border-box; }
-            body, html { 
-                margin: 0; 
-                padding: 0; 
-                width: 100%; 
-                height: 100%; 
-                background-color: #000000; 
-                display: flex; 
-                justify-content: center; 
-                align-items: center; 
-                overflow: hidden; 
-            }
-            video { 
-                width: 100vw; 
-                height: 100vh; 
-                max-height: calc(100vh - ${bottomInset + 20}px);
-                object-fit: contain; 
-                background: #000000; 
-            }
+            body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000000; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+            video { width: 100%; height: 100%; object-fit: contain; background: #000000; border-radius: 8px; }
         </style>
     </head>
     <body>
@@ -116,27 +100,33 @@ export function VideoViewerModal({ visible, videoUri, onClose }: VideoViewerModa
             animationType="fade" 
             statusBarTranslucent
         >
-            <View style={[styles.container, { paddingTop: topInset, paddingBottom: bottomInset }]}>
-                {/* Header Bar com Botão de Fechar */}
-                <View style={[styles.headerBar, { top: topInset + 6 }]}>
-                    <Pressable style={styles.closeButton} onPress={onClose} hitSlop={20}>
+            <View style={[styles.outerContainer, { paddingTop: topInset, paddingBottom: bottomInset }]}>
+                {/* Cabeçalho Seguro (Header Bar) */}
+                <View style={styles.headerBar}>
+                    <View style={styles.titleWrapper}>
+                        <View style={styles.iconCircle}>
+                            <Ionicons name="videocam" size={16} color="#10b981" />
+                        </View>
+                        <Text style={styles.headerTitle} numberOfLines={1}>
+                            REPRODUTOR DE VÍDEO
+                        </Text>
+                    </View>
+
+                    <Pressable style={styles.closeButton} onPress={onClose} hitSlop={14}>
                         <View style={styles.closeButtonBg}>
-                            <Ionicons name="close" size={24} color="#ffffff" />
+                            <Ionicons name="close" size={22} color="#ffffff" />
                         </View>
                     </Pressable>
                 </View>
 
-                {/* Carregando URL */}
-                {isLoading && (
-                    <View style={styles.centerContent}>
-                        <ActivityIndicator size="large" color="#10b981" />
-                        <Text style={styles.statusText}>Preparando vídeo...</Text>
-                    </View>
-                )}
-
-                {/* Player Nativo Universal HTML5 via WebView dentro da Área Segura */}
-                {!isLoading && resolvedUri && (
-                    <View style={[styles.videoWrapper, { marginTop: 50, marginBottom: 10 }]}>
+                {/* Área Interna do Player com Margens de Segurança */}
+                <View style={styles.playerContainer}>
+                    {isLoading ? (
+                        <View style={styles.centerContent}>
+                            <ActivityIndicator size="large" color="#10b981" />
+                            <Text style={styles.statusText}>Preparando vídeo...</Text>
+                        </View>
+                    ) : resolvedUri ? (
                         <WebView
                             source={{ html: htmlContent, baseUrl: '' }}
                             style={styles.webview}
@@ -148,61 +138,83 @@ export function VideoViewerModal({ visible, videoUri, onClose }: VideoViewerModa
                             allowFileAccessFromFileURLs
                             allowUniversalAccessFromFileURLs
                         />
-                    </View>
-                )}
+                    ) : null}
+                </View>
             </View>
         </Modal>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
+    outerContainer: {
         flex: 1,
-        backgroundColor: '#000000',
-        justifyContent: 'center',
-        alignItems: 'center',
+        backgroundColor: '#0a0f1d',
+        paddingHorizontal: 12,
     },
     headerBar: {
-        position: 'absolute',
-        left: 20,
-        right: 20,
+        height: 50,
         flexDirection: 'row',
-        justifyContent: 'flex-end',
         alignItems: 'center',
-        zIndex: 999,
+        justifyContent: 'space-between',
+        paddingHorizontal: 6,
+        marginBottom: 8,
+    },
+    titleWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    iconCircle: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(16, 185, 129, 0.3)',
+    },
+    headerTitle: {
+        color: '#ffffff',
+        fontSize: 13,
+        fontWeight: '800',
+        letterSpacing: 0.5,
+    },
+    closeButton: {
+        padding: 4,
+    },
+    closeButtonBg: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: 'rgba(30, 41, 59, 0.9)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(148, 163, 184, 0.3)',
+    },
+    playerContainer: {
+        flex: 1,
+        borderRadius: 14,
+        overflow: 'hidden',
+        backgroundColor: '#000000',
+        borderWidth: 1,
+        borderColor: '#1e293b',
     },
     centerContent: {
+        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         gap: 12,
     },
     statusText: {
         color: '#94a3b8',
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: '600',
-        marginTop: 8,
-    },
-    videoWrapper: {
-        flex: 1,
-        width: SCREEN_W,
-        backgroundColor: '#000000',
-        overflow: 'hidden',
+        marginTop: 6,
     },
     webview: {
         flex: 1,
         backgroundColor: '#000000',
-    },
-    closeButton: {
-        padding: 4,
-    },
-    closeButtonBg: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(30, 41, 59, 0.85)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(148, 163, 184, 0.3)',
     },
 });

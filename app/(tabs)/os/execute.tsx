@@ -1,6 +1,7 @@
 import { HeaderRightToggle } from '@/components/header-right-toggle';
 import { ImageViewerModal } from '@/components/image-viewer-modal';
 import { VideoViewerModal } from '@/components/video-viewer-modal';
+import { StandardVideoCard } from '@/components/standard-video-card';
 import { ThemedText } from '@/components/themed-text';
 import { NexusAlert } from '@/components/nexus-alert';
 import { ImageService } from '@/services/image-service';
@@ -19,6 +20,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Tabs, useFocusEffect, useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { useGlobalLoading } from '@/contexts/GlobalLoadingContext';
 import NexusCamera from '@/components/nexus-camera';
+import { VoiceTextInput } from '@/components/VoiceTextInput';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import React, { useCallback, useRef, useState } from 'react';
@@ -364,6 +366,16 @@ export default function ExecuteOSScreen() {
             setClientName('');
             setClientDoc('');
             
+            // 🧹 RESET IMPEDIMENT AND BACKGROUND STATES
+            setShowImpedimentForm(false);
+            setImpedimentReason('');
+            setImpedimentPhotos([]);
+            setImpedimentResponsibleName('');
+            setImpedimentSignature(null);
+            setPendingUploadCount(0);
+            setUploadingUris(new Set());
+            uploadedUrlMapRef.current.clear();
+            
             showLoading('Carregando execução...');
             const startTime = Date.now();
 
@@ -489,8 +501,6 @@ export default function ExecuteOSScreen() {
                             if (cache.clientDoc) setClientDoc(cache.clientDoc);
                             if (cache.videos) setVideos(cache.videos);
                         } 
-
-                        setExtraPhotos([]);
 
                         // Limpar cache de regras para garantir dados frescos do servidor
                         await AsyncStorage.removeItem('@nexus_activation_rules').catch(() => {});
@@ -780,9 +790,9 @@ export default function ExecuteOSScreen() {
 
     const handlePickVideoFromGallery = async () => {
         try {
-            const limit = 4 - videos.length;
+            const limit = 2 - videos.length;
             if (limit <= 0) {
-                Alert.alert('Limite atingido', 'Você pode adicionar no máximo 4 vídeos.');
+                Alert.alert('Limite atingido', 'Você pode adicionar no máximo 2 vídeos.');
                 return;
             }
             
@@ -844,7 +854,19 @@ export default function ExecuteOSScreen() {
 
                     const uploadedUrl = await OrderService.uploadFile(finalUriToUpload, `orders/${order?.displayId || id}/form_videos`, order?.tenantId, 'video/mp4');
                     const finalUrl = uploadedUrl || finalUriToUpload;
-                    updateFieldData(eqKey, fieldId, finalUrl);
+
+                    const existingVal = (formsConfig[eqKey]?.data || {})[fieldId];
+                    const currentFieldVideos: string[] = Array.isArray(existingVal)
+                        ? existingVal
+                        : (typeof existingVal === 'string' && existingVal ? [existingVal] : []);
+
+                    if (currentFieldVideos.length >= 2) {
+                        Alert.alert('Limite Atingido', 'Você pode anexar no máximo 2 vídeos por campo de formulário.');
+                        return;
+                    }
+
+                    const updatedVideos = [...currentFieldVideos, finalUrl].slice(0, 2);
+                    updateFieldData(eqKey, fieldId, updatedVideos);
                 } catch (err) {
                     console.error('[VideoField] Erro no processamento do vídeo do campo:', err);
                     Alert.alert(t('alertError'), t('execVideoError'));
@@ -855,8 +877,8 @@ export default function ExecuteOSScreen() {
                 return;
             }
 
-            if (!bypassLimit && videos.length >= 4) {
-                Alert.alert('Limite atingido', 'Você pode adicionar no máximo 4 vídeos.');
+            if (!bypassLimit && videos.length >= 2) {
+                Alert.alert('Limite atingido', 'Você pode adicionar no máximo 2 vídeos.');
                 return;
             }
 
@@ -909,7 +931,7 @@ export default function ExecuteOSScreen() {
 
             const info = await FileSystem.getInfoAsync(finalUriToUpload);
             const sizeMB = Math.round((((info as any).size ?? 0) / 1024 / 1024) * 10) / 10;
-            setVideos(prev => prev.map(v => v.uri === localUri ? { ...v, sizeMB, status: 'Enviando para nuvem...' } : v));
+            setVideos(prev => prev.map(v => v.uri === localUri ? { ...v, sizeMB, status: 'Processando vídeo...' } : v));
 
             // ── BACKGROUND QUEUE (v6 — Big Tech Pattern) ──────────────────────────
             // resilientUpload decide: Online → sobe agora | Offline → salva, sobe ao reconectar
@@ -1190,6 +1212,15 @@ export default function ExecuteOSScreen() {
                         return o;
                     });
                     await syncService.saveTodayOrders(updatedOrders);
+                    
+                    const orderDetail = await syncService.getOrderDetail(id as string);
+                    if (orderDetail) {
+                        orderDetail.status = 'CONCLUÍDO';
+                        orderDetail.end_date = new Date().toISOString();
+                        orderDetail.updated_at = new Date().toISOString();
+                        await syncService.saveOrderDetail(id as string, orderDetail);
+                    }
+
                     // Notify UI to refresh offline list
                     appLifecycle.notifyOrderChange({ orderId: id, eventType: 'UPDATE' });
                 } catch (e) {
@@ -1321,6 +1352,9 @@ export default function ExecuteOSScreen() {
 
         try {
             setIsBlockingFromForm(true);
+            const netInfo = await NetInfo.fetch();
+            const isOffline = !netInfo.isConnected || syncService.isOfflineModeEnabled() || 
+                (appLifecycle.globalNetworkState !== 'CONNECTED' && appLifecycle.globalNetworkState !== 'CONNECTED_IDLE');
 
             // 1. Montar formData acumulado (tudo que foi preenchido nos formulários)
             const finalFormData: Record<string, any> = {};
@@ -1383,6 +1417,62 @@ export default function ExecuteOSScreen() {
             finalFormData['impediment_reason'] = impedimentReason.trim();
 
             // Upload the impediment signature if present, otherwise use main client signature
+            if (isOffline) {
+                const localPhotosToSync: string[] = [];
+                for (const photo of extraPhotos) if (photo.startsWith('file://')) localPhotosToSync.push(photo);
+                if (signature) localPhotosToSync.push(signature);
+                if (impedimentSignature) localPhotosToSync.push(impedimentSignature);
+                for (const photo of impedimentPhotos) if (photo.startsWith('file://')) localPhotosToSync.push(photo);
+                videos.forEach(v => { if (v.uri.startsWith('file://')) localPhotosToSync.push(v.uri); });
+
+                await syncService.addToQueue({
+                    type: 'block_os',
+                    orderId: id as string,
+                    payload: {
+                        reason: impedimentReason.trim(),
+                        blockPhotoUrls: impedimentPhotos, // Resolved by background queue
+                        additionalData: { formData: finalFormData, items: usedItems },
+                        signature,
+                        impedimentSignature,
+                        clientName,
+                        clientDoc,
+                        tenantId: order?.tenantId,
+                        videoUrl: videos.map(v => v.uri).join(','),
+                    },
+                    localPhotos: localPhotosToSync
+                });
+
+                await AsyncStorage.removeItem(`os_cache_${id}`);
+                try {
+                    const todayOrders = await syncService.getTodayOrders();
+                    const updatedOrders = todayOrders.map(o => {
+                        if (o.id === id) {
+                            return { ...o, status: 'IMPEDIDO', updated_at: new Date().toISOString() };
+                        }
+                        return o;
+                    });
+                    await syncService.saveTodayOrders(updatedOrders);
+
+                    const orderDetail = await syncService.getOrderDetail(id as string);
+                    if (orderDetail) {
+                        orderDetail.status = 'IMPEDIDO';
+                        orderDetail.updated_at = new Date().toISOString();
+                        await syncService.saveOrderDetail(id as string, orderDetail);
+                    }
+
+                    appLifecycle.notifyOrderChange({ orderId: id, eventType: 'UPDATE' });
+                } catch (e) {}
+
+                // EXPLICITLY CLEAR CACHE/STATE FOR IMPEDIMENT FIELDS
+                setImpedimentReason('');
+                setImpedimentPhotos([]);
+                setImpedimentResponsibleName('');
+                setImpedimentSignature(null);
+
+                router.replace({ pathname: '/', params: { filter: 'blocked' } });
+                return;
+            }
+
             if (impedimentSignature) {
                 try {
                     const sigUrl = await OrderService.uploadFile(impedimentSignature, `orders/${order?.displayId || id}/signatures`, order?.tenantId);
@@ -1453,6 +1543,12 @@ export default function ExecuteOSScreen() {
 
             // 4. Limpar cache local desta OS
             await AsyncStorage.removeItem(`os_cache_${id}`);
+
+            // EXPLICITLY CLEAR CACHE/STATE FOR IMPEDIMENT FIELDS
+            setImpedimentReason('');
+            setImpedimentPhotos([]);
+            setImpedimentResponsibleName('');
+            setImpedimentSignature(null);
 
             // Navigate directly to blocked tab
             router.replace({ pathname: '/', params: { filter: 'blocked' } });
@@ -1552,12 +1648,12 @@ export default function ExecuteOSScreen() {
                         <Text style={styles.dynamicFieldLabel}>
                             {displayLabel}{field.required ? <Text style={{color: '#ef4444'}}> *</Text> : ''}
                         </Text>
-                        <TextInput
+                        <VoiceTextInput
                             style={[styles.input, field.type === 'LONG_TEXT' && styles.textArea]}
                             placeholder={field.label}
                             multiline={field.type === 'LONG_TEXT'}
                             numberOfLines={field.type === 'LONG_TEXT' ? 4 : 1}
-                            value={data[field.id]}
+                            value={data[field.id] || ''}
                             onChangeText={(text) => updateFieldData(eqKey, field.id, text)}
                         />
                     </View>
@@ -1718,15 +1814,47 @@ export default function ExecuteOSScreen() {
                 );
             case 'VIDEO':
                 const fieldVideoVal = data[field.id];
-                const videoUri = typeof fieldVideoVal === 'string' ? fieldVideoVal : (Array.isArray(fieldVideoVal) ? fieldVideoVal[0] : null);
+                const fieldVideos: string[] = Array.isArray(fieldVideoVal)
+                    ? fieldVideoVal
+                    : (typeof fieldVideoVal === 'string' && fieldVideoVal ? [fieldVideoVal] : []);
                 const isUploadingThisVideo = isUploadingPhoto === `${eqKey}_${field.id}`;
                 return (
                     <View key={field.id} style={styles.dynamicFieldControl}>
                         <Text style={styles.dynamicFieldLabel}>
                             {displayLabel}{field.required ? <Text style={{color: '#ef4444'}}> *</Text> : ''}
                         </Text>
-                        <Text style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>Grave ou anexe um vídeo demonstrativo</Text>
-                        {!videoUri ? (
+                        <Text style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>
+                            Grave ou anexe até 2 vídeos demonstrativos ({fieldVideos.length}/2)
+                        </Text>
+
+                        {fieldVideos.length > 0 && (
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 8 }}>
+                                {fieldVideos.map((vUri: string, vIdx: number) => (
+                                    <StandardVideoCard
+                                        key={vIdx}
+                                        videoUrl={vUri}
+                                        title={`${displayLabel || 'Vídeo'} ${vIdx + 1}`}
+                                        width={100}
+                                        height={100}
+                                        accentColor="green"
+                                        onPress={() => {
+                                            setSelectedVideoUrl(vUri);
+                                            setVideoModalVisible(true);
+                                        }}
+                                        onDelete={() => {
+                                            const remoteUri = resolvePhotoUri(vUri);
+                                            if (typeof remoteUri === 'string' && remoteUri.startsWith('http')) {
+                                                OrderService.deleteFile(remoteUri).catch((e) => console.warn(`Erro ao excluir vídeo:`, e));
+                                            }
+                                            const updated = fieldVideos.filter((_, i) => i !== vIdx);
+                                            updateFieldData(eqKey, field.id, updated.length > 0 ? updated : null);
+                                        }}
+                                    />
+                                ))}
+                            </View>
+                        )}
+
+                        {fieldVideos.length < 2 && (
                             <Pressable 
                                 style={{
                                     flexDirection: 'row',
@@ -1736,8 +1864,8 @@ export default function ExecuteOSScreen() {
                                     borderColor: '#cbd5e1',
                                     borderStyle: 'dashed',
                                     borderRadius: 10,
-                                    padding: 16,
-                                    marginBottom: 8
+                                    padding: 14,
+                                    marginTop: fieldVideos.length > 0 ? 4 : 0
                                 }}
                                 onPress={() => {
                                     setVideoSourceTarget({ type: 'field', eqKey, fieldId: field.id });
@@ -1757,32 +1885,10 @@ export default function ExecuteOSScreen() {
                                         {isUploadingThisVideo ? 'Processando Vídeo...' : 'Tocar para Gravar / Anexar Vídeo'}
                                     </Text>
                                     <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                                        Câmera ou Galeria de Vídeos
+                                        Câmera ou Galeria de Vídeos (Máx: 2 vídeos)
                                     </Text>
                                 </View>
                             </Pressable>
-                        ) : (
-                            <View style={{ position: 'relative', width: '100%', height: 180, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#000000', marginTop: 4 }}>
-                                <Pressable
-                                    style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
-                                    onPress={() => { setSelectedVideoUrl(videoUri); setVideoModalVisible(true); }}
-                                >
-                                    <Ionicons name="play-circle" size={54} color="#ffffff" />
-                                    <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '700', marginTop: 6 }}>Tocar para Reproduzir Vídeo</Text>
-                                </Pressable>
-                                <Pressable 
-                                    style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(239,68,68,0.9)', padding: 8, borderRadius: 14, zIndex: 10 }}
-                                    onPress={() => {
-                                        const remoteUri = resolvePhotoUri(videoUri);
-                                        if (typeof remoteUri === 'string' && remoteUri.startsWith('http')) {
-                                            OrderService.deleteFile(remoteUri).catch((e) => console.warn(`Erro ao excluir vídeo:`, e));
-                                        }
-                                        updateFieldData(eqKey, field.id, null);
-                                    }}
-                                >
-                                    <Ionicons name="close" size={18} color="#fff" />
-                                </Pressable>
-                            </View>
                         )}
                     </View>
                 );
@@ -2082,10 +2188,10 @@ export default function ExecuteOSScreen() {
                             })}
 
                             <View style={{ marginTop: 8, marginBottom: 12 }}>
-                                {/* Label removed for redundancy under the main section title */}
-                                <TextInput
-                                    style={[styles.input, styles.textArea, { backgroundColor: '#fff' }]}
-                                    placeholder="Descreva o resumo geral das ações realizadas nesta OS..."
+                                <Text style={styles.sectionTitle}>{t('execServiceReport')}</Text>
+                                <VoiceTextInput
+                                    style={[styles.input, styles.textArea]}
+                                    placeholder={t('execReportPlaceholder') || "Digite o resumo dos serviços..."}
                                     multiline
                                     numberOfLines={4}
                                     value={technicalReport}
@@ -2196,46 +2302,34 @@ export default function ExecuteOSScreen() {
                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
                                         <Ionicons name="videocam-outline" size={15} color="#475569" />
                                         <Text style={{ fontSize: 12, fontWeight: '700', color: '#334155' }}>
-                                            {t('execVideoEvidence')} ({videos.length}/4)
+                                            {t('execVideoEvidence')} ({videos.length}/2)
                                         </Text>
                                     </View>
 
-                                    {videos.map((vid, index) => (
-                                        <Pressable
-                                            key={index}
-                                            style={[styles.attachedVideoCard, { marginBottom: 8 }]}
-                                            onPress={() => {
-                                                setSelectedVideoUrl(vid.uri);
-                                                setVideoModalVisible(true);
-                                            }}
-                                        >
-                                            <View style={styles.videoThumbContainer}>
-                                                {vid.thumbUri
-                                                    ? <Image source={{ uri: vid.thumbUri }} style={styles.videoThumbImage} resizeMode="cover" />
-                                                    : <Ionicons name="film-outline" size={40} color="rgba(255,255,255,0.25)" />}
-                                                {vid.isProcessing ? (
-                                                    <View style={styles.videoProcessingOverlay}>
-                                                        <ActivityIndicator size="large" color="#10b981" />
-                                                        <Text style={styles.videoProcessingOverlayText}>{vid.status || t('execProcessing')}</Text>
-                                                    </View>
-                                                ) : (
-                                                    <View style={styles.videoPlayOverlay}>
-                                                        <Ionicons name="play-circle" size={50} color="#fff" />
-                                                    </View>
-                                                )}
-                                            </View>
-                                            <View style={styles.videoMetaBar}>
-                                                <Text style={styles.videoMetaText}>{t('execVideoAttached')} {vid.sizeMB ? `(${vid.sizeMB}MB)` : ''}</Text>
-                                                {!vid.isProcessing && (
-                                                    <Pressable style={{ padding: 8 }} onPress={() => setVideos(prev => prev.filter((_, i) => i !== index))}>
-                                                        <Ionicons name="trash-outline" size={22} color="#ef4444" />
-                                                    </Pressable>
-                                                )}
-                                            </View>
-                                        </Pressable>
-                                    ))}
+                                    {videos.length > 0 && (
+                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                                            {videos.map((vid, index) => (
+                                                <StandardVideoCard
+                                                    key={index}
+                                                    videoUrl={vid.uri}
+                                                    thumbUrl={vid.thumbUri}
+                                                    title={`Vídeo ${index + 1}`}
+                                                    width={90}
+                                                    height={90}
+                                                    accentColor="blue"
+                                                    isProcessing={vid.isProcessing}
+                                                    processingStatus={vid.status}
+                                                    onPress={() => {
+                                                        setSelectedVideoUrl(vid.uri);
+                                                        setVideoModalVisible(true);
+                                                    }}
+                                                    onDelete={!vid.isProcessing ? () => setVideos(prev => prev.filter((_, i) => i !== index)) : undefined}
+                                                />
+                                            ))}
+                                        </View>
+                                    )}
                                     
-                                    {videos.length < 4 && (
+                                    {videos.length < 2 && (
                                         <Pressable 
                                             style={{
                                                 flexDirection: 'row',
@@ -2343,7 +2437,7 @@ export default function ExecuteOSScreen() {
                         </View>
 
                         <Text style={styles.impedimentLabel}>MOTIVO DO IMPEDIMENTO *</Text>
-                        <TextInput
+                        <VoiceTextInput
                             style={[styles.input, styles.textArea, { marginTop: 8, backgroundColor: '#fff' }]}
                             placeholder="Descreva o motivo que impossibilitou a conclusão do serviço..."
                             multiline
