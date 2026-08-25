@@ -1,6 +1,7 @@
 
 import { HeaderRightToggle } from '@/components/header-right-toggle';
 import { ImageViewerModal } from '@/components/image-viewer-modal';
+import { StandardVideoCard } from '@/components/standard-video-card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { STATUS_CONFIG } from '@/constants/mock-data';
@@ -550,16 +551,14 @@ export default function OrderDetailsScreen() {
                                     <Ionicons name="videocam-outline" size={16} color="#475569" />
                                     <Text style={styles.executionSectionLabel}>Vídeo do Atendimento</Text>
                                 </View>
-                                <Pressable
-                                    style={styles.videoPlayerButton}
+                                <StandardVideoCard
+                                    videoUrl={order.videoUrl}
+                                    title="Vídeo do Atendimento"
+                                    subTitle="Tocar para reproduzir"
+                                    height={160}
+                                    accentColor="blue"
                                     onPress={() => Linking.openURL(order.videoUrl!)}
-                                >
-                                    <View style={styles.videoIconContainer}>
-                                        <Ionicons name="play-circle" size={56} color="#fff" />
-                                    </View>
-                                    <Text style={styles.videoPlayerText}>Toque para reproduzir o vídeo</Text>
-                                    <Text style={styles.videoPlayerSubText}>Abrirá no player nativo do dispositivo</Text>
-                                </Pressable>
+                                />
                             </View>
                         )}
 

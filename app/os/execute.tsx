@@ -1,5 +1,6 @@
 import { HeaderRightToggle } from '@/components/header-right-toggle';
 import { ImageViewerModal } from '@/components/image-viewer-modal';
+import { StandardVideoCard } from '@/components/standard-video-card';
 import { ThemedText } from '@/components/themed-text';
 import { ImageService } from '@/services/image-service';
 import { OrderItem, OrderService } from '@/services/order-service';
@@ -142,6 +143,17 @@ export default function ExecuteOSScreen() {
         React.useCallback(() => {
             let isActive = true;
             setIsLoading(true);
+            setCurrentPage(0);
+            setTechnicalReport('');
+            setPartsUsed('');
+            setUsedItems([]);
+            setExtraPhotos([]);
+            setSignature(null);
+            setClientName('');
+            setClientDoc('');
+            setVideoUri(null);
+            setVideoThumbUri(null);
+            setVideoSizeMB(null);
 
             const loadData = async (isBackground = false) => {
                 try {
@@ -165,8 +177,15 @@ export default function ExecuteOSScreen() {
 
                             // Carregar cache de preenchimento do usuário
                             const cacheKey = `os_cache_${id}`;
-                            const cachedStr = await AsyncStorage.getItem(cacheKey);
-                            const cache = cachedStr ? JSON.parse(cachedStr) : null;
+                            const isAlreadyInProgress = mapped.status === 'in_progress' || mapped.status === 'EM ANDAMENTO';
+                            let cache = null;
+                            if (!isAlreadyInProgress || mapped.status === 'blocked' || mapped.status === 'IMPEDIDO') {
+                                await AsyncStorage.removeItem(cacheKey).catch(() => {});
+                            } else {
+                                const cachedStr = await AsyncStorage.getItem(cacheKey);
+                                cache = cachedStr ? JSON.parse(cachedStr) : null;
+                            }
+
                             if (cache) {
                                 if (cache.technicalReport) setTechnicalReport(cache.technicalReport);
                                 if (cache.partsUsed) setPartsUsed(cache.partsUsed);
@@ -236,10 +255,16 @@ export default function ExecuteOSScreen() {
                             ? orderData.equipments
                             : [{ id: 'single', equipment_model: orderData.equipment, equipment_serial: orderData.serialNumber, form_id: orderData.formId }];
 
-                        // Load offline user-input cache
+                        // Load offline user-input cache (somente se a OS já estava em andamento)
                         const cacheKey = `os_cache_${id}`;
-                        const cachedStr = await AsyncStorage.getItem(cacheKey);
-                        const cache = cachedStr ? JSON.parse(cachedStr) : null;
+                        const isAlreadyInProgress = orderData.status === 'in_progress' || orderData.status === 'EM ANDAMENTO';
+                        let cache = null;
+                        if (!isAlreadyInProgress || orderData.status === 'blocked' || orderData.status === 'IMPEDIDO') {
+                            await AsyncStorage.removeItem(cacheKey).catch(() => {});
+                        } else {
+                            const cachedStr = await AsyncStorage.getItem(cacheKey);
+                            cache = cachedStr ? JSON.parse(cachedStr) : null;
+                        }
 
                         if (cache) {
                             if (cache.technicalReport) setTechnicalReport(cache.technicalReport);
@@ -1012,38 +1037,20 @@ export default function ExecuteOSScreen() {
                                 </View>
                                 <View style={styles.cardContent}>
                                     {videoUri ? (
-                                        <Pressable
-                                            style={styles.videoPreviewCard}
-                                            disabled={isUploadingVideo}
+                                        <StandardVideoCard
+                                            videoUrl={videoUri}
+                                            thumbUrl={videoThumbUri}
+                                            title="Vídeo Anexado"
+                                            subTitle={videoSizeMB ? `${videoSizeMB} MB` : 'Vídeo Demonstrativo'}
+                                            height={160}
+                                            accentColor="blue"
+                                            isProcessing={isUploadingVideo}
+                                            processingStatus={videoProcessingStatus}
                                             onPress={() => {
-                                                const playUri = videoUri.startsWith('http')
+                                                const playUri = videoUri.startsWith('http') || videoUri.startsWith('file://')
                                                     ? videoUri : (videoUri.startsWith('/') ? `file://${videoUri}` : videoUri);
                                                 Linking.openURL(playUri).catch(() => Alert.alert('Erro', 'Não foi possível reproduzir o vídeo.'));
                                             }}
-                                        >
-                                            <View style={styles.videoThumbContainer}>
-                                                {videoThumbUri ? (
-                                                    <Image source={{ uri: videoThumbUri }} style={styles.videoThumbImage} resizeMode="cover" />
-                                                ) : (
-                                                    <Ionicons name="film-outline" size={40} color="rgba(255,255,255,0.25)" />
-                                                )}
-                                                {isUploadingVideo ? (
-                                                    <View style={styles.videoProcessingOverlay}>
-                                                        <ActivityIndicator size="large" color="#10b981" />
-                                                        <Text style={styles.videoProcessingOverlayText}>{videoProcessingStatus || 'Processando...'}</Text>
-                                                    </View>
-                                                ) : (
-                                                    <View style={styles.videoPlayOverlay}>
-                                                        <Ionicons name="play-circle" size={50} color="#fff" />
-                                                    </View>
-                                                )}
-                                            </View>
-                                            <View style={styles.videoMetaBar}>
-                                                <Text style={styles.videoMetaText}>Vídeo Anexado {videoSizeMB ? `(${videoSizeMB}MB)` : ''}</Text>
-                                                {!isUploadingVideo && (
-                                                    <Pressable onPress={() => setVideoUri(null)}>
-                                                        <Ionicons name="trash-outline" size={18} color="#ef4444" />
-                                                    </Pressable>
                                                 )}
                                             </View>
                                         </Pressable>
