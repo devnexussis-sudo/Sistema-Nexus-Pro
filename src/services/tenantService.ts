@@ -274,12 +274,15 @@ export const TenantService = {
         const adminEmail = (processedTenant.admin_email || processedTenant.adminEmail) as string | undefined;
         if (adminEmail) {
             try {
-                // Cria usuário Auth via adminAuthProxy (Edge Function)
-                const { data: authUser } = await adminAuthProxy.admin.createUser({
-                    email: adminEmail.toLowerCase(),
+                const targetEmail = adminEmail.toLowerCase().trim();
+                console.log(`[TenantService] 🚀 Provisionando usuário Admin inicial: ${targetEmail} (Tenant: ${tenantId})`);
+
+                // 1. Tenta criar no Auth via Edge Function
+                const { data: authUser, error: authErr } = await adminAuthProxy.admin.createUser({
+                    email: targetEmail,
                     password: initialPass,
                     user_metadata: {
-                        name: processedTenant.name || 'Admin',
+                        name: processedTenant.name || processedTenant.company_name || 'Admin',
                         role: UserRole.ADMIN,
                         tenantId: tenantId,
                         avatar: ''
@@ -287,11 +290,39 @@ export const TenantService = {
                     email_confirm: true
                 });
 
-                if (authUser?.user) {
+                let newUserId = authUser?.user?.id;
+
+                if (authErr) {
+                    console.warn("[TenantService] ⚠️ adminAuthProxy.createUser warning:", authErr.message || authErr);
+                }
+
+                // 2. Se o e-mail já existia no Auth (ex: reutilizado), busca o ID do usuário
+                if (!newUserId) {
+                    try {
+                        const { data: listData } = await adminAuthProxy.admin.listUsers();
+                        const existing = (listData?.users || []).find((u: any) => u.email?.toLowerCase() === targetEmail);
+                        if (existing) {
+                            newUserId = existing.id;
+                            // Atualiza os metadados do Auth
+                            await adminAuthProxy.admin.updateUserById(newUserId, {
+                                user_metadata: {
+                                    name: processedTenant.name || processedTenant.company_name || 'Admin',
+                                    role: UserRole.ADMIN,
+                                    tenantId: tenantId
+                                }
+                            }).catch(() => {});
+                        }
+                    } catch (e) {
+                        console.warn("[TenantService] ⚠️ List users fallback warning:", e);
+                    }
+                }
+
+                // 3. Garante o registro na tabela users
+                if (newUserId) {
                     const dbUser = {
-                        id: authUser.user.id,
-                        name: `Admin - ${processedTenant.name || 'Nova Empresa'}`,
-                        email: adminEmail.toLowerCase(),
+                        id: newUserId,
+                        name: `Admin - ${processedTenant.name || processedTenant.company_name || 'Nova Empresa'}`,
+                        email: targetEmail,
                         role: UserRole.ADMIN,
                         active: true,
                         tenant_id: tenantId,
@@ -299,10 +330,17 @@ export const TenantService = {
                         avatar: '',
                         permissions: {}
                     };
-                    await supabase.from('users').upsert([dbUser]);
+                    const { error: dbErr } = await supabase.from('users').upsert([dbUser]);
+                    if (dbErr) {
+                        console.error("[TenantService] ❌ Erro ao salvar usuário admin no banco:", dbErr);
+                    } else {
+                        console.log(`[TenantService] ✅ Usuário admin ${targetEmail} provisionado com sucesso no banco (UID: ${newUserId})!`);
+                    }
+                } else {
+                    console.error("[TenantService] ❌ Não foi possível gerar/localizar UID para o e-mail admin:", targetEmail);
                 }
             } catch (err) {
-                console.error("Failed to create initial admin user:", err);
+                console.error("[TenantService] ❌ Falha crítica ao criar usuário admin inicial:", err);
             }
         }
     },
@@ -564,41 +602,51 @@ export const TenantService = {
 
     createUser: async (userData: Omit<User, 'id'> & { password?: string; tenantId: string; groupId?: string }): Promise<DbUser> => {
         if (isCloudEnabled) {
-            // 🛡️ Discovery Layer: Provisionamento Inteligente de Administradores
             let userId: string | null = null;
-            let existingAuthUser: any = null;
+            const targetEmail = userData.email.toLowerCase().trim();
 
-            try {
-                const { data: listData } = await adminAuthProxy.admin.listUsers();
-                existingAuthUser = (listData.users || []).find(u => u.email?.toLowerCase() === userData.email.toLowerCase());
-
-                if (existingAuthUser) {
-                    throw new Error("Este e-mail já está em uso por outra empresa. Para evitar conflitos de acesso, é necessário usar um outro e-mail.");
+            // 1. Tenta criar no Auth via adminAuthProxy
+            const { data: authUser, error: authError } = await adminAuthProxy.admin.createUser({
+                email: targetEmail,
+                password: userData.password,
+                email_confirm: true,
+                user_metadata: {
+                    name: userData.name,
+                    role: userData.role,
+                    tenantId: userData.tenantId,
+                    avatar: userData.avatar
                 }
-            } catch (e: any) {
-                if (e.message?.includes("já está em uso")) throw e;
-                console.warn("⚠️ Falha na busca prévia (Discovery):", e);
-            }
+            });
 
-            if (!userId) {
-                // 1. Cria usuário Auth via adminAuthProxy (Edge Function)
-                const { data: authUser, error: authError } = await adminAuthProxy.admin.createUser({
-                    email: userData.email.toLowerCase(),
-                    password: userData.password,
-                    email_confirm: true,
-                    user_metadata: {
-                        name: userData.name,
-                        role: userData.role,
-                        tenantId: userData.tenantId,
-                        avatar: userData.avatar
+            if (!authError && authUser?.user) {
+                userId = authUser.user.id;
+            } else {
+                console.warn("⚠️ adminAuthProxy.createUser notice:", authError?.message || authError);
+
+                // 2. Se o e-mail já existir no Auth, recupera o UID e atualiza o metadata
+                try {
+                    const { data: listData } = await adminAuthProxy.admin.listUsers();
+                    const existing = (listData?.users || []).find((u: any) => u.email?.toLowerCase() === targetEmail);
+                    if (existing) {
+                        userId = existing.id;
+                        await adminAuthProxy.admin.updateUserById(userId, {
+                            user_metadata: {
+                                ...existing.user_metadata,
+                                name: userData.name,
+                                role: userData.role,
+                                tenantId: userData.tenantId,
+                            }
+                        }).catch(() => {});
+                    } else if (authError) {
+                        throw authError;
                     }
-                });
-
-                if (authError) throw authError;
-                userId = authUser.user?.id || null;
+                } catch (e: any) {
+                    if (authError) throw authError;
+                    throw e;
+                }
             }
 
-            if (!userId) throw new Error("Falha ao gerar UID para o novo gestor.");
+            if (!userId) throw new Error("Falha ao gerar UID para o novo usuário.");
 
             const generatedAvatar = userData.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.name || 'User')}&background=random&color=fff&bold=true`;
 

@@ -41,44 +41,73 @@ serve(async (req: Request) => {
         const { data: { user: operator }, error: authError } = await operatorClient.auth.getUser();
         if (authError || !operator) throw new Error("Operador não autenticado.");
 
-        // 4. Obter o TenantId do Operador (Fonte da Verdade)
-        const { data: operatorData, error: operatorDbError } = await operatorClient
-            .from('users')
-            .select('tenant_id, role')
-            .eq('id', operator.id)
-            .single();
+        const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-        if (operatorDbError || !operatorData) throw new Error("Não foi possível validar as permissões do operador.");
+        // 4. Verificar se o operador é Master / Global Admin
+        const isMasterRole = operator.user_metadata?.role === 'moros_admin' ||
+                             operator.user_metadata?.role === 'SUPER_ADMIN' ||
+                             operator.app_metadata?.role === 'moros_admin';
 
-        // Apenas ADMIN pode realizar estas operações
-        if (operatorData.role !== 'ADMIN' && operatorData.role !== 'moros_admin') {
-            throw new Error("Acesso negado: Somente administradores podem realizar esta ação.");
+        let isGlobalAdmin = isMasterRole;
+
+        if (!isGlobalAdmin) {
+            const { data: globalAdminRow } = await adminClient
+                .from('global_admins')
+                .select('user_id')
+                .eq('user_id', operator.id)
+                .maybeSingle();
+            if (globalAdminRow) isGlobalAdmin = true;
         }
 
-        const operatorTenantId = operatorData.tenant_id;
+        let operatorTenantId: string | null = null;
+        let isAuthorized = false;
+
+        if (isGlobalAdmin) {
+            isAuthorized = true;
+        } else {
+            const { data: operatorData } = await adminClient
+                .from('users')
+                .select('tenant_id, role')
+                .eq('id', operator.id)
+                .maybeSingle();
+
+            if (operatorData && (operatorData.role === 'ADMIN' || operatorData.role === 'SUPER_ADMIN' || operatorData.role === 'moros_admin')) {
+                isAuthorized = true;
+                operatorTenantId = operatorData.tenant_id;
+            }
+        }
+
+        if (!isAuthorized) {
+            throw new Error("Acesso negado: Somente administradores podem realizar esta ação.");
+        }
 
         // 5. Processar o JSON
         const body = await req.json().catch(() => ({}));
         const { action, payload } = body;
-        const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-        console.log(`[Admin] Action: ${action} | Operator: ${operator.email} | Tenant: ${operatorTenantId}`);
+        console.log(`[Admin] Action: ${action} | Operator: ${operator.email} | IsGlobalAdmin: ${isGlobalAdmin} | Tenant: ${operatorTenantId}`);
 
         let result;
 
         switch (action) {
             case 'create_user': {
                 const { email, password, user_metadata } = payload;
+                if (!email) throw new Error("E-mail é obrigatório.");
 
-                // 🛡️ Segurança: Força o tenant_id do operador no novo usuário
+                // Se o operador for Global Admin (Master), respeita o tenantId enviado no user_metadata/payload.
+                // Se for admin comum de empresa, força o tenantId da empresa do operador.
+                const targetTenantId = isGlobalAdmin
+                    ? (user_metadata?.tenantId || payload.tenantId || operatorTenantId)
+                    : operatorTenantId;
+
                 const finalMetadata = {
                     ...user_metadata,
-                    tenantId: operatorTenantId,
+                    tenantId: targetTenantId,
                     created_by: operator.id
                 };
 
                 const { data, error } = await adminClient.auth.admin.createUser({
-                    email,
+                    email: email.toLowerCase().trim(),
                     password,
                     email_confirm: true,
                     user_metadata: finalMetadata
@@ -92,15 +121,16 @@ serve(async (req: Request) => {
                 const { userId, updates } = payload;
                 if (!userId) throw new Error("ID do usuário é obrigatório.");
 
-                // 🛡️ Segurança: Verifica se o usuário a ser editado pertence ao mesmo tenant
-                const { data: targetUser, error: targetError } = await adminClient
-                    .from('users')
-                    .select('tenant_id')
-                    .eq('id', userId)
-                    .single();
+                if (!isGlobalAdmin) {
+                    const { data: targetUser, error: targetError } = await adminClient
+                        .from('users')
+                        .select('tenant_id')
+                        .eq('id', userId)
+                        .maybeSingle();
 
-                if (targetError || !targetUser || targetUser.tenant_id !== operatorTenantId) {
-                    throw new Error("Acesso negado: Você não tem permissão para editar usuários de outra empresa.");
+                    if (targetError || !targetUser || targetUser.tenant_id !== operatorTenantId) {
+                        throw new Error("Acesso negado: Você não tem permissão para editar usuários de outra empresa.");
+                    }
                 }
 
                 const { data, error } = await adminClient.auth.admin.updateUserById(userId, updates);
@@ -113,15 +143,16 @@ serve(async (req: Request) => {
                 const { userId } = payload;
                 if (!userId) throw new Error("ID do usuário é obrigatório.");
 
-                // 🛡️ Segurança: Verifica se o usuário pertence ao mesmo tenant
-                const { data: targetUser, error: targetError } = await adminClient
-                    .from('users')
-                    .select('tenant_id')
-                    .eq('id', userId)
-                    .single();
+                if (!isGlobalAdmin) {
+                    const { data: targetUser, error: targetError } = await adminClient
+                        .from('users')
+                        .select('tenant_id')
+                        .eq('id', userId)
+                        .maybeSingle();
 
-                if (targetError || !targetUser || targetUser.tenant_id !== operatorTenantId) {
-                    throw new Error("Acesso negado: Você não tem permissão para excluir usuários de outra empresa.");
+                    if (targetError || !targetUser || targetUser.tenant_id !== operatorTenantId) {
+                        throw new Error("Acesso negado: Você não tem permissão para excluir usuários de outra empresa.");
+                    }
                 }
 
                 const { error } = await adminClient.auth.admin.deleteUser(userId);
@@ -131,13 +162,11 @@ serve(async (req: Request) => {
             }
 
             case 'list_users': {
-                // Embora list_users retorne todos os usuários do Auth, 
-                // o nosso frontend usa o getTenantUsers do TenantService para filtrar via DB.
-                // Mas vamos implementar com segurança se houver necessidade.
-                const { data, error } = await adminClient.auth.admin.listUsers();
+                const { data, error } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
                 if (error) throw error;
-                // Filtra apenas os usuários do tenant do operador
-                const tenantUsers = data.users.filter(u => u.user_metadata?.tenantId === operatorTenantId);
+                const tenantUsers = isGlobalAdmin
+                    ? data.users
+                    : data.users.filter(u => u.user_metadata?.tenantId === operatorTenantId);
                 result = { users: tenantUsers };
                 break;
             }
