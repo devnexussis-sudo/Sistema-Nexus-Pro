@@ -96,11 +96,17 @@ export const IntegrationsPage: React.FC = () => {
   };
 
   const handleSaveManualCredentials = async () => {
-    const token = customAccessToken.trim();
+    const token = customAccessToken.trim().replace(/^["']|["']$/g, '');
     if (!token) return;
 
     setSavingManual(true);
     try {
+      if (!token.startsWith('APP_USR-') && !token.startsWith('TEST-')) {
+        alert('❌ Formato de Access Token inválido!\n\nO Access Token do Mercado Pago deve começar com "APP_USR-" (Produção) ou "TEST-" (Sandbox).\n\nCertifique-se de copiar o Access Token em:\nmercadopago.com.br/settings/account/credentials → Credenciais de produção');
+        setSavingManual(false);
+        return;
+      }
+
       // ── ETAPA 1: Validar o token NA API REAL do Mercado Pago via Edge Function ──────────────
       // Isso evita o erro de CORS do navegador, pois o servidor que faz a requisição.
       let accountEmail = 'Credencial Vinculada';
@@ -114,7 +120,7 @@ export const IntegrationsPage: React.FC = () => {
       if (verifyError || !verifyData || !verifyData.valid) {
         // Token inválido — não salva nada
         const errMsg = verifyData?.error || verifyError?.message || 'Token rejeitado pelo servidor.';
-        alert(`❌ Access Token inválido!\n\nO Mercado Pago rejeitou este token: "${errMsg}"\n\nVerifique se copiou o token correto em:\nmercadopago.com.br/settings/account/credentials → Credenciais de produção`);
+        alert(`❌ Access Token inválido ou não autorizado!\n\nO Mercado Pago rejeitou este token: "${errMsg}"\n\nVerifique se você copiou o Access Token de Produção em:\nmercadopago.com.br/settings/account/credentials → Credenciais de produção`);
         return;
       }
 

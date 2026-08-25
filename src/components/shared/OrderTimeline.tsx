@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { OrderTimelineEvent } from '../../types';
 import { OrderService } from '../../services/orderService';
 import { Clock, Play, Pause, CheckCircle2, AlertCircle, Edit3, CalendarCheck, MessageSquare, UserCheck, CalendarDays, FileText } from 'lucide-react';
+import { safeFormatDate, safeFormatDateTime } from '../../utils/dateUtils';
 
 interface OrderTimelineProps {
     orderId: string;
@@ -76,9 +77,7 @@ export const OrderTimeline: React.FC<OrderTimelineProps> = ({ orderId }) => {
 
     const formatEventDate = (dateStr: string) => {
         if (!dateStr || dateStr.trim() === '' || dateStr === 'null') return '--/--/----';
-        const parts = dateStr.split('-');
-        if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
-        return dateStr;
+        return safeFormatDate(dateStr);
     };
 
     const getStatusStyle = (status: string) => {
@@ -117,7 +116,7 @@ export const OrderTimeline: React.FC<OrderTimelineProps> = ({ orderId }) => {
                                     </p>
                                 </div>
                                 <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-md">
-                                    {new Date(event.eventDate).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                                    {safeFormatDateTime(event.eventDate)}
                                 </span>
                             </div>
 

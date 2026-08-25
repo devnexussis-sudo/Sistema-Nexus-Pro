@@ -669,9 +669,21 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         const mpMethod = finalMethod === 'Pix' ? 'pix' : (finalMethod === 'Boleto' ? 'boleto' : 'card_link');
                         const fullCust = customers.find(c => c.id === item.original?.customerId || c.id === item.original?.customer_id);
                         const customerDoc = (item as any).customerDocument || fullCust?.document || (fullCust as any)?.cpf || (fullCust as any)?.cnpj || item.original?.customer_document || item.original?.customerDocument;
+                        const customerZip = fullCust?.zip || (fullCust as any)?.cep || undefined;
+                        const customerStreet = fullCust?.address || (fullCust as any)?.street || undefined;
+                        const customerNumber = fullCust?.number || undefined;
+                        const customerNeighborhood = fullCust?.neighborhood || undefined;
+                        const customerCity = fullCust?.city || undefined;
+                        const customerState = fullCust?.state || undefined;
 
                         if (mpMethod === 'boleto' && !customerDoc) {
                             showAlert('Para gerar o Boleto diretamente, o cliente precisa ter um CPF/CNPJ cadastrado. Atualize o cadastro do cliente e tente novamente.', 'error');
+                            setIsProcessing(false);
+                            return;
+                        }
+
+                        if (mpMethod === 'boleto' && (!customerZip || !customerStreet || !customerCity || !customerState)) {
+                            showAlert('Para gerar o Boleto registrado, o cliente precisa ter um endereço completo (CEP, Rua, Cidade, Estado) cadastrado. Atualize o cadastro do cliente e tente novamente.', 'error');
                             setIsProcessing(false);
                             return;
                         }
@@ -688,6 +700,12 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             amount: itemAmount,
                             customerName: item.customerName,
                             customerDocument: customerDoc,
+                            customerZip: customerZip,
+                            customerStreet: customerStreet,
+                            customerNumber: customerNumber,
+                            customerNeighborhood: customerNeighborhood,
+                            customerCity: customerCity,
+                            customerState: customerState,
                             paymentMethodType: mpMethod,
                             installments: mpMethod === 'card_link' ? installments : undefined,
                             expiresAt: (mpMethod === 'boleto' && boletoDueDate) ? boletoDueDate : undefined,
@@ -713,11 +731,14 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
                         setMpModalItem({
                             ...item,
+                            customerDocument: customerDoc,
+                            customerEmail: (item as any).customerEmail || fullCust?.email || item.original?.customer_email || item.original?.customerEmail,
                             value: itemAmount,
                             original: updatedOrder,
                             gatewayPaymentId: res.paymentId,
                             gatewayPixCode: res.pixCopiaECola,
-                            gatewayTicketUrl: res.ticketUrl
+                            gatewayTicketUrl: res.ticketUrl,
+                            gatewayPaymentMethod: mpMethod
                         });
                         
                         if (selectedItem && selectedItem.id === item.id) {
@@ -728,7 +749,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                     discount: effectiveDiscount,
                                     discountType: effectiveDiscountType,
                                     gateway_payment_id: res.paymentId,
-                                    gateway_pix_code: res.pixCopiaECola,
+                                    gateway_pix_code: res.pixCopiaECola || (mpMethod === 'pix' ? res.ticketUrl : undefined),
                                     gateway_ticket_url: res.ticketUrl
                                 }
                             }) : null);
@@ -771,9 +792,21 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         const mpMethod = finalMethod === 'Pix' ? 'pix' : (finalMethod === 'Boleto' ? 'boleto' : 'card_link');
                         const fullCust = customers.find(c => c.id === item.original?.customerId || c.id === item.original?.customer_id);
                         const customerDoc = (item as any).customerDocument || fullCust?.document || (fullCust as any)?.cpf || (fullCust as any)?.cnpj || item.original?.customer_document || item.original?.customerDocument;
+                        const customerZip = fullCust?.zip || (fullCust as any)?.cep || undefined;
+                        const customerStreet = fullCust?.address || (fullCust as any)?.street || undefined;
+                        const customerNumber = fullCust?.number || undefined;
+                        const customerNeighborhood = fullCust?.neighborhood || undefined;
+                        const customerCity = fullCust?.city || undefined;
+                        const customerState = fullCust?.state || undefined;
 
                         if (mpMethod === 'boleto' && !customerDoc) {
                             showAlert('Para gerar o Boleto diretamente, o cliente precisa ter um CPF/CNPJ cadastrado. Atualize o cadastro do cliente e tente novamente.', 'error');
+                            setIsProcessing(false);
+                            return;
+                        }
+
+                        if (mpMethod === 'boleto' && (!customerZip || !customerStreet || !customerCity || !customerState)) {
+                            showAlert('Para gerar o Boleto registrado, o cliente precisa ter um endereço completo (CEP, Rua, Cidade, Estado) cadastrado. Atualize o cadastro do cliente e tente novamente.', 'error');
                             setIsProcessing(false);
                             return;
                         }
@@ -790,6 +823,12 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             amount: itemAmount,
                             customerName: item.customerName,
                             customerDocument: customerDoc,
+                            customerZip: customerZip,
+                            customerStreet: customerStreet,
+                            customerNumber: customerNumber,
+                            customerNeighborhood: customerNeighborhood,
+                            customerCity: customerCity,
+                            customerState: customerState,
                             paymentMethodType: mpMethod,
                             installments: mpMethod === 'card_link' ? installments : undefined,
                             expiresAt: (mpMethod === 'boleto' && boletoDueDate) ? boletoDueDate : undefined,
@@ -815,11 +854,14 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
                         setMpModalItem({
                             ...item,
+                            customerDocument: customerDoc,
+                            customerEmail: (item as any).customerEmail || fullCust?.email || item.original?.customer_email || item.original?.customerEmail,
                             value: itemAmount,
                             original: updatedQuote,
                             gatewayPaymentId: res.paymentId,
                             gatewayPixCode: res.pixCopiaECola,
-                            gatewayTicketUrl: res.ticketUrl
+                            gatewayTicketUrl: res.ticketUrl,
+                            gatewayPaymentMethod: mpMethod
                         });
                         
                         if (selectedItem && selectedItem.id === item.id) {
@@ -830,7 +872,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                     discount: effectiveDiscount,
                                     discountType: effectiveDiscountType,
                                     gateway_payment_id: res.paymentId,
-                                    gateway_pix_code: res.pixCopiaECola,
+                                    gateway_pix_code: res.pixCopiaECola || (mpMethod === 'pix' ? res.ticketUrl : undefined),
                                     gateway_ticket_url: res.ticketUrl
                                 }
                             }) : null);
@@ -893,7 +935,12 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 await onRefresh();
             }
         } catch (error: any) {
-            showAlert(`Erro ao processar faturamento: ${error.message}`, 'error');
+            const rawMsg = String(error.message || error);
+            if (!rawMsg.includes('Detalhe da API') && (rawMsg.includes('UNAUTHORIZED') || rawMsg.includes('unauthorized') || rawMsg.includes('não autorizadas'))) {
+                showAlert('❌ Mercado Pago não autorizado!\n\nSuas credenciais expiraram ou o Access Token é inválido.\n\nAcesse Configurações > Integrações > Gateway de Pagamento, desconecte e reconecte informando o seu Access Token de Produção (APP_USR-...).', 'error');
+            } else {
+                showAlert(`Erro ao processar faturamento: ${rawMsg}`, 'error');
+            }
         } finally {
             setIsProcessing(false);
         }
@@ -1918,6 +1965,9 @@ ${container.innerHTML}
                                                     <button
                                                         type="button"
                                                         onClick={() => {
+                                                            const fullCust = customers.find(c => c.id === selectedItem.original?.customerId || c.id === selectedItem.original?.customer_id);
+                                                            const customerDoc = (selectedItem as any).customerDocument || fullCust?.document || (fullCust as any)?.cpf || (fullCust as any)?.cnpj || selectedItem.original?.customer_document || selectedItem.original?.customerDocument;
+                                                            const customerEmail = selectedItem.original?.customerEmail || (selectedItem.original as any)?.customer_email || fullCust?.email;
                                                             setMpModalItem({
                                                                 type: selectedItem.type,
                                                                 id: selectedItem.id,
@@ -1925,6 +1975,8 @@ ${container.innerHTML}
                                                                 title: selectedItem.title,
                                                                 value: selectedItem.value,
                                                                 customerName: selectedItem.customerName,
+                                                                customerDocument: customerDoc,
+                                                                customerEmail: customerEmail,
                                                                 gatewayPixCode: (selectedItem.original as any)?.gateway_pix_code || (selectedItem.original as any)?.gatewayPixCode,
                                                                 gatewayTicketUrl: (selectedItem.original as any)?.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl,
                                                                 gatewayStatus: (selectedItem.original as any)?.gateway_status || (selectedItem.original as any)?.gatewayStatus,
@@ -1941,10 +1993,13 @@ ${container.innerHTML}
                                                     <button
                                                         type="button"
                                                         onClick={() => {
+                                                            const companyName = tenant?.name || 'NEXUS';
                                                             const text = encodeURIComponent(
-                                                                `Olá ${selectedItem.customerName}! Segue o link de pagamento da ${selectedItem.type === 'ORDER' ? 'O.S.' : 'Orçamento'} #${getDocLabel(selectedItem)} no valor de R$ ${getItemNetValue(selectedItem).toFixed(2)}:\n\n` +
+                                                                `🏢 *${companyName}*\n\n` +
+                                                                `Olá, ${selectedItem.customerName}! Tudo bem?\n\n` +
+                                                                `Segue a cobrança da ${selectedItem.type === 'ORDER' ? 'O.S.' : 'Orçamento'} #${getDocLabel(selectedItem)} no valor de *R$ ${getItemNetValue(selectedItem).toFixed(2)}*:\n\n` +
                                                                 ((selectedItem.original?.gateway_pix_code || (selectedItem.original as any)?.gatewayPixCode) ? `*Pix Copia e Cola:*\n${selectedItem.original.gateway_pix_code || (selectedItem.original as any)?.gatewayPixCode}\n\n` : '') +
-                                                                ((selectedItem.original?.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl) ? `Link de Pagamento: ${selectedItem.original.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl}` : '')
+                                                                ((selectedItem.original?.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl) ? `*Link de Pagamento:*\n${selectedItem.original.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl}` : '')
                                                             );
                                                             window.open(`https://wa.me/?text=${text}`, '_blank');
                                                         }}

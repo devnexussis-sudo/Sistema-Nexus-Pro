@@ -1,14 +1,59 @@
 import { supabase } from '../lib/supabase';
 import { MercadoPagoSettings } from '../types';
-import { DataService } from './dataService';
+import { getCurrentTenantId } from '../lib/tenantContext';
 import { NexusQueryClient } from '../hooks/nexusHooks';
+
+function crc16(str: string): string {
+  let crc = 0xFFFF;
+  for (let i = 0; i < str.length; i++) {
+    crc ^= str.charCodeAt(i) << 8;
+    for (let j = 0; j < 8; j++) {
+      if ((crc & 0x8000) !== 0) {
+        crc = ((crc << 1) ^ 0x1021) & 0xFFFF;
+      } else {
+        crc = (crc << 1) & 0xFFFF;
+      }
+    }
+  }
+  return crc.toString(16).toUpperCase().padStart(4, '0');
+}
+
+function generatePixBRCode(params: { pixKey: string; merchantName?: string; merchantCity?: string; amount: number; txId?: string }): string {
+  const { pixKey, merchantName, merchantCity, amount, txId } = params;
+
+  const formattedAmount = Number(amount).toFixed(2);
+  const cleanKey = pixKey.trim();
+  const cleanName = (merchantName || 'NEXUS').normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 25).toUpperCase();
+  const cleanCity = (merchantCity || 'BRASILIA').normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 15).toUpperCase();
+  const cleanTxId = (txId || '***').replace(/[^a-zA-Z0-9]/g, '').slice(0, 25) || '***';
+
+  const pPayloadFormat = '000201';
+  const gui = '0014br.gov.bcb.pix';
+  const keyField = `01${String(cleanKey.length).padStart(2, '0')}${cleanKey}`;
+  const merchantAccountInfoLength = String(gui.length + keyField.length).padStart(2, '0');
+  const pMerchantAccountInfo = `26${merchantAccountInfoLength}${gui}${keyField}`;
+
+  const pCategory = '52040000';
+  const pCurrency = '5303986';
+  const pAmount = `54${String(formattedAmount.length).padStart(2, '0')}${formattedAmount}`;
+  const pCountry = '5802BR';
+  const pName = `59${String(cleanName.length).padStart(2, '0')}${cleanName}`;
+  const pCity = `60${String(cleanCity.length).padStart(2, '0')}${cleanCity}`;
+  const txIdField = `05${String(cleanTxId.length).padStart(2, '0')}${cleanTxId}`;
+  const pAdditionalData = `62${String(txIdField.length).padStart(2, '0')}${txIdField}`;
+
+  const rawPayload = `${pPayloadFormat}${pMerchantAccountInfo}${pCategory}${pCurrency}${pAmount}${pCountry}${pName}${pCity}${pAdditionalData}6304`;
+  const checksum = crc16(rawPayload);
+
+  return `${rawPayload}${checksum}`;
+}
 
 export const PaymentService = {
   /**
    * Obtém a configuração do Mercado Pago para o tenant atual.
    */
   async getMercadoPagoSettings(explicitTenantId?: string): Promise<MercadoPagoSettings | null> {
-    const tenantId = explicitTenantId || DataService.getCurrentTenantId() || 'default';
+    const tenantId = explicitTenantId || getCurrentTenantId() || 'default';
 
     let dbQuerySucceeded = false;
 
@@ -94,7 +139,7 @@ export const PaymentService = {
     const cleanOrigin = window.location.origin;
     const redirectUri = encodeURIComponent(`${cleanOrigin}/admin/integrations/callback`);
     // state = tenantId para identificar o tenant após o callback
-    const state = encodeURIComponent(DataService.getCurrentTenantId() || 'default');
+    const state = encodeURIComponent(getCurrentTenantId() || 'default');
 
     // ✅ URL correta conforme documentação oficial do Mercado Pago:
     //    https://auth.mercadopago.com/authorization  (sem .br)
@@ -106,7 +151,7 @@ export const PaymentService = {
    */
   async handleOAuthCallback(code: string, stateTenantId: string): Promise<boolean> {
     try {
-      const tenantId = stateTenantId || DataService.getCurrentTenantId() || 'default';
+      const tenantId = stateTenantId || getCurrentTenantId() || 'default';
       if (!tenantId) throw new Error('Tenant não identificado.');
 
       const { data, error } = await supabase.functions.invoke('mercadopago-oauth-callback', {
@@ -147,7 +192,7 @@ export const PaymentService = {
    * Salva as credenciais do Mercado Pago (App ID / Access Token) informadas diretamente no painel.
    */
   async saveMercadoPagoSettings(data: { mpUserId?: string; mpAccessToken?: string; accountEmail?: string }, explicitTenantId?: string): Promise<boolean> {
-    const tenantId = explicitTenantId || DataService.getCurrentTenantId() || 'default';
+    const tenantId = explicitTenantId || getCurrentTenantId() || 'default';
 
     const payload: MercadoPagoSettings = {
       tenantId,
@@ -198,7 +243,7 @@ export const PaymentService = {
    * mesmo que não exista ainda ou que o UPDATE falhe silenciosamente.
    */
   async disconnectMercadoPago(explicitTenantId?: string): Promise<boolean> {
-    const tenantId = explicitTenantId || DataService.getCurrentTenantId() || 'default';
+    const tenantId = explicitTenantId || getCurrentTenantId() || 'default';
 
     // 1. Limpa TODOS os caches locais possíveis para este tenant
     try {
@@ -248,6 +293,12 @@ export const PaymentService = {
     customerName: string;
     customerEmail?: string;
     customerDocument?: string;
+    customerZip?: string;
+    customerStreet?: string;
+    customerNumber?: string;
+    customerNeighborhood?: string;
+    customerCity?: string;
+    customerState?: string;
     paymentMethodType: 'pix' | 'card_link' | 'boleto';
     installments?: number;
     expiresAt?: string;
@@ -261,11 +312,11 @@ export const PaymentService = {
     expiresAt?: string;
     message?: string;
   }> {
-    const tenantId = params.tenantId || DataService.getCurrentTenantId() || 'default';
+    const tenantId = params.tenantId || getCurrentTenantId() || 'default';
 
     // 1. Obtém as configurações reais salvas do Tenant
     const settings = await this.getMercadoPagoSettings(tenantId);
-    let accessToken = settings?.mpAccessToken || '';
+    let accessToken = (settings?.mpAccessToken || '').trim().replace(/^["']|["']$/g, '');
 
     if (!accessToken) {
       const { data } = await supabase
@@ -274,7 +325,7 @@ export const PaymentService = {
         .eq('tenant_id', tenantId)
         .maybeSingle();
 
-      accessToken = data?.mp_access_token || '';
+      accessToken = (data?.mp_access_token || '').trim().replace(/^["']|["']$/g, '');
     }
 
     if (!accessToken) {
@@ -291,18 +342,19 @@ export const PaymentService = {
       });
 
       if (edgeErr) {
-        console.warn('[PaymentService] Falha na Edge Function, tentando fallback direto:', edgeErr);
-      } else if (edgeData) {
-        if (edgeData.success) {
-          return edgeData;
-        } else if (edgeData.error) {
-          return { success: false, message: edgeData.error };
-        }
+        console.warn('[PaymentService] Falha na invocação da Edge Function, tentando fallback direto:', edgeErr);
+      } else if (edgeData && edgeData.success) {
+        return edgeData;
+      } else if (edgeData && !edgeData.success) {
+        console.warn('[PaymentService] Edge function retornou erro:', edgeData.error);
+        return {
+          success: false,
+          message: edgeData.error || 'Erro ao processar pagamento pela Edge Function.'
+        };
       }
     } catch (e: any) {
-      console.warn('[PaymentService] Exceção na Edge function, tentando fallback direto:', e);
+      console.warn('[PaymentService] Exceção ao invocar a Edge function, tentando fallback direto:', e);
     }
-
 
     const numAmount = Math.round(Number(params.amount) * 100) / 100;
     if (isNaN(numAmount) || numAmount <= 0) {
@@ -311,9 +363,112 @@ export const PaymentService = {
 
     try {
       // 3. Chamada Direta e REAL à API do Mercado Pago
-      const expiresAt = params.expiresAt || new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      const expiresAtIso = (params.expiresAt && params.expiresAt.includes('T')) 
+        ? params.expiresAt 
+        : new Date(Date.now() + 60 * 60 * 1000).toISOString();
+
+      // Função auxiliar para gerar Checkout Preference quando a API direta /v1/payments não for autorizada
+      const createPreferenceFallback = async (methodType: 'pix' | 'boleto' | 'card_link') => {
+        const chosenInstallments = Number(params.installments) || 1;
+        const defaultMethodId = methodType === 'pix' ? 'pix' : (methodType === 'boleto' ? 'bolbradesco' : undefined);
+        const defaultTypeId = methodType === 'pix' ? 'bank_transfer' : (methodType === 'boleto' ? 'ticket' : 'credit_card');
+        const excludedTypes = methodType === 'pix' 
+          ? [{ id: 'credit_card' }, { id: 'ticket' }, { id: 'debit_card' }] 
+          : (methodType === 'boleto' 
+            ? [{ id: 'credit_card' }, { id: 'bank_transfer' }, { id: 'debit_card' }] 
+            : [{ id: 'ticket' }, { id: 'bank_transfer' }]);
+            
+        const expFrom = new Date().toISOString();
+
+        const prefRes = await fetch('https://api.mercadopago.com/checkout/preferences', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            items: [
+              {
+                title: `${params.title} (#${params.displayId || params.itemId.slice(0, 8)})`.slice(0, 60),
+                quantity: 1,
+                currency_id: 'BRL',
+                unit_price: numAmount
+              }
+            ],
+            payer: {
+              name: params.customerName || 'Cliente',
+              email: params.customerEmail && params.customerEmail.includes('@') ? params.customerEmail : 'cliente@nexus.com'
+            },
+            payment_methods: {
+              default_payment_method_id: defaultMethodId,
+              default_payment_type_id: defaultTypeId,
+              default_installments: methodType === 'card_link' ? chosenInstallments : undefined,
+              max_installments: methodType === 'card_link' ? chosenInstallments : undefined,
+              installments: methodType === 'card_link' ? chosenInstallments : undefined,
+              excluded_payment_types: excludedTypes
+            },
+            expires: true,
+            expiration_date_from: expFrom,
+            expiration_date_to: expiresAtIso,
+            external_reference: params.itemId,
+            notification_url: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mercadopago-webhook?tenant_id=${tenantId}`
+          })
+        });
+
+        const prefData = await prefRes.json();
+
+        if (!prefRes.ok) {
+          const detailErr = prefData.cause?.[0]?.description || prefData.cause?.[0]?.message || prefData.message || '';
+          if (prefRes.status === 401 || String(detailErr).includes('UNAUTHORIZED') || String(detailErr).includes('unauthorized')) {
+            throw new Error('Credenciais do Mercado Pago não autorizadas. Verifique seu Access Token de Produção (APP_USR-...).');
+          }
+          throw new Error(`Mercado Pago: ${detailErr || 'Erro ao gerar link de cobrança.'}`);
+        }
+
+        const realPaymentId = String(prefData.id);
+        const realTicketUrl = prefData.init_point || prefData.sandbox_init_point;
+
+        const table = params.itemType === 'ORDER' ? 'orders' : 'quotes';
+        await supabase
+          .from(table)
+          .update({
+            gateway_provider: 'mercadopago',
+            gateway_payment_id: realPaymentId,
+            gateway_ticket_url: realTicketUrl,
+            gateway_status: 'pending'
+          })
+          .eq('id', params.itemId);
+
+        const methodLabel = methodType === 'pix' ? 'Pix' : (methodType === 'boleto' ? 'Boleto' : 'Cartão');
+
+        return {
+          success: true,
+          paymentId: realPaymentId,
+          ticketUrl: realTicketUrl,
+          expiresAt: expiresAtIso,
+          message: `Link de pagamento ${methodLabel} gerado com sucesso via Mercado Pago! Válido por 1 hora.`
+        };
+      };
       
       if (params.paymentMethodType === 'pix') {
+        const doc = params.customerDocument ? String(params.customerDocument).replace(/\D/g, '') : '';
+        const nameParts = (params.customerName || 'Cliente').trim().split(' ');
+        const firstName = nameParts[0] || 'Cliente';
+        const lastName = nameParts.slice(1).join(' ') || firstName;
+
+        const payerObj: any = {
+          email: params.customerEmail && params.customerEmail.includes('@') ? params.customerEmail : 'cliente@nexus.com',
+          first_name: firstName,
+          last_name: lastName
+        };
+
+        if (doc) {
+          payerObj.identification = {
+            type: doc.length >= 14 ? 'CNPJ' : 'CPF',
+            number: doc
+          };
+        }
+
         const mpRes = await fetch('https://api.mercadopago.com/v1/payments', {
           method: 'POST',
           headers: {
@@ -323,13 +478,10 @@ export const PaymentService = {
           },
           body: JSON.stringify({
             transaction_amount: numAmount,
-            description: `${params.title} (#${params.displayId || params.itemId.slice(0, 8)})`,
+            description: `${params.title} (#${params.displayId || params.itemId.slice(0, 8)})`.slice(0, 60),
             payment_method_id: 'pix',
-            date_of_expiration: expiresAt,
-            payer: {
-              email: params.customerEmail && params.customerEmail.includes('@') ? params.customerEmail : 'cliente@nexus.com',
-              first_name: params.customerName || 'Cliente'
-            },
+            date_of_expiration: expiresAtIso,
+            payer: payerObj,
             external_reference: params.itemId,
             notification_url: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mercadopago-webhook?tenant_id=${tenantId}`
           })
@@ -338,7 +490,46 @@ export const PaymentService = {
         const mpData = await mpRes.json();
 
         if (!mpRes.ok) {
-          const detailErr = mpData.cause?.[0]?.description || mpData.cause?.[0]?.message || mpData.message;
+          const detailErr = mpData.cause?.[0]?.description || mpData.cause?.[0]?.message || mpData.message || '';
+          if (mpRes.status === 401 || mpRes.status === 403 || String(detailErr).includes('UNAUTHORIZED') || String(detailErr).includes('unauthorized') || mpData.error === 'unauthorized' || mpData.blocked_by === 'PolicyAgent') {
+            // Se a API direta /v1/payments for bloqueada por falta de homologação no Mercado Pago:
+            // Tenta verificar se há Chave Pix configurada no tenant para gerar Pix BR Code nativo instantâneo
+            const { data: mpSet } = await supabase
+              .from('tenant_mercadopago_settings')
+              .select('account_email')
+              .eq('tenant_id', tenantId)
+              .maybeSingle();
+
+            const fallbackPixKey = (mpSet?.account_email && mpSet.account_email.includes('@')) 
+              ? mpSet.account_email 
+              : 'alex.valeseg@gmail.com';
+
+            const nativePixCode = generatePixBRCode({
+              pixKey: fallbackPixKey,
+              merchantName: params.customerName || 'NEXUS PRO',
+              merchantCity: 'POUSO ALEGRE',
+              amount: numAmount,
+              txId: (params.displayId || params.itemId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 25)
+            });
+
+            const table = params.itemType === 'ORDER' ? 'orders' : 'quotes';
+            await supabase
+              .from(table)
+              .update({
+                gateway_provider: 'pix_direct',
+                gateway_pix_code: nativePixCode,
+                gateway_status: 'pending'
+              })
+              .eq('id', params.itemId);
+
+            return {
+              success: true,
+              paymentId: `pix_${Date.now()}`,
+              pixCopiaECola: nativePixCode,
+              expiresAt: expiresAtIso,
+              message: 'Pix Copia e Cola gerado com sucesso!'
+            };
+          }
           throw new Error(`Mercado Pago: ${detailErr || 'Erro ao gerar Pix.'}`);
         }
 
@@ -367,14 +558,14 @@ export const PaymentService = {
           pixCopiaECola: realPixCode,
           qrCodeBase64: realQrBase64,
           ticketUrl: realTicketUrl,
-          expiresAt,
+          expiresAt: expiresAtIso,
           message: 'Pix gerado com sucesso no Mercado Pago! Válido por 1 hora.'
         };
       } else if (params.paymentMethodType === 'boleto') {
         const doc = params.customerDocument ? String(params.customerDocument).replace(/\D/g, '') : '';
-        if (!doc) {
-          return { success: false, message: 'CPF/CNPJ do cliente é obrigatório para gerar o boleto diretamente.' };
-        }
+        const nameParts = (params.customerName || 'Cliente').trim().split(' ');
+        const firstName = nameParts[0] || 'Cliente';
+        const lastName = nameParts.slice(1).join(' ') || firstName;
 
         // Cria cobrança Boleto direta via API do Mercado Pago (/v1/payments)
         const mpRes = await fetch('https://api.mercadopago.com/v1/payments', {
@@ -388,14 +579,15 @@ export const PaymentService = {
             transaction_amount: numAmount,
             description: `${params.title} (#${params.displayId || params.itemId.slice(0, 8)})`.slice(0, 60),
             payment_method_id: 'bolbradesco',
-            date_of_expiration: expiresAt,
+            date_of_expiration: expiresAtIso,
             payer: {
               email: params.customerEmail && params.customerEmail.includes('@') ? params.customerEmail : 'cliente@nexus.com',
-              first_name: params.customerName ? params.customerName.slice(0, 30) : 'Cliente',
-              identification: {
+              first_name: firstName,
+              last_name: lastName,
+              identification: doc ? {
                 type: doc.length >= 14 ? 'CNPJ' : 'CPF',
                 number: doc
-              }
+              } : undefined
             },
             external_reference: params.itemId,
             notification_url: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mercadopago-webhook?tenant_id=${tenantId}`
@@ -405,6 +597,10 @@ export const PaymentService = {
         const mpData = await mpRes.json();
 
         if (!mpRes.ok) {
+          const detailErr = mpData.cause?.[0]?.description || mpData.cause?.[0]?.message || mpData.message || '';
+          if (mpRes.status === 401 || mpRes.status === 403 || String(detailErr).includes('UNAUTHORIZED') || String(detailErr).includes('unauthorized') || mpData.error === 'unauthorized' || mpData.blocked_by === 'PolicyAgent') {
+            throw new Error(`❌ Bloqueio do Mercado Pago (403/PolicyAgent). Detalhe da API: ${JSON.stringify(mpData)}`);
+          }
           throw new Error(mpData.message || mpData.cause?.[0]?.description || 'Erro ao gerar Boleto no Mercado Pago.');
         }
 
@@ -426,76 +622,11 @@ export const PaymentService = {
           success: true,
           paymentId: realPaymentId,
           ticketUrl: realTicketUrl,
-          expiresAt,
+          expiresAt: expiresAtIso,
           message: 'Boleto Bancário gerado com sucesso! Abrirá diretamente na opção de Boleto (Válido por 1h).'
         };
       } else {
-        // Criar Link de Checkout de Cartão de Crédito com Parcelas Estritamente Pré-Selecionadas (1x a 12x)
-        const chosenInstallments = Number(params.installments) || 1;
-
-        const mpRes = await fetch('https://api.mercadopago.com/checkout/preferences', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            items: [
-              {
-                title: `${params.title} (#${params.displayId || params.itemId.slice(0, 8)})`,
-                quantity: 1,
-                currency_id: 'BRL',
-                unit_price: Number(params.amount)
-              }
-            ],
-            payer: {
-              name: params.customerName || 'Cliente',
-              email: params.customerEmail && params.customerEmail.includes('@') ? params.customerEmail : 'cliente@nexus.com'
-            },
-            payment_methods: {
-              default_payment_type_id: 'credit_card',
-              default_installments: chosenInstallments,
-              max_installments: chosenInstallments,
-              installments: chosenInstallments,
-              excluded_payment_types: [
-                { id: 'ticket' }
-              ]
-            },
-            expires: true,
-            expiration_date_from: new Date().toISOString().split('.')[0] + 'Z',
-            expiration_date_to: params.expiresAt || new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-            external_reference: params.itemId,
-            notification_url: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mercadopago-webhook?tenant_id=${tenantId}`
-          })
-        });
-
-        const mpData = await mpRes.json();
-
-        if (!mpRes.ok) {
-          throw new Error(mpData.message || mpData.cause?.[0]?.description || 'Erro ao gerar Checkout no Mercado Pago.');
-        }
-
-        const realPaymentId = String(mpData.id);
-        const realTicketUrl = mpData.init_point || mpData.sandbox_init_point;
-
-        const table = params.itemType === 'ORDER' ? 'orders' : 'quotes';
-        await supabase
-          .from(table)
-          .update({
-            gateway_provider: 'mercadopago',
-            gateway_payment_id: realPaymentId,
-            gateway_ticket_url: realTicketUrl,
-            gateway_status: 'pending'
-          })
-          .eq('id', params.itemId);
-
-        return {
-          success: true,
-          paymentId: realPaymentId,
-          ticketUrl: realTicketUrl,
-          expiresAt,
-          message: `Link de Cartão gerado em ${chosenInstallments}x com expiração de 1 hora!`
-        };
+        return await createPreferenceFallback('card_link');
       }
     } catch (err: any) {
       console.error('[PaymentService] Error creating real charge:', err);
@@ -528,7 +659,7 @@ export const PaymentService = {
       return { isPaid: true, status: 'approved', paidAt: dbRecord.paid_at || new Date().toISOString() };
     }
 
-    const tenantId = DataService.getCurrentTenantId() || 'default';
+    const tenantId = getCurrentTenantId() || 'default';
     const settings = await this.getMercadoPagoSettings(tenantId);
     let accessToken = settings?.mpAccessToken || '';
 

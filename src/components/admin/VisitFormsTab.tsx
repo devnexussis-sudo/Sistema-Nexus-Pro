@@ -37,8 +37,24 @@ const isSignatureKey = (k: string) =>
   k.toLowerCase().includes('assinatura') || k.toLowerCase().includes('signature') ||
   k.toLowerCase().includes('cpf') || k.toLowerCase().includes('nascimento');
 
-const isMediaValue = (v: any) => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image') || v.startsWith('data:video'));
-const isMediaArray = (v: any) => Array.isArray(v) && v.length > 0 && v.every((i: any) => typeof i === 'string' && (i.startsWith('http') || i.startsWith('data:image') || i.startsWith('data:video')));
+const parseMediaVal = (v: any): any => {
+  if (typeof v === 'string' && (v.trim().startsWith('[') || v.trim().startsWith('{'))) {
+    try { return JSON.parse(v.trim()); } catch { return v; }
+  }
+  return v;
+};
+
+const isMediaValue = (v: any) => {
+  const parsed = parseMediaVal(v);
+  if (typeof parsed !== 'string') return false;
+  const lower = parsed.toLowerCase().trim();
+  return lower.startsWith('http') || lower.startsWith('data:image') || lower.startsWith('data:video') || lower.includes('/form_videos/') || lower.includes('/videos/');
+};
+
+const isMediaArray = (v: any) => {
+  const parsed = parseMediaVal(v);
+  return Array.isArray(parsed) && parsed.length > 0 && parsed.every((i: any) => typeof i === 'string' && (i.startsWith('http') || i.startsWith('data:image') || i.startsWith('data:video') || i.includes('/form_videos/') || i.includes('/videos/')));
+};
 
 const fmtDT = (d?: string) => {
   if (!d) return '—';
@@ -588,30 +604,32 @@ const VisitContainer: React.FC<{
   );
 };
 
-// ── Renderizador Inteligente de Valores ───────────────────────────
 const FormValueDisplay: React.FC<{ value: any; onImageClick: (url: string) => void }> = ({ value, onImageClick }) => {
-  const isOk = typeof value === 'string' && (value.toLowerCase() === 'ok' || value.toLowerCase() === 'sim');
+  const parsedValue = parseMediaVal(value);
+  const isOk = typeof parsedValue === 'string' && (parsedValue.toLowerCase() === 'ok' || parsedValue.toLowerCase() === 'sim');
 
-  if (isMediaValue(value)) {
+  if (isMediaValue(parsedValue)) {
+    const mediaUrl = typeof parsedValue === 'string' ? parsedValue : String(parsedValue);
     return (
-      <div className="relative group cursor-zoom-in" onClick={() => onImageClick(value)}>
-        {isVideoUrl(value) ? (
+      <div className="relative group cursor-zoom-in" onClick={() => onImageClick(mediaUrl)}>
+        {isVideoUrl(mediaUrl) ? (
           <div className="w-12 h-12 rounded-md bg-black flex items-center justify-center border border-slate-200 overflow-hidden relative">
-            <video src={value} className="w-full h-full object-cover opacity-50" />
+            <video src={mediaUrl} className="w-full h-full object-cover opacity-50" />
             <Play size={10} className="text-white fill-white absolute" />
             <div className="absolute bottom-0 right-0 bg-black/60 px-0.5 rounded-tl text-[6px] text-white font-medium">MP4</div>
           </div>
         ) : (
-          <img src={value} className="w-12 h-12 rounded-md object-cover border border-slate-200" alt="foto" />
+          <img src={mediaUrl} className="w-12 h-12 rounded-md object-cover border border-slate-200" alt="foto" />
         )}
       </div>
     );
   }
 
-  if (isMediaArray(value)) {
+  if (isMediaArray(parsedValue)) {
+    const arr = Array.isArray(parsedValue) ? parsedValue : [parsedValue];
     return (
       <div className="flex gap-2">
-        {(value as string[]).map((media, i) => (
+        {(arr as string[]).map((media, i) => (
           <div key={i} className="relative group cursor-zoom-in" onClick={() => onImageClick(media)}>
             {isVideoUrl(media) ? (
               <div className="w-12 h-12 rounded-md bg-black flex items-center justify-center border border-slate-200 overflow-hidden relative">

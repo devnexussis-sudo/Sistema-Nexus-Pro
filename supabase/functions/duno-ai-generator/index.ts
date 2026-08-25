@@ -7,12 +7,44 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// 🛡️ Rate Limiting Server-Side (max 30 requests/min por IP)
+const rateLimits = new Map<string, number[]>();
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const window = rateLimits.get(ip)?.filter(t => now - t < 60000) || [];
+  if (window.length >= 30) return false;
+  window.push(now);
+  rateLimits.set(ip, window);
+  return true;
+}
+
+// 🧊 Cache Semântico Server-Side (cross-user, cross-session)
+// Se 2 técnicos perguntam a mesma coisa = 1 chamada DeepSeek, não 2
+const responseCache = new Map<string, { answer: string; timestamp: number }>();
+const SERVER_CACHE_TTL = 60 * 60 * 1000; // 1 hora
+
+function buildServerCacheKey(query: string, chunkSources: string[]): string {
+  const q = query.toLowerCase().trim().replace(/[^\w\s]/g, '').split(/\s+/).sort().join('_');
+  const s = chunkSources.sort().join('|').toLowerCase();
+  return `${q}::${s}`;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
+    // Rate limiting por IP
+    const clientIp = req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "unknown";
+    if (!checkRateLimit(clientIp)) {
+      return new Response(JSON.stringify({ error: "Rate limit exceeded. Máximo 30 perguntas por minuto." }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 429,
+      });
+    }
+
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("Missing Authorization header");
 
@@ -22,7 +54,7 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { query, chunks, persona } = await req.json();
+    const { query, chunks, persona, history, lang } = await req.json();
 
     if (!query || !chunks || !Array.isArray(chunks) || chunks.length === 0) {
       return new Response(JSON.stringify({ error: "Missing query or chunks" }), {
@@ -52,7 +84,10 @@ serve(async (req) => {
       .map((c: any, i: number) => `Trecho ${i + 1} (Fonte: ${c.source_name || "Manual"}):\n"${c.content}"`)
       .join("\n\n---\n\n");
 
-    const systemPrompt = `IDIOMA OBRIGATÓRIO: Português do Brasil (pt-BR). Responda SEMPRE em português. NUNCA em inglês.
+    // Suporte multi-idioma (mobile envia lang: 'pt' | 'en' | 'es')
+    const targetLang = lang === 'en' ? 'English (en)' : lang === 'es' ? 'Español (es)' : 'Português do Brasil (pt-BR)';
+
+    const systemPrompt = `IDIOMA OBRIGATÓRIO: ${targetLang}. Responda SEMPRE em ${targetLang}. NUNCA em outro idioma.
 
 Você é a Duno IA, assistente inteligente oficial do sistema de gestão **Duno**. Sua missão é dar respostas COMPLETAS, RICAS e PRECISAS baseadas nos manuais fornecidos.
 
@@ -61,23 +96,58 @@ DIRETRIZES:
 2. SÍNTESE COMPLETA: Leia TODOS os trechos antes de responder. A resposta pode estar distribuída em mais de um trecho.
 3. RESPOSTAS DETALHADAS: Inclua passo a passo completo, avisos de segurança, e informações que complementem a dúvida.
 4. FORMATO PROFISSIONAL: Use listas numeradas para passos, negrito para termos importantes, organize em seções se necessário.
-5. HONESTIDADE: Se os trechos não tiverem a informação, diga: "Não encontrei nos manuais disponíveis. Pode detalhar melhor?"
+5. HONESTIDADE: Se os trechos não tiverem a informação, diga: "Não encontrei nos manuais disponíveis. Pode detalhar melhor?" NÃO invente dados.
 6. CONTEXTO DUNO: Você conhece o sistema Duno — OS, técnicos, clientes, equipamentos, regiões e relatórios. O sistema se chama DUNO, nunca Nexus.
 
 MANUAIS DE REFERÊNCIA:
 ${contextText}
 
-LEMBRETE: Responda EXCLUSIVAMENTE em PORTUGUÊS DO BRASIL. Seja completo e útil.`;
+LEMBRETE: Responda EXCLUSIVAMENTE em ${targetLang}. Seja completo e útil.`;
 
-    // Persona de chat (painel flutuante) — mais bem-humorado e com emojis
+    // Persona de chat (app mobile) — mais bem-humorado e com emojis
     const finalSystemPrompt = persona === "chat"
-      ? systemPrompt + `\n\nDIRETRIZ DE PERSONALIDADE ESPECIAL: Você está conversando em um chat flutuante de suporte direto com o usuário. Seja EXTREMAMENTE bem-humorado, amigável, acolhedor e use BASTANTE emojis nas suas respostas! O sistema se chama DUNO (nunca Nexus). Faça o usuário sorrir enquanto responde com precisão.`
+      ? systemPrompt + `\n\nDIRETRIZ DE PERSONALIDADE ESPECIAL: Você está conversando em um chat de suporte direto com o técnico em campo. Seja EXTREMAMENTE bem-humorado, amigável, acolhedor e use BASTANTE emojis nas suas respostas! Faça o técnico se sentir apoiado enquanto responde com precisão técnica.`
       : systemPrompt;
+
+    // ══════════════════════════════════════════════════════
+    // MONTAGEM DAS MENSAGENS (com histórico multi-turn)
+    // ══════════════════════════════════════════════════════
+    const messages: any[] = [
+      { role: "system", content: finalSystemPrompt },
+    ];
+
+    // Injeta histórico conversacional se disponível (últimas 4 mensagens)
+    if (history && Array.isArray(history)) {
+      for (const msg of history.slice(-4)) {
+        if (msg.role && msg.content) {
+          messages.push({
+            role: msg.role === 'user' ? 'user' : 'assistant',
+            content: msg.content
+          });
+        }
+      }
+    }
+
+    messages.push({ role: "user", content: query });
+
+    // ══════════════════════════════════════════════════════
+    // VERIFICAR CACHE SERVER-SIDE
+    // ══════════════════════════════════════════════════════
+    const chunkSources = chunks.map((c: any) => c.source_name || 'unknown');
+    const cacheKey = buildServerCacheKey(query, chunkSources);
+    const cached = responseCache.get(cacheKey);
+
+    if (cached && (Date.now() - cached.timestamp) < SERVER_CACHE_TTL) {
+      console.log(`[Duno AI] 🧊 CACHE HIT (Server-Side)! Retornando resposta instantânea (0 tokens)`);
+      return new Response(JSON.stringify({ answer: cached.answer }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // ══════════════════════════════════════════════════════
     // CHAMADA DEEPSEEK — deepseek-chat
     // ══════════════════════════════════════════════════════
-    console.log("[Duno AI] Chamando DeepSeek-chat...");
+    console.log(`[Duno AI] Chamando DeepSeek-chat (${chunks.length} chunks, ${history?.length || 0} msgs histórico)...`);
 
     const response = await fetch("https://api.deepseek.com/chat/completions", {
       method: "POST",
@@ -87,10 +157,7 @@ LEMBRETE: Responda EXCLUSIVAMENTE em PORTUGUÊS DO BRASIL. Seja completo e útil
       },
       body: JSON.stringify({
         model: "deepseek-chat",
-        messages: [
-          { role: "system", content: finalSystemPrompt },
-          { role: "user", content: query },
-        ],
+        messages,
         temperature: 0.2,
         max_tokens: 2048,
       }),
@@ -116,6 +183,15 @@ LEMBRETE: Responda EXCLUSIVAMENTE em PORTUGUÊS DO BRASIL. Seja completo e útil
     }
 
     console.log("[Duno AI] ✓ Resposta recebida com sucesso.");
+
+    // Salva no cache antes de retornar
+    responseCache.set(cacheKey, { answer, timestamp: Date.now() });
+    
+    // Cleanup de segurança (max 500 itens no cache)
+    if (responseCache.size > 500) {
+      const oldestKey = responseCache.keys().next().value;
+      if (oldestKey) responseCache.delete(oldestKey);
+    }
 
     return new Response(JSON.stringify({ answer }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -63,6 +63,7 @@ import { PublicOrderView } from '../public/PublicOrderView';
 import { OrderTimeline } from '../shared/OrderTimeline';
 import { Button } from '../ui/Button';
 import { Pagination } from '../ui/Pagination';
+import { safeFormatDate, safeFormatDateTime, safeFormatTime, getTodayLocalDate } from '../../utils/dateUtils';
 import { StatusBadge } from '../ui/StatusBadge';
 import { SearchableSelect } from '../common/SearchableSelect';
 import { CreateOrderModal } from './CreateOrderModal';
@@ -1050,9 +1051,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const formatDateDisplay = (dateStr: string) => {
-    if (!dateStr) return '---';
-    const date = new Date(dateStr + 'T12:00:00');
-    return date.toLocaleDateString('pt-BR');
+    return safeFormatDate(dateStr);
   };
 
   // Client-side sort da página atual (20 items — rápido e sem custo)
@@ -1085,19 +1084,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   }, [sortedPageOrders, selectedOrderIds]);
 
   const handleFastFilter = (type: 'today' | 'week' | 'month') => {
-    const now = new Date();
-    const getLocalISO = (date: Date) => {
-      const offset = date.getTimezoneOffset() * 60000;
-      return new Date(date.getTime() - offset).toISOString().split('T')[0];
-    };
-    const today = getLocalISO(now);
+    const today = getTodayLocalDate();
     if (type === 'today') onDateChange(today, today);
     else if (type === 'week') {
-      const date = new Date(now); date.setDate(now.getDate() - 7);
-      onDateChange(getLocalISO(date), today);
+      const now = new Date();
+      now.setDate(now.getDate() - 7);
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      onDateChange(`${year}-${month}-${day}`, today);
     } else if (type === 'month') {
-      const date = new Date(now); date.setMonth(now.getMonth() - 1);
-      onDateChange(getLocalISO(date), today);
+      const now = new Date();
+      now.setMonth(now.getMonth() - 1);
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      onDateChange(`${year}-${month}-${day}`, today);
     }
   };
 

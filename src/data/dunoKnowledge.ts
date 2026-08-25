@@ -34,7 +34,7 @@ export const KNOWLEDGE_BASE: KnowledgeEntry[] = [
     response: `O módulo **"Contratos"** gerencia preventivas recorrentes (PMOC).\n\n• **Como Cadastrar:** Acesse **"Contratos"** > clique em **"+ Novo Contrato"** no topo direito. Escolha o cliente, vincule os ativos/equipamentos e defina a periodicidade (Mensal, Bimestral, Trimestral, Semestral ou Anual). Defina as datas de vigência e salve.\n• **Como Editar:** Clique no contrato desejado na lista, clique em **"Editar Contrato"**, faça as alterações de ciclo ou vigência e salve.\n• **Como Excluir/Cancelar:** Abra o contrato correspondente e clique no botão **"Encerrar Recorrência"** ou **"Excluir Plano"** nas opções internas.\n\n**Automação:** O sistema gera OS preventivas agendadas automaticamente conforme o ciclo do contrato.` },
 
   // ── ATIVOS ──
-  { keywords: ['ativo','equipamento','patrimônio','inventário','cadastrar equipamento','criar ativo','cadastrar ativo','editar ativo','excluir ativo','deletar ativo','maquina','aparelho'],
+  { keywords: ['ativo','equipamento','patrimônio','inventário','cadastrar equipamento','criar ativo','cadastrar ativo','editar ativo','excluir ativo','deletar ativo'],
     response: `O módulo **"Ativos"** gerencia o inventário de equipamentos dos clientes.\n\n• **Como Cadastrar:** Acesse **"Ativos"** > clique em **"+ Novo Ativo"** no topo direito. Preencha Marca/Nome, Modelo, Série, Patrimônio, Cliente e opcionalmente Data de Fabricação e Garantia (em meses).\n• **Como Editar:** Na listagem de ativos, clique no item correspondente e faça as alterações desejadas direto nos campos do painel de detalhes.\n• **Como Excluir:** Na linha do ativo na listagem, clique no ícone da lixeira no final da tabela e confirme a exclusão.\n• **Garantia:** O sistema calcula o status sozinho. Exibe um badge verde ("Em Garantia") ou vermelho ("Fora de Garantia").` },
 
   // ── CLIENTES ──
@@ -50,7 +50,7 @@ export const KNOWLEDGE_BASE: KnowledgeEntry[] = [
     response: `O técnico em campo utiliza o **App Duno** (aplicativo mobile nativo, não é um PWA web-app).\n\n• **Acesso:** Através do aplicativo Duno instalado no celular.\n• **Funcionalidades:** Visualizar OS atribuídas, iniciar deslocamento/atendimento com GPS, tirar fotos/vídeos de evidência, responder formulários, dar saída em peças do estoque (manual ou escaneando o **QR Code** com a câmera) e finalizar com assinatura digital do cliente.\n• **Configuração do App:** O administrador pode restringir o que o técnico vê no app em **Configurações** > aba **"APP do Técnico"** (como preços, OS simultâneas, contato do cliente ou histórico de peças).` },
 
   // ── ESTOQUE ──
-  { keywords: ['estoque','peça','stock','material','inventário peças','cadastrar peça','adicionar peça','editar estoque','excluir peça','entrada estoque','saída estoque'],
+  { keywords: ['estoque','stock','material','inventário peças','cadastrar peça','adicionar peça','editar estoque','excluir peça','entrada estoque','saída estoque'],
     response: `O módulo **"Estoque"** controla o estoque de peças e suprimentos.\n\n• **Como Cadastrar Item:** Acesse **"Estoque"** > clique em **"+ Novo Item"** no topo direito. Insira Código/SKU, Nome, Descrição, Categoria, Quantidade Inicial e Valor Unitário.\n• **Como Ajustar Estoque (Entradas/Saídas):** Clique no item correspondente na tabela de estoque para abrir suas movimentações e clique em "Registrar Entrada" ou "Registrar Saída" para alterar a quantidade.\n• **Como Excluir:** Clique na lixeira ao lado do item na listagem para removê-lo definitivamente.\n• **Etiquetas:** Selecione itens no estoque e clique em **"Imprimir Etiquetas"** para gerar folhas A4 ou formato Térmico.` },
 
   // ── ORÇAMENTOS ──
@@ -58,7 +58,7 @@ export const KNOWLEDGE_BASE: KnowledgeEntry[] = [
     response: `O módulo **"Orçamentos"** gerencia a criação e envio de propostas comerciais.\n\n• **Como Criar:** Acesse **"Orçamentos"** > clique em **"+ Novo Orçamento"** no topo direito. Escolha o cliente, adicione as peças do estoque ou serviços manuais, configure as condições de pagamento e salve.\n• **Como Editar:** Clique no orçamento pendente na lista para abrir a edição e ajustar valores ou itens.\n• **Como Excluir:** Abra o orçamento desejado e selecione **"Excluir Orçamento"** ou mude seu status para **"Recusado"**.\n• **Aprovação do Cliente:** Cada proposta gera um **Link Público**. O cliente pode visualizar e clicar em "Aprovar" ou "Recusar" sem precisar logar.` },
 
   // ── FINANCEIRO ──
-  { keywords: ['financeiro','faturamento','receita','financial','relatório financeiro','faturar'],
+  { keywords: ['financeiro','faturamento','financial','relatório financeiro','faturar'],
     response: `O módulo **"Financeiro"** consolida as receitas do sistema.\n\n• **Como Funciona:** Lista todas as OS concluídas e orçamentos aprovados com valores.\n• **Visualização:** Mostra gráficos de performance, faturamento total por período, por cliente e por técnico.\n• **Ações:** Filtre por data no topo esquerdo e clique no botão de impressão para gerar o relatório financeiro consolidado em PDF.` },
 
   // ── FORMULÁRIOS ──
@@ -110,7 +110,7 @@ export const KNOWLEDGE_BASE: KnowledgeEntry[] = [
     response: `O botão **WhatsApp** na OS (menu **"Atividade"**) abre conversa direta com o cliente.\n\n• O campo "WhatsApp" deve estar preenchido no cadastro do cliente (menu **"Cliente"**).\n• Se não cadastrado, aparece alerta: "WhatsApp do cliente não cadastrado no sistema."` },
 
   // ── SUPORTE ──
-  { keywords: ['suporte','ajuda','help','problema','bug','erro'],
+  { keywords: ['suporte','ajuda','help','bug'],
     response: `Para **suporte técnico:**\n\n• Clique no botão **"Suporte"** verde no rodapé da barra lateral.\n• Abre o WhatsApp do suporte técnico diretamente.\n\n**Dentro do sistema:** Esta **Duno IA** ajuda com dúvidas sobre funcionalidades. Para bugs, contate o suporte humano.` },
 
   // ── MENUS DO SISTEMA ──
@@ -163,6 +163,6 @@ export const findBestMatch = (input: string): string | null => {
     if (score > bestScore) { bestScore = score; bestMatch = entry; }
   }
   
-  if (bestMatch && bestScore >= 3) return bestMatch.response;
+  if (bestMatch && bestScore >= 5) return bestMatch.response;
   return null;
 };

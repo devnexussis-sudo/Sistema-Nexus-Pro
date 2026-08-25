@@ -260,6 +260,27 @@ export interface Tenant {
   enabled_modules?: Record<string, boolean>;
 }
 
+export interface SystemNotification {
+  id: string;
+  title: string;
+  content: string;
+  type: 'broadcast' | 'targeted';
+  priority: 'info' | 'warning' | 'urgent';
+  targetTenants?: string[];
+  target_tenants?: string[];
+  targetRoles?: string[];
+  target_roles?: string[];
+  actionLabel?: string;
+  action_label?: string;
+  actionUrl?: string;
+  action_url?: string;
+  expiresAt?: string;
+  expires_at?: string;
+  createdAt: string;
+  created_at?: string;
+  isRead?: boolean;
+}
+
 export interface Technician {
   id: string;
   name: string;

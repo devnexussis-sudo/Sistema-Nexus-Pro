@@ -19,6 +19,8 @@ import { GlobalAlertProvider } from './components/common/GlobalAlert';
 import { GlobalSpinnerProvider } from './components/common/GlobalSpinner';
 import { I18nProvider } from './i18n';
 
+import { useSystemNotifications } from './hooks/useSystemNotifications';
+
 // Wrapper para rotas públicas
 const PublicAppWrapper: React.FC<{ type: 'order' | 'quote' }> = ({ type }) => {
   const { id } = useParams<{ id: string }>();
@@ -41,17 +43,14 @@ const AppRoutes: React.FC = () => {
   const [isSuperMode, setIsSuperMode] = useState(
     () => !!SessionStorage.get<boolean>('master_session_v2')
   );
-  const [systemNotifications, setSystemNotifications] = useState<any[]>([]);
   const [isImpersonating, setIsImpersonating] = useState(false);
 
-  // Carregar notificações do sistema se autenticado
-  useEffect(() => {
-    if (auth.isAuthenticated && auth.user && !isSuperMode) {
-      DataService.getSystemNotifications(auth.user.id)
-        .then(setSystemNotifications)
-        .catch(err => console.error("Falha ao buscar notificações:", err));
-    }
-  }, [auth.isAuthenticated, auth.user, isSuperMode]);
+  const activeUserId = (auth.isAuthenticated && auth.user && !isSuperMode) ? auth.user.id : undefined;
+  const activeTenantId = (auth.isAuthenticated && auth.user && !isSuperMode) ? (auth.user.tenantId || (auth.user as any).tenant_id) : undefined;
+  const activeUserRole = (auth.isAuthenticated && auth.user && !isSuperMode) ? auth.user.role : undefined;
+
+  // 📡 Hook Realtime WebSocket Bus
+  const { notifications: systemNotifications, markAsRead: onMarkNotificationRead } = useSystemNotifications(activeUserId, activeTenantId, activeUserRole);
 
   // 🛡️ RECOVERY INTERCEPTOR: Se cair no root com token de recovery, redireciona preservando o hash
   const navigate = useNavigate();
@@ -59,10 +58,17 @@ const AppRoutes: React.FC = () => {
     const hash = window.location.hash;
     const search = window.location.search;
 
-    // Se o hash contém tokens de recovery (Implicit Flow)
+    // Corrige URL malformada do Supabase (quando redirectTo já tem hash, o Supabase concatena com &)
+    if (hash.startsWith('#/reset-password&')) {
+      console.log('[RecoveryInterceptor] Corrigindo URL malformada do Supabase...');
+      window.location.hash = hash.replace('#/reset-password&', '#/reset-password?');
+      return;
+    }
+
+    // Se o hash contém tokens de recovery (Implicit Flow) genérico
     if (hash.includes('type=recovery') && !hash.includes('reset-password')) {
-      console.log('[RecoveryInterceptor] Detectado lander de recuperação. Redirecionando para /reset-password...');
-      const newHash = '#/reset-password' + hash.replace('#', '&');
+      console.log('[RecoveryInterceptor] Detectado lander de recuperação genérico. Redirecionando para /reset-password...');
+      const newHash = '#/reset-password' + hash.replace('#', '?');
       window.location.hash = newHash;
     }
     // Se a query string contém PKCE code ou token_hash (Novo Padrão)
@@ -98,12 +104,7 @@ const AppRoutes: React.FC = () => {
             isImpersonating={isImpersonating}
             onToggleMaster={() => { }}
             systemNotifications={systemNotifications}
-            onMarkNotificationRead={async (id) => {
-              if (auth.user) {
-                await DataService.markSystemNotificationAsRead(auth.user.id, id);
-                setSystemNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-              }
-            }}
+            onMarkNotificationRead={onMarkNotificationRead}
           /> : (
             isInitializing ? null : <Navigate to="/login" replace />
           )

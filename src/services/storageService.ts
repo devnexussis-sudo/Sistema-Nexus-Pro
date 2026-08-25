@@ -1,6 +1,6 @@
 
 import { supabase, publicSupabase } from '../lib/supabase';
-import { DataService } from './dataService'; // Temporarily needed for tenant ID access helper if not moved yet, but ideally we move logic here.
+
 import { getCurrentTenantId } from '../lib/tenantContext';
 import { logger } from '../lib/logger';
 

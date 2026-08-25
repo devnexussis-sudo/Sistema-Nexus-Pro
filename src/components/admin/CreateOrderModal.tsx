@@ -20,6 +20,7 @@ import { getRegions } from '../../services/regionService';
 import { Region } from '../../types/region';
 import { useTenant } from '../../hooks/nexusHooks';
 import { supabase } from '../../lib/supabase';
+import { getTodayLocalDate } from '../../utils/dateUtils';
 
 const checkWarrantyStatus = (manufactureDate?: string, warrantyMonths?: number) => {
   if (!manufactureDate || !warrantyMonths) return null;
@@ -102,11 +103,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
   const [serviceTypes, setServiceTypes] = useState<any[]>(OS_TYPES.map(t => ({ id: t, name: t }))); // Default to hardcoded
 
-  const getLocalDate = () => {
-    const now = new Date();
-    const offset = now.getTimezoneOffset() * 60000;
-    return new Date(now.getTime() - offset).toISOString().split('T')[0];
-  };
+  const getLocalDate = () => getTodayLocalDate();
 
   const [formData, setFormData] = useState({
     title: initialData?.title || '',
@@ -613,7 +610,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   const openNewVisitModal = () => {
     setNewVisitData({
       assignedTo: formData?.assignedTo || '',
-      scheduledDate: new Date().toISOString().split('T')[0],
+      scheduledDate: getTodayLocalDate(),
       scheduledTime: '',
       notes: ''
     });

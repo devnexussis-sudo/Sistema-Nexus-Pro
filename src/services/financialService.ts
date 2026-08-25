@@ -162,6 +162,13 @@ export const FinancialService = {
 
             let currentDate = new Date(entry.dueDate + 'T12:00:00');
 
+            const toLocalYMD = (d: Date) => {
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
+
             for (let i = 0; i < installments; i++) {
                 const dbEntry: any = {
                     tenant_id: tenantId,
@@ -169,7 +176,7 @@ export const FinancialService = {
                     supplier_name: entry.supplierName,
                     category: entry.category,
                     amount: entry.amount,
-                    due_date: currentDate.toISOString().split('T')[0],
+                    due_date: toLocalYMD(currentDate),
                     status: entry.status || 'PENDING',
                     payment_method: entry.paymentMethod,
                     notes: entry.notes,
@@ -266,7 +273,10 @@ export const FinancialService = {
                     else if (currentAccount.recurrence_period === 'WEEKLY') nextDate.setDate(nextDate.getDate() + 7);
                     else if (currentAccount.recurrence_period === 'YEARLY') nextDate.setFullYear(nextDate.getFullYear() + 1);
 
-                    const nextDueDateStr = nextDate.toISOString().split('T')[0];
+                    const year = nextDate.getFullYear();
+                    const month = String(nextDate.getMonth() + 1).padStart(2, '0');
+                    const day = String(nextDate.getDate()).padStart(2, '0');
+                    const nextDueDateStr = `${year}-${month}-${day}`;
 
                     const nextAccount = {
                         tenant_id: currentAccount.tenant_id,

@@ -83,27 +83,16 @@ const IMPEDIMENT_LABELS: Record<string, string> = {
     OTHER: 'Outro motivo',
 };
 
+import { safeFormatDate, safeFormatTime } from '../../utils/dateUtils';
+
 // ─── Helpers ────────────────────────────────────────────────────
 
 const formatTime = (iso?: string): string => {
-    if (!iso) return '—';
-    return new Date(iso).toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-    });
+    return safeFormatTime(iso);
 };
 
 const formatDate = (iso?: string): string => {
-    if (!iso) return '—';
-    // Se a data vier apenas como YYYY-MM-DD (ex: 2026-03-05), 
-    // o JS converte para UTC e pode subtrair 1 dia dependendo do fuso local.
-    // Adicionar T12:00:00 garante que caia no mesmo dia independente do fuso.
-    const dateStr = (iso.length === 10 && iso.includes('-')) ? `${iso}T12:00:00` : iso;
-    return new Date(dateStr).toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-    });
+    return safeFormatDate(iso);
 };
 
 const calcDuration = (arrival?: string, departure?: string): string => {

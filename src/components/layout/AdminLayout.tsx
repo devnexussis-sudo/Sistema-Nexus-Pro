@@ -5,9 +5,9 @@ import {
     Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck,
     Settings, LogOut, Bell, Package, ArrowRight, FileText,
     AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff, X, Phone, Menu, Bot, Code2, BookOpen, MapPin, MessageCircle, ClipboardCheck,
-    Camera, Upload, Sparkles, Check, Loader2, Key, Mail, FolderTree
+    Camera, Upload, Sparkles, Check, CheckCircle2, Loader2, Key, Mail, FolderTree, ExternalLink
 } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { NexusBranding } from '../ui/NexusBranding';
 import { User } from '../../types';
 
@@ -40,6 +40,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     children, user, tenant, isImpersonating, onLogout, systemNotifications, onToggleSidebar, isSidebarCollapsed, onMarkNotificationRead
 }) => {
     const location = useLocation();
+    const navigate = useNavigate();
     const [showInbox, setShowInbox] = useState(false);
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
     // IDs de notificações já dispensadas neste ciclo de vida (evita flash durante gravação)
@@ -52,6 +53,30 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     const [isSavingAvatar, setIsSavingAvatar] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const userMenuRef = useRef<HTMLDivElement>(null);
+
+    const handleActionClick = (url?: string) => {
+        if (!url) return;
+        let targetUrl = url.trim();
+
+        // 1. Se for uma URL externa (começa com http, https, www ou dominio externo)
+        if (/^(https?:\/\/|www\.)/i.test(targetUrl)) {
+            if (!/^https?:\/\//i.test(targetUrl)) {
+                targetUrl = `https://${targetUrl}`;
+            }
+            window.open(targetUrl, '_blank', 'noopener,noreferrer');
+            return;
+        }
+
+        // 2. Se for uma rota interna do Nexus (ex: /admin/orders, #/admin/financial, quotes)
+        if (targetUrl.startsWith('#')) {
+            targetUrl = targetUrl.substring(1);
+        }
+        if (!targetUrl.startsWith('/')) {
+            targetUrl = `/${targetUrl}`;
+        }
+
+        navigate(targetUrl);
+    };
 
     // Fechar popover ao clicar fora
     useEffect(() => {
@@ -703,15 +728,30 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                                                         {notif.content}
                                                     </p>
 
-                                                    {/* Ação "Marcar como lida" inline */}
-                                                    {!notif.isRead && (
-                                                        <button
-                                                            onClick={() => onMarkNotificationRead && onMarkNotificationRead(notif.id)}
-                                                            className="mt-1.5 text-[9px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-wide transition-colors"
-                                                        >
-                                                            {t.layout.markAsRead} →
-                                                        </button>
-                                                    )}
+                                                    {/* Ações: CTA (Link) + "Marcar como lida" inline */}
+                                                    <div className="mt-2 flex items-center justify-between gap-2">
+                                                        {(notif.actionUrl || notif.action_url) ? (
+                                                            <button
+                                                                onClick={() => {
+                                                                    handleActionClick(notif.actionUrl || notif.action_url);
+                                                                    setShowInbox(false);
+                                                                    if (!notif.isRead && onMarkNotificationRead) onMarkNotificationRead(notif.id);
+                                                                }}
+                                                                className="text-[10px] font-bold text-primary-600 hover:text-primary-800 uppercase tracking-wide transition-colors flex items-center gap-1"
+                                                            >
+                                                                {notif.actionLabel || notif.action_label || 'Acessar Link'} <ExternalLink size={10} />
+                                                            </button>
+                                                        ) : <span />}
+
+                                                        {!notif.isRead && (
+                                                            <button
+                                                                onClick={() => onMarkNotificationRead && onMarkNotificationRead(notif.id)}
+                                                                className="text-[9px] font-bold text-slate-400 hover:text-slate-600 uppercase tracking-wide transition-colors"
+                                                            >
+                                                                {t.layout.markAsRead} →
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))
@@ -724,63 +764,99 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             </header>
             )}
 
-            {/* UNREAD NOTIFICATION POPUP (MODAL) */}
-            {systemNotifications
+            {/* 📣 CENTER GLASSMORPHIC POPUP OVERLAY (UNREAD SYSTEM NOTIFICATIONS) */}
+            {!isStandalone && systemNotifications
                 .filter(n => !n.isRead && !locallyDismissed.includes(n.id))
                 .slice(0, 1)
-                .map(activeNotif => (
-                <div key={activeNotif.id} className="fixed inset-0 z-[999] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in print:hidden">
-                    <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up">
-                        {/* Header colorido por prioridade */}
-                        <div className={`p-6 border-b ${
-                            activeNotif.priority === 'urgent' ? 'bg-rose-50 border-rose-100' :
-                            activeNotif.priority === 'warning' ? 'bg-amber-50 border-amber-100' :
-                            'bg-blue-50 border-blue-100'
-                        }`}>
-                            <div className="flex items-center gap-3">
-                                <div className={`p-3 rounded-xl ${
-                                    activeNotif.priority === 'urgent' ? 'bg-rose-100 text-rose-600' :
-                                    activeNotif.priority === 'warning' ? 'bg-amber-100 text-amber-600' :
-                                    'bg-blue-100 text-blue-600'
-                                }`}>
-                                    <Bell size={24} />
+                .map(activeNotif => {
+                    const isUrgent = activeNotif.priority === 'urgent';
+                    const isWarning = activeNotif.priority === 'warning';
+                    
+                    const headerBg = isUrgent
+                        ? 'bg-rose-500/10 border-rose-500/20'
+                        : isWarning
+                            ? 'bg-amber-500/10 border-amber-500/20'
+                            : 'bg-blue-500/10 border-blue-500/20';
+
+                    const iconColor = isUrgent ? 'text-rose-400' : isWarning ? 'text-amber-400' : 'text-blue-400';
+                    const iconBg = isUrgent ? 'bg-rose-500/20 border-rose-500/30' : isWarning ? 'bg-amber-500/20 border-amber-500/30' : 'bg-blue-500/20 border-blue-500/30';
+                    const badgeText = isUrgent ? '🚨 Comunicado Urgente' : isWarning ? '⚠️ Alerta de Sistema' : '📢 Comunicado do Sistema';
+                    const badgeColor = isUrgent ? 'text-rose-400' : isWarning ? 'text-amber-400' : 'text-blue-400';
+
+                    return (
+                        <div key={activeNotif.id} className="fixed inset-0 z-[9999] bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-300 print:hidden">
+                            <div className="bg-slate-900/95 w-full max-w-lg rounded-3xl border border-slate-800 shadow-[0_25px_70px_rgba(0,0,0,0.9)] overflow-hidden relative ring-1 ring-white/10 animate-in zoom-in-95 duration-300">
+                                
+                                {/* Header com Glassmorphism e Ícone de Severidade */}
+                                <div className={`p-6 border-b flex items-start justify-between ${headerBg}`}>
+                                    <div className="flex items-center gap-3.5 min-w-0">
+                                        <div className={`p-3 rounded-2xl border ${iconBg} ${iconColor} shrink-0 shadow-inner`}>
+                                            {isUrgent ? <AlertTriangle size={24} /> : isWarning ? <ShieldAlert size={24} /> : <Bell size={24} />}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className={`text-[10px] font-extrabold uppercase tracking-widest block ${badgeColor}`}>
+                                                {badgeText}
+                                            </span>
+                                            <h2 className="text-base font-black text-white uppercase tracking-tight leading-snug truncate mt-0.5">
+                                                {activeNotif.title}
+                                            </h2>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            setLocallyDismissed(prev => [...prev, activeNotif.id]);
+                                            if (onMarkNotificationRead) onMarkNotificationRead(activeNotif.id);
+                                        }}
+                                        className="p-2 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-colors shrink-0 -mr-2 -mt-2"
+                                        title="Fechar"
+                                    >
+                                        <X size={18} />
+                                    </button>
                                 </div>
-                                <div>
-                                    <h2 className="text-sm font-black text-slate-900 uppercase tracking-tight">{activeNotif.title}</h2>
-                                    <p className={`text-[10px] font-bold uppercase tracking-widest ${
-                                        activeNotif.priority === 'urgent' ? 'text-rose-500' :
-                                        activeNotif.priority === 'warning' ? 'text-amber-500' :
-                                        'text-blue-500'
-                                    }`}>Comunicado do Sistema</p>
+
+                                {/* Corpo da Mensagem em Texto Branco Cristalino */}
+                                <div className="p-6 space-y-3">
+                                    <p className="text-sm font-medium text-slate-200 leading-relaxed whitespace-pre-wrap">
+                                        {activeNotif.content}
+                                    </p>
                                 </div>
+
+                                {/* Rodapé da Janela com Botões de Ação */}
+                                <div className="p-5 border-t border-slate-800 bg-slate-950/60 flex flex-col sm:flex-row gap-3">
+                                    {(activeNotif.actionUrl || activeNotif.action_url) && (
+                                        <button
+                                            onClick={() => {
+                                                handleActionClick(activeNotif.actionUrl || activeNotif.action_url);
+                                                setLocallyDismissed(prev => [...prev, activeNotif.id]);
+                                                if (onMarkNotificationRead) onMarkNotificationRead(activeNotif.id);
+                                            }}
+                                            className={`flex-1 px-5 py-3.5 rounded-2xl text-xs font-black uppercase transition-all shadow-lg flex items-center justify-center gap-2 active:scale-95 ${
+                                                isUrgent
+                                                    ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/25'
+                                                    : isWarning
+                                                        ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/25'
+                                                        : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/25'
+                                            }`}
+                                        >
+                                            {activeNotif.actionLabel || activeNotif.action_label || 'Acessar Link'} <ExternalLink size={14} />
+                                        </button>
+                                    )}
+
+                                    <button
+                                        onClick={() => {
+                                            setLocallyDismissed(prev => [...prev, activeNotif.id]);
+                                            if (onMarkNotificationRead) onMarkNotificationRead(activeNotif.id);
+                                        }}
+                                        className="flex-1 px-5 py-3.5 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 rounded-2xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 active:scale-95"
+                                    >
+                                        <CheckCircle2 size={15} className="text-emerald-400" /> Entendido
+                                    </button>
+                                </div>
+
                             </div>
                         </div>
-
-                        {/* Corpo da mensagem */}
-                        <div className="p-6">
-                            <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{activeNotif.content}</p>
-                        </div>
-
-                        {/* Rodapé: botão de confirmação */}
-                        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col gap-3">
-                            <p className="text-[10px] text-slate-400 font-medium text-center">
-                                ✓ Ao confirmar, esta mensagem não será exibida novamente.
-                            </p>
-                            <button
-                                onClick={() => {
-                                    // Marca como lido localmente imediatamente (UX sem flickering)
-                                    setLocallyDismissed(prev => [...prev, activeNotif.id]);
-                                    // Sempre persiste no banco — gravação permanente
-                                    if (onMarkNotificationRead) onMarkNotificationRead(activeNotif.id);
-                                }}
-                                className="w-full bg-[#1c2d4f] hover:bg-[#253a66] text-white px-6 py-2.5 rounded-xl text-xs font-bold uppercase transition-all shadow-lg shadow-[#1c2d4f]/20"
-                            >
-                                Entendido — Não mostrar mais
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            ))}
+                    );
+                })}
 
             <div className="flex flex-1 overflow-hidden print:overflow-visible print:block">
                 {/* ── Mobile Sidebar Overlay ─────────────────────────────── */}

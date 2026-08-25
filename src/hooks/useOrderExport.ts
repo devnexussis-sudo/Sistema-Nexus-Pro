@@ -2,6 +2,8 @@
 import { ServiceOrder, User } from '../types';
 import { DataService } from '../services/dataService';
 import XLSX from 'xlsx-js-style';
+import { supabase } from '../lib/supabase';
+import { safeFormatDate, safeFormatDateTime, getTodayLocalDate } from '../utils/dateUtils';
 
 interface UseOrderExportProps {
     orders: ServiceOrder[];
@@ -10,7 +12,6 @@ interface UseOrderExportProps {
     techs: User[];
     customers: any[];
 }
-import { supabase } from '../lib/supabase';
 
 export const useOrderExport = () => {
     const handleExportExcel = async ({ orders, filteredOrders, selectedOrderIds, techs, customers }: UseOrderExportProps) => {
@@ -75,24 +76,12 @@ export const useOrderExport = () => {
         // Função para formatar Date string como SP local
         const formatDateTime = (dateStr?: string) => {
             if (!dateStr || dateStr === 'N/A') return 'N/A';
-            try {
-                const d = new Date(dateStr);
-                if (isNaN(d.getTime())) return dateStr;
-                return d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-            } catch {
-                return dateStr;
-            }
+            return safeFormatDateTime(dateStr);
         };
 
         const formatDate = (dateStr?: string) => {
             if (!dateStr || dateStr === 'N/A') return 'N/A';
-            try {
-                const d = new Date(dateStr + (dateStr.length === 10 ? 'T12:00:00' : ''));
-                if (isNaN(d.getTime())) return dateStr;
-                return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-            } catch {
-                return dateStr;
-            }
+            return safeFormatDate(dateStr);
         };
 
         // 1. Definir colunas do cabeçalho
@@ -287,7 +276,7 @@ export const useOrderExport = () => {
         // 7. Gerar Arquivo
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Relatório Geral");
-        XLSX.writeFile(wb, `Nexus_Relatorio_Geral_${new Date().toISOString().split('T')[0]}.xlsx`);
+        XLSX.writeFile(wb, `Nexus_Relatorio_Geral_${getTodayLocalDate()}.xlsx`);
     };
 
     return { handleExportExcel };

@@ -3,6 +3,7 @@ import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
 import { supabase } from '../lib/supabase';
 import { getCurrentTenantId } from '../lib/tenantContext';
 import { KNOWLEDGE_BASE, findBestMatch } from '../data/dunoKnowledge';
+import { analyzeAndDiscover } from './dunoBrain';
 import { TenantService } from './tenantService';
 
 // Set the worker source
@@ -499,6 +500,17 @@ export const aiKnowledgeService = {
           score: 999
         });
       }
+    }
+
+    // Injeção do Cérebro Heurístico (Procedimentos de Tela/CRUD)
+    const procMatch = await analyzeAndDiscover(query);
+    if (procMatch) {
+      bestMatches.unshift({
+        content: `[MÓDULO E PROCEDIMENTOS DE TELA DO SISTEMA DUNO]\n${procMatch}`,
+        source_name: 'Guia de Procedimentos Duno',
+        keywords: ['sistema', 'tela', 'procedimento'],
+        score: 9998
+      });
     }
 
     try {

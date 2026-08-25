@@ -29,11 +29,19 @@ export const ResetPassword: React.FC = () => {
     useEffect(() => {
         let mounted = true;
 
-        // Listener reativo de evento de Auth para capturar PASSWORD_RECOVERY instantaneamente
+        let isExchanging = false;
+
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             if (session && (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
                 logger.info(`[ResetPassword] Evento de auth capturado: ${event}`);
-                if (mounted) setError('');
+                if (mounted) {
+                    setError('');
+                    setIsChecking(false);
+                    // Limpa URL estética se houver sessão
+                    const params = isFromMobile ? '?source=mobile' : '';
+                    const cleanUrl = window.location.origin + window.location.pathname + params + '#/reset-password';
+                    window.history.replaceState(null, '', cleanUrl);
+                }
             }
         });
 
@@ -54,15 +62,15 @@ export const ResetPassword: React.FC = () => {
 
                 let authSession: any = null;
 
-                // 1. Verifica com respiro/retentativa se JÁ existe uma sessão ativa (dá tempo do detectSessionInUrl do SDK processar o hash/query)
+                // 1. Aguarda ativamente o SDK do Supabase processar o PKCE code
                 let activeSession = null;
-                for (let i = 0; i < 4; i++) {
+                for (let i = 0; i < 15; i++) { // Espera até 3 segundos
                     const { data: { session: s } } = await supabase.auth.getSession();
                     if (s?.user) {
                         activeSession = s;
                         break;
                     }
-                    if (i < 3) await new Promise(r => setTimeout(r, 200));
+                    if (i < 14) await new Promise(r => setTimeout(r, 200));
                 }
 
                 if (activeSession?.user) {
@@ -70,7 +78,7 @@ export const ResetPassword: React.FC = () => {
                     authSession = activeSession;
                 }
 
-                // 2. Se temos access_token (Implicit Flow)
+                // 2. Se temos access_token (Implicit Flow) e a sessão ainda não está pronta
                 if (!authSession && access) {
                     logger.info('[ResetPassword] Injetando tokens de recuperação (Implicit)...');
                     const { error: sessionUpdateError, data } = await supabase.auth.setSession({
@@ -83,12 +91,12 @@ export const ResetPassword: React.FC = () => {
                     }
                 }
 
-                // 3. Se temos um código / token_hash (PKCE ou OTP Flow)
+                // 3. Se temos um código / token_hash e o SDK AINDA NÃO CONSUMIU
                 const recoveryToken = tokenHash || code;
-                if (!authSession && recoveryToken) {
-                    logger.info('[ResetPassword] Validando código de recuperação com o Supabase...');
+                if (!authSession && recoveryToken && !isExchanging) {
+                    isExchanging = true;
+                    logger.info('[ResetPassword] Validando código de recuperação manualmente como fallback...');
 
-                    // 3a. Tenta primeiro verifyOtp (funciona em QUALQUER navegador/dispositivo sem depender do PKCE verifier no localStorage)
                     const { error: otpError, data: otpData } = await supabase.auth.verifyOtp({
                         token_hash: recoveryToken,
                         type: 'recovery',
@@ -98,15 +106,14 @@ export const ResetPassword: React.FC = () => {
                         logger.info('[ResetPassword] Sessão iniciada com sucesso via verifyOtp!');
                         authSession = otpData.session;
                     } else {
-                        // 3b. Fallback: troca de código PKCE tradicional
-                        logger.info('[ResetPassword] Tentando troca de código PKCE...');
+                        logger.info('[ResetPassword] Tentando troca de código PKCE como fallback final...');
                         const { error: exchangeError, data: exchangeData } = await supabase.auth.exchangeCodeForSession(recoveryToken);
 
                         if (!exchangeError && exchangeData.session) {
                             logger.info('[ResetPassword] Sessão obtida via exchangeCodeForSession!');
                             authSession = exchangeData.session;
                         } else {
-                            console.warn('[ResetPassword] Tentativas de validação de token retornaram:', { otpError, exchangeError });
+                            console.warn('[ResetPassword] Tentativas de validação de token retornaram erro ou o código já foi consumido:', { otpError, exchangeError });
                         }
                     }
                 }
@@ -122,14 +129,11 @@ export const ResetPassword: React.FC = () => {
                     if (currentUser) authSession = { user: currentUser };
                 }
 
-                // Se temos sessão, libera a UI para definir nova senha e limpa a URL estética
                 if (authSession && mounted) {
                     setError('');
-                    if (access || recoveryToken) {
-                        const params = isMobileSource ? '?source=mobile' : '';
-                        const cleanUrl = window.location.origin + window.location.pathname + params + '#/reset-password';
-                        window.history.replaceState(null, '', cleanUrl);
-                    }
+                    const params = isMobileSource ? '?source=mobile' : '';
+                    const cleanUrl = window.location.origin + window.location.pathname + params + '#/reset-password';
+                    window.history.replaceState(null, '', cleanUrl);
                 } else if (mounted) {
                     setError('Link de recuperação inválido ou expirado. Por favor, solicite um novo link.');
                 }
@@ -137,11 +141,7 @@ export const ResetPassword: React.FC = () => {
                 console.error('[ResetPassword] Erro de inicialização:', err);
                 if (mounted) setError(`Erro ao validar credenciais: ${err.message || 'Falha na verificação'}`);
             } finally {
-                if (mounted) {
-                    setTimeout(() => {
-                        if (mounted) setIsChecking(false);
-                    }, 400);
-                }
+                if (mounted) setIsChecking(false);
             }
         };
 

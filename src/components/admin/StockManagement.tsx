@@ -2631,9 +2631,9 @@ export const StockManagement: React.FC = () => {
             )}
 
             {/* PRINT LABELS MODAL */}
-            {printModalOpen && (
-                <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
-                    <div className="bg-white rounded-xl w-full max-w-sm shadow-2xl overflow-hidden border border-slate-200 flex flex-col">
+            {printModalOpen && createPortal(
+                <div className="fixed inset-0 z-[200000] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4 animate-in fade-in">
+                    <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden border border-slate-200 flex flex-col z-[200001]">
                         <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
                             <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-lg flex items-center justify-center border bg-[#1c2d4f]/5 border-[#1c2d4f]/10 text-[#1c2d4f]">
@@ -2689,7 +2689,8 @@ export const StockManagement: React.FC = () => {
                             </Button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* CATEGORY MODAL */}

@@ -90,18 +90,9 @@ export const GlobalChatBot: React.FC = () => {
       const tenantId = getCurrentTenantId();
       let responseContent: string | null = null;
       
-      // 1. Tenta achar resposta exata no Manual do Sistema (dunoKnowledge.ts)
-      const systemMatch = findBestMatch(userText);
-      if (systemMatch) {
-        responseContent = systemMatch;
-      } else if (tenantId) {
-        // 2. Usa o Motor RAG chamando a Edge Function com a persona 'chat'
+      if (tenantId) {
+        // 1. Usa o Motor Unificado chamando a Edge Function com a persona 'chat'
         responseContent = await aiKnowledgeService.searchKnowledge(userText, tenantId, 7, 'chat');
-      }
-
-      // Fallback para as regras estáticas caso a busca RAG falhe ou retorne vazio
-      if (!responseContent) {
-        responseContent = await analyzeAndDiscover(userText);
       }
       
       // 3. Se a IA não achar contexto ou falhar na geração

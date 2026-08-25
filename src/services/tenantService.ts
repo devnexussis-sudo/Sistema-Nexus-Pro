@@ -174,6 +174,18 @@ export const TenantService = {
                 processedTenant.name = processedTenant.company_name as string;
             }
 
+            // 🛡️ Safely store max_ai_manuals inside metadata (JSONB) to prevent schema cache error
+            if (processedTenant.max_ai_manuals !== undefined) {
+                const currentMeta = (processedTenant.metadata as Record<string, any>) || {};
+                processedTenant.metadata = { ...currentMeta, max_ai_manuals: processedTenant.max_ai_manuals };
+                delete processedTenant.max_ai_manuals;
+            }
+            if ((processedTenant as any).video_quality !== undefined) {
+                const currentMeta = (processedTenant.metadata as Record<string, any>) || {};
+                processedTenant.metadata = { ...currentMeta, video_quality: (processedTenant as any).video_quality };
+                delete (processedTenant as any).video_quality;
+            }
+
             if (processedTenant.logo_url && processedTenant.logo_url.startsWith('data:image')) {
                 processedTenant.logo_url = await StorageService.uploadFile(processedTenant.logo_url, `tenants/new/logo`);
             }
@@ -312,6 +324,18 @@ export const TenantService = {
                 if (key !== snakeKey && (rest as Record<string, unknown>)[snakeKey] !== undefined) return;
                 processedUpdate[snakeKey] = (rest as Record<string, unknown>)[key];
             });
+
+            // 🛡️ Safely store max_ai_manuals inside metadata (JSONB) to prevent schema cache error
+            if (processedUpdate.max_ai_manuals !== undefined) {
+                const currentMeta = (processedUpdate.metadata as Record<string, any>) || {};
+                processedUpdate.metadata = { ...currentMeta, max_ai_manuals: processedUpdate.max_ai_manuals };
+                delete processedUpdate.max_ai_manuals;
+            }
+            if ((processedUpdate as any).video_quality !== undefined) {
+                const currentMeta = (processedUpdate.metadata as Record<string, any>) || {};
+                processedUpdate.metadata = { ...currentMeta, video_quality: (processedUpdate as any).video_quality };
+                delete (processedUpdate as any).video_quality;
+            }
 
             const { data, error } = await supabase
                 .from('tenants')
@@ -645,29 +669,122 @@ export const TenantService = {
 
     // 📢 Nexus Global Notifications
 
-    createSystemNotification: async (notification: { title: string, content: string, type: 'broadcast' | 'targeted', targetTenants?: string[], priority: string }) => {
+    createSystemNotification: async (notification: {
+        title: string;
+        content: string;
+        type: 'broadcast' | 'targeted';
+        targetTenants?: string[];
+        targetRoles?: string[];
+        priority: string;
+        actionLabel?: string;
+        actionUrl?: string;
+        expiresAt?: string;
+    }) => {
         if (isCloudEnabled) {
-            // Usa RPC para bypassar o RLS já que o painel usa a chave anon
-            const { data, error } = await publicSupabase.rpc('master_broadcast_notification', {
-                p_title: notification.title,
-                p_content: notification.content,
-                p_type: notification.type,
-                p_priority: notification.priority,
-                p_target_tenants: notification.targetTenants || null
+            // Incorpora metadados estruturados de fallback no campo content para resiliência total de colunas
+            const metaPayload = {
+                type: notification.type,
+                priority: notification.priority,
+                targetTenants: notification.targetTenants || [],
+                targetRoles: notification.targetRoles || [],
+                actionLabel: notification.actionLabel?.trim() || null,
+                actionUrl: notification.actionUrl?.trim() || null,
+                expiresAt: notification.expiresAt || null
+            };
+
+            let storedContent = notification.content.trim();
+            if (notification.actionLabel || notification.actionUrl || (notification.targetTenants && notification.targetTenants.length > 0) || (notification.targetRoles && notification.targetRoles.length > 0)) {
+                storedContent = `${storedContent}\n\n<!--NEXUS_NOTIF_META:${JSON.stringify(metaPayload)}-->`;
+            }
+
+            const fullPayload: Record<string, any> = {
+                title: notification.title,
+                content: storedContent,
+                type: notification.type,
+                priority: notification.priority,
+                target_tenants: notification.targetTenants && notification.targetTenants.length > 0 ? notification.targetTenants : null,
+                target_roles: notification.targetRoles && notification.targetRoles.length > 0 ? notification.targetRoles : null,
+                action_label: notification.actionLabel ? notification.actionLabel.trim() : null,
+                action_url: notification.actionUrl ? notification.actionUrl.trim() : null,
+                expires_at: notification.expiresAt ? new Date(notification.expiresAt).toISOString() : null
+            };
+
+            // Remove null/undefined optional properties so we don't send columns that might not exist
+            Object.keys(fullPayload).forEach(key => {
+                if (fullPayload[key] === null || fullPayload[key] === undefined) {
+                    delete fullPayload[key];
+                }
             });
-            
-            if (error) throw error;
-            if (data && data.success === false) throw new Error(data.error);
-            return data;
+
+            console.log('[TenantService] 🚀 Inserting system notification:', fullPayload);
+
+            // Strategy 1: Direct table insert with authenticated client (supabase)
+            try {
+                const { data, error } = await supabase
+                    .from('system_notifications')
+                    .insert([fullPayload])
+                    .select()
+                    .single();
+
+                if (!error && data) {
+                    console.log('[TenantService] ✅ Notification inserted via authenticated client:', data.id);
+                    return data;
+                }
+                if (error) console.warn('[TenantService] Insert via authenticated client warning:', error.message);
+            } catch (e) { /* fallback */ }
+
+            // Strategy 2: Direct table insert with anon client (publicSupabase)
+            try {
+                const { data, error } = await publicSupabase
+                    .from('system_notifications')
+                    .insert([fullPayload])
+                    .select()
+                    .single();
+
+                if (!error && data) {
+                    console.log('[TenantService] ✅ Notification inserted via anon client:', data.id);
+                    return data;
+                }
+
+                // If error is missing column (schema cache mismatch), strip non-core columns and insert
+                if (error && error.message?.includes('Could not find')) {
+                    console.warn('[TenantService] ⚠️ Schema mismatch in system_notifications. Retrying with core columns:', error.message);
+                    const corePayload: Record<string, any> = {
+                        title: notification.title,
+                        content: storedContent,
+                        type: notification.type,
+                        priority: notification.priority
+                    };
+                    if (notification.targetTenants && notification.targetTenants.length > 0) {
+                        corePayload.target_tenants = notification.targetTenants;
+                    }
+
+                    const { data: fallbackData, error: fallbackError } = await publicSupabase
+                        .from('system_notifications')
+                        .insert([corePayload])
+                        .select()
+                        .single();
+
+                    if (!fallbackError && fallbackData) return fallbackData;
+                    if (fallbackError) throw fallbackError;
+                }
+                if (error) throw error;
+            } catch (e: any) {
+                console.error('[TenantService] ❌ Insert failed on both clients:', e.message || e);
+                throw e;
+            }
         }
         return null;
     },
 
-    getSystemNotifications: async (userId: string): Promise<any[]> => {
+    getSystemNotifications: async (userId: string, tenantId?: string, userRole?: string): Promise<any[]> => {
         if (isCloudEnabled) {
             try {
-                const { data: readRecords } = await supabase.from('system_notification_reads').select('notification_id').eq('user_id', userId);
-                const dbReadIds = (readRecords || []).map(r => r.notification_id);
+                let dbReadIds: string[] = [];
+                try {
+                    const { data: readRecords } = await supabase.from('system_notification_reads').select('notification_id').eq('user_id', userId);
+                    if (readRecords) dbReadIds = readRecords.map(r => r.notification_id);
+                } catch (e) { /* fallback */ }
 
                 // Big Tech Resilience: Combine DB read state with LocalStorage cache
                 let localReadIds: string[] = [];
@@ -675,29 +792,215 @@ export const TenantService = {
                     const localKey = `nexus_dismissed_notif_${userId}`;
                     localReadIds = JSON.parse(localStorage.getItem(localKey) || '[]');
                 } catch(e) {}
-                
+
                 const allReadIds = Array.from(new Set([...dbReadIds, ...localReadIds]));
+                const nowIso = new Date().toISOString();
 
-                // Build query; fetch all recent notifications
-                let query = supabase.from('system_notifications')
-                    .select('*')
-                    .order('created_at', { ascending: false })
-                    .limit(50);
+                let rawNotifications: any[] = [];
 
-                const { data: notifications, error } = await query;
-                if (error) throw error;
+                // Attempt 1: Query with expires_at filter on authenticated client
+                try {
+                    const { data, error } = await supabase
+                        .from('system_notifications')
+                        .select('*')
+                        .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
+                        .order('created_at', { ascending: false })
+                        .limit(50);
 
-                // Attach isRead flag based on the combined readIds
-                return (notifications || []).map(n => ({
-                    ...n,
-                    isRead: allReadIds.includes(n.id)
-                }));
+                    if (!error && data && data.length > 0) {
+                        rawNotifications = data;
+                    } else if (error) {
+                        console.warn('[TenantService] ⚠️ Query auth with expires_at warning:', error.message);
+                    }
+                } catch (e) { /* fallback */ }
+
+                // Attempt 2: Simple select without expires_at filter (in case column is missing or PostgREST error)
+                if (rawNotifications.length === 0) {
+                    try {
+                        const { data, error } = await supabase
+                            .from('system_notifications')
+                            .select('*')
+                            .order('created_at', { ascending: false })
+                            .limit(50);
+
+                        if (!error && data && data.length > 0) {
+                            rawNotifications = data;
+                        } else if (error) {
+                            console.warn('[TenantService] ⚠️ Query auth simple warning:', error.message);
+                        }
+                    } catch (e) { /* fallback */ }
+                }
+
+                // Attempt 3: PublicSupabase (anon client) fallback if authenticated client returned empty or failed due to RLS
+                if (rawNotifications.length === 0) {
+                    try {
+                        const { data, error } = await publicSupabase
+                            .from('system_notifications')
+                            .select('*')
+                            .order('created_at', { ascending: false })
+                            .limit(50);
+
+                        if (!error && data) {
+                            console.log('[TenantService] ✅ Loaded notifications via publicSupabase (anon):', data.length);
+                            rawNotifications = data;
+                        }
+                    } catch (e) { /* fallback */ }
+                }
+
+                // Helper para parsear arrays de forma resiliente
+                const parseArray = (field: any): string[] => {
+                    if (!field) return [];
+                    if (Array.isArray(field)) return field.map(String);
+                    if (typeof field === 'string') {
+                        const trimmed = field.trim();
+                        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+                            try {
+                                const parsed = JSON.parse(trimmed);
+                                if (Array.isArray(parsed)) return parsed.map(String);
+                            } catch (e) { /* fallback */ }
+                        }
+                        return [trimmed];
+                    }
+                    return [];
+                };
+
+                // Decodificador de Metadados Nexus incorporados no content
+                const notifications = (rawNotifications || []).map(n => {
+                    let content = n.content || '';
+                    let actionLabel = n.action_label || n.actionLabel;
+                    let actionUrl = n.action_url || n.actionUrl;
+                    let targetTenants = n.target_tenants || n.targetTenants;
+                    let targetRoles = n.target_roles || n.targetRoles;
+                    let expiresAt = n.expires_at || n.expiresAt;
+
+                    if (typeof content === 'string' && content.includes('<!--NEXUS_NOTIF_META:')) {
+                        try {
+                            const match = content.match(/<!--NEXUS_NOTIF_META:(.*?)-->/s);
+                            if (match && match[1]) {
+                                const meta = JSON.parse(match[1]);
+                                if (meta.actionLabel && !actionLabel) actionLabel = meta.actionLabel;
+                                if (meta.actionUrl && !actionUrl) actionUrl = meta.actionUrl;
+                                if (meta.targetTenants && (!targetTenants || targetTenants.length === 0)) targetTenants = meta.targetTenants;
+                                if (meta.targetRoles && (!targetRoles || targetRoles.length === 0)) targetRoles = meta.targetRoles;
+                                if (meta.expiresAt && !expiresAt) expiresAt = meta.expiresAt;
+                            }
+                            content = content.replace(/<!--NEXUS_NOTIF_META:.*?-->/g, '').trim();
+                        } catch (e) { /* continue */ }
+                    }
+
+                    return {
+                        ...n,
+                        content,
+                        actionLabel,
+                        actionUrl,
+                        targetTenants,
+                        targetRoles,
+                        expiresAt
+                    };
+                });
+
+                // Attach isRead flag based on the combined readIds and filter by targetTenants and targetRoles
+                return notifications
+                    .filter(n => {
+                        const notifType = String(n.type || 'broadcast').toLowerCase().trim();
+
+                        // 1. Filtro por Tenant
+                        if (notifType === 'targeted' && tenantId) {
+                            const targets = parseArray(n.targetTenants || n.target_tenants);
+                            if (targets.length > 0) {
+                                const cleanTenantId = String(tenantId).toLowerCase().trim();
+                                const hasTenantMatch = targets.some(t => String(t).toLowerCase().trim() === cleanTenantId);
+                                if (!hasTenantMatch) return false;
+                            }
+                        }
+
+                        // 2. Filtro por Cargo (Role)
+                        if (userRole) {
+                            const targetRoles = parseArray(n.targetRoles || n.target_roles);
+                            if (targetRoles.length > 0) {
+                                const cleanUserRole = String(userRole).toUpperCase().trim();
+                                const hasRoleMatch = targetRoles.some(r => {
+                                    const cleanTargetRole = String(r).toUpperCase().trim();
+                                    if (cleanTargetRole === cleanUserRole) return true;
+                                    if ((cleanUserRole === 'ADMIN' || cleanUserRole === 'SUPER_ADMIN' || cleanUserRole === 'MASTER') && (cleanTargetRole === 'ADMIN' || cleanTargetRole === 'GESTÃO' || cleanTargetRole === 'ADMINISTRADOR')) return true;
+                                    if ((cleanUserRole === 'TECHNICIAN' || cleanUserRole === 'TECH') && (cleanTargetRole === 'TECHNICIAN' || cleanTargetRole === 'TÉCNICO')) return true;
+                                    return false;
+                                });
+                                if (!hasRoleMatch) return false;
+                            }
+                        }
+
+                        return true;
+                    })
+                    .map(n => ({
+                        ...n,
+                        targetRoles: parseArray(n.targetRoles || n.target_roles),
+                        targetTenants: parseArray(n.targetTenants || n.target_tenants),
+                        actionLabel: n.actionLabel || n.action_label,
+                        actionUrl: n.actionUrl || n.action_url,
+                        expiresAt: n.expiresAt || n.expires_at,
+                        isRead: allReadIds.includes(n.id)
+                    }));
             } catch (err) {
-                console.error('Failed to load system notifications:', err);
+                console.error('[TenantService] Failed to load system notifications:', err);
                 return [];
             }
         }
         return [];
+    },
+
+    getMasterNotificationStats: async (): Promise<any[]> => {
+        if (isCloudEnabled) {
+            try {
+                const { data: notifications, error } = await publicSupabase
+                    .from('system_notifications')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(50);
+
+                if (error) throw error;
+                if (!notifications || notifications.length === 0) return [];
+
+                const notificationIds = notifications.map(n => n.id);
+                const { data: readsData } = await publicSupabase
+                    .from('system_notification_reads')
+                    .select('notification_id')
+                    .in('notification_id', notificationIds);
+
+                const readsCountMap: Record<string, number> = {};
+                (readsData || []).forEach(r => {
+                    readsCountMap[r.notification_id] = (readsCountMap[r.notification_id] || 0) + 1;
+                });
+
+                return notifications.map(n => ({
+                    ...n,
+                    targetRoles: n.target_roles || n.targetRoles,
+                    targetTenants: n.target_tenants || n.targetTenants,
+                    actionLabel: n.action_label || n.actionLabel,
+                    actionUrl: n.action_url || n.actionUrl,
+                    expiresAt: n.expires_at || n.expiresAt,
+                    readCount: readsCountMap[n.id] || 0
+                }));
+            } catch (err) {
+                console.error('[TenantService] Failed to load master notification stats:', err);
+                return [];
+            }
+        }
+        return [];
+    },
+
+    revokeSystemNotification: async (notificationId: string): Promise<void> => {
+        if (isCloudEnabled) {
+            const { error } = await publicSupabase
+                .from('system_notifications')
+                .delete()
+                .eq('id', notificationId);
+
+            if (error) {
+                console.error('[TenantService] Failed to revoke notification:', error);
+                throw error;
+            }
+        }
     },
 
     markSystemNotificationAsRead: async (userId: string, notificationId: string) => {

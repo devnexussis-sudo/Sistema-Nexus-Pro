@@ -11,7 +11,7 @@ import {
   Navigation, Smartphone, Lock, Unlock, ListOrdered,
   ShieldAlert, X, UploadCloud, Languages,
   BellRing, Database, History, HardDrive, Loader2, Loader, Share2, PlayCircle, PieChart, Target, ImagePlus,
-  Monitor, MapPinned, MessageCircle, QrCode, Wifi, WifiOff, Clock, AlertTriangle, RefreshCw
+  Monitor, MapPinned, MessageCircle, QrCode, Wifi, WifiOff, Clock, AlertTriangle, RefreshCw, Video
 } from 'lucide-react';
 import { useI18n, TIMEZONE_OPTIONS, type SupportedLocale, type SupportedTimezone } from '../../i18n';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -1047,6 +1047,25 @@ export const SettingsPage: React.FC = () => {
                         </div>
                         <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
                           Quando ativado, limita a abertura de ordens de serviço (OS) a técnicos associados à área demarcada do cliente no mapa. Se o cliente estiver em área livre, exibe todos os técnicos.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Resolução de Vídeo do App (Read-Only) */}
+                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl mt-4">
+                      <div className="p-3 rounded-xl shadow-inner bg-slate-800 text-white">
+                        <Video size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">Qualidade de Vídeo (App dos Técnicos)</h4>
+                          <span className="px-2 py-1 bg-slate-200 text-slate-600 rounded-md text-[9px] font-bold uppercase tracking-widest">
+                            {(data as any)?.metadata?.video_quality === 'basic' ? 'Básica (576p)' : 'Alta (HD 720p)'}
+                          </span>
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
+                          Define a nitidez e o tamanho dos vídeos anexados pelos técnicos. 
+                          <br/><span className="text-amber-500">* Esta configuração de plano é gerenciada exclusivamente pelo suporte/Master.</span>
                         </p>
                       </div>
                     </div>

@@ -508,8 +508,11 @@ const CollapsibleFormSection: React.FC<{
     k.toLowerCase().includes('cpf') ||
     k.toLowerCase().includes('nascimento');
 
-  const isImageVal = (v: any) =>
-    typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('data:video') || v.startsWith('http'));
+  const isImageVal = (v: any) => {
+    if (typeof v !== 'string') return false;
+    const lower = v.toLowerCase().trim();
+    return lower.startsWith('data:image') || lower.startsWith('data:video') || lower.startsWith('http://') || lower.startsWith('https://') || lower.includes('/form_videos/') || lower.includes('/videos/');
+  };
 
   // Monta lista de itens do formulário: cada item pode ter texto e/ou fotos
   // Preserva a ORDEM original das perguntas via template (se disponível)
@@ -521,15 +524,27 @@ const CollapsibleFormSection: React.FC<{
       let text: string | null = null;
       let photos: string[] = [];
 
-      if (Array.isArray(val)) {
-        // Arrays podem ter mix de strings e fotos
-        const textParts = val.filter((v: any) => typeof v === 'string' && !isImageVal(v));
-        photos = val.filter((v: any) => isImageVal(v));
+      let rawVal = val;
+      if (typeof rawVal === 'string' && (rawVal.trim().startsWith('[') || rawVal.trim().startsWith('{'))) {
+        try {
+          rawVal = JSON.parse(rawVal.trim());
+        } catch (e) {}
+      }
+
+      if (Array.isArray(rawVal)) {
+        const textParts = rawVal.filter((v: any) => typeof v === 'string' && !isImageVal(v));
+        photos = rawVal.filter((v: any) => isImageVal(v)).map(v => String(v));
         if (textParts.length > 0) text = textParts.join(', ');
-      } else if (isImageVal(val)) {
-        photos = [val as string];
-      } else if (val !== null && val !== undefined && val !== '') {
-        text = String(val);
+      } else if (isImageVal(rawVal)) {
+        photos = [rawVal as string];
+      } else if (typeof rawVal === 'string' && (rawVal.includes('http') || rawVal.includes('data:video')) && (rawVal.includes('.mp4') || rawVal.includes('.mov') || rawVal.includes('/form_videos/') || rawVal.includes('/videos/'))) {
+        const parts = rawVal.split(',').map(s => s.trim()).filter(Boolean);
+        const mediaParts = parts.filter(p => isImageVal(p));
+        const nonMedia = parts.filter(p => !isImageVal(p));
+        if (mediaParts.length > 0) photos = mediaParts;
+        if (nonMedia.length > 0) text = nonMedia.join(', ');
+      } else if (rawVal !== null && rawVal !== undefined && rawVal !== '') {
+        text = String(rawVal);
       }
 
       return { key, text, photos };
@@ -1154,21 +1169,38 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     return lower.includes('assinatura') || lower.includes('signature') || lower.includes('cpf') || lower.includes('nascimento');
   };
 
-  const isImageVal = (v: any) => typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('data:video') || v.startsWith('http'));
+  const isImageValPrint = (v: any) => {
+    if (typeof v !== 'string') return false;
+    const lower = v.toLowerCase().trim();
+    return lower.startsWith('data:image') || lower.startsWith('data:video') || lower.startsWith('http://') || lower.startsWith('https://') || lower.includes('/form_videos/') || lower.includes('/videos/');
+  };
 
   Object.entries(formDataPrint)
     .filter(([key]) => !SYSTEM_KEYS.has(key) && !isSignatureKey(key))
     .forEach(([key, val]) => {
       let text: string | null = null;
       let photos: string[] = [];
-      if (Array.isArray(val)) {
-        const textParts = val.filter((v: any) => typeof v === 'string' && !isImageVal(v));
-        photos = val.filter((v: any) => isImageVal(v));
+      let rawVal = val;
+      if (typeof rawVal === 'string' && (rawVal.trim().startsWith('[') || rawVal.trim().startsWith('{'))) {
+        try {
+          rawVal = JSON.parse(rawVal.trim());
+        } catch (e) {}
+      }
+
+      if (Array.isArray(rawVal)) {
+        const textParts = rawVal.filter((v: any) => typeof v === 'string' && !isImageValPrint(v));
+        photos = rawVal.filter((v: any) => isImageValPrint(v)).map(v => String(v));
         if (textParts.length > 0) text = textParts.join(', ');
-      } else if (isImageVal(val)) {
-        photos = [val as string];
-      } else if (val !== null && val !== undefined && val !== '') {
-        text = String(val);
+      } else if (isImageValPrint(rawVal)) {
+        photos = [rawVal as string];
+      } else if (typeof rawVal === 'string' && (rawVal.includes('http') || rawVal.includes('data:video')) && (rawVal.includes('.mp4') || rawVal.includes('.mov') || rawVal.includes('/form_videos/') || rawVal.includes('/videos/'))) {
+        const parts = rawVal.split(',').map(s => s.trim()).filter(Boolean);
+        const mediaParts = parts.filter(p => isImageValPrint(p));
+        const nonMedia = parts.filter(p => !isImageValPrint(p));
+        if (mediaParts.length > 0) photos = mediaParts;
+        if (nonMedia.length > 0) text = nonMedia.join(', ');
+      } else if (rawVal !== null && rawVal !== undefined && rawVal !== '') {
+        text = String(rawVal);
       }
       if (text !== null || photos.length > 0) formItemsPrint.push({ key, text, photos });
     });

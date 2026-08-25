@@ -170,8 +170,9 @@ async function provisionMasterSession(masterEmail: string, masterPassword: strin
     { onConflict: 'user_id' }
   );
 
-  // 4. Sign in as the user using a fresh client (NOT admin) to get real JWT tokens
-  const authClient = createClient(supabaseUrl, serviceRoleKey, {
+  // 4. Sign in as the user using a fresh client with anon key to get real JWT tokens
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || serviceRoleKey;
+  const authClient = createClient(supabaseUrl, anonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   
@@ -224,10 +225,10 @@ Deno.serve(async (req: Request) => {
     }
 
     // Load secrets from Supabase Dashboard (never in browser bundle)
-    const masterEmail = Deno.env.get('MASTER_EMAIL');
-    const masterPassword = Deno.env.get('MASTER_PASSWORD');
-    const masterTotpSecret = Deno.env.get('MASTER_TOTP_SECRET');
-    const masterSessionToken = Deno.env.get('MASTER_SESSION_TOKEN');
+    const masterEmail = (Deno.env.get('MASTER_EMAIL') || '').trim();
+    const masterPassword = (Deno.env.get('MASTER_PASSWORD') || '').trim();
+    const masterTotpSecret = (Deno.env.get('MASTER_TOTP_SECRET') || '').trim();
+    const masterSessionToken = (Deno.env.get('MASTER_SESSION_TOKEN') || '').trim();
 
     if (!masterEmail || !masterPassword || !masterTotpSecret || !masterSessionToken) {
       await minDelay();
@@ -238,8 +239,8 @@ Deno.serve(async (req: Request) => {
 
     // Validate all 3 factors
     const emailOk = typeof email === 'string' && email.trim().toLowerCase() === masterEmail.toLowerCase();
-    const passOk = typeof password === 'string' && password === masterPassword;
-    const totpOk = typeof totp === 'string' && totp.length === 6 && await verifyTOTP(masterTotpSecret, totp);
+    const passOk = typeof password === 'string' && password.trim() === masterPassword;
+    const totpOk = typeof totp === 'string' && totp.trim().length === 6 && await verifyTOTP(masterTotpSecret, totp.trim());
 
     if (emailOk && passOk && totpOk) {
       clearAttempts(ip);

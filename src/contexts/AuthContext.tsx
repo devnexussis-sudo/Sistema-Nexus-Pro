@@ -10,7 +10,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { AuthState, User } from '../types';
-import { DataService } from '../services/dataService';
+import { AuthService } from '../services/authService';
 import SessionStorage, { GlobalStorage } from '../lib/sessionStorage';
 import { globalSession, globalSessionOk } from '../lib/supabaseClient';
 import { supabase } from '../lib/supabase';
@@ -66,7 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
                 if (!isRefreshingUser.current) {
                     isRefreshingUser.current = true;
-                    const rUser = await DataService.refreshUser().catch(() => null);
+                    const rUser = await AuthService.refreshUser().catch(() => null);
                     isRefreshingUser.current = false;
                     if (rUser && isMounted.current) {
                         setAuth({ user: rUser, isAuthenticated: true });
@@ -86,7 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
                     if (!isRefreshingUser.current) {
                         isRefreshingUser.current = true;
-                        const rUser = await DataService.refreshUser().catch(() => null);
+                        const rUser = await AuthService.refreshUser().catch(() => null);
                         isRefreshingUser.current = false;
                         if (rUser && isMounted.current) {
                             setAuth({ user: rUser, isAuthenticated: true });
@@ -146,7 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 // Apenas no login inicial — carrega o perfil Nexus do usuário
                 if (!isRefreshingUser.current) {
                     isRefreshingUser.current = true;
-                    const rUser = await DataService.refreshUser().catch(() => null);
+                    const rUser = await AuthService.refreshUser().catch(() => null);
                     isRefreshingUser.current = false;
                     if (rUser && isMounted.current) {
                         setAuth({ user: rUser, isAuthenticated: true });
@@ -256,7 +256,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Verificação única no mount (cobre o caso de suspensão antes do login)
         // Usa o campo já carregado em memória — sem query extra se já disponível
         const verifyOnMount = async () => {
-            const isSuspended = await DataService.checkTenantSuspended(tenantId).catch(() => false);
+            const isSuspended = await AuthService.checkTenantSuspended(tenantId).catch(() => false);
             if (isSuspended && isMounted.current) {
                 console.warn(`[AuthContext] 🔒 Tenant ${tenantId} já suspenso no mount. Encerrando sessão.`);
                 await logout();
@@ -300,7 +300,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 
     const refreshUser = useCallback(async () => {
-        const u = await DataService.refreshUser().catch(() => undefined);
+        const u = await AuthService.refreshUser().catch(() => undefined);
         if (u && isMounted.current) setAuth(prev => ({ ...prev, user: u }));
         return u;
     }, []);

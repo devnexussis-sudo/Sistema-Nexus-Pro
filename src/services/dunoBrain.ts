@@ -457,7 +457,8 @@ export async function analyzeAndDiscover(input: string): Promise<string | null> 
     'de', 'do', 'da', 'em', 'para', 'com', 'um', 'uma', 'os', 'as', 'o', 'a', 
     'como', 'fazer', 'onde', 'qual', 'quais', 'sistema', 'tela', 'modulo', 
     'botao', 'que', 'se', 'na', 'no', 'eu', 'quero', 'detalhes', 'executar',
-    'tarefa', 'dentro', 'como', 'consigo', 'posso', 'faco', 'passo', 'a', 'passo'
+    'tarefa', 'dentro', 'como', 'consigo', 'posso', 'faco', 'passo', 'a', 'passo',
+    'duno', 'ia', 'bot', 'copilot'
   ]);
   
   const tokens = query.split(/[\s,.\-?/\\_]+/).filter(t => t.length > 2 && !stopwords.has(t));
@@ -478,11 +479,11 @@ export async function analyzeAndDiscover(input: string): Promise<string | null> 
       }
     }
 
-    // Regra 2: Presença de tokens da pergunta no título do fluxo (peso 15 por token)
+    // Regra 2: Presença de tokens da pergunta no título do fluxo (peso 10 por token)
     const titleNormalized = removeAccents(node.title.toLowerCase());
     for (const token of tokens) {
       if (titleNormalized.includes(token)) {
-        score += 15;
+        score += 10;
       }
     }
 
@@ -520,8 +521,8 @@ export async function analyzeAndDiscover(input: string): Promise<string | null> 
     }
   }
 
-  // Retorna resposta estruturada se o score for confiável (mínimo 15 pontos)
-  if (bestNode && maxScore >= 15) {
+  // Retorna resposta estruturada se o score for confiável (mínimo 25 pontos)
+  if (bestNode && maxScore >= 25) {
     let response = `🤖 **Duno Copilot — Guia do Sistema**\n\n`;
     response += `📌 **Módulo/Fluxo:** ${bestNode.title}\n`;
     response += `📖 **Descrição Operacional:** ${bestNode.description}\n\n`;
@@ -542,61 +543,49 @@ export async function analyzeAndDiscover(input: string): Promise<string | null> 
   // Intercepta e monta guias customizados de CRUD para qualquer tela
   // ============================================================
   const verbKey = detectVerb(query);
-  const matchedModule = detectModule(query);
 
-  if (matchedModule) {
-    const verbLabels = {
-      create: 'Criar / Cadastrar',
-      update: 'Editar / Alterar',
-      delete: 'Excluir / Deletar / Cancelar',
-      read: 'Visualizar / Consultar',
-      report: 'Gerar Relatório / Imprimir'
-    };
+  // Apenas intercepta se o usuário usar um verbo claro de ação no sistema (CRUD) ou perguntar explicitamente pelo sistema
+  const isSystemQuestion = verbKey !== null || query.includes("sistema") || query.includes("modulo") || query.includes("tela") || query.includes("painel");
 
-    let response = `🤖 **Duno Copilot — Assistente de Procedimento**\n\n`;
-    
-    if (verbKey) {
-      response += `Identifiquei sua intenção de **${verbLabels[verbKey]}** no módulo de **${matchedModule.name}**.\n\n`;
-      response += `📍 **Onde executar no sistema:**\n`;
-      response += `Acesse o caminho: \`${matchedModule.menuPath}\`\n\n`;
-      response += `🛠️ **Como fazer (Passo a Passo):**\n`;
-      response += `1. ${matchedModule.steps[verbKey]}\n`;
-      response += `2. Certifique-se de estar autenticado com as permissões corretas para este módulo.\n`;
-      response += `3. Qualquer ação crítica de exclusão ou alteração de dados abrirá o modal de confirmação do Design System.\n\n`;
-    } else {
-      response += `Identifiquei que você está buscando informações sobre o módulo de **${matchedModule.name}**.\n\n`;
-      response += `📍 **Onde encontrar:** \`${matchedModule.menuPath}\`\n\n`;
-      response += `🛠️ **Ações comuns mapeadas pelo Copilot:**\n`;
-      response += `• **Criar:** ${matchedModule.steps.create}\n`;
-      response += `• **Editar:** ${matchedModule.steps.update}\n`;
-      response += `• **Excluir:** ${matchedModule.steps.delete}\n`;
-      response += `• **Visualizar:** ${matchedModule.steps.read}\n`;
-      if (matchedModule.steps.report) {
-        response += `• **Imprimir:** ${matchedModule.steps.report}\n`;
+  if (isSystemQuestion) {
+    const matchedModule = detectModule(query);
+
+    if (matchedModule) {
+      const verbLabels = {
+        create: 'Criar / Cadastrar',
+        update: 'Editar / Alterar',
+        delete: 'Excluir / Deletar / Cancelar',
+        read: 'Visualizar / Consultar',
+        report: 'Gerar Relatório / Imprimir'
+      };
+
+      let response = `🤖 **Duno Copilot — Assistente de Procedimento**\n\n`;
+      
+      if (verbKey) {
+        response += `Identifiquei sua intenção de **${verbLabels[verbKey]}** no módulo de **${matchedModule.name}**.\n\n`;
+        response += `📍 **Onde executar no sistema:**\n`;
+        response += `Acesse o caminho: \`${matchedModule.menuPath}\`\n\n`;
+        response += `🛠️ **Como fazer (Passo a Passo):**\n`;
+        response += `1. ${matchedModule.steps[verbKey]}\n`;
+        response += `2. Certifique-se de estar autenticado com as permissões corretas para este módulo.\n`;
+        response += `3. Qualquer ação crítica de exclusão ou alteração de dados abrirá o modal de confirmação do Design System.\n\n`;
+      } else {
+        response += `Identifiquei que você está buscando informações sobre o módulo de **${matchedModule.name}**.\n\n`;
+        response += `📍 **Onde encontrar:** \`${matchedModule.menuPath}\`\n\n`;
+        response += `🛠️ **Ações comuns mapeadas pelo Copilot:**\n`;
+        response += `• **Criar:** ${matchedModule.steps.create}\n`;
+        response += `• **Editar:** ${matchedModule.steps.update}\n`;
+        response += `• **Excluir:** ${matchedModule.steps.delete}\n`;
+        response += `• **Visualizar:** ${matchedModule.steps.read}\n`;
+        if (matchedModule.steps.report) {
+          response += `• **Imprimir:** ${matchedModule.steps.report}\n`;
+        }
+        response += `\n`;
       }
-      response += `\n`;
-    }
 
-    response += `*Espero ter ajudado! Se tiver outra dúvida de fluxo, pode mandar.*`;
-    return response;
-  }
-
-  // ============================================================
-  // 🔍 MOTOR DE VARREDURA PROFUNDA (SISTEMA SCAN)
-  // Quando não sabe a resposta, varre o código fonte do sistema!
-  // ============================================================
-  try {
-    const scanResults = await searchProjectFiles(input, 3);
-    
-    if (scanResults && scanResults !== 'Nenhum termo de busca válido.' && scanResults !== 'Nenhum conteúdo relevante encontrado no código-fonte.') {
-      let response = `🤖 **Duno Copilot — Scan de Código Realizado** 🔍\n\n`;
-      response += `Eu não possuo um guia pré-programado para essa pergunta, mas **acabei de escanear o código-fonte** e encontrei a possível implementação:\n\n`;
-      response += `\`\`\`tsx\n${scanResults}\n\`\`\`\n\n`;
-      response += `Com base nestes trechos do código-fonte, você pode deduzir o fluxo interno. Se tiver dúvidas sobre a lógica, estou à disposição!`;
+      response += `*Espero ter ajudado! Se tiver outra dúvida de fluxo, pode mandar.*`;
       return response;
     }
-  } catch (err) {
-    console.error('Erro no scanner do sistema:', err);
   }
 
   // Fallback Inteligente e Proativo (se não bater um score alto, sugere os 3 melhores combinados)
@@ -809,11 +798,11 @@ export const COPILOT_MODULES: CopilotModule[] = [
 
 function detectVerb(query: string): 'create' | 'update' | 'delete' | 'read' | 'report' | null {
   const q = removeAccents(query);
-  if (/(criar|criacao|novo|nova|cadastr|adicion|abrir|gerar|inserir|adicionar|lanc|registr)/.test(q)) return 'create';
-  if (/(edit|alter|modific|muda|atualiz|salvar|alterar|inativ|desativ|bloque)/.test(q)) return 'update';
+  if (/(criar|criacao|novo|nova|cadastr|adicion|abrir|gerar|inserir|lanc|registr)/.test(q)) return 'create';
+  if (/(edit|alter|modific|muda|atualiz|salvar|inativ|desativ|bloque)/.test(q)) return 'update';
   if (/(delet|exclui|remov|apaga|cancel|revoga|exclusao)/.test(q)) return 'delete';
   if (/(imprim|pdf|relatori|baixa|export|etiqueta|impressao)/.test(q)) return 'report';
-  if (/(onde fica|lista|acha|busca|pesquis|ver|qual|quais|consultar|onde)/.test(q)) return 'read';
+  if (/(consultar\s+lista|onde\s+fica\s+a\s+tela|como\s+acessar|listar\s+todos)/.test(q)) return 'read';
   return null;
 }
 

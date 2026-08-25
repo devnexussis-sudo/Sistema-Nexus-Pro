@@ -6,6 +6,7 @@ import {
   X, CreditCard, QrCode, Copy, CheckCircle2, 
   ExternalLink, Share2, Loader2, ShieldCheck, DollarSign, RefreshCw
 } from 'lucide-react';
+import { useTenant } from '../../hooks/nexusHooks';
 
 interface MercadoPagoPaymentModalProps {
   isOpen: boolean;
@@ -18,6 +19,8 @@ interface MercadoPagoPaymentModalProps {
     value: number;
     customerName: string;
     customerPhone?: string;
+    customerEmail?: string;
+    customerDocument?: string;
     gatewayPixCode?: string;
     gatewayTicketUrl?: string;
     gatewayStatus?: string;
@@ -28,12 +31,16 @@ interface MercadoPagoPaymentModalProps {
 export const MercadoPagoPaymentModal: React.FC<MercadoPagoPaymentModalProps> = ({
   isOpen, onClose, item, onSuccess
 }) => {
+  const { data: tenant } = useTenant();
+  const companyName = tenant?.name || 'NEXUS';
   const [loading, setLoading] = useState(false);
   const [paymentResult, setPaymentResult] = useState<{
     paymentId?: string;
     pixCopiaECola?: string;
+    qrCodeBase64?: string;
     ticketUrl?: string;
     expiresAt?: string;
+    methodType?: 'pix' | 'card_link' | 'boleto';
   } | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,10 +56,12 @@ export const MercadoPagoPaymentModal: React.FC<MercadoPagoPaymentModalProps> = (
       setError(null);
 
       if (item.gatewayPixCode || item.gatewayTicketUrl) {
+        const method = (item as any).gatewayPaymentMethod || ((item as any).gatewayPixCode ? 'pix' : 'card_link');
         setPaymentResult({
           paymentId: (item as any).gatewayPaymentId,
-          pixCopiaECola: item.gatewayPixCode,
-          ticketUrl: item.gatewayTicketUrl
+          pixCopiaECola: item.gatewayPixCode?.startsWith('000201') ? item.gatewayPixCode : undefined,
+          ticketUrl: item.gatewayTicketUrl,
+          methodType: method
         });
         if (item.billingStatus === 'PAID' || item.gatewayStatus === 'approved') {
           setIsPaidConfirmed(true);
@@ -172,6 +181,8 @@ export const MercadoPagoPaymentModal: React.FC<MercadoPagoPaymentModalProps> = (
         title: item.title || (item.type === 'ORDER' ? 'Ordem de Serviço' : 'Orçamento'),
         amount: finalAmount,
         customerName: item.customerName,
+        customerEmail: item.customerEmail,
+        customerDocument: item.customerDocument,
         paymentMethodType,
         installments: paymentMethodType === 'card_link' ? 12 : undefined,
         tenantId: itemTenantId
@@ -181,8 +192,10 @@ export const MercadoPagoPaymentModal: React.FC<MercadoPagoPaymentModalProps> = (
         setPaymentResult({
           paymentId: res.paymentId,
           pixCopiaECola: res.pixCopiaECola,
+          qrCodeBase64: res.qrCodeBase64,
           ticketUrl: res.ticketUrl,
-          expiresAt: res.expiresAt
+          expiresAt: res.expiresAt,
+          methodType: paymentMethodType
         });
         if (onSuccess) onSuccess();
       } else {
@@ -197,18 +210,26 @@ export const MercadoPagoPaymentModal: React.FC<MercadoPagoPaymentModalProps> = (
   };
 
   const handleCopyPix = () => {
-    if (paymentResult?.pixCopiaECola) {
-      navigator.clipboard.writeText(paymentResult.pixCopiaECola);
+    const textToCopy = paymentResult?.pixCopiaECola || paymentResult?.ticketUrl || '';
+    if (textToCopy) {
+      navigator.clipboard.writeText(textToCopy);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     }
   };
 
   const handleSendWhatsApp = () => {
+    const methodLabel = paymentResult?.methodType === 'pix' ? 'Pix' : (paymentResult?.methodType === 'boleto' ? 'Boleto' : 'Cartão');
+    const logoUrl = (tenant as any)?.logo_url || (tenant as any)?.logoUrl;
+    const headerPrefix = logoUrl ? `${logoUrl}\n\n` : '';
+
     const text = encodeURIComponent(
-      `Olá ${item.customerName}! Segue o link de pagamento da ${item.type === 'ORDER' ? 'O.S.' : 'Orçamento'} #${item.displayId || item.id.slice(0, 8)} no valor de R$ ${finalAmount.toFixed(2)}:\n\n` +
+      `${headerPrefix}🏢 *${companyName}*\n\n` +
+      `Olá, *${item.customerName}*! Tudo bem?\n\n` +
+      `Segue a cobrança referente à ${item.type === 'ORDER' ? 'O.S.' : 'Orçamento'} *#${item.displayId || item.id.slice(0, 8)}* no valor de *R$ ${finalAmount.toFixed(2)}*:\n\n` +
       (paymentResult?.pixCopiaECola ? `*Pix Copia e Cola:*\n${paymentResult.pixCopiaECola}\n\n` : '') +
-      `Link para pagamento: ${paymentResult?.ticketUrl || ''}`
+      (paymentResult?.ticketUrl ? `*Link de Pagamento (${methodLabel}):*\n${paymentResult.ticketUrl}\n\n` : '') +
+      `Agradecemos a preferência! 🙏`
     );
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
@@ -395,12 +416,12 @@ export const MercadoPagoPaymentModal: React.FC<MercadoPagoPaymentModalProps> = (
 
               <div>
                 <h4 className="font-bold text-slate-800 text-sm">
-                  {isPaidConfirmed ? '🟢 Pagamento Liquidado com Sucesso!' : 'Cobrança Emitida com Sucesso!'}
+                  {isPaidConfirmed ? '🟢 Pagamento Liquidado com Sucesso!' : 'Cobrança Gerada com Sucesso!'}
                 </h4>
                 <p className="text-[11px] text-slate-500 mt-0.5">
                   {isPaidConfirmed 
                     ? 'A transação foi confirmada pelo Mercado Pago e reconciliada no sistema.'
-                    : 'Envie o código Pix ou Link para o cliente efetuar o pagamento.'}
+                    : 'Escaneie o QR Code ou compartilhe o código/link com o cliente.'}
                 </p>
               </div>
 
@@ -425,21 +446,154 @@ export const MercadoPagoPaymentModal: React.FC<MercadoPagoPaymentModalProps> = (
                 </div>
               )}
 
-              {/* Box Pix Copia e Cola */}
-              {paymentResult.pixCopiaECola && !isPaidConfirmed && (
-                <div className="bg-white border border-slate-200/80 rounded-xl p-2.5 text-left space-y-1.5 shadow-xs">
-                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Código PIX Copia e Cola</label>
-                  <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
-                    <code className="text-[11px] font-mono text-slate-700 truncate flex-1">{paymentResult.pixCopiaECola}</code>
-                    <button
-                      onClick={handleCopyPix}
-                      className="px-2.5 py-1 bg-slate-900 text-white rounded-md text-[11px] font-semibold hover:bg-slate-800 transition-all shrink-0 flex items-center gap-1 active:scale-95"
-                    >
-                      {copied ? <CheckCircle2 size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                      {copied ? 'Copiado!' : 'Copiar'}
-                    </button>
-                  </div>
-                </div>
+              {/* 🟢 BLOCOS DEDICADOS POR TIPO DE PAGAMENTO */}
+              {!isPaidConfirmed && (
+                <>
+                  {/* SE FOR PIX OU TIVER CÓDIGO PIX */}
+                  {(paymentResult.methodType === 'pix' || paymentResult.pixCopiaECola || paymentResult.qrCodeBase64) && (
+                    <div className="space-y-3">
+                      {/* Imagem do QR Code Pix */}
+                      <div className="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-sm inline-block mx-auto">
+                        <img 
+                          src={
+                            paymentResult.qrCodeBase64 
+                              ? `data:image/png;base64,${paymentResult.qrCodeBase64}` 
+                              : `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(paymentResult.pixCopiaECola || paymentResult.ticketUrl || 'https://mercadopago.com.br')}`
+                          } 
+                          alt="QR Code Pix" 
+                          className="w-48 h-48 sm:w-52 sm:h-52 object-contain mx-auto rounded-lg"
+                        />
+                        <span className="text-[10px] text-slate-400 font-medium block mt-1">
+                          Escaneie com o app do seu Banco
+                        </span>
+                      </div>
+
+                      {/* Box Pix Copia e Cola Principal (NATIVO - INTACTO) */}
+                      <div className="bg-white border border-slate-200/80 rounded-xl p-2.5 text-left space-y-1.5 shadow-xs">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">
+                            Código PIX Copia e Cola
+                          </label>
+                          <span className="text-[9px] text-teal-600 font-bold bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                            ⚡ Liquidação Instantânea
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                          <input
+                            readOnly
+                            value={paymentResult.pixCopiaECola || ''}
+                            className="text-[11px] font-mono text-slate-700 bg-transparent flex-1 outline-none truncate"
+                          />
+                          <button
+                            onClick={handleCopyPix}
+                            className="px-2.5 py-1 bg-slate-900 text-white rounded-md text-[11px] font-semibold hover:bg-slate-800 transition-all shrink-0 flex items-center gap-1 active:scale-95"
+                          >
+                            {copied ? <CheckCircle2 size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                            {copied ? 'Copiado!' : 'Copiar'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* ADICIONAL: Link / QR Code Externo (Para copiar ou abrir em outra aba) */}
+                      {paymentResult.ticketUrl && (
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-2.5 text-left space-y-1.5 shadow-xs">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block flex items-center gap-1">
+                              <ExternalLink size={10} className="text-[#009EE3]" /> Link / QR Code Externo
+                            </label>
+                            <span className="text-[9px] text-sky-700 font-semibold bg-sky-50 px-2 py-0.5 rounded-full border border-sky-200">
+                              Opcional
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 bg-white p-1.5 rounded-lg border border-slate-200">
+                            <input
+                              readOnly
+                              value={paymentResult.ticketUrl}
+                              className="text-[10px] font-mono text-slate-600 bg-transparent flex-1 outline-none truncate"
+                            />
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(paymentResult.ticketUrl || '');
+                                showAlert('Link externo do Pix copiado com sucesso!', 'success');
+                              }}
+                              className="px-2 py-1 bg-slate-800 text-white rounded-md text-[10px] font-semibold hover:bg-slate-700 transition-all shrink-0 flex items-center gap-1 active:scale-95"
+                            >
+                              <Copy size={10} /> Copiar
+                            </button>
+                            <button
+                              onClick={() => window.open(paymentResult.ticketUrl, '_blank')}
+                              className="px-2 py-1 bg-[#009EE3] text-white rounded-md text-[10px] font-semibold hover:bg-[#0089c7] transition-all shrink-0 flex items-center gap-1 active:scale-95"
+                            >
+                              <ExternalLink size={10} /> Abrir
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* SE FOR BOLETO */}
+                  {paymentResult.methodType === 'boleto' && !paymentResult.pixCopiaECola && (
+                    <div className="bg-amber-50/60 border border-amber-200/80 rounded-2xl p-4 text-center space-y-3">
+                      <div className="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center mx-auto">
+                        <ExternalLink size={24} />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-800 text-sm">Boleto Bancário Gerado</h4>
+                        <p className="text-xs text-slate-500 mt-0.5">Abra direto no navegador para visualizar e imprimir o boleto.</p>
+                      </div>
+                      <div className="flex items-center gap-2 bg-white p-2 rounded-lg border border-amber-200">
+                        <input 
+                          readOnly 
+                          value={paymentResult.ticketUrl || ''} 
+                          className="text-xs font-mono text-slate-800 bg-transparent flex-1 outline-none truncate"
+                        />
+                        <button
+                          onClick={handleCopyPix}
+                          className="px-3 py-1.5 bg-slate-950 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition-all shrink-0 flex items-center gap-1.5 active:scale-95"
+                        >
+                          {copied ? <CheckCircle2 size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                          {copied ? 'Copiado!' : 'Copiar Link'}
+                        </button>
+                      </div>
+                      {paymentResult.ticketUrl && (
+                        <button
+                          onClick={() => window.open(paymentResult.ticketUrl, '_blank')}
+                          className="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-amber-600/20 flex items-center justify-center gap-2 active:scale-95"
+                        >
+                          <ExternalLink size={15} /> 📄 Abrir e Imprimir Boleto Direto no Navegador
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* SE FOR CARTÃO DE CRÉDITO */}
+                  {paymentResult.methodType === 'card_link' && !paymentResult.pixCopiaECola && (
+                    <div className="bg-sky-50/60 border border-sky-200/80 rounded-2xl p-4 text-center space-y-3">
+                      <div className="w-12 h-12 rounded-xl bg-[#009EE3]/10 text-[#009EE3] flex items-center justify-center mx-auto">
+                        <CreditCard size={24} />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-800 text-sm">Link de Cartão de Crédito (até 12x)</h4>
+                        <p className="text-xs text-slate-500 mt-0.5">Envie este link para o cliente realizar o pagamento parcelado no cartão.</p>
+                      </div>
+                      <div className="flex items-center gap-2 bg-white p-2 rounded-lg border border-sky-200">
+                        <input 
+                          readOnly 
+                          value={paymentResult.ticketUrl || ''} 
+                          className="text-xs font-mono text-slate-800 bg-transparent flex-1 outline-none truncate"
+                        />
+                        <button
+                          onClick={handleCopyPix}
+                          className="px-3 py-1.5 bg-[#009EE3] text-white rounded-lg text-xs font-bold hover:bg-[#0089c7] transition-all shrink-0 flex items-center gap-1.5 active:scale-95 shadow-sm"
+                        >
+                          {copied ? <CheckCircle2 size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                          {copied ? 'Copiado!' : 'Copiar Link'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               {/* Botões de Ação */}
