@@ -338,7 +338,27 @@ export const aiKnowledgeService = {
 
     console.log(`[aiKnowledgeService] 🗑️ Excluindo permanentemente todas as linhas do documento "${sourceName}" para o tenant "${tenantId}"...`);
 
-    // 1. Executa o DELETE físico no PostgreSQL para remover todos os chunks do manual
+    // 1. Tenta exclusão física via RPC com SECURITY DEFINER (bypassa RLS)
+    try {
+      const { data: rpcCount, error: rpcError } = await supabase
+        .rpc('delete_ai_knowledge_document', {
+          p_tenant_id: tenantId,
+          p_source_name: sourceName
+        });
+
+      if (!rpcError && typeof rpcCount === 'number') {
+        console.log(`[aiKnowledgeService] ✓ Remoção concluída via RPC: ${rpcCount} chunks eliminados.`);
+        return rpcCount;
+      }
+
+      if (rpcError) {
+        console.warn('[aiKnowledgeService] Notice na RPC delete_ai_knowledge_document, tentando fallback direto:', rpcError.message);
+      }
+    } catch (e) {
+      console.warn('[aiKnowledgeService] Exceção na RPC delete_ai_knowledge_document:', e);
+    }
+
+    // 2. Fallback direto no PostgreSQL para remover todos os chunks do manual
     const { error, count } = await supabase
       .from('ai_knowledge_base')
       .delete({ count: 'exact' })
@@ -350,7 +370,7 @@ export const aiKnowledgeService = {
       throw new Error(`Erro ao excluir documento do banco de dados: ${error.message}`);
     }
 
-    // 2. Se nenhuma linha foi deletada com o nome exato (ex: case sensitivity ou espaço), tenta ilike como garantia
+    // 3. Se nenhuma linha foi deletada com o nome exato (ex: case sensitivity ou espaço), tenta ilike como garantia
     if (count === 0) {
       const { error: retryError, count: retryCount } = await supabase
         .from('ai_knowledge_base')
