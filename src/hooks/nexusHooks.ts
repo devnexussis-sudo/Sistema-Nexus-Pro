@@ -241,23 +241,26 @@ export const useEquipments = (enabled = true) => {
 // ------------------------------------------------------------------
 
 export const useForms = (enabled = true) => {
-    return useQuery('forms', (signal) => FormService.getFormTemplates(signal), {
-        enabled,
-        staleTime: 1000 * 60 * 30 // 30 min (rarely changes)
+    const tid = DataService.getCurrentTenantId();
+    return useQuery(['forms', tid || 'default'], (signal) => FormService.getFormTemplates(signal), {
+        enabled: enabled && !!tid,
+        staleTime: 1000 * 60 * 15
     });
 };
 
 export const useServiceTypes = (enabled = true) => {
-    return useQuery('service_types', (signal) => DataService.getServiceTypes(signal), {
-        enabled,
-        staleTime: 1000 * 60 * 30
+    const tid = DataService.getCurrentTenantId();
+    return useQuery(['service_types', tid || 'default'], (signal) => DataService.getServiceTypes(signal), {
+        enabled: enabled && !!tid,
+        staleTime: 1000 * 60 * 15
     });
 };
 
 export const useActivationRules = (enabled = true) => {
-    return useQuery('activation_rules', (signal) => DataService.getActivationRules(signal), {
-        enabled,
-        staleTime: 1000 * 60 * 30
+    const tid = DataService.getCurrentTenantId();
+    return useQuery(['activation_rules', tid || 'default'], (signal) => DataService.getActivationRules(signal), {
+        enabled: enabled && !!tid,
+        staleTime: 1000 * 60 * 15
     });
 };
 

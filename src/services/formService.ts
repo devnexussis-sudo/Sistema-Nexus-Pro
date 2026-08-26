@@ -29,8 +29,36 @@ export const FormService = {
         }
     },
 
+    // 🛡️ Resolution Guard para F5 / Reloads de Página
+    _resolveTenantId: async (): Promise<string | undefined> => {
+        let tenantId = getCurrentTenantId();
+        if (tenantId) return tenantId;
+
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+                const metadata = session.user.user_metadata;
+                tenantId = metadata?.tenantId || metadata?.tenant_id;
+                if (!tenantId && session.user.id) {
+                    const { data: u } = await supabase
+                        .from('users')
+                        .select('tenant_id')
+                        .eq('id', session.user.id)
+                        .maybeSingle();
+                    if (u?.tenant_id) tenantId = u.tenant_id;
+                }
+                if (tenantId) {
+                    tenantContext.setTenantId(tenantId);
+                }
+            }
+        } catch (e) {
+            console.warn('[FormService] Falha no fallback de resolução de tenant:', e);
+        }
+        return tenantId;
+    },
+
     getServiceTypes: async (signal?: AbortSignal): Promise<any[]> => {
-        const tenantId = getCurrentTenantId();
+        const tenantId = await FormService._resolveTenantId();
         if (isCloudEnabled) {
             if (!tenantId) return [];
 
@@ -73,7 +101,7 @@ export const FormService = {
     },
 
     getFormTemplates: async (signal?: AbortSignal): Promise<FormTemplate[]> => {
-        const tenantId = getCurrentTenantId();
+        const tenantId = await FormService._resolveTenantId();
         if (isCloudEnabled) {
             if (!tenantId) return [];
 
@@ -297,7 +325,7 @@ export const FormService = {
 
     getActivationRules: async (signal?: AbortSignal): Promise<any[]> => {
         if (isCloudEnabled) {
-            const tenantId = getCurrentTenantId();
+            const tenantId = await FormService._resolveTenantId();
             if (!tenantId) return [];
 
             try {

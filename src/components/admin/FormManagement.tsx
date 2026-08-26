@@ -71,27 +71,34 @@ export const FormManagement: React.FC = () => {
     refetch: refetchRules
   } = useActivationRules(tenantReady);
 
-  // 🛡️ Lógica de "Wake up" para garantir Tenant ID (crítico para localhost)
+  // 🛡️ Lógica de "Wake up" para garantir Tenant ID no F5 / Reload da página
   useEffect(() => {
     async function wakeUp() {
-      const tid = DataService.getCurrentTenantId();
+      let tid = DataService.getCurrentTenantId();
       if (tid) {
         setTenantReady(true);
         return;
       }
 
-      // Se não tem no cache, tenta forçar leitura da sessão
       try {
-        const { data: { session } } = await (await import('../../lib/supabase')).supabase.auth.getSession();
-        if (session?.user?.user_metadata?.tenantId || session?.user?.user_metadata?.tenant_id) {
-          console.log('🛡️ [FormManagement] Tenant ID recuperado via Session Wake-up');
-          setTenantReady(true);
-        } else {
-          // Fallback: se houver sessão mas sem metadata, o serviceTypes pode falhar, 
-          // mas vamos liberar o tenantReady para que o erro apareça ou tente o default
-          setTenantReady(true);
+        const { supabase } = await import('../../lib/supabase');
+        const { tenantContext } = await import('../../lib/tenantContext');
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const userMeta = session.user.user_metadata;
+          tid = userMeta?.tenantId || userMeta?.tenant_id;
+          if (!tid && session.user.id) {
+            const { data: u } = await supabase.from('users').select('tenant_id').eq('id', session.user.id).maybeSingle();
+            if (u?.tenant_id) tid = u.tenant_id;
+          }
+          if (tid) {
+            tenantContext.setTenantId(tid);
+            console.log('🛡️ [FormManagement] ✅ Tenant ID resolvido via Session Wake-up:', tid);
+          }
         }
       } catch (e) {
+        console.warn('[FormManagement] Erro no wakeUp de sessão:', e);
+      } finally {
         setTenantReady(true);
       }
     }
