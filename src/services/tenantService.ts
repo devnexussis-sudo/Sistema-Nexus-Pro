@@ -1039,6 +1039,28 @@ export const TenantService = {
 
     revokeSystemNotification: async (notificationId: string): Promise<void> => {
         if (isCloudEnabled) {
+            // 1. Tenta via RPC com SECURITY DEFINER (para bypassar RLS do Master)
+            try {
+                const { error: rpcError } = await publicSupabase.rpc('revoke_system_notification', {
+                    p_notification_id: notificationId
+                });
+
+                if (!rpcError) {
+                    console.log(`[TenantService] ✅ Comunicado ${notificationId} revogado via RPC com sucesso.`);
+                    return;
+                }
+            } catch (_e) {
+                // silencioso para tentar fallback
+            }
+
+            // 2. Apaga confirmações de leitura associadas
+            await publicSupabase
+                .from('system_notification_reads')
+                .delete()
+                .eq('notification_id', notificationId)
+                .catch(() => {});
+
+            // 3. Apaga a notificação física no Supabase
             const { error } = await publicSupabase
                 .from('system_notifications')
                 .delete()
@@ -1046,7 +1068,7 @@ export const TenantService = {
 
             if (error) {
                 console.error('[TenantService] Failed to revoke notification:', error);
-                throw error;
+                throw new Error(`Não foi possível revogar o comunicado: ${error.message}`);
             }
         }
     },

@@ -411,26 +411,39 @@ export const aiKnowledgeService = {
     // ══════════════════════════════════════════════════════════════
     let data: any[] = [];
     if (queryKeywords.length > 0) {
-      const { data: rpcData, error: rpcError } = await supabase
-        .rpc('search_ai_knowledge_global', { p_keywords: queryKeywords, p_limit: 20 });
+      // 1. Tenta RPC isolada por tenant (V3)
+      let { data: rpcData, error: rpcError } = await supabase
+        .rpc('search_ai_knowledge_v3', { p_tenant_id: tenantId, p_keywords: queryKeywords, p_limit: 20 });
+
+      // Fallback para a versão anterior search_ai_knowledge se v3 não existir no Supabase
+      if (rpcError) {
+        const { data: v1Data, error: v1Error } = await supabase
+          .rpc('search_ai_knowledge', { p_tenant_id: tenantId, p_keywords: queryKeywords, p_limit: 20 });
+        if (!v1Error && v1Data) {
+          rpcData = v1Data;
+          rpcError = null;
+        }
+      }
 
       if (rpcError) {
-        console.error('[AI Search] Erro na RPC V3:', rpcError.message);
-        // Fallback para busca direta
+        console.error('[AI Search] Erro nas RPCs isoladas por tenant:', rpcError.message);
+        // Fallback para busca direta ESTRITAMENTE FILTRADA pelo tenant_id
         const { data: fallbackData } = await supabase
           .from('ai_knowledge_base')
           .select('content, source_name, keywords')
+          .eq('tenant_id', tenantId)
           .limit(20);
         data = fallbackData || [];
       } else {
         data = rpcData || [];
-        console.log(`[AI Search] RPC V3 retornou ${data.length} chunks já ordenados por relevância.`);
+        console.log(`[AI Search] RPC retornou ${data.length} chunks isolados para o tenant ${tenantId}.`);
       }
     } else {
-      // Pergunta sem palavras reconhecidas: busca os mais recentes
+      // Pergunta sem palavras reconhecidas: busca os mais recentes DO MESMO TENANT
       const { data: fallbackData } = await supabase
         .from('ai_knowledge_base')
         .select('content, source_name, keywords')
+        .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
         .limit(20);
       data = fallbackData || [];

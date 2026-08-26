@@ -118,15 +118,22 @@ export const FormService = {
                     return [];
                 }
 
-                const templates = (data || []).map(f => ({
-                    ...f,
-                    title: f.title || (f as any).name,
-                    active: f.is_active ?? true,
-                    category: (f.schema as any)?.category || 'TECHNICAL',
-                    serviceTypes: (f.schema as any)?.serviceTypes || [],
-                    targetFamily: (f.schema as any)?.targetFamily || 'Todos',
-                    fields: (f.schema as any)?.fields || []
-                }));
+                const templates = (data || []).map(f => {
+                    const rawCat = (f.schema as any)?.category || f.category || (f as any).category_type || (f as any).type || '';
+                    const cleanCat = String(rawCat).toUpperCase().trim();
+                    const titleLower = String(f.title || (f as any).name || '').toLowerCase();
+                    const isFinancial = cleanCat === 'FINANCIAL' || cleanCat === 'FINANCEIRO' || cleanCat === 'CUSTOS' || titleLower.includes('financeir') || titleLower.includes('custo');
+
+                    return {
+                        ...f,
+                        title: f.title || (f as any).name,
+                        active: f.is_active ?? true,
+                        category: isFinancial ? 'FINANCIAL' : 'TECHNICAL',
+                        serviceTypes: (f.schema as any)?.serviceTypes || [],
+                        targetFamily: (f.schema as any)?.targetFamily || 'Todos',
+                        fields: (f.schema as any)?.fields || []
+                    };
+                });
 
                 return templates;
             } catch (e) {

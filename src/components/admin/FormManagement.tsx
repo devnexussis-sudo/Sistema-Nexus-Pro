@@ -1122,18 +1122,47 @@ export const FormManagement: React.FC = () => {
                               />
                             </div>
                           </div>
-                          {forms
-                            .filter(f => f.category !== 'FINANCIAL' && f.active !== false && f.title.toLowerCase().includes(ruleSearchForm.toLowerCase()))
-                            .map(f => (
-                              <button key={f.id} type="button" onClick={() => { setEditingRule({ ...editingRule, formId: f.id }); setRuleDropdown(null); }} className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors flex items-center gap-2 ${editingRule.formId === f.id ? 'bg-[#1c2d4f]/5 text-[#1c2d4f] font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>
-                                {editingRule.formId === f.id && <CheckCircle2 size={14} className="text-[#1c2d4f] shrink-0" />}
-                                <span>{f.title}</span>
+                          {(() => {
+                            const activeForms = forms.filter(f => f.active !== false);
+                            const searchLower = ruleSearchForm.toLowerCase().trim();
+                            const filtered = activeForms.filter(f => !searchLower || f.title.toLowerCase().includes(searchLower));
+
+                            const sorted = [...filtered].sort((a, b) => {
+                              const aTech = a.category !== 'FINANCIAL';
+                              const bTech = b.category !== 'FINANCIAL';
+                              if (aTech && !bTech) return -1;
+                              if (!aTech && bTech) return 1;
+                              return a.title.localeCompare(b.title);
+                            });
+
+                            if (sorted.length === 0) {
+                              return (
+                                <div className="p-3 text-center text-xs text-slate-400 font-medium">
+                                  {searchLower ? `Nenhum modelo encontrado para "${ruleSearchForm}"` : 'Nenhum modelo cadastrado'}
+                                </div>
+                              );
+                            }
+
+                            return sorted.map(f => (
+                              <button
+                                key={f.id}
+                                type="button"
+                                onClick={() => {
+                                  setEditingRule({ ...editingRule, formId: f.id });
+                                  setRuleDropdown(null);
+                                }}
+                                className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors flex items-center justify-between gap-2 ${editingRule.formId === f.id ? 'bg-[#1c2d4f]/5 text-[#1c2d4f] font-bold' : 'text-slate-600 hover:bg-slate-50'}`}
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  {editingRule.formId === f.id && <CheckCircle2 size={14} className="text-[#1c2d4f] shrink-0" />}
+                                  <span className="truncate">{f.title}</span>
+                                </div>
+                                {f.category === 'FINANCIAL' && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-200 uppercase shrink-0">Financeiro</span>
+                                )}
                               </button>
-                            ))
-                          }
-                          {forms.filter(f => f.category !== 'FINANCIAL' && f.active !== false && f.title.toLowerCase().includes(ruleSearchForm.toLowerCase())).length === 0 && (
-                            <div className="p-3 text-center text-xs text-slate-400 font-medium">Nenhum modelo localizado</div>
-                          )}
+                            ));
+                          })()}
                         </div>
                       )}
                     </div>
@@ -1167,18 +1196,49 @@ export const FormManagement: React.FC = () => {
                             <X size={14} className="shrink-0" />
                             <span>Nenhum / Remover Vínculo</span>
                           </button>
-                          {forms
-                            .filter(f => f.category === 'FINANCIAL' && f.active !== false && f.title.toLowerCase().includes(ruleSearchFinForm.toLowerCase()))
-                            .map(f => (
-                              <button key={f.id} type="button" onClick={() => { setEditingRule({ ...editingRule, financialFormId: f.id } as any); setRuleDropdown(null); }} className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors flex items-center gap-2 ${(editingRule as any).financialFormId === f.id ? 'bg-[#1c2d4f]/5 text-[#1c2d4f] font-bold' : 'text-slate-600 hover:bg-slate-50'}`}>
-                                {(editingRule as any).financialFormId === f.id && <CheckCircle2 size={14} className="text-[#1c2d4f] shrink-0" />}
-                                <span>{f.title}</span>
+                          {(() => {
+                            const activeForms = forms.filter(f => f.active !== false);
+                            const searchLower = ruleSearchFinForm.toLowerCase().trim();
+                            const filtered = activeForms.filter(f => !searchLower || f.title.toLowerCase().includes(searchLower));
+
+                            const sorted = [...filtered].sort((a, b) => {
+                              const aFin = a.category === 'FINANCIAL' || a.title.toLowerCase().includes('financeir') || a.title.toLowerCase().includes('custo');
+                              const bFin = b.category === 'FINANCIAL' || b.title.toLowerCase().includes('financeir') || b.title.toLowerCase().includes('custo');
+                              if (aFin && !bFin) return -1;
+                              if (!aFin && bFin) return 1;
+                              return a.title.localeCompare(b.title);
+                            });
+
+                            if (sorted.length === 0) {
+                              return (
+                                <div className="p-3 text-center text-xs text-slate-400 font-medium">
+                                  {searchLower ? `Nenhum modelo encontrado para "${ruleSearchFinForm}"` : 'Nenhum modelo cadastrado'}
+                                </div>
+                              );
+                            }
+
+                            return sorted.map(f => (
+                              <button
+                                key={f.id}
+                                type="button"
+                                onClick={() => {
+                                  setEditingRule({ ...editingRule, financialFormId: f.id } as any);
+                                  setRuleDropdown(null);
+                                }}
+                                className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors flex items-center justify-between gap-2 ${(editingRule as any).financialFormId === f.id ? 'bg-[#1c2d4f]/5 text-[#1c2d4f] font-bold' : 'text-slate-600 hover:bg-slate-50'}`}
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  {(editingRule as any).financialFormId === f.id && <CheckCircle2 size={14} className="text-[#1c2d4f] shrink-0" />}
+                                  <span className="truncate">{f.title}</span>
+                                </div>
+                                {f.category === 'FINANCIAL' ? (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-200 uppercase shrink-0">Financeiro</span>
+                                ) : (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200 uppercase shrink-0">Técnico</span>
+                                )}
                               </button>
-                            ))
-                          }
-                          {forms.filter(f => f.category === 'FINANCIAL' && f.active !== false && f.title.toLowerCase().includes(ruleSearchFinForm.toLowerCase())).length === 0 && (
-                            <div className="p-3 text-center text-xs text-slate-400 font-medium">Nenhum modelo localizado</div>
-                          )}
+                            ));
+                          })()}
                         </div>
                       )}
                     </div>
