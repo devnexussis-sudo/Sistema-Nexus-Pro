@@ -996,7 +996,7 @@ export const FormManagement: React.FC = () => {
       {
         isRuleModalOpen && editingRule && safeCreatePortal(
           <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
-            <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up">
+            <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 flex flex-col animate-scale-up max-h-[90vh] overflow-hidden">
 
               {/* HEADER */}
               <div className="px-6 py-5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
@@ -1013,8 +1013,7 @@ export const FormManagement: React.FC = () => {
               </div>
 
               {/* BODY */}
-              <div className="p-6 bg-slate-50/30">
-                <div className="space-y-4">
+              <div className="p-6 bg-slate-50/30 overflow-y-auto max-h-[calc(90vh-140px)] custom-scrollbar pb-52 space-y-4">
 
                   {/* Tipo de Serviço */}
                   <div className="space-y-1.5">
@@ -1244,7 +1243,6 @@ export const FormManagement: React.FC = () => {
                     </div>
                   </div>
 
-                </div>
               </div>
 
               {/* FOOTER */}
