@@ -213,10 +213,17 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     useEffect(() => {
         if (!isAdmin) return;
         const fetchWACount = async () => {
-            // 1. Contar conversas na fila global (qualquer um pode pegar)
+            const currentTenantId = tenant?.id || user?.tenantId || SessionStorage.get('current_tenant');
+            if (!currentTenantId) {
+                setWhatsappWaitingCount(0);
+                return;
+            }
+
+            // 1. Contar conversas na fila da empresa ativa
             const { count: waitingCount } = await supabase
                 .from('whatsapp_conversations')
                 .select('*', { count: 'exact', head: true })
+                .eq('tenant_id', currentTenantId)
                 .eq('state', 'WAITING_HUMAN');
                 
             // 2. Contar conversas já atribuídas a MIM onde o cliente mandou a última mensagem
@@ -225,6 +232,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 const { data: myConversations } = await supabase
                     .from('whatsapp_conversations')
                     .select('id, history')
+                    .eq('tenant_id', currentTenantId)
                     .eq('state', 'HUMAN_ACTIVE')
                     .eq('assigned_agent_id', user.id);
                     
@@ -239,10 +247,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                         const history = conv.history as any[];
                         if (history && history.length > 0) {
                             const lastMsg = history[history.length - 1];
-                            // Se a conversa é minha, mas a última mensagem NÃO foi minha (foi do cliente ou de outro agente que transferiu), então é 'não lida'
                             const isMyMessage = lastMsg.role === 'agent' && lastMsg.agent_id === user.id;
                             if (!isMyMessage) {
-                                // Checa se já clicou/leu localmente
                                 const readAtStr = receipts[conv.id];
                                 const msgTime = lastMsg.timestamp ? new Date(lastMsg.timestamp) : new Date(0);
                                 const readTime = readAtStr ? new Date(readAtStr) : new Date(0);
@@ -261,7 +267,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         fetchWACount();
         const interval = setInterval(fetchWACount, 5000); // atualiza o menu a cada 5s
         
-        // Listener imediato para ações tomadas no painel
         window.addEventListener('whatsapp_state_changed', fetchWACount);
         window.addEventListener('wa_read_receipts_changed', fetchWACount);
         
@@ -270,15 +275,22 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             window.removeEventListener('whatsapp_state_changed', fetchWACount);
             window.removeEventListener('wa_read_receipts_changed', fetchWACount);
         };
-    }, [isAdmin, alertCount, user?.id]);
+    }, [isAdmin, alertCount, user?.id, tenant?.id, user?.tenantId]);
 
-    // Buscar contador de solicitações pendentes
+    // Buscar contador de solicitações pendentes por empresa (tenant_id)
     useEffect(() => {
         if (!isAdmin) return;
         const fetchSolicitacoesCount = async () => {
+            const currentTenantId = tenant?.id || user?.tenantId || SessionStorage.get('current_tenant');
+            if (!currentTenantId) {
+                setSolicitacoesCount(0);
+                return;
+            }
+
             const { count } = await supabase
                 .from('whatsapp_service_requests')
                 .select('*', { count: 'exact', head: true })
+                .eq('tenant_id', currentTenantId)
                 .eq('status', 'PENDING');
             setSolicitacoesCount(count || 0);
         };
@@ -286,7 +298,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         const interval = setInterval(fetchSolicitacoesCount, 5000); // atualiza o menu a cada 5s
         
         return () => clearInterval(interval);
-    }, [isAdmin]);
+    }, [isAdmin, tenant?.id, user?.tenantId]);
 
     // Fecha sidebar mobile ao navegar
     useEffect(() => {
