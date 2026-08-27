@@ -183,7 +183,8 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
     state: string, 
     zip?: string,
     currentLat?: number, 
-    currentLng?: number
+    currentLng?: number,
+    neighborhood?: string
   ) => {
     if (!address || !city || !state) {
       if (currentLat && currentLng) return { lat: currentLat, lng: currentLng };
@@ -192,26 +193,91 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
 
     try {
       const cleanZip = zip ? zip.replace(/\D/g, '') : '';
-      const streetQuery = number ? `${address}, ${number}` : address;
-      
-      // 1. Busca Estruturada com Número do Imóvel + CEP no Nominatim
-      const structuredUrl = `https://nominatim.openstreetmap.org/search?street=${encodeURIComponent(streetQuery)}&city=${encodeURIComponent(city)}&state=${encodeURIComponent(state)}&postalcode=${encodeURIComponent(cleanZip)}&country=Brasil&format=json&limit=3&addressdetails=1`;
-      
-      let res = await fetch(structuredUrl, { headers: { 'Accept-Language': 'pt-BR' } });
+      const cleanNumber = number?.trim() || '';
+      const neighStr = neighborhood?.trim() ? `, ${neighborhood.trim()}` : '';
+
+      // 1. Busca via ArcGIS World Geocoding Service (Excelente precisão para número predial / residencial no Brasil)
+      if (cleanNumber) {
+        try {
+          const query = `${address}, ${cleanNumber}${neighStr}, ${city} - ${state}, Brasil`;
+          const arcgisUrl = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=json&singleLine=${encodeURIComponent(query)}&maxLocations=3`;
+          const arcRes = await fetch(arcgisUrl);
+          const arcData = await arcRes.json();
+          if (arcData?.candidates?.length > 0 && arcData.candidates[0].score >= 70) {
+            const best = arcData.candidates[0];
+            return {
+              lat: parseFloat(best.location.y),
+              lng: parseFloat(best.location.x)
+            };
+          }
+        } catch (arcErr) {
+          console.warn('[Geocoding] Fallback ArcGIS:', arcErr);
+        }
+      }
+
+      // 2. Busca Estruturada com housenumber e street separados no Nominatim
+      const nominatimParams = new URLSearchParams({
+        street: address,
+        city: city,
+        state: state,
+        country: 'Brasil',
+        format: 'json',
+        limit: '3',
+        addressdetails: '1'
+      });
+      if (cleanNumber) nominatimParams.append('housenumber', cleanNumber);
+      if (cleanZip) nominatimParams.append('postalcode', cleanZip);
+
+      let res = await fetch(`https://nominatim.openstreetmap.org/search?${nominatimParams.toString()}`, {
+        headers: { 'Accept-Language': 'pt-BR' }
+      });
       let data = await res.json();
-      
-      // 2. Se não localizar com o CEP específico, faz busca focada na Rua + Número + Cidade
-      if (!data || data.length === 0) {
-        const noZipUrl = `https://nominatim.openstreetmap.org/search?street=${encodeURIComponent(streetQuery)}&city=${encodeURIComponent(city)}&state=${encodeURIComponent(state)}&country=Brasil&format=json&limit=3&addressdetails=1`;
-        res = await fetch(noZipUrl, { headers: { 'Accept-Language': 'pt-BR' } });
+
+      // 3. Se não achar com CEP, busca sem CEP mantendo número + rua + cidade
+      if ((!data || data.length === 0) && cleanZip) {
+        const noZipParams = new URLSearchParams({
+          street: address,
+          city: city,
+          state: state,
+          country: 'Brasil',
+          format: 'json',
+          limit: '3',
+          addressdetails: '1'
+        });
+        if (cleanNumber) noZipParams.append('housenumber', cleanNumber);
+
+        res = await fetch(`https://nominatim.openstreetmap.org/search?${noZipParams.toString()}`, {
+          headers: { 'Accept-Language': 'pt-BR' }
+        });
         data = await res.json();
       }
 
-      // 3. Fallback para busca combinada livre
+      // 4. Fallback de consulta combinada livre (q=) incluindo Número, Bairro, Cidade
       if (!data || data.length === 0) {
-        const freeformUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(`${address}, ${number || ''} - ${city}, ${state}, Brasil`)}&limit=3&addressdetails=1`;
+        const freeformQuery = cleanNumber 
+          ? `${address}, ${cleanNumber}${neighStr} - ${city}, ${state}, Brasil`
+          : `${address}${neighStr} - ${city}, ${state}, Brasil`;
+        const freeformUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(freeformQuery)}&limit=3&addressdetails=1`;
         res = await fetch(freeformUrl, { headers: { 'Accept-Language': 'pt-BR' } });
         data = await res.json();
+      }
+
+      // 5. Fallback via Photon (Komoot Geocoder) para geocodificação aproximada do número
+      if ((!data || data.length === 0) && cleanNumber) {
+        try {
+          const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(`${address} ${cleanNumber}, ${city}, ${state}, Brasil`)}&limit=3`;
+          const pRes = await fetch(photonUrl);
+          const pData = await pRes.json();
+          if (pData?.features?.length > 0) {
+            const coords = pData.features[0].geometry.coordinates; // [lng, lat]
+            return {
+              lat: parseFloat(coords[1]),
+              lng: parseFloat(coords[0])
+            };
+          }
+        } catch (pErr) {
+          console.warn('[Geocoding] Fallback Photon:', pErr);
+        }
       }
 
       if (data && data.length > 0) {
@@ -267,7 +333,16 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
         }
 
         if (addressData) {
-          const coords = await fetchCoordinates(addressData.address, formData.number, addressData.city, addressData.state, addressData.zip, addressData.initialLat, addressData.initialLng);
+          const coords = await fetchCoordinates(
+            addressData.address || formData.address,
+            formData.number,
+            addressData.city || formData.city,
+            addressData.state || formData.state,
+            addressData.zip || formData.zip,
+            addressData.initialLat,
+            addressData.initialLng,
+            addressData.neighborhood || formData.neighborhood
+          );
 
           setFormData(prev => ({
             ...prev,
@@ -289,10 +364,19 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
   };
 
   const handleNumberBlur = async () => {
-    if (formData.address && formData.city && formData.state && formData.number) {
+    if (formData.address && formData.city && formData.state) {
       setLoadingZip(true);
       try {
-        const coords = await fetchCoordinates(formData.address, formData.number, formData.city, formData.state, formData.zip);
+        const coords = await fetchCoordinates(
+          formData.address,
+          formData.number,
+          formData.city,
+          formData.state,
+          formData.zip,
+          formData.latitude,
+          formData.longitude,
+          formData.neighborhood
+        );
         if (coords) {
           setFormData(prev => ({
             ...prev,
@@ -333,13 +417,39 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
         return;
       }
 
+      // Garante recalculação da geolocalização exata com o número antes de salvar
+      let finalLat = formData.latitude;
+      let finalLng = formData.longitude;
+      if (formData.address && formData.city && formData.state) {
+        const freshCoords = await fetchCoordinates(
+          formData.address,
+          formData.number,
+          formData.city,
+          formData.state,
+          formData.zip,
+          formData.latitude,
+          formData.longitude,
+          formData.neighborhood
+        );
+        if (freshCoords) {
+          finalLat = freshCoords.lat;
+          finalLng = freshCoords.lng;
+        }
+      }
+
+      const customerToSave = {
+        ...formData,
+        latitude: finalLat,
+        longitude: finalLng
+      };
+
       if (editingId) {
-        const updatedCustomer = { ...formData, id: editingId } as Customer;
+        const updatedCustomer = { ...customerToSave, id: editingId } as Customer;
         await DataService.updateCustomer(updatedCustomer);
         onUpdateCustomers(customers.map(c => c.id === editingId ? updatedCustomer : c));
       } else {
         const newId = `c-${Date.now()}`;
-        const newCustomer = { ...formData, id: newId, active: true } as Customer;
+        const newCustomer = { ...customerToSave, id: newId, active: true } as Customer;
         await DataService.createCustomer(newCustomer);
         onUpdateCustomers([newCustomer, ...customers]);
       }
@@ -779,15 +889,15 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <Input label="CEP" onBlur={handleZipBlur} required className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.zip || ''} onChange={e => setFormData({ ...formData, zip: e.target.value })} placeholder="00000-000" />
-                            <Input label="Estado (UF)" className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.state || ''} onChange={e => setFormData({ ...formData, state: e.target.value })} />
-                            <Input label="Cidade" className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.city || ''} onChange={e => setFormData({ ...formData, city: e.target.value })} />
+                            <Input label="Estado (UF)" onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.state || ''} onChange={e => setFormData({ ...formData, state: e.target.value })} />
+                            <Input label="Cidade" onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.city || ''} onChange={e => setFormData({ ...formData, city: e.target.value })} />
                           </div>
                           <div>
-                            <Input label="Logradouro" className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm w-full" value={formData.address || ''} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="Rua / Avenida / Alameda..." />
+                            <Input label="Logradouro" onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm w-full" value={formData.address || ''} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="Rua / Avenida / Alameda..." />
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <Input label="Número" required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.number || ''} onChange={e => setFormData({ ...formData, number: e.target.value })} placeholder="123" />
-                            <Input label="Bairro" required className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.neighborhood || ''} onChange={e => setFormData({ ...formData, neighborhood: e.target.value })} placeholder="Bairro" />
+                            <Input label="Bairro" required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.neighborhood || ''} onChange={e => setFormData({ ...formData, neighborhood: e.target.value })} placeholder="Bairro" />
                           </div>
                           <div>
                             <Input label="Complemento / Referência" icon={<Info size={14} />} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm w-full" value={formData.complement || ''} onChange={e => setFormData({ ...formData, complement: e.target.value })} placeholder="Apto, Sala, Bloco, Ponto de Referência..." />
