@@ -981,9 +981,9 @@ export const SettingsPage: React.FC = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="w-full">
-                      <label className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mb-1 block">{t.settings.system.language}</label>
+                      <label className="text-[10px] font-bold text-gray-700 uppercase tracking-widest mb-1 block">{t.settings.system.language}</label>
                       <select
-                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-primary-100 appearance-none shadow-sm"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 appearance-none shadow-sm"
                         value={params.language}
                         onChange={e => setParams({ ...params, language: e.target.value as any })}
                       >
@@ -993,9 +993,9 @@ export const SettingsPage: React.FC = () => {
                       </select>
                     </div>
                     <div className="w-full">
-                      <label className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mb-1 block">{t.settings.system.timezone}</label>
+                      <label className="text-[10px] font-bold text-gray-700 uppercase tracking-widest mb-1 block">{t.settings.system.timezone}</label>
                       <select
-                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-primary-100 appearance-none shadow-sm"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 appearance-none shadow-sm"
                         value={params.timezone}
                         onChange={e => setParams({ ...params, timezone: e.target.value as any })}
                       >
@@ -1108,9 +1108,9 @@ export const SettingsPage: React.FC = () => {
                              max={100}
                              value={params.slaTargetPercentage}
                              onChange={e => setParams({ ...params, slaTargetPercentage: Number(e.target.value) })}
-                             className="rounded-xl py-1 font-medium border-gray-100 bg-white text-gray-900 text-sm shadow-inner w-24 text-center"
+                             className="rounded-xl py-1.5 font-bold border border-slate-300 bg-white text-slate-900 text-sm focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm w-24 text-center"
                            />
-                           <span className="text-[10px] font-bold text-gray-500">%</span>
+                           <span className="text-[10px] font-bold text-slate-700">%</span>
                         </div>
                       </div>
                     </div>
@@ -1133,9 +1133,9 @@ export const SettingsPage: React.FC = () => {
                              max={100}
                              value={params.sla48hTargetPercentage}
                              onChange={e => setParams({ ...params, sla48hTargetPercentage: Number(e.target.value) })}
-                             className="rounded-xl py-1 font-medium border-gray-100 bg-white text-gray-900 text-sm shadow-inner w-24 text-center"
+                             className="rounded-xl py-1.5 font-bold border border-slate-300 bg-white text-slate-900 text-sm focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm w-24 text-center"
                            />
-                           <span className="text-[10px] font-bold text-gray-500">%</span>
+                           <span className="text-[10px] font-bold text-slate-700">%</span>
                         </div>
                       </div>
                     </div>

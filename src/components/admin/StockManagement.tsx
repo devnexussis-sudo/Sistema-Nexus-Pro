@@ -2185,7 +2185,7 @@ export const StockManagement: React.FC = () => {
 
                         <div className="p-8 space-y-6">
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Buscar Item (Cód. Interno ou Fabricante)</label>
+                                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">Buscar Item (Cód. Interno ou Fabricante)</label>
                                 <div className="relative">
                                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                                     <input
@@ -2193,7 +2193,7 @@ export const StockManagement: React.FC = () => {
                                         value={restockSearch}
                                         onChange={e => handleRestockSearch(e.target.value)}
                                         placeholder="Digite o código exato..."
-                                        className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/30 text-slate-700 font-bold outline-none focus:ring-2 focus:ring-primary-100 transition-all"
+                                        className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-300 bg-white text-slate-900 font-bold outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all"
                                     />
                                 </div>
                             </div>
@@ -2212,12 +2212,12 @@ export const StockManagement: React.FC = () => {
 
                                     <form onSubmit={handleRestockSubmit} className="pt-4 border-t border-primary-100/50 flex items-end gap-3">
                                         <div className="flex-1 space-y-1.5">
-                                            <label className="text-[9px] font-black text-primary-400 uppercase tracking-widest">Qtd. Entrada (+)</label>
+                                            <label className="text-[10px] font-bold text-[#1c2d4f] uppercase tracking-wider block mb-1">Qtd. Entrada (+)</label>
                                             <input
                                                 type="number"
                                                 value={restockQuantity}
                                                 onChange={e => setRestockQuantity(e.target.value)}
-                                                className="w-full px-4 py-2 rounded-xl border border-primary-200 text-primary-900 font-black outline-none focus:ring-2 focus:ring-primary-200"
+                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 font-black outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all"
                                                 placeholder="0"
                                                 min="1"
                                                 required
@@ -2377,49 +2377,49 @@ export const StockManagement: React.FC = () => {
                                                 
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                     <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-medium text-slate-400 block px-1">Código SKU / Interno</label>
+                                                        <label className="text-[11px] font-bold text-slate-700 block px-1">Código SKU / Interno</label>
                                                         <div className="relative group">
                                                             <Input
                                                                 value={formData.code}
                                                                 onChange={e => setFormData({ ...formData, code: e.target.value })}
-                                                                className="rounded-lg border-slate-200 font-bold bg-slate-50/30 focus:bg-white h-11 text-sm"
+                                                                className="rounded-xl border border-slate-300 font-bold bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 h-11 text-sm shadow-sm"
                                                                 required
                                                             />
-                                                            <button type="button" onClick={generateCode} className="absolute right-2 top-1/2 -translate-y-1/2 text-primary-400 p-2 hover:bg-primary-50 rounded-md"><Wand2 size={16} /></button>
+                                                            <button type="button" onClick={generateCode} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#1c2d4f] p-2 hover:bg-slate-100 rounded-lg transition-colors" title="Gerar Código"><Wand2 size={16} /></button>
                                                         </div>
                                                     </div>
                                                     <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-medium text-slate-400 block px-1">Cod de barra ou Cod do fabricante</label>
+                                                        <label className="text-[11px] font-bold text-slate-700 block px-1">Cod de barra ou Cod do fabricante</label>
                                                         <Input
                                                             value={formData.externalCode}
                                                             onChange={e => setFormData({ ...formData, externalCode: e.target.value })}
-                                                            className="rounded-lg border-slate-200 h-11 text-sm"
+                                                            className="rounded-xl border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 h-11 text-sm shadow-sm"
                                                             icon={<Barcode size={16} className="text-slate-400" />}
                                                         />
                                                     </div>
                                                 </div>
 
                                                 <div className="space-y-1.5">
-                                                    <label className="text-[11px] font-medium text-slate-400 block px-1">Nome / Descrição Curta</label>
+                                                    <label className="text-[11px] font-bold text-slate-700 block px-1">Nome / Descrição Curta</label>
                                                     <Input
                                                         value={formData.description}
                                                         onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                                        className="rounded-lg border-slate-200 font-semibold h-11 text-sm"
+                                                        className="rounded-xl border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 font-semibold h-11 text-sm shadow-sm"
                                                         required
                                                     />
                                                 </div>
 
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                     <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-medium text-slate-400 block px-1">Categoria</label>
-                                                        <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all uppercase cursor-pointer">
+                                                        <label className="text-[11px] font-bold text-slate-700 block px-1">Categoria</label>
+                                                        <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full bg-white border border-slate-300 rounded-xl h-11 px-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 transition-all uppercase cursor-pointer shadow-sm">
                                                             <option value="">Sem Categoria</option>
                                                             {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                                         </select>
                                                     </div>
                                                     <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-medium text-slate-400 block px-1">Unidade</label>
-                                                        <select value={formData.unit} onChange={e => setFormData({ ...formData, unit: e.target.value as any })} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all uppercase cursor-pointer">
+                                                        <label className="text-[11px] font-bold text-slate-700 block px-1">Unidade</label>
+                                                        <select value={formData.unit} onChange={e => setFormData({ ...formData, unit: e.target.value as any })} className="w-full bg-white border border-slate-300 rounded-xl h-11 px-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 transition-all uppercase cursor-pointer shadow-sm">
                                                             <option value="UN">Unidade (UN)</option>
                                                             <option value="CX">Caixa (CX)</option>
                                                             <option value="M">Metros (M)</option>
@@ -2434,16 +2434,16 @@ export const StockManagement: React.FC = () => {
                                                 <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2"><Box size={16} className="text-slate-400" /> Controle Físico</h3>
                                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                                                     <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-medium text-slate-400 block px-1">Posição / Local</label>
-                                                        <Input value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} className="rounded-lg border-slate-200 h-11 text-sm font-semibold" placeholder="Ex: Prateleira A" />
+                                                        <label className="text-[11px] font-bold text-slate-700 block px-1">Posição / Local</label>
+                                                        <Input value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} className="rounded-xl border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 h-11 text-sm font-semibold shadow-sm" placeholder="Ex: Prateleira A" />
                                                     </div>
                                                     <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-medium text-emerald-500 block px-1">Quantidade Atual</label>
-                                                        <Input type="number" value={formData.quantity} onChange={e => setFormData({...formData, quantity: e.target.value})} className="rounded-lg border-emerald-200 h-11 text-sm font-bold bg-emerald-50/30 focus:bg-white text-emerald-700" />
+                                                        <label className="text-[11px] font-bold text-emerald-700 block px-1">Quantidade Atual</label>
+                                                        <Input type="number" value={formData.quantity} onChange={e => setFormData({...formData, quantity: e.target.value})} className="rounded-xl border border-emerald-400 h-11 text-sm font-bold bg-emerald-50/60 focus:bg-white text-emerald-900 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/10 shadow-sm" />
                                                     </div>
                                                     <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-medium text-rose-500 block px-1">Mínimo (Alerta)</label>
-                                                        <Input type="number" value={formData.minQuantity} onChange={e => setFormData({...formData, minQuantity: e.target.value})} className="rounded-lg border-rose-200 h-11 text-sm font-bold bg-rose-50/30 focus:bg-white text-rose-700" />
+                                                        <label className="text-[11px] font-bold text-rose-700 block px-1">Mínimo (Alerta)</label>
+                                                        <Input type="number" value={formData.minQuantity} onChange={e => setFormData({...formData, minQuantity: e.target.value})} className="rounded-xl border border-rose-400 h-11 text-sm font-bold bg-rose-50/60 focus:bg-white text-rose-900 focus:border-rose-600 focus:ring-2 focus:ring-rose-500/10 shadow-sm" />
                                                     </div>
                                                 </div>
                                             </div>
@@ -2491,24 +2491,24 @@ export const StockManagement: React.FC = () => {
                                                 </h3>
                                                 <div className="space-y-4">
                                                     <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-medium text-slate-400 block px-1">Preço de Compra (Líquido)</label>
+                                                        <label className="text-[11px] font-bold text-slate-700 block px-1">Preço de Compra (Líquido)</label>
                                                         <div className="relative">
-                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">R$</span>
-                                                            <input type="number" step="0.01" value={formData.costPrice} onChange={e => setFormData({...formData, costPrice: e.target.value})} className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-primary-100" />
+                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-bold">R$</span>
+                                                            <input type="number" step="0.01" value={formData.costPrice} onChange={e => setFormData({...formData, costPrice: e.target.value})} className="w-full pl-9 pr-4 h-11 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all" />
                                                         </div>
                                                     </div>
                                                     <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-medium text-slate-400 block px-1">Frete / Entregas</label>
+                                                        <label className="text-[11px] font-bold text-slate-700 block px-1">Frete / Entregas</label>
                                                         <div className="relative">
-                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">R$</span>
-                                                            <input type="number" step="0.01" value={formData.freightCost} onChange={e => setFormData({...formData, freightCost: e.target.value})} className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-primary-100" />
+                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-bold">R$</span>
+                                                            <input type="number" step="0.01" value={formData.freightCost} onChange={e => setFormData({...formData, freightCost: e.target.value})} className="w-full pl-9 pr-4 h-11 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all" />
                                                         </div>
                                                     </div>
                                                     <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-medium text-slate-400 block px-1">Carga Tributária (%)</label>
+                                                        <label className="text-[11px] font-bold text-slate-700 block px-1">Carga Tributária (%)</label>
                                                         <div className="relative">
-                                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">%</span>
-                                                            <input type="number" step="0.1" value={formData.taxPercent} onChange={e => setFormData({...formData, taxPercent: e.target.value})} className="w-full pl-4 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-primary-100" />
+                                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-bold">%</span>
+                                                            <input type="number" step="0.1" value={formData.taxPercent} onChange={e => setFormData({...formData, taxPercent: e.target.value})} className="w-full pl-4 pr-9 h-11 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all" />
                                                         </div>
                                                     </div>
                                                     <div className="p-4 bg-[#1c2d4f] text-white rounded-lg shadow-inner">
@@ -2524,10 +2524,10 @@ export const StockManagement: React.FC = () => {
                                                 </h3>
                                                 <div className="space-y-4">
                                                     <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-medium text-slate-400 block px-1">Preço Sugerido ao Público</label>
+                                                        <label className="text-[11px] font-bold text-emerald-800 block px-1">Preço Sugerido ao Público</label>
                                                         <div className="relative">
                                                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 text-sm font-bold">R$</span>
-                                                            <input type="number" step="0.01" value={formData.sellPrice} onChange={e => setFormData({...formData, sellPrice: e.target.value})} className="w-full pl-9 pr-4 py-2.5 bg-emerald-50 border border-emerald-100 rounded-lg text-sm font-bold text-emerald-800 outline-none focus:ring-2 focus:ring-emerald-200 transition-all" />
+                                                            <input type="number" step="0.01" value={formData.sellPrice} onChange={e => setFormData({...formData, sellPrice: e.target.value})} className="w-full pl-9 pr-4 h-11 bg-emerald-50/70 border border-emerald-400 rounded-xl text-sm font-bold text-emerald-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/10 shadow-sm transition-all" />
                                                         </div>
                                                     </div>
                                                     <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg relative overflow-hidden">
@@ -2715,11 +2715,11 @@ export const StockManagement: React.FC = () => {
                         </div>
                         <form onSubmit={handleCategorySubmit} className="p-4 sm:p-6 space-y-5 flex-1">
                             <div className="space-y-1.5">
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Nome da Categoria</span>
+                                <span className="text-[11px] font-bold text-slate-700 block px-1">Nome da Categoria</span>
                                 <Input
                                     value={categoryFormData.name}
                                     onChange={e => setCategoryFormData({ ...categoryFormData, name: e.target.value })}
-                                    className="rounded-xl font-bold"
+                                    className="rounded-xl border border-slate-300 bg-white text-slate-900 font-bold focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm"
                                     placeholder="Ex: Elétrica, Hidráulica..."
                                     required
                                     autoFocus

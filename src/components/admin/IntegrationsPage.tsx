@@ -418,7 +418,7 @@ export const IntegrationsPage: React.FC = () => {
 
               {/* Campos */}
               <div>
-                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1.5">
+                <label className="text-[11px] text-slate-700 font-bold uppercase tracking-wider block mb-1.5">
                   Access Token <span className="text-rose-500 font-normal">(obrigatório)</span>
                 </label>
                 <Input
@@ -426,7 +426,7 @@ export const IntegrationsPage: React.FC = () => {
                   placeholder="APP_USR-... ou TEST-..."
                   value={customAccessToken}
                   onChange={e => setCustomAccessToken(e.target.value)}
-                  className="font-mono max-w-md"
+                  className="font-mono font-bold text-slate-900 bg-white border border-slate-300 rounded-xl focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm max-w-md"
                 />
                 <p className="text-[10px] text-slate-400 mt-1">Cole aqui o Token de produção ou de testes do seu painel MP</p>
               </div>
@@ -617,11 +617,12 @@ export const IntegrationsPage: React.FC = () => {
             
             <div className="space-y-4 mb-8">
               <div>
-                <label className="text-xs font-semibold text-slate-600 uppercase tracking-widest mb-1.5 block">Nome da Integração</label>
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-1.5 block">Nome da Integração</label>
                 <Input 
                   placeholder="Ex: ERP ContaAzul, Integração PowerBI" 
                   value={newKeyName} 
                   onChange={e => setNewKeyName(e.target.value)} 
+                  className="border border-slate-300 bg-white text-slate-900 font-bold text-xs rounded-xl focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm"
                 />
               </div>
             </div>
@@ -643,12 +644,12 @@ export const IntegrationsPage: React.FC = () => {
             
             <div className="space-y-4 mb-8">
               <div>
-                <label className="text-xs font-semibold text-slate-600 uppercase tracking-widest mb-1.5 block">Descrição</label>
-                <Input placeholder="Ex: Notificador Slack" value={newHook.name} onChange={e => setNewHook({...newHook, name: e.target.value})} />
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-1.5 block">Descrição</label>
+                <Input placeholder="Ex: Notificador Slack" value={newHook.name} onChange={e => setNewHook({...newHook, name: e.target.value})} className="border border-slate-300 bg-white text-slate-900 font-bold text-xs rounded-xl focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-600 uppercase tracking-widest mb-1.5 block">Endpoint URL</label>
-                <Input placeholder="https://sua-api.com/webhook" value={newHook.url} onChange={e => setNewHook({...newHook, url: e.target.value})} />
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-1.5 block">Endpoint URL</label>
+                <Input placeholder="https://sua-api.com/webhook" value={newHook.url} onChange={e => setNewHook({...newHook, url: e.target.value})} className="border border-slate-300 bg-white text-slate-900 font-bold text-xs rounded-xl focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" />
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-600 uppercase tracking-widest mb-2 block mt-4">Eventos Escutados</label>

@@ -345,15 +345,15 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
               placeholder={activeTab === 'list' ? "Buscar por modelo ou serial..." : "Buscar categoria..."}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
+              className="w-full h-10 bg-white border border-slate-300 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-800 placeholder-slate-400 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 transition-all shadow-sm"
             />
           </div>
 
           <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
-            <div className="flex items-center bg-white border border-[#1c2d4f]/20 rounded-xl pl-2 pr-1 h-10 shadow-sm">
+            <div className="flex items-center bg-white border border-slate-300 rounded-xl pl-2 pr-1 h-10 shadow-sm focus-within:border-[#1c2d4f] focus-within:ring-2 focus-within:ring-[#1c2d4f]/10">
               <Filter size={12} className="text-slate-400 mr-2" />
               <select
-                className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer h-full"
+                className="bg-transparent text-[10px] font-bold text-slate-700 outline-none w-full cursor-pointer h-full"
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value)}
               >
@@ -682,15 +682,15 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                             required
                             placeholder="Ex: Gerador Principal - Bloco A, 2º Andar"
                             icon={<Tag size={16} />}
-                            className="rounded-xl py-3 font-medium border-slate-200"
+                            className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm"
                             value={eqFormData.name || ''}
                             onChange={e => setEqFormData({ ...eqFormData, name: e.target.value })}
                           />
                         </div>
-                        <Input label="Modelo" required icon={<Laptop size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={eqFormData.model || ''} onChange={e => setEqFormData({ ...eqFormData, model: e.target.value })} />
+                        <Input label="Modelo" required icon={<Laptop size={16} />} className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={eqFormData.model || ''} onChange={e => setEqFormData({ ...eqFormData, model: e.target.value })} />
                         
                         <div className="w-full relative">
-                          <label className="text-[10px] font-bold text-slate-400 mb-1.5 flex items-center justify-between ml-1">
+                          <label className="text-[11px] font-bold text-slate-700 mb-1.5 flex items-center justify-between ml-1">
                             <span>Número de Série (Serial) <span className="text-rose-500 font-bold">*</span></span>
                             {!eqFormData.serialNumber?.trim() && (
                               <span className="text-[9px] font-bold text-rose-500 uppercase bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">Obrigatório</span>
@@ -705,7 +705,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                                 placeholder="Ex: 849204"
                                 value={eqFormData.serialNumber || ''}
                                 onChange={e => setEqFormData({ ...eqFormData, serialNumber: e.target.value })}
-                                className={`w-full h-12 pl-10 pr-4 bg-slate-50 border rounded-xl text-xs font-bold font-mono text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all ${!eqFormData.serialNumber?.trim() ? 'border-amber-300' : 'border-slate-200'}`}
+                                className={`w-full h-11 pl-10 pr-4 bg-white border rounded-xl text-xs font-bold font-mono text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all ${!eqFormData.serialNumber?.trim() ? 'border-amber-400' : 'border-slate-300'}`}
                               />
                             </div>
                             <button
@@ -714,7 +714,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                                 const generated = generateRandomSerial();
                                 setEqFormData({ ...eqFormData, serialNumber: generated });
                               }}
-                              className="h-12 px-3.5 bg-primary-50/70 hover:bg-primary-100/80 border border-primary-200/80 text-primary-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-sm active:scale-95 shrink-0"
+                              className="h-11 px-3.5 bg-primary-50/70 hover:bg-primary-100/80 border border-primary-200/80 text-primary-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-sm active:scale-95 shrink-0"
                               title="Gerar número de série automático"
                             >
                               <Sparkles size={15} className="text-primary-600" />
@@ -723,8 +723,8 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                           </div>
                         </div>
                         
-                        <Input type="date" label="Data de Fabricação" icon={<Calendar size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={eqFormData.manufactureDate || ''} onChange={e => setEqFormData({ ...eqFormData, manufactureDate: e.target.value })} />
-                        <Input type="number" label="Garantia (Meses)" icon={<Calendar size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={eqFormData.warrantyMonths || ''} onChange={e => setEqFormData({ ...eqFormData, warrantyMonths: e.target.value ? parseInt(e.target.value) : undefined })} />
+                        <Input type="date" label="Data de Fabricação" icon={<Calendar size={16} />} className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={eqFormData.manufactureDate || ''} onChange={e => setEqFormData({ ...eqFormData, manufactureDate: e.target.value })} />
+                        <Input type="number" label="Garantia (Meses)" icon={<Calendar size={16} />} className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={eqFormData.warrantyMonths || ''} onChange={e => setEqFormData({ ...eqFormData, warrantyMonths: e.target.value ? parseInt(e.target.value) : undefined })} />
 
                         {eqFormData.manufactureDate && eqFormData.warrantyMonths ? (
                           <div className="md:col-span-2">
@@ -737,18 +737,18 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
 
                         {/* Código do Ativo — somente leitura */}
                         <div className="w-full">
-                          <label className="text-[10px] font-bold text-slate-400 mb-1.5 block ml-1">Código do Ativo</label>
-                          <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
-                            <Hash size={15} className="text-slate-300 shrink-0" />
+                          <label className="text-[11px] font-bold text-slate-700 mb-1.5 block ml-1">Código do Ativo</label>
+                          <div className="flex items-center gap-3 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5">
+                            <Hash size={15} className="text-slate-400 shrink-0" />
                             <span className="font-mono text-sm font-bold text-[#1c2d4f] tracking-[0.2em] flex-1">
                               {eqFormData.assetCode ?? '— gerado ao salvar —'}
                             </span>
-                            <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest shrink-0">somente leitura</span>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest shrink-0">somente leitura</span>
                           </div>
                         </div>
 
                         <div className="w-full relative">
-                          <label className="text-[10px] font-bold text-slate-400 mb-1.5 flex items-center justify-between ml-1">
+                          <label className="text-[11px] font-bold text-slate-700 mb-1.5 flex items-center justify-between ml-1">
                             <span>Família Técnica <span className="text-rose-500 font-bold">*</span></span>
                             {!eqFormData.familyId && (
                               <span className="text-[9px] font-bold text-rose-500 uppercase bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">Obrigatório</span>
@@ -768,7 +768,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                               }}
                               onFocus={() => setIsFamilyListOpen(true)}
                               onBlur={() => setTimeout(() => setIsFamilyListOpen(false), 200)}
-                              className={`w-full h-12 pl-10 pr-4 bg-slate-50 border rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all ${!eqFormData.familyId ? 'border-amber-300' : 'border-slate-200'}`}
+                              className={`w-full h-11 pl-10 pr-4 bg-white border rounded-xl text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all ${!eqFormData.familyId ? 'border-amber-400' : 'border-slate-300'}`}
                             />
                             {eqFormData.familyId && (
                               <button 
@@ -807,7 +807,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                           )}
                         </div>
                         <div className="w-full relative">
-                          <label className="text-[10px] font-bold text-slate-400 mb-1.5 flex items-center justify-between ml-1">
+                          <label className="text-[11px] font-bold text-slate-700 mb-1.5 flex items-center justify-between ml-1">
                             <span>Cliente Proprietário <span className="text-rose-500 font-bold">*</span></span>
                             {!eqFormData.customerId && (
                               <span className="text-[9px] font-bold text-rose-500 uppercase bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">Obrigatório</span>
@@ -827,7 +827,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                               }}
                               onFocus={() => setIsClientListOpen(true)}
                               onBlur={() => setTimeout(() => setIsClientListOpen(false), 200)}
-                              className={`w-full h-12 pl-10 pr-4 bg-slate-50 border rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all ${!eqFormData.customerId ? 'border-amber-300' : 'border-slate-200'}`}
+                              className={`w-full h-11 pl-10 pr-4 bg-white border rounded-xl text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all ${!eqFormData.customerId ? 'border-amber-400' : 'border-slate-300'}`}
                             />
                             {eqFormData.customerId && (
                               <button 
@@ -869,7 +869,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                           )}
                         </div>
                       </div>
-                      <TextArea label="Ficha Técnica / Memorial Descritivo" rows={3} className="rounded-xl p-3 border-slate-200" value={eqFormData.description || ''} onChange={e => setEqFormData({ ...eqFormData, description: e.target.value })} />
+                      <TextArea label="Ficha Técnica / Memorial Descritivo" rows={3} className="rounded-xl p-3 border border-slate-300 bg-white text-slate-900 font-bold focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={eqFormData.description || ''} onChange={e => setEqFormData({ ...eqFormData, description: e.target.value })} />
                     </div>
                   )}
 
@@ -948,8 +948,8 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                   {activeTab === 'families' && (
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-8 space-y-5">
                       <h3 className="text-sm font-bold text-slate-900 border-l-4 border-[#1c2d4f] pl-3">categoria técnica</h3>
-                      <Input label="Nome da Categoria (Família)" required placeholder="Ex: Equipamentos de Redes" icon={<Layers size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={familyFormData.name || ''} onChange={e => setFamilyFormData({ ...familyFormData, name: e.target.value })} />
-                      <TextArea label="Escopo Técnico da Família" placeholder="Quais ativos pertencem a este grupo de processos?" rows={4} className="rounded-xl p-3 border-slate-200" value={familyFormData.description || ''} onChange={e => setFamilyFormData({ ...familyFormData, description: e.target.value })} />
+                      <Input label="Nome da Categoria (Família)" required placeholder="Ex: Equipamentos de Redes" icon={<Layers size={16} />} className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={familyFormData.name || ''} onChange={e => setFamilyFormData({ ...familyFormData, name: e.target.value })} />
+                      <TextArea label="Escopo Técnico da Família" placeholder="Quais ativos pertencem a este grupo de processos?" rows={4} className="rounded-xl p-3 border border-slate-300 bg-white text-slate-900 font-bold focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={familyFormData.description || ''} onChange={e => setFamilyFormData({ ...familyFormData, description: e.target.value })} />
                     </div>
                   )}
 

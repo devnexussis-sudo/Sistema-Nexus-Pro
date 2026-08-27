@@ -733,15 +733,15 @@ export const UserManagement: React.FC = () => {
               placeholder={activeTab === 'users' ? "Pesquisar usuário..." : "Buscar grupo..."}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
+              className="w-full h-10 bg-white border border-slate-300 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-800 placeholder-slate-400 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 transition-all shadow-sm"
             />
           </div>
 
           <div className="flex items-center gap-2 w-full lg:w-auto justify-end shrink-0">
-            <div className="hidden sm:flex items-center bg-white border border-[#1c2d4f]/20 rounded-xl pl-2 pr-1 h-10 shadow-sm max-w-[160px]">
+            <div className="hidden sm:flex items-center bg-white border border-slate-300 rounded-xl pl-2 pr-1 h-10 shadow-sm focus-within:border-[#1c2d4f] focus-within:ring-2 focus-within:ring-[#1c2d4f]/10 max-w-[160px]">
               <Filter size={12} className="text-slate-400 mr-2 shrink-0" />
               <select
-                className="bg-transparent text-[10px] text-slate-600 outline-none w-full cursor-pointer h-full"
+                className="bg-transparent text-[10px] font-bold text-slate-700 outline-none w-full cursor-pointer h-full"
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value)}
               >
@@ -1045,12 +1045,12 @@ export const UserManagement: React.FC = () => {
                         <h3 className="text-sm font-bold text-slate-900 border-l-4 border-[#1c2d4f] pl-3">dados cadastrais</h3>
 
                         <div className="space-y-2">
-                          <label className="text-[10px] font-bold text-slate-400 ml-1">Nome do Colaborador</label>
+                          <label className="text-[11px] font-bold text-slate-700 ml-1">Nome do Colaborador</label>
                           <Input
                             label=""
                             required
                             icon={<Users size={16} />}
-                            className="rounded-xl border-slate-200 font-medium text-sm py-3"
+                            className="rounded-xl border border-slate-300 bg-white font-bold text-slate-900 text-sm py-2.5 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm"
                             value={formData.name || ''}
                             onChange={e => setFormData({ ...formData, name: e.target.value })}
                             autoComplete="new-name"
@@ -1058,13 +1058,13 @@ export const UserManagement: React.FC = () => {
                         </div>
 
                         <div className="space-y-2">
-                          <label className="text-[10px] font-bold text-slate-400 ml-1">E-mail Corporativo</label>
+                          <label className="text-[11px] font-bold text-slate-700 ml-1">E-mail Corporativo</label>
                           <Input
                             label=""
                             type="email"
                             required
                             icon={<Mail size={16} />}
-                            className="rounded-xl border-slate-200 font-medium text-sm py-3"
+                            className="rounded-xl border border-slate-300 bg-white font-bold text-slate-900 text-sm py-2.5 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm"
                             value={formData.email || ''}
                             onChange={e => setFormData({ ...formData, email: e.target.value })}
                             autoComplete="new-email"
@@ -1135,7 +1135,7 @@ export const UserManagement: React.FC = () => {
                             placeholder="Filtrar grupos..."
                             value={groupSearch}
                             onChange={e => setGroupSearch(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-[11px] font-semibold text-slate-700 outline-none focus:ring-1 focus:ring-[#1c2d4f]/30 focus:border-[#1c2d4f] transition-all"
+                            className="w-full bg-white border border-slate-300 rounded-lg pl-8 pr-3 py-2 text-[11px] font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 transition-all shadow-sm"
                           />
                         </div>
 
@@ -1267,14 +1267,14 @@ export const UserManagement: React.FC = () => {
                     <h3 className="text-sm font-bold text-slate-900 border-l-4 border-[#1c2d4f] pl-3 mb-6">dados do grupo</h3>
 
                     <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-slate-400 ml-1">Nome do Grupo (Ex: Supervisão de Campo)</label>
-                      <Input label="" required icon={<Building2 size={16} />} className="rounded-xl border-slate-200 font-medium text-sm py-3" value={groupFormData.name || ''} onChange={e => setGroupFormData({ ...groupFormData, name: e.target.value })} />
+                      <label className="text-[11px] font-bold text-slate-700 ml-1">Nome do Grupo (Ex: Supervisão de Campo)</label>
+                      <Input label="" required icon={<Building2 size={16} />} className="rounded-xl border border-slate-300 bg-white font-bold text-slate-900 text-sm py-2.5 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={groupFormData.name || ''} onChange={e => setGroupFormData({ ...groupFormData, name: e.target.value })} />
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-slate-400 ml-1">Descrição e Objetivo</label>
+                      <label className="text-[11px] font-bold text-slate-700 ml-1">Descrição e Objetivo</label>
                       <textarea
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all min-h-[100px]"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 transition-all min-h-[100px] shadow-sm"
                         placeholder="Descreva quais responsabilidades este grupo possui..."
                         value={groupFormData.description || ''}
                         onChange={e => setGroupFormData({ ...groupFormData, description: e.target.value })}

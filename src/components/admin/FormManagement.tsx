@@ -395,7 +395,7 @@ export const FormManagement: React.FC = () => {
               placeholder="Pesquisar..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
+              className="w-full h-10 bg-white border border-slate-300 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-800 placeholder-slate-400 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 transition-all shadow-sm"
             />
           </div>
 
@@ -408,8 +408,6 @@ export const FormManagement: React.FC = () => {
                 <Filter size={14} /> <span className="hidden sm:inline">{showFilters ? 'Ocultar' : 'Avançado'}</span>
               </button>
             )}
-
-
 
             <Button 
               variant="primary" 
@@ -431,10 +429,10 @@ export const FormManagement: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 p-3 bg-white/60 rounded-xl border border-[#1c2d4f]/10 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="flex flex-col gap-1">
               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">{t.common.status}</label>
-              <div className="flex items-center bg-white border border-[#1c2d4f]/20 rounded-lg pl-2 pr-1 h-9 shadow-sm">
+              <div className="flex items-center bg-white border border-slate-300 rounded-xl pl-2 pr-1 h-9 shadow-sm focus-within:border-[#1c2d4f] focus-within:ring-2 focus-within:ring-[#1c2d4f]/10">
                 <Filter size={12} className="text-slate-400 mr-2" />
                 <select
-                  className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer h-full"
+                  className="bg-transparent text-[10px] font-bold text-slate-700 outline-none w-full cursor-pointer h-full"
                   value={statusFilter}
                   onChange={e => setStatusFilter(e.target.value)}
                 >
@@ -674,7 +672,7 @@ export const FormManagement: React.FC = () => {
                   label="Nome do Atendimento (Ex: Garantia)"
                   value={editingType.name}
                   onChange={e => setEditingType({ ...editingType, name: e.target.value })}
-                  className="rounded-xl py-3 border-slate-200"
+                  className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm"
                 />
                 <p className="text-[10px] text-slate-400 font-medium px-1">
                   Dica: Use o mesmo nome que deseja exibir na abertura da Ordem de Serviço.
@@ -732,7 +730,7 @@ export const FormManagement: React.FC = () => {
                           value={editingForm.title}
                           onChange={e => setEditingForm({ ...editingForm, title: e.target.value })}
                           placeholder="Título do Formulário"
-                          className="w-full bg-transparent border-b-2 border-transparent focus:border-slate-300 pb-1 text-base sm:text-lg font-semibold text-slate-900 outline-none transition-all placeholder:text-slate-300"
+                          className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-base sm:text-lg font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 transition-all placeholder:text-slate-400 shadow-sm"
                         />
                         <p className="text-[10px] text-slate-400 mt-1.5 ml-0.5">Personalize os campos de coleta de dados abaixo.</p>
                       </div>
@@ -741,7 +739,7 @@ export const FormManagement: React.FC = () => {
                         <select
                           value={editingForm.category || 'TECHNICAL'}
                           onChange={e => setEditingForm({ ...editingForm, category: e.target.value as any })}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f]"
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm"
                         >
                           <option value="TECHNICAL">Técnico Operacional</option>
                           <option value="FINANCIAL">Financeiro / Custos</option>
@@ -783,10 +781,10 @@ export const FormManagement: React.FC = () => {
                             value={field.label}
                             onChange={e => setEditingForm({ ...editingForm, fields: editingForm.fields?.map(f => f.id === field.id ? { ...f, label: e.target.value } : f) })}
                             placeholder="Sua pergunta..."
-                            className="flex-1 bg-slate-50 border-b border-slate-200 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-primary-500 focus:bg-slate-100/50 transition-colors rounded-t-md"
+                            className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all"
                           />
                           <div className="w-full sm:w-44 shrink-0 relative">
-                            <button type="button" onClick={() => setFieldDropdown(fieldDropdown?.fieldId === field.id && fieldDropdown?.type === 'fieldType' ? null : { fieldId: field.id, type: 'fieldType' })} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-[10px] font-medium text-left flex items-center justify-between transition-all hover:border-[#1c2d4f]/30 outline-none">
+                            <button type="button" onClick={() => setFieldDropdown(fieldDropdown?.fieldId === field.id && fieldDropdown?.type === 'fieldType' ? null : { fieldId: field.id, type: 'fieldType' })} className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-[11px] font-bold text-left flex items-center justify-between transition-all hover:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 outline-none shadow-sm">
                               <span className="text-slate-700">{FIELD_TYPE_OPTIONS.find(o => o.value === field.type)?.label || 'Selecione...'}</span>
                               <ChevronDown size={12} className={`text-slate-400 transition-transform ${fieldDropdown?.fieldId === field.id && fieldDropdown?.type === 'fieldType' ? 'rotate-180' : ''}`} />
                             </button>
@@ -816,7 +814,7 @@ export const FormManagement: React.FC = () => {
                                   const newOptions = e.target.value.split(',').map(s => s.trim());
                                   setEditingForm({ ...editingForm, fields: editingForm.fields?.map(f => f.id === field.id ? { ...f, options: newOptions } : f) });
                                 }}
-                                className="flex-1 bg-white border-b border-slate-200 px-2 py-1.5 text-[10px] font-medium text-slate-700 outline-none focus:border-primary-400 transition-all placeholder:text-slate-300"
+                                className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all placeholder:text-slate-400"
                               />
                             </div>
                             <div className="flex gap-1.5 flex-wrap pl-5">
@@ -879,7 +877,7 @@ export const FormManagement: React.FC = () => {
                                     <input
                                       type="text"
                                       placeholder="Valor..."
-                                      className="bg-white border border-amber-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-amber-200 w-full"
+                                      className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 w-full shadow-sm"
                                       value={field.condition.value}
                                       onChange={e => {
                                         const val = e.target.value;
@@ -1024,10 +1022,10 @@ export const FormManagement: React.FC = () => {
 
                   {/* Tipo de Serviço */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-medium text-slate-400 ml-1 block">Tipo de Serviço</label>
+                    <label className="text-[11px] font-bold text-slate-700 ml-1 block">Tipo de Serviço</label>
                     <div className="relative">
-                      <button type="button" onClick={() => { setRuleDropdown(ruleDropdown === 'type' ? null : 'type'); setRuleSearchType(''); }} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium text-left flex items-center justify-between transition-all hover:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] outline-none">
-                        <span className={editingRule.serviceTypeId ? 'text-slate-700 font-bold' : 'text-slate-400'}>{serviceTypes.find(s => s.id === editingRule.serviceTypeId)?.name || 'Selecione um Tipo...'}</span>
+                      <button type="button" onClick={() => { setRuleDropdown(ruleDropdown === 'type' ? null : 'type'); setRuleSearchType(''); }} className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-left flex items-center justify-between transition-all hover:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 outline-none shadow-sm">
+                        <span className={editingRule.serviceTypeId ? 'text-slate-900 font-bold' : 'text-slate-400'}>{serviceTypes.find(s => s.id === editingRule.serviceTypeId)?.name || 'Selecione um Tipo...'}</span>
                         <ChevronDown size={14} className={`text-slate-400 transition-transform ${ruleDropdown === 'type' ? 'rotate-180' : ''}`} />
                       </button>
                       {ruleDropdown === 'type' && (
@@ -1041,7 +1039,7 @@ export const FormManagement: React.FC = () => {
                                 placeholder="Digitar para buscar tipo..."
                                 value={ruleSearchType}
                                 onChange={e => setRuleSearchType(e.target.value)}
-                                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:border-[#1c2d4f] font-medium text-slate-700"
+                                className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs outline-none focus:border-[#1c2d4f] font-bold text-slate-900 shadow-sm"
                                 onClick={e => e.stopPropagation()}
                               />
                             </div>
@@ -1065,10 +1063,10 @@ export const FormManagement: React.FC = () => {
 
                   {/* Família do Equipamento */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-medium text-slate-400 ml-1 block">Família do Equipamento (Atualizada)</label>
+                    <label className="text-[11px] font-bold text-slate-700 ml-1 block">Família do Equipamento (Atualizada)</label>
                     <div className="relative">
-                      <button type="button" onClick={() => { setRuleDropdown(ruleDropdown === 'family' ? null : 'family'); setRuleSearchFamily(''); }} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium text-left flex items-center justify-between transition-all hover:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] outline-none">
-                        <span className={editingRule.equipmentFamily ? 'text-slate-700 font-bold' : 'text-slate-400'}>{editingRule.equipmentFamily || 'Selecione uma Família...'}</span>
+                      <button type="button" onClick={() => { setRuleDropdown(ruleDropdown === 'family' ? null : 'family'); setRuleSearchFamily(''); }} className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-left flex items-center justify-between transition-all hover:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 outline-none shadow-sm">
+                        <span className={editingRule.equipmentFamily ? 'text-slate-900 font-bold' : 'text-slate-400'}>{editingRule.equipmentFamily || 'Selecione uma Família...'}</span>
                         <ChevronDown size={14} className={`text-slate-400 transition-transform ${ruleDropdown === 'family' ? 'rotate-180' : ''}`} />
                       </button>
                       {ruleDropdown === 'family' && (
@@ -1082,7 +1080,7 @@ export const FormManagement: React.FC = () => {
                                 placeholder="Digitar para buscar família..."
                                 value={ruleSearchFamily}
                                 onChange={e => setRuleSearchFamily(e.target.value)}
-                                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:border-[#1c2d4f] font-medium text-slate-700"
+                                className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs outline-none focus:border-[#1c2d4f] font-bold text-slate-900 shadow-sm"
                                 onClick={e => e.stopPropagation()}
                               />
                             </div>
@@ -1106,10 +1104,10 @@ export const FormManagement: React.FC = () => {
 
                   {/* Checklist Vinculado */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-medium text-slate-400 ml-1 block">Checklist Técnico Vinculado</label>
+                    <label className="text-[11px] font-bold text-slate-700 ml-1 block">Checklist Técnico Vinculado</label>
                     <div className="relative">
-                      <button type="button" onClick={() => { setRuleDropdown(ruleDropdown === 'form' ? null : 'form'); setRuleSearchForm(''); }} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium text-left flex items-center justify-between transition-all hover:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] outline-none">
-                        <span className={editingRule.formId ? 'text-slate-700 font-bold' : 'text-slate-400'}>{forms.find(f => f.id === editingRule.formId)?.title || 'Selecione um Checklist Técnico...'}</span>
+                      <button type="button" onClick={() => { setRuleDropdown(ruleDropdown === 'form' ? null : 'form'); setRuleSearchForm(''); }} className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-left flex items-center justify-between transition-all hover:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 outline-none shadow-sm">
+                        <span className={editingRule.formId ? 'text-slate-900 font-bold' : 'text-slate-400'}>{forms.find(f => f.id === editingRule.formId)?.title || 'Selecione um Checklist Técnico...'}</span>
                         <ChevronDown size={14} className={`text-slate-400 transition-transform ${ruleDropdown === 'form' ? 'rotate-180' : ''}`} />
                       </button>
                       {ruleDropdown === 'form' && (
@@ -1123,7 +1121,7 @@ export const FormManagement: React.FC = () => {
                                 placeholder="Digitar para buscar modelo técnico..."
                                 value={ruleSearchForm}
                                 onChange={e => setRuleSearchForm(e.target.value)}
-                                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:border-[#1c2d4f] font-medium text-slate-700"
+                                className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs outline-none focus:border-[#1c2d4f] font-bold text-slate-900 shadow-sm"
                                 onClick={e => e.stopPropagation()}
                               />
                             </div>
@@ -1176,10 +1174,10 @@ export const FormManagement: React.FC = () => {
 
                   {/* Checklist Financeiro Vinculado */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-medium text-slate-400 ml-1 block">Checklist Financeiro/Custos Vinculado (Opcional)</label>
+                    <label className="text-[11px] font-bold text-slate-700 ml-1 block">Checklist Financeiro/Custos Vinculado (Opcional)</label>
                     <div className="relative">
-                      <button type="button" onClick={() => { setRuleDropdown(ruleDropdown === 'finForm' ? null : 'finForm'); setRuleSearchFinForm(''); }} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium text-left flex items-center justify-between transition-all hover:border-[#1c2d4f]/30 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] outline-none">
-                        <span className={(editingRule as any).financialFormId ? 'text-slate-700 font-bold' : 'text-slate-400'}>{forms.find(f => f.id === (editingRule as any).financialFormId)?.title || 'Nenhum Checklist Financeiro...'}</span>
+                      <button type="button" onClick={() => { setRuleDropdown(ruleDropdown === 'finForm' ? null : 'finForm'); setRuleSearchFinForm(''); }} className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-left flex items-center justify-between transition-all hover:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 outline-none shadow-sm">
+                        <span className={(editingRule as any).financialFormId ? 'text-slate-900 font-bold' : 'text-slate-400'}>{forms.find(f => f.id === (editingRule as any).financialFormId)?.title || 'Nenhum Checklist Financeiro...'}</span>
                         <ChevronDown size={14} className={`text-slate-400 transition-transform ${ruleDropdown === 'finForm' ? 'rotate-180' : ''}`} />
                       </button>
                       {ruleDropdown === 'finForm' && (
@@ -1193,7 +1191,7 @@ export const FormManagement: React.FC = () => {
                                 placeholder="Digitar para buscar modelo financeiro..."
                                 value={ruleSearchFinForm}
                                 onChange={e => setRuleSearchFinForm(e.target.value)}
-                                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:border-[#1c2d4f] font-medium text-slate-700"
+                                className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs outline-none focus:border-[#1c2d4f] font-bold text-slate-900 shadow-sm"
                                 onClick={e => e.stopPropagation()}
                               />
                             </div>

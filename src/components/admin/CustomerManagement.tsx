@@ -467,7 +467,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
               placeholder="Localizar cliente..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
+              className="w-full h-10 bg-white border border-slate-300 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-800 placeholder-slate-400 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 transition-all shadow-sm"
             />
           </div>
 
@@ -747,19 +747,19 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                         <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Identificação Principal</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                           <div className="md:col-span-2 lg:col-span-2">
-                            <Input label={formData.type === 'PJ' ? 'Razão Social' : 'Nome Completo'} required className="rounded-xl py-2 text-xs font-medium border-slate-200" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                            <Input label={formData.type === 'PJ' ? 'Razão Social' : 'Nome Completo'} required className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
                           </div>
                           <div className="relative">
                             <Input label={formData.type === 'PJ' ? 'CNPJ' : 'CPF'} required
-                              className={`rounded-xl py-2 text-xs font-medium ${documentDuplicate ? 'border-rose-400 bg-rose-50' : 'border-slate-200'}`}
+                              className={`rounded-xl py-2 text-xs font-bold border bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm ${documentDuplicate ? 'border-rose-400 bg-rose-50' : 'border-slate-300'}`}
                               value={formData.document || ''}
                               placeholder={formData.type === 'PJ' ? '00.000.000/0000-00' : '000.000.000-00'}
                               onChange={e => setFormData({ ...formData, document: formData.type === 'PJ' ? formatCNPJ(e.target.value) : formatCPF(e.target.value) })} />
                             {documentDuplicate && <p className="text-rose-500 text-[10px] font-bold mt-1">⚠️ Cadastrado: {documentDuplicate}</p>}
                           </div>
-                          <Input label="E-mail" type="email" required icon={<Mail size={14} />} className="rounded-xl py-2 text-xs font-medium border-slate-200" value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} />
-                          <Input label="Telefone" className="rounded-xl py-2 text-xs font-medium border-slate-200" value={formData.phone || ''} onChange={e => setFormData({ ...formData, phone: formatPhone(e.target.value) })} placeholder="(00) 0000-0000" />
-                          <Input label="WhatsApp" icon={<Phone size={14} className="text-emerald-500" />} className="rounded-xl py-2 text-xs font-medium border-slate-200" value={formData.whatsapp || ''} onChange={e => setFormData({ ...formData, whatsapp: formatPhone(e.target.value) })} placeholder="(00) 00000-0000" />
+                          <Input label="E-mail" type="email" required icon={<Mail size={14} />} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} />
+                          <Input label="Telefone" className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.phone || ''} onChange={e => setFormData({ ...formData, phone: formatPhone(e.target.value) })} placeholder="(00) 0000-0000" />
+                          <Input label="WhatsApp" icon={<Phone size={14} className="text-emerald-500" />} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.whatsapp || ''} onChange={e => setFormData({ ...formData, whatsapp: formatPhone(e.target.value) })} placeholder="(00) 00000-0000" />
                         </div>
                       </div>
                     </div>
@@ -778,19 +778,19 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                             )}
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <Input label="CEP" onBlur={handleZipBlur} required className="rounded-xl py-2 text-xs font-medium border-slate-200" value={formData.zip || ''} onChange={e => setFormData({ ...formData, zip: e.target.value })} placeholder="00000-000" />
-                            <Input label="Estado (UF)" className="rounded-xl py-2 text-xs font-medium border-slate-200" value={formData.state || ''} onChange={e => setFormData({ ...formData, state: e.target.value })} />
-                            <Input label="Cidade" className="rounded-xl py-2 text-xs font-medium border-slate-200" value={formData.city || ''} onChange={e => setFormData({ ...formData, city: e.target.value })} />
+                            <Input label="CEP" onBlur={handleZipBlur} required className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.zip || ''} onChange={e => setFormData({ ...formData, zip: e.target.value })} placeholder="00000-000" />
+                            <Input label="Estado (UF)" className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.state || ''} onChange={e => setFormData({ ...formData, state: e.target.value })} />
+                            <Input label="Cidade" className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.city || ''} onChange={e => setFormData({ ...formData, city: e.target.value })} />
                           </div>
                           <div>
-                            <Input label="Logradouro" className="rounded-xl py-2 text-xs font-medium border-slate-200 w-full" value={formData.address || ''} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="Rua / Avenida / Alameda..." />
+                            <Input label="Logradouro" className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm w-full" value={formData.address || ''} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="Rua / Avenida / Alameda..." />
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <Input label="Número" required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-medium border-slate-200" value={formData.number || ''} onChange={e => setFormData({ ...formData, number: e.target.value })} placeholder="123" />
-                            <Input label="Bairro" required className="rounded-xl py-2 text-xs font-medium border-slate-200" value={formData.neighborhood || ''} onChange={e => setFormData({ ...formData, neighborhood: e.target.value })} placeholder="Bairro" />
+                            <Input label="Número" required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.number || ''} onChange={e => setFormData({ ...formData, number: e.target.value })} placeholder="123" />
+                            <Input label="Bairro" required className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.neighborhood || ''} onChange={e => setFormData({ ...formData, neighborhood: e.target.value })} placeholder="Bairro" />
                           </div>
                           <div>
-                            <Input label="Complemento / Referência" icon={<Info size={14} />} className="rounded-xl py-2 text-xs font-medium border-slate-200 w-full" value={formData.complement || ''} onChange={e => setFormData({ ...formData, complement: e.target.value })} placeholder="Apto, Sala, Bloco, Ponto de Referência..." />
+                            <Input label="Complemento / Referência" icon={<Info size={14} />} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm w-full" value={formData.complement || ''} onChange={e => setFormData({ ...formData, complement: e.target.value })} placeholder="Apto, Sala, Bloco, Ponto de Referência..." />
                           </div>
                         </div>
                       </div>
@@ -891,7 +891,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                                 value={assetSearch}
                                 onChange={e => setAssetSearch(e.target.value)}
                                 placeholder="Buscar por modelo ou serial..."
-                                className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#1c2d4f]/10"
+                                className="w-full pl-8 pr-3 py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 rounded-xl outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm"
                               />
                             </div>
                             {available.length === 0 ? (

@@ -62,16 +62,17 @@ export const GroupFormModal: React.FC = () => {
           </button>
         </div>
         <div className="space-y-4">
-          <label className="block text-sm font-bold text-slate-400">Nome</label>
+          <label className="block text-xs font-bold text-slate-700">Nome do Grupo</label>
           <input
             required
-            className="w-full rounded-xl border-slate-200 py-2 px-3"
+            className="w-full rounded-xl border border-slate-300 bg-white text-slate-900 font-bold py-2.5 px-3.5 text-xs outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           />
-          <label className="block text-sm font-bold text-slate-400">Descrição</label>
+          <label className="block text-xs font-bold text-slate-700">Descrição</label>
           <textarea
-            className="w-full rounded-xl border-slate-200 py-2 px-3"
+            rows={3}
+            className="w-full rounded-xl border border-slate-300 bg-white text-slate-900 font-bold py-2.5 px-3.5 text-xs outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm"
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
           />
