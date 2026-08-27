@@ -1611,14 +1611,41 @@ export const SettingsPage: React.FC = () => {
                                 };
 
                                 console.log('[Logout] Desconectando...');
-                                const res = await fetch(`${baseUrl}/instance/logout`, {
-                                  method: 'DELETE',
-                                  headers,
-                                });
                                 
-                                if (!res.ok) {
-                                   const errData = await res.json().catch(() => null);
-                                   throw new Error(`O servidor recusou a desconexão (Status ${res.status}). Detalhes: ${JSON.stringify(errData || 'Nenhum')}`);
+                                // 1. Tenta POST /instance/logout (padrão UazapiGO / Uazapi v2)
+                                let res = await fetch(`${baseUrl}/instance/logout`, {
+                                  method: 'POST',
+                                  headers,
+                                }).catch(() => null);
+
+                                // 2. Fallback: DELETE /instance/logout
+                                if (!res || !res.ok) {
+                                  res = await fetch(`${baseUrl}/instance/logout`, {
+                                    method: 'DELETE',
+                                    headers,
+                                  }).catch(() => null);
+                                }
+
+                                // 3. Fallback: POST /instance/disconnect
+                                if (!res || !res.ok) {
+                                  res = await fetch(`${baseUrl}/instance/disconnect`, {
+                                    method: 'POST',
+                                    headers,
+                                  }).catch(() => null);
+                                }
+
+                                // 4. Fallback: DELETE /instance/disconnect
+                                if (!res || !res.ok) {
+                                  res = await fetch(`${baseUrl}/instance/disconnect`, {
+                                    method: 'DELETE',
+                                    headers,
+                                  }).catch(() => null);
+                                }
+
+                                if (!res || !res.ok) {
+                                  const errData = res ? await res.json().catch(() => null) : null;
+                                  const statusStr = res ? ` (Status ${res.status})` : '';
+                                  throw new Error(`O servidor recusou a desconexão${statusStr}. Detalhes: ${JSON.stringify(errData || 'Nenhum')}`);
                                 }
 
                                 showAlert("Sessão desconectada com sucesso!", "success");
