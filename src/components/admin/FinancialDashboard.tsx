@@ -718,6 +718,13 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
                         const updatedOrder = {
                             ...(item.original as ServiceOrder),
+                            paymentMethod: finalMethod,
+                            // formData (camelCase) é o que updateOrder lê e salva como form_data no banco
+                            formData: {
+                                ...((item.original as ServiceOrder).formData || {}),
+                                mpInstallments: mpMethod === 'card_link' ? installments : undefined,
+                                mpDueDate: mpMethod === 'boleto' ? boletoDueDate : undefined
+                            },
                             discount: effectiveDiscount,
                             discountType: effectiveDiscountType,
                             billingNotes: billingNotes || item.original?.billingNotes,
@@ -841,6 +848,12 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
                         const updatedQuote = {
                             ...item.original,
+                            paymentMethod: finalMethod,
+                            approvalMetadata: {
+                                ...(item.original.approvalMetadata || item.original.approval_metadata || {}),
+                                mpInstallments: mpMethod === 'card_link' ? installments : undefined,
+                                mpDueDate: mpMethod === 'boleto' ? boletoDueDate : undefined
+                            },
                             discount: effectiveDiscount,
                             discountType: effectiveDiscountType,
                             billingNotes: billingNotes || item.original?.billingNotes,
@@ -1955,7 +1968,13 @@ ${container.innerHTML}
                                                     {(selectedItem.original?.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl) && (
                                                         <button
                                                             type="button"
-                                                            onClick={() => window.open(selectedItem.original.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl, '_blank')}
+                                                            onClick={() => {
+                                                                const isOrderOrQuote = ['ORDER', 'QUOTE'].includes(selectedItem.type);
+                                                                const checkoutUrl = isOrderOrQuote 
+                                                                    ? `${window.location.origin}/#/checkout/${selectedItem.type.toLowerCase()}/${selectedItem.original?.id || selectedItem.id}`
+                                                                    : (selectedItem.original?.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl);
+                                                                window.open(checkoutUrl, '_blank');
+                                                            }}
                                                             className="px-3 py-1.5 bg-[#009EE3] hover:bg-[#0089c7] text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
                                                         >
                                                             <Share2 size={13} /> 🔗 Abrir Link / Boleto
@@ -1994,12 +2013,17 @@ ${container.innerHTML}
                                                         type="button"
                                                         onClick={() => {
                                                             const companyName = tenant?.name || 'NEXUS';
+                                                            const isOrderOrQuote = ['ORDER', 'QUOTE'].includes(selectedItem.type);
+                                                            const checkoutUrl = isOrderOrQuote 
+                                                                ? `${window.location.origin}/#/checkout/${selectedItem.type.toLowerCase()}/${selectedItem.original?.id || selectedItem.id}`
+                                                                : (selectedItem.original?.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl);
+
                                                             const text = encodeURIComponent(
                                                                 `🏢 *${companyName}*\n\n` +
                                                                 `Olá, ${selectedItem.customerName}! Tudo bem?\n\n` +
                                                                 `Segue a cobrança da ${selectedItem.type === 'ORDER' ? 'O.S.' : 'Orçamento'} #${getDocLabel(selectedItem)} no valor de *R$ ${getItemNetValue(selectedItem).toFixed(2)}*:\n\n` +
                                                                 ((selectedItem.original?.gateway_pix_code || (selectedItem.original as any)?.gatewayPixCode) ? `*Pix Copia e Cola:*\n${selectedItem.original.gateway_pix_code || (selectedItem.original as any)?.gatewayPixCode}\n\n` : '') +
-                                                                ((selectedItem.original?.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl) ? `*Link de Pagamento:*\n${selectedItem.original.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl}` : '')
+                                                                (checkoutUrl ? `*Link de Pagamento:*\n${checkoutUrl}` : '')
                                                             );
                                                             window.open(`https://wa.me/?text=${text}`, '_blank');
                                                         }}

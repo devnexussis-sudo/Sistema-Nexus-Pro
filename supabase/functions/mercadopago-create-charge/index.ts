@@ -17,8 +17,26 @@ serve(async (req) => {
       itemType, itemId, displayId, title, amount, 
       customerName, customerEmail, customerDocument, paymentMethodType, 
       customerZip, customerStreet, customerNumber, customerNeighborhood, customerCity, customerState,
-      tenantId, installments, accessToken: providedToken 
+      tenantId, installments, accessToken: providedToken,
+      cardToken, issuerId, paymentMethodId, payer: brickPayer
     } = body;
+
+    if (body.action === 'get_public_key' && tenantId) {
+      const supabaseAdmin = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      );
+      const { data: settings } = await supabaseAdmin
+        .from("tenant_mercadopago_settings")
+        .select("mp_public_key")
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+
+      return new Response(
+        JSON.stringify({ success: true, mpPublicKey: settings?.mp_public_key || null }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (!itemId || !amount || !tenantId) {
       return new Response(
@@ -123,7 +141,7 @@ serve(async (req) => {
           ],
           payer: {
             name: customerName || "Cliente",
-            email: customerEmail && customerEmail.includes("@") ? customerEmail : "cliente@nexus.com"
+            email: customerEmail && customerEmail.includes("@") ? customerEmail : "cliente@dunoup.com.br"
           },
           payment_methods: {
             default_payment_method_id: defaultMethodId,
@@ -155,7 +173,7 @@ serve(async (req) => {
     };
 
     const generateEdgePixBRCode = (params: { pixKey: string; merchantName?: string; merchantCity?: string; amount: number; txId?: string }): string => {
-      const { pixKey, merchantName = 'NEXUS', merchantCity = 'BRASILIA', amount: amt, txId = '***' } = params;
+      const { pixKey, merchantName = 'DUNO', merchantCity = 'BRASILIA', amount: amt, txId = '***' } = params;
       const formatField = (id: string, value: string) => {
         const len = String(value.length).padStart(2, '0');
         return `${id}${len}${value}`;
@@ -178,7 +196,7 @@ serve(async (req) => {
         formatField('53', '986') +
         formatField('54', formattedAmount) +
         formatField('58', 'BR') +
-        formatField('59', cleanName || 'NEXUS PRO') +
+        formatField('59', cleanName || 'DUNO') +
         formatField('60', cleanCity || 'BRASILIA') +
         formatField('62', formatField('05', cleanTxId)) +
         '6304';
@@ -205,7 +223,7 @@ serve(async (req) => {
       const lastName = nameParts.slice(1).join(' ') || firstName;
 
       const payerObj: any = {
-        email: customerEmail && customerEmail.includes("@") ? customerEmail : "cliente@nexus.com",
+        email: customerEmail && customerEmail.includes("@") ? customerEmail : "cliente@dunoup.com.br",
         first_name: firstName,
         last_name: lastName
       };
@@ -260,7 +278,7 @@ serve(async (req) => {
 
         const nativePixCode = generateEdgePixBRCode({
           pixKey,
-          merchantName: customerName || 'NEXUS PRO',
+          merchantName: customerName || 'DUNO',
           merchantCity: 'POUSO ALEGRE',
           amount: numAmount,
           txId: (displayId || itemId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 25)
@@ -291,7 +309,7 @@ serve(async (req) => {
           payment_method_id: "bolbradesco",
           date_of_expiration: expiresAt,
           payer: {
-            email: customerEmail && customerEmail.includes("@") ? customerEmail : "cliente@nexus.com",
+            email: customerEmail && customerEmail.includes("@") ? customerEmail : "cliente@dunoup.com.br",
             first_name: firstName,
             last_name: lastName,
             identification: doc ? {
@@ -325,6 +343,70 @@ serve(async (req) => {
         paymentResult = {
           paymentId: String(mpData.id),
           ticketUrl: mpData.transaction_details?.external_resource_url || mpData.point_of_interaction?.transaction_data?.ticket_url
+        };
+      }
+    } else if (paymentMethodType === "credit_card" && cardToken) {
+      // Cria cobrança de Cartão de Crédito Transparente via API do Mercado Pago (/v1/payments)
+      const mpResponse = await fetch("https://api.mercadopago.com/v1/payments", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          "X-Idempotency-Key": `${itemId}-${Date.now()}`
+        },
+        body: JSON.stringify({
+          transaction_amount: numAmount,
+          token: cardToken,
+          description: `${title} (#${displayId || itemId.slice(0, 8)})`.slice(0, 60),
+          installments: Number(installments) || 1,
+          payment_method_id: paymentMethodId,
+          issuer_id: issuerId,
+          payer: brickPayer || {
+            email: customerEmail && customerEmail.includes("@") ? customerEmail : "cliente@dunoup.com.br"
+          },
+          external_reference: itemId,
+          notification_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/mercadopago-webhook?tenant_id=${tenantId}`
+        })
+      });
+
+      const mpData = await mpResponse.json();
+
+      if (!mpResponse.ok || mpData.status === "rejected") {
+        const rawCode = String(mpData.status_detail || mpData.cause?.[0]?.code || mpData.error || "");
+        let friendlyMessage = mpData.cause?.[0]?.description || mpData.cause?.[0]?.message || mpData.message || rawCode || "Transação não autorizada pelo emissor.";
+
+        // Tradução de códigos oficiais do Mercado Pago
+        const translations: Record<string, string> = {
+          "cc_rejected_bad_filled_card_number": "Revise o número do cartão.",
+          "cc_rejected_bad_filled_date": "Revise a data de validade do cartão.",
+          "cc_rejected_bad_filled_other": "Revise os dados informados do cartão.",
+          "cc_rejected_bad_filled_security_code": "Revise o código de segurança (CVV).",
+          "cc_rejected_blacklist": "Não pudemos processar seu pagamento. O cartão foi recusado por segurança.",
+          "cc_rejected_call_for_authorize": "Você deve ligar para o emissor do cartão para autorizar o pagamento.",
+          "cc_rejected_card_disabled": "Ligue para a operadora do cartão para ativá-lo ou use outro meio de pagamento.",
+          "cc_rejected_card_error": "Não conseguimos processar o pagamento com este cartão.",
+          "cc_rejected_duplicated_payment": "Você já efetuou um pagamento idêntico recentemente. Tente novamente mais tarde.",
+          "cc_rejected_high_risk": "Seu pagamento foi recusado pelo sistema antifraude. Tente outro cartão ou forma de pagamento.",
+          "cc_rejected_insufficient_amount": "O cartão não possui limite ou saldo insuficiente.",
+          "cc_rejected_invalid_installments": "O emissor do cartão não aceita o número de parcelas escolhido.",
+          "cc_rejected_max_attempts": "Você atingiu o limite de tentativas com este cartão.",
+          "cc_rejected_other_reason": "O banco emissor não processou o pagamento."
+        };
+
+        if (translations[rawCode]) {
+          friendlyMessage = translations[rawCode];
+        }
+
+        if (mpResponse.status === 401 || mpResponse.status === 403 || String(friendlyMessage).toLowerCase().includes("unauthorized") || mpData.error === "unauthorized" || mpData.blocked_by === "PolicyAgent") {
+          throw new Error(`❌ Bloqueio do Mercado Pago (403/PolicyAgent). Detalhe da API: ${JSON.stringify(mpData)}`);
+        } else {
+          throw new Error(friendlyMessage);
+        }
+      } else {
+        paymentResult = {
+          paymentId: String(mpData.id),
+          status: mpData.status,
+          statusDetail: mpData.status_detail
         };
       }
     } else {

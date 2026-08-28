@@ -118,6 +118,24 @@ export const PaymentService = {
   },
 
   /**
+   * Obtém APENAS a public key de forma segura, útil para o Checkout Público onde o RLS bloqueia ler a tabela inteira.
+   */
+  async getMercadoPagoPublicKey(explicitTenantId?: string): Promise<string | null> {
+    const tenantId = explicitTenantId || getCurrentTenantId() || 'default';
+    try {
+      const { data, error } = await supabase.functions.invoke('mercadopago-create-charge', {
+        body: { action: 'get_public_key', tenantId }
+      });
+      if (data && data.success && data.mpPublicKey) {
+        return data.mpPublicKey;
+      }
+    } catch (err) {
+      console.warn('[PaymentService] Error fetching public key via Edge Function:', err);
+    }
+    return null;
+  },
+
+  /**
    * Gera o URL de autorização OAuth 2.0 do Mercado Pago.
    * O cliente abre em uma nova aba a tela oficial do Mercado Pago para autorizar com 1 clique.
    * IMPORTANTE: o client_id deve ser SOMENTE numérico (ID da aplicação no portal Mercado Pago Developers).
@@ -191,13 +209,14 @@ export const PaymentService = {
   /**
    * Salva as credenciais do Mercado Pago (App ID / Access Token) informadas diretamente no painel.
    */
-  async saveMercadoPagoSettings(data: { mpUserId?: string; mpAccessToken?: string; accountEmail?: string }, explicitTenantId?: string): Promise<boolean> {
+  async saveMercadoPagoSettings(data: { mpUserId?: string; mpAccessToken?: string; mpPublicKey?: string; accountEmail?: string }, explicitTenantId?: string): Promise<boolean> {
     const tenantId = explicitTenantId || getCurrentTenantId() || 'default';
 
     const payload: MercadoPagoSettings = {
       tenantId,
       mpUserId: data.mpUserId || undefined,
       mpAccessToken: data.mpAccessToken || undefined,
+      mpPublicKey: data.mpPublicKey || undefined,
       accountEmail: data.accountEmail || 'Credencial Vinculada Direta',
       accountName: 'Conta Mercado Pago',
       status: 'active',
@@ -219,6 +238,7 @@ export const PaymentService = {
           tenant_id: tenantId,
           mp_user_id: data.mpUserId || undefined,
           mp_access_token: data.mpAccessToken || undefined,
+          mp_public_key: data.mpPublicKey || undefined,
           account_email: data.accountEmail || 'Credencial Vinculada Direta',
           account_name: 'Conta Mercado Pago',
           status: 'active',
@@ -299,10 +319,14 @@ export const PaymentService = {
     customerNeighborhood?: string;
     customerCity?: string;
     customerState?: string;
-    paymentMethodType: 'pix' | 'card_link' | 'boleto';
+    paymentMethodType: 'pix' | 'card_link' | 'boleto' | 'credit_card';
     installments?: number;
     expiresAt?: string;
     tenantId?: string;
+    cardToken?: string;
+    issuerId?: string;
+    paymentMethodId?: string;
+    payer?: any;
   }): Promise<{
     success: boolean;
     paymentId?: string;
@@ -335,6 +359,19 @@ export const PaymentService = {
       };
     }
 
+    const numAmount = Math.round(Number(params.amount) * 100) / 100;
+    if (isNaN(numAmount) || numAmount <= 0) {
+      return { success: false, message: 'O valor da cobrança deve ser um valor numérico válido maior que R$ 0,00.' };
+    }
+
+    if (params.paymentMethodType === 'boleto' && numAmount < 4.00) {
+      return { success: false, message: 'O Mercado Pago exige um valor mínimo de R$ 4,00 para gerar Boleto Bancário.' };
+    }
+
+    if ((params.paymentMethodType === 'card_link' || params.paymentMethodType === 'credit_card') && numAmount < 0.50) {
+      return { success: false, message: 'O Mercado Pago exige um valor mínimo de R$ 0,50 para pagamentos via Cartão.' };
+    }
+
     // 2. Primeiro tenta via Edge Function do Supabase
     try {
       const { data: edgeData, error: edgeErr } = await supabase.functions.invoke('mercadopago-create-charge', {
@@ -354,11 +391,6 @@ export const PaymentService = {
       }
     } catch (e: any) {
       console.warn('[PaymentService] Exceção ao invocar a Edge function, tentando fallback direto:', e);
-    }
-
-    const numAmount = Math.round(Number(params.amount) * 100) / 100;
-    if (isNaN(numAmount) || numAmount <= 0) {
-      return { success: false, message: 'O valor da cobrança deve ser um valor numérico válido maior que R$ 0,00.' };
     }
 
     try {
@@ -689,26 +721,36 @@ export const PaymentService = {
         });
         if (edgeRes.ok) {
           const edgeJson = await edgeRes.json();
-          if (edgeJson.success && edgeJson.isPaid) {
-            const { data: updatedDb } = await supabase
-              .from(table)
-              .select('billing_status, paid_at')
-              .eq('id', params.itemId)
-              .maybeSingle();
+          console.log('[PaymentService] Edge Function manual_check response:', edgeJson);
+          
+          if (edgeJson.success) {
+            if (edgeJson.isPaid) {
+              const { data: updatedDb } = await supabase
+                .from(table)
+                .select('billing_status, paid_at')
+                .eq('id', params.itemId)
+                .maybeSingle();
 
-            if (updatedDb?.billing_status === 'PAID') {
-              NexusQueryClient.invalidateQuotes();
-              NexusQueryClient.invalidateOrders();
-              NexusQueryClient.invalidateFinancials();
-              return { isPaid: true, status: 'approved', paidAt: updatedDb.paid_at || new Date().toISOString() };
+              if (updatedDb?.billing_status === 'PAID') {
+                NexusQueryClient.invalidateQuotes();
+                NexusQueryClient.invalidateOrders();
+                NexusQueryClient.invalidateFinancials();
+                return { isPaid: true, status: 'approved', paidAt: updatedDb.paid_at || new Date().toISOString() };
+              }
+            } else {
+              // Edge function respondeu com sucesso, mas ainda não está pago. 
+              // Retorna o status real (ex: 'rejected', 'in_process', 'pending') para o frontend poder tratar recusas.
+              return { isPaid: false, status: edgeJson.gatewayStatus || 'pending' };
             }
           }
+        } else {
+          console.warn('[PaymentService] Edge Function returned non-ok status:', edgeRes.status);
         }
       } catch (edgeErr) {
         console.warn('[PaymentService] Server-side Edge Function check notice:', edgeErr);
       }
 
-      // 2. Fallback direto se a Edge Function não responder
+      // 2. Fallback direto se a Edge Function não responder (CORS costuma bloquear)
       let mpData: any = null;
       try {
         if (gtwId && /^\d+$/.test(gtwId)) {

@@ -353,7 +353,7 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ success: true, isPaid: isApproved, isApproved, receivedId: paymentId }), { 
+    return new Response(JSON.stringify({ success: true, isPaid: isApproved, isApproved, receivedId: paymentId, gatewayStatus }), { 
       headers: { ...corsHeaders, "Content-Type": "application/json" } 
     });
   } catch (err: any) {

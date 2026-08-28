@@ -69,6 +69,7 @@ export const IntegrationsPage: React.FC = () => {
 
   const [customAppId, setCustomAppId] = useState('');
   const [customAccessToken, setCustomAccessToken] = useState('');
+  const [customPublicKey, setCustomPublicKey] = useState('');
   const [savingManual, setSavingManual] = useState(false);
 
   const handleConnectMercadoPago = () => {
@@ -132,6 +133,7 @@ export const IntegrationsPage: React.FC = () => {
       // ── ETAPA 3: Salva no banco com dados reais ───────────────────────────
       const success = await PaymentService.saveMercadoPagoSettings({
         mpAccessToken: token,
+        mpPublicKey: customPublicKey.trim() || undefined,
         mpUserId,
         accountEmail
       }, tenant?.id);
@@ -145,6 +147,7 @@ export const IntegrationsPage: React.FC = () => {
         });
         alert(`🟢 Conta conectada com sucesso!\n\n👤 ${accountName}\n📧 ${accountEmail}`);
         setCustomAccessToken('');
+        setCustomPublicKey('');
         setCustomAppId('');
       } else {
         alert('❌ Falha ao salvar as credenciais no banco de dados. Tente novamente.');
@@ -429,6 +432,20 @@ export const IntegrationsPage: React.FC = () => {
                   className="font-mono font-bold text-slate-900 bg-white border border-slate-300 rounded-xl focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm max-w-md"
                 />
                 <p className="text-[10px] text-slate-400 mt-1">Cole aqui o Token de produção ou de testes do seu painel MP</p>
+              </div>
+
+              <div>
+                <label className="text-[11px] text-slate-700 font-bold uppercase tracking-wider block mb-1.5">
+                  Public Key <span className="text-slate-400 font-normal">(necessária para o cartão transparente)</span>
+                </label>
+                <Input
+                  type="text"
+                  placeholder="APP_USR-... ou TEST-..."
+                  value={customPublicKey}
+                  onChange={e => setCustomPublicKey(e.target.value)}
+                  className="font-mono font-bold text-slate-900 bg-white border border-slate-300 rounded-xl focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm max-w-md"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Encontrada na mesma tela, acima do Access Token. Chamada "Public Key" ou "Chave Pública".</p>
               </div>
 
               {/* Botão */}

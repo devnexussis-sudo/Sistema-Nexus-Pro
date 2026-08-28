@@ -817,7 +817,7 @@ export const OrderService = {
                     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
                 let query = publicSupabase.from('orders').select('*');
-                if (isUuid) query = query.eq('public_token', id);
+                if (isUuid) query = query.or(`id.eq.${id},public_token.eq.${id}`);
                 else query = query.eq('id', id);
 
                 if (signal) query = query.abortSignal(signal);

@@ -19,6 +19,7 @@ import { GlobalAlertProvider } from './components/common/GlobalAlert';
 import { GlobalSpinnerProvider } from './components/common/GlobalSpinner';
 import { I18nProvider } from './i18n';
 
+import { PublicCheckoutPage } from './components/public/PublicCheckoutPage';
 import { useSystemNotifications } from './hooks/useSystemNotifications';
 
 // Wrapper para rotas públicas
@@ -32,6 +33,11 @@ const PublicAppWrapper: React.FC<{ type: 'order' | 'quote' }> = ({ type }) => {
   }
 
   return <PublicApp publicOrderId={type === 'order' ? id : null} publicQuoteId={type === 'quote' ? id : null} />;
+};
+
+const PublicCheckoutWrapper: React.FC = () => {
+  const { type, id } = useParams<{ type?: string; id?: string }>();
+  return <PublicCheckoutPage typeProp={(type as any) || 'order'} idProp={id} />;
 };
 
 // Componente Interno que usa o AuthContext
@@ -86,6 +92,8 @@ const AppRoutes: React.FC = () => {
       <Route path="/order/view/:id" element={<PublicAppWrapper type="order" />} />
       <Route path="/view-quote/:id" element={<PublicAppWrapper type="quote" />} />
       <Route path="/view/:id" element={<PublicAppWrapper type="quote" />} />
+      <Route path="/checkout/:type/:id" element={<PublicCheckoutWrapper />} />
+      <Route path="/checkout/:id" element={<PublicCheckoutWrapper />} />
 
       {/* MASTER ADMIN — rota dinâmica via env (não exposta no código-fonte compilado visível) */}
       <Route path={`/${import.meta.env.VITE_MASTER_ROUTE_KEY || 'master'}`} element={
