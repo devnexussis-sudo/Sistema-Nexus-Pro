@@ -4,6 +4,12 @@ export enum UserRole {
   TECHNICIAN = 'TECHNICIAN'
 }
 
+export enum AppScope {
+  WEB = 'WEB',
+  MOBILE = 'MOBILE',
+  HYBRID = 'HYBRID'
+}
+
 export interface UserPermissions {
   // Atividades (O.S.)
   orders: { create: boolean; read: boolean; update: boolean; delete: boolean };
@@ -311,6 +317,7 @@ export interface User {
   groupIds?: string[]; // Vínculo com múltiplos grupos de permissões
   groupName?: string; // Nome do grupo para exibição
   permissions?: UserPermissions;
+  appScope?: AppScope; // Escopo de acesso: WEB, MOBILE ou HYBRID
 }
 
 export interface UserWithPassword extends User {

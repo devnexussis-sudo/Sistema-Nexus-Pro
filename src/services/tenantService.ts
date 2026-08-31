@@ -2,7 +2,7 @@
 import { CacheManager } from '../lib/cache';
 import { adminAuthProxy, supabase, publicSupabase } from '../lib/supabase';
 import { getCurrentTenantId } from '../lib/tenantContext';
-import { User, UserGroup, UserRole, ADMIN_PERMISSIONS } from '../types';
+import { User, UserGroup, UserRole, AppScope, ADMIN_PERMISSIONS } from '../types';
 import type { DbTenant, DbTenantInsert, DbTenantStats, DbUser, DbUserGroup } from '../types/database';
 import { StorageService } from './storageService';
 
@@ -491,7 +491,8 @@ export const TenantService = {
                     groupId: u.group_id as string,
                     groupIds: parsedGroupIds.length > 0 ? parsedGroupIds : (u.group_id ? [u.group_id] : []),
                     tenantId: u.tenant_id as string,
-                    permissions: u.permissions as any
+                    permissions: u.permissions as any,
+                    appScope: (u.app_scope as AppScope) || AppScope.WEB
                 };
             });
         }
@@ -661,7 +662,8 @@ export const TenantService = {
                 group_id: userData.groupId,
                 group_ids: userData.groupIds,
                 avatar: generatedAvatar,
-                permissions: userData.permissions
+                permissions: userData.permissions,
+                app_scope: userData.appScope || AppScope.WEB
             };
 
             const { data, error } = await supabase
@@ -684,7 +686,8 @@ export const TenantService = {
                 group_id: userData.groupId,
                 group_ids: userData.groupIds,
                 avatar: userData.avatar,
-                permissions: userData.permissions
+                permissions: userData.permissions,
+                app_scope: userData.appScope || undefined
             };
 
             const { data, error } = await supabase

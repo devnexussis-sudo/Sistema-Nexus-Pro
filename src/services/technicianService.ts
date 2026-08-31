@@ -2,7 +2,7 @@
 import { CacheManager } from '../lib/cache';
 import { adminAuthProxy, publicSupabase, supabase } from '../lib/supabase';
 import { getCurrentTenantId } from '../lib/tenantContext';
-import { UserRole } from '../types';
+import { UserRole, AppScope } from '../types';
 import { StorageService } from './storageService';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
@@ -218,7 +218,8 @@ export const TechnicianService = {
                         tenantId: tenantId,
                         phone: tech.phone || '',
                         avatar: tech.avatar || '',
-                        jobTitle: tech.jobTitle || ''
+                        jobTitle: tech.jobTitle || '',
+                        app_scope: AppScope.MOBILE
                     },
                     email_confirm: true
                 });
@@ -243,7 +244,8 @@ export const TechnicianService = {
                     : UserRole.TECHNICIAN,
                 active: tech.active ?? true,
                 tenant_id: tenantId,
-                avatar: tech.avatar || ''
+                avatar: tech.avatar || '',
+                app_scope: AppScope.MOBILE
             };
 
             const { error: userError } = await supabase.from('users').upsert([dbUser]);

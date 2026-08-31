@@ -197,6 +197,23 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
         setItems(newItems);
     };
 
+    const getMatchingStockItems = (description?: string, stockCode?: string) => {
+        const queryTerm = (description || stockCode || '').trim().toLowerCase();
+        const queryDigits = (description || stockCode || '').replace(/\D/g, '');
+        
+        return stockItems.filter(s => {
+            if (s.active === false) return false;
+            if (!queryTerm) return true;
+            if (s.description && s.description.toLowerCase().includes(queryTerm)) return true;
+            if (s.code && s.code.toLowerCase().includes(queryTerm)) return true;
+            if (queryDigits.length > 0 && s.code) {
+                const codeDigits = s.code.replace(/\D/g, '');
+                if (codeDigits.length > 0 && codeDigits.includes(queryDigits)) return true;
+            }
+            return false;
+        });
+    };
+
     const [loading, setLoading] = useState(false);
 
     const handleSaveQuote = async () => {
@@ -1003,80 +1020,83 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                             {/* 🖥️ DESKTOP TABLE VIEW */}
                                             <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-visible">
                                                 <table className="w-full text-left table-auto overflow-visible">
-                                                    <thead className="bg-slate-50 border-b border-slate-200">
-                                                        <tr className="text-[10px] font-medium text-slate-400 uppercase">
-                                                            <th className="px-6 py-3 w-28">Código</th>
-                                                            <th className="px-4 py-3">Descrição / Item</th>
-                                                            <th className="px-4 py-3 w-20 text-center">Qtd</th>
-                                                            <th className="px-4 py-3 w-28">Unitário</th>
-                                                            <th className="px-4 py-3 w-32 text-right">Subtotal</th>
-                                                            <th className="px-6 py-3 w-16"></th>
+                                                    <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-md border-b border-slate-200 z-10 shadow-xs font-poppins">
+                                                        <tr className="text-[11px] font-semibold text-slate-600 tracking-wider uppercase">
+                                                            <th className="px-2.5 py-3.5 w-24 sm:w-28 text-left">Código</th>
+                                                            <th className="px-3 py-3.5 text-left">Descrição / Item</th>
+                                                            <th className="px-2 py-3.5 w-16 text-center">Qtd</th>
+                                                            <th className="px-2 py-3.5 w-24 text-left">Unitário</th>
+                                                            <th className="px-3 py-3.5 w-28 text-right">Subtotal</th>
+                                                            <th className="px-2 py-3.5 w-10 text-center"></th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-slate-100 overflow-visible">
                                                         {items.map((item, index) => (
                                                             <tr key={item.id} className={`hover:bg-slate-50/50 group transition-all ${isStockListOpen[index] ? 'z-[1400] relative bg-slate-50/80 shadow-sm' : 'z-auto'}`}>
-                                                                <td className="px-6 py-4">
+                                                                <td className="px-2.5 py-3 w-24 sm:w-28 align-top">
                                                                     <input
-                                                                        placeholder="Opcional"
+                                                                        placeholder="Código"
                                                                         value={item.stockCode || ''}
-                                                                        onChange={e => updateItem(index, { stockCode: e.target.value })}
-                                                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium py-1.5 px-3 font-mono tracking-wider text-[#3e5b99] uppercase"
+                                                                        onFocus={() => setIsStockListOpen(prev => ({ ...prev, [index]: true }))}
+                                                                        onBlur={() => setTimeout(() => setIsStockListOpen(prev => ({ ...prev, [index]: false })), 200)}
+                                                                        onChange={e => {
+                                                                            updateItem(index, { stockCode: e.target.value });
+                                                                            setIsStockListOpen(prev => ({ ...prev, [index]: true }));
+                                                                        }}
+                                                                        className="w-full bg-slate-50 border border-slate-200 focus:border-[#1c2d4f] focus:bg-white rounded-lg text-xs font-bold py-2 px-2 font-mono tracking-wider text-[#1c2d4f] uppercase outline-none transition-all"
                                                                     />
                                                                 </td>
-                                                                <td className="px-4 py-4">
-                                                                    <div className="relative">
+                                                                <td className="px-3 py-3 align-top">
+                                                                    <div className="relative w-full">
                                                                         <input
-                                                                            placeholder="Buscar item ou descrever..."
+                                                                            placeholder="Buscar produto ou escrever descrição do item..."
                                                                             value={item.description}
                                                                             onFocus={() => setIsStockListOpen(prev => ({ ...prev, [index]: true }))}
+                                                                            onBlur={() => setTimeout(() => setIsStockListOpen(prev => ({ ...prev, [index]: false })), 200)}
                                                                             onChange={e => {
                                                                                 updateItem(index, { description: e.target.value });
                                                                                 setIsStockListOpen(prev => ({ ...prev, [index]: true }));
                                                                             }}
-                                                                            className="w-full bg-transparent border-none text-sm font-semibold text-slate-700 outline-none p-0 focus:ring-0"
+                                                                            className="w-full bg-slate-50 border border-slate-200 focus:border-[#1c2d4f] focus:bg-white rounded-lg text-xs font-semibold py-2 px-3 text-slate-800 outline-none transition-all placeholder:text-slate-400"
                                                                         />
-                                                                        {isStockListOpen[index] && item.description.length > 0 && (
-                                                                            <div className="absolute z-[1300] top-full left-0 w-full sm:w-[450px] mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto custom-scrollbar animate-scale-up">
+                                                                        {isStockListOpen[index] && (item.description.length > 0 || (item.stockCode && item.stockCode.length > 0)) && (
+                                                                            <div className="absolute z-[1300] top-full left-0 w-full sm:w-[480px] mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto custom-scrollbar animate-scale-up">
                                                                                 <button
-                                                                                    onClick={() => setIsStockListOpen(prev => ({ ...prev, [index]: false }))}
+                                                                                    onMouseDown={() => {
+                                                                                        // Utiliza onMouseDown para disparar antes do onBlur do input
+                                                                                        setIsStockListOpen(prev => ({ ...prev, [index]: false }));
+                                                                                    }}
                                                                                     className="w-full text-left px-4 py-2.5 hover:bg-slate-50 border-b border-slate-100 bg-primary-50/50 text-[#1c2d4f] font-medium text-[11px] uppercase transition-colors flex items-center justify-between"
                                                                                 >
-                                                                                    <span>Usar avulso: "{item.description.slice(0, 25)}..."</span>
+                                                                                    <span>Usar avulso: "{item.description.slice(0, 25) || item.stockCode}..."</span>
                                                                                     <Plus size={14} />
                                                                                 </button>
-                                                                                {stockItems
-                                                                                    .filter(s => s.active !== false && (
-                                                                                        s.description.toLowerCase().includes(item.description.toLowerCase()) ||
-                                                                                        (s.code && s.code.toLowerCase().includes(item.description.toLowerCase()))
-                                                                                    ))
-                                                                                    .map(s => (
-                                                                                        <button
-                                                                                            key={s.id}
-                                                                                            onClick={() => {
-                                                                                                updateItem(index, { description: s.description, unitPrice: s.sellPrice, stockCode: s.code });
-                                                                                                setIsStockListOpen(prev => ({ ...prev, [index]: false }));
-                                                                                            }}
-                                                                                            className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors group/item"
-                                                                                        >
-                                                                                            <div className="flex justify-between items-start">
-                                                                                                <div>
-                                                                                                    <p className="text-xs font-medium text-slate-800 group-hover/item:text-[#1c2d4f]">{s.description}</p>
-                                                                                                    <p className="text-[10px] text-slate-400 font-medium mt-0.5">SKU: {s.code}</p>
-                                                                                                </div>
-                                                                                                <p className="text-xs font-medium text-emerald-600">R$ {s.sellPrice?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                                                {getMatchingStockItems(item.description, item.stockCode).map(s => (
+                                                                                    <button
+                                                                                        key={s.id}
+                                                                                        onMouseDown={() => {
+                                                                                            updateItem(index, { description: s.description, unitPrice: s.sellPrice, stockCode: s.code });
+                                                                                            setIsStockListOpen(prev => ({ ...prev, [index]: false }));
+                                                                                        }}
+                                                                                        className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors group/item"
+                                                                                    >
+                                                                                        <div className="flex justify-between items-start">
+                                                                                            <div>
+                                                                                                <p className="text-xs font-medium text-slate-800 group-hover/item:text-[#1c2d4f]">{s.description}</p>
+                                                                                                <p className="text-[10px] text-slate-400 font-mono font-bold mt-0.5">CÓDIGO: {s.code || 'S/N'}</p>
                                                                                             </div>
-                                                                                        </button>
-                                                                                    ))
-                                                                                }
+                                                                                            <p className="text-xs font-medium text-emerald-600">R$ {s.sellPrice?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                                                        </div>
+                                                                                    </button>
+                                                                                ))}
                                                                             </div>
                                                                         )}
                                                                     </div>
                                                                 </td>
-                                                                <td className="px-4 py-4"><input type="number" value={item.quantity} onChange={e => updateItem(index, { quantity: Number(e.target.value) })} className="w-full bg-slate-50 border border-slate-200 rounded-lg text-center text-xs font-medium py-1.5" /></td>
-                                                                <td className="px-4 py-4"><input type="number" value={item.unitPrice} onChange={e => updateItem(index, { unitPrice: Number(e.target.value) })} className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium py-1.5 px-2" /></td>
-                                                                <td className="px-4 py-4 text-right text-sm font-medium text-[#1c2d4f]">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                                                <td className="px-6 py-4"><button onClick={() => setItems(items.filter((_, i) => i !== index))} className="text-slate-300 hover:text-rose-600 transition-colors"><Trash2 size={16} /></button></td>
+                                                                <td className="px-2 py-3 w-16 align-top"><input type="number" value={item.quantity} onChange={e => updateItem(index, { quantity: Number(e.target.value) })} className="w-full bg-slate-50 border border-slate-200 focus:border-[#1c2d4f] focus:bg-white rounded-lg text-center text-xs font-semibold py-2 outline-none transition-all px-1" /></td>
+                                                                <td className="px-2 py-3 w-24 align-top"><input type="number" value={item.unitPrice} onChange={e => updateItem(index, { unitPrice: Number(e.target.value) })} className="w-full bg-slate-50 border border-slate-200 focus:border-[#1c2d4f] focus:bg-white rounded-lg text-xs font-semibold py-2 px-2 outline-none transition-all" /></td>
+                                                                <td className="px-3 py-3 w-28 align-top text-right text-sm font-bold text-[#1c2d4f] pt-3.5">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                                                <td className="px-2 py-3 w-10 align-top text-center pt-3.5"><button onClick={() => setItems(items.filter((_, i) => i !== index))} className="text-slate-300 hover:text-rose-600 transition-colors"><Trash2 size={16} /></button></td>
                                                             </tr>
                                                         ))}
                                                     </tbody>
@@ -1096,10 +1116,15 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                             </div>
                                                             <div className="flex items-center gap-2">
                                                                 <input
-                                                                    placeholder="SKU (opcional)"
+                                                                    placeholder="Cód."
                                                                     value={item.stockCode || ''}
-                                                                    onChange={e => updateItem(index, { stockCode: e.target.value })}
-                                                                    className="w-24 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold py-1 px-2 font-mono uppercase"
+                                                                    onFocus={() => setIsStockListOpen(prev => ({ ...prev, [index]: true }))}
+                                                                    onBlur={() => setTimeout(() => setIsStockListOpen(prev => ({ ...prev, [index]: false })), 200)}
+                                                                    onChange={e => {
+                                                                        updateItem(index, { stockCode: e.target.value });
+                                                                        setIsStockListOpen(prev => ({ ...prev, [index]: true }));
+                                                                    }}
+                                                                    className="w-24 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-bold py-1 px-2 font-mono uppercase text-[#1c2d4f]"
                                                                 />
                                                                 <button onClick={() => setItems(items.filter((_, i) => i !== index))} className="p-1 text-rose-400 hover:text-rose-600 transition-colors">
                                                                     <Trash2 size={16} />
@@ -1112,48 +1137,45 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                             <label className="text-[9px] font-bold text-slate-400 uppercase">Descrição / Item</label>
                                                             <div className="relative">
                                                                 <input
-                                                                    placeholder="Buscar produto ou digitar..."
+                                                                    placeholder="Buscar produto pelo nome ou código..."
                                                                     value={item.description}
                                                                     onFocus={() => setIsStockListOpen(prev => ({ ...prev, [index]: true }))}
+                                                                    onBlur={() => setTimeout(() => setIsStockListOpen(prev => ({ ...prev, [index]: false })), 200)}
                                                                     onChange={e => {
                                                                         updateItem(index, { description: e.target.value });
                                                                         setIsStockListOpen(prev => ({ ...prev, [index]: true }));
                                                                     }}
                                                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f]"
                                                                 />
-                                                                {isStockListOpen[index] && item.description.length > 0 && (
+                                                                {isStockListOpen[index] && (item.description.length > 0 || (item.stockCode && item.stockCode.length > 0)) && (
                                                                     <div className="absolute z-[1300] top-full left-0 right-0 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-52 overflow-y-auto custom-scrollbar">
                                                                         <button
-                                                                            onClick={() => setIsStockListOpen(prev => ({ ...prev, [index]: false }))}
+                                                                            onMouseDown={() => {
+                                                                                setIsStockListOpen(prev => ({ ...prev, [index]: false }));
+                                                                            }}
                                                                             className="w-full text-left px-3 py-2 hover:bg-slate-50 border-b border-slate-100 bg-primary-50/50 text-[#1c2d4f] font-bold text-[10px] uppercase flex items-center justify-between"
                                                                         >
-                                                                            <span className="truncate">Usar avulso: "{item.description.slice(0, 20)}..."</span>
+                                                                            <span className="truncate">Usar avulso: "{item.description.slice(0, 20) || item.stockCode}..."</span>
                                                                             <Plus size={14} className="shrink-0" />
                                                                         </button>
-                                                                        {stockItems
-                                                                            .filter(s => s.active !== false && (
-                                                                                s.description.toLowerCase().includes(item.description.toLowerCase()) ||
-                                                                                (s.code && s.code.toLowerCase().includes(item.description.toLowerCase()))
-                                                                            ))
-                                                                            .map(s => (
-                                                                                <button
-                                                                                    key={s.id}
-                                                                                    onClick={() => {
-                                                                                        updateItem(index, { description: s.description, unitPrice: s.sellPrice, stockCode: s.code });
-                                                                                        setIsStockListOpen(prev => ({ ...prev, [index]: false }));
-                                                                                    }}
-                                                                                    className="w-full text-left px-3 py-2.5 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors"
-                                                                                >
-                                                                                    <div className="flex justify-between items-start gap-2">
-                                                                                        <div className="min-w-0 flex-1">
-                                                                                            <p className="text-xs font-bold text-slate-800 truncate">{s.description}</p>
-                                                                                            <p className="text-[9px] text-slate-400 font-bold">SKU: {s.code}</p>
-                                                                                        </div>
-                                                                                        <p className="text-xs font-bold text-emerald-600 shrink-0">R$ {s.sellPrice?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                                        {getMatchingStockItems(item.description, item.stockCode).map(s => (
+                                                                            <button
+                                                                                key={s.id}
+                                                                                onMouseDown={() => {
+                                                                                    updateItem(index, { description: s.description, unitPrice: s.sellPrice, stockCode: s.code });
+                                                                                    setIsStockListOpen(prev => ({ ...prev, [index]: false }));
+                                                                                }}
+                                                                                className="w-full text-left px-3 py-2.5 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors"
+                                                                            >
+                                                                                <div className="flex justify-between items-start gap-2">
+                                                                                    <div className="min-w-0 flex-1">
+                                                                                        <p className="text-xs font-bold text-slate-800 truncate">{s.description}</p>
+                                                                                        <p className="text-[9px] text-slate-400 font-mono font-bold">CÓDIGO: {s.code || 'S/N'}</p>
                                                                                     </div>
-                                                                                </button>
-                                                                            ))
-                                                                        }
+                                                                                    <p className="text-xs font-bold text-emerald-600 shrink-0">R$ {s.sellPrice?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                                                </div>
+                                                                            </button>
+                                                                        ))}
                                                                     </div>
                                                                 )}
                                                             </div>

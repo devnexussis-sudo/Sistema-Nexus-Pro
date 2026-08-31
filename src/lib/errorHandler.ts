@@ -77,7 +77,7 @@ export class AppError extends Error {
         [ErrorCode.DUPLICATE_RESOURCE]: 'Recurso já existe.',
         [ErrorCode.OPERATION_FAILED]: 'Operação falhou. Tente novamente.',
         [ErrorCode.NETWORK_ERROR]: 'Erro de rede. Verifique sua conexão.',
-        [ErrorCode.TIMEOUT_ERROR]: 'Operação demorou muito. Tente novamente.',
+        [ErrorCode.TIMEOUT_ERROR]: 'Sua conexão de rede parece bloqueada (Wi-Fi requer login?) ou está muito lenta. Verifique sua internet.',
         [ErrorCode.RATE_LIMIT_EXCEEDED]: 'Muitas requisições. Aguarde um momento.',
         [ErrorCode.UNKNOWN_ERROR]: 'Ocorreu um erro. Tente novamente.',
     };
@@ -250,7 +250,7 @@ export class ErrorHandler {
             [ErrorCode.DUPLICATE_RESOURCE]: 'Recurso já existe.',
             [ErrorCode.OPERATION_FAILED]: 'Operação falhou. Tente novamente.',
             [ErrorCode.NETWORK_ERROR]: 'Erro de rede. Verifique sua conexão.',
-            [ErrorCode.TIMEOUT_ERROR]: 'Operação demorou muito. Tente novamente.',
+            [ErrorCode.TIMEOUT_ERROR]: 'Sua conexão de rede parece bloqueada (Wi-Fi requer login?) ou está muito lenta. Verifique sua internet.',
             [ErrorCode.RATE_LIMIT_EXCEEDED]: 'Muitas requisições. Aguarde um momento.',
             [ErrorCode.UNKNOWN_ERROR]: 'Erro inesperado. Tente novamente.'
         };

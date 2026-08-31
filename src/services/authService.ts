@@ -4,7 +4,7 @@ import { logger } from '../lib/logger';
 import { GlobalStorage, SessionStorage } from '../lib/sessionStorage';
 import { adminAuthProxy, supabase, safeUrl, safeKey } from '../lib/supabase';
 import { getCurrentTenantId as _getTenantId } from '../lib/tenantContext';
-import { User, UserRole, ADMIN_PERMISSIONS, DEFAULT_PERMISSIONS } from '../types';
+import { User, UserRole, AppScope, ADMIN_PERMISSIONS, DEFAULT_PERMISSIONS } from '../types';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 const MOCK_USERS_POOL = []; // Removing mock data dependency for clean separation, assuming cloud first
@@ -81,6 +81,12 @@ export const AuthService = {
                         const companyName = tenantRow.name || tenantRow.company_name || 'sua empresa';
                         throw new Error(`🔒 Acesso bloqueado: ${companyName} está com o acesso suspenso. Entre em contato com o suporte para regularizar sua situação.`);
                     }
+                }
+
+                // 🛡️ APP_SCOPE GUARD — Bloqueia técnicos MOBILE de acessarem o Painel Web
+                if (fullUser.appScope === AppScope.MOBILE) {
+                    await supabase.auth.signOut();
+                    throw new Error('🔒 Esta conta é exclusiva do aplicativo móvel. Para acessar o painel administrativo, solicite ao administrador a liberação de acesso web.');
                 }
 
                 // Persistência
@@ -297,7 +303,8 @@ export const AuthService = {
             groupId: dbUser.group_id,
             groupIds: parsedGroupIds.length > 0 ? parsedGroupIds : (dbUser.group_id ? [dbUser.group_id] : []),
             groupName: groupName,
-            permissions: permissions
+            permissions: permissions,
+            appScope: (dbUser.app_scope as AppScope) || AppScope.WEB
         };
     },
 

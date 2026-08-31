@@ -185,12 +185,20 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
                     controller.abort(new Error('Nexus Fetch Timeout (40s)'));
                 }, 40_000);
 
+                let warningTimeoutId: ReturnType<typeof setTimeout> | undefined;
+                if (typeof window !== 'undefined') {
+                    warningTimeoutId = setTimeout(() => {
+                        window.dispatchEvent(new CustomEvent('NEXUS_SLOW_NETWORK_WARNING'));
+                    }, 12_000);
+                }
+
                 try {
                     const response = await fetch(url, {
                         ...init,
                         signal: controller.signal,
                     });
                     clearTimeout(timeoutId);
+                    if (warningTimeoutId) clearTimeout(warningTimeoutId);
                     if (callerSignal) callerSignal.removeEventListener('abort', onAbort);
                     activeNexusFetches.delete(controller);
 
@@ -223,6 +231,7 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
                     return response;
                 } catch (err: unknown) {
                     clearTimeout(timeoutId);
+                    if (warningTimeoutId) clearTimeout(warningTimeoutId);
                     activeNexusFetches.delete(controller);
                     lastError = err;
 

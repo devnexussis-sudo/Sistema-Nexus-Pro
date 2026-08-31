@@ -32,7 +32,8 @@ import {
   MessageCircle,
   Camera,
   Upload,
-  Sparkles
+  Sparkles,
+  Smartphone
 } from 'lucide-react';
 import { useUserGroups, useUsers } from '../../hooks/nexusHooks';
 import { useI18n } from '../../i18n/I18nContext';
@@ -42,7 +43,7 @@ import { AuthService } from '../../services/authService';
 import { StorageService } from '../../services/storageService';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
-import { ADMIN_PERMISSIONS, DEFAULT_PERMISSIONS, User, UserGroup, UserPermissions, UserRole } from '../../types';
+import { ADMIN_PERMISSIONS, DEFAULT_PERMISSIONS, User, UserGroup, UserPermissions, UserRole, AppScope } from '../../types';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Pagination } from '../ui/Pagination';
@@ -443,7 +444,8 @@ export const UserManagement: React.FC = () => {
     email: '',
     active: true,
     groupIds: [],
-    permissions: { ...DEFAULT_PERMISSIONS }
+    permissions: { ...DEFAULT_PERMISSIONS },
+    appScope: AppScope.WEB
   });
   const [groupSearch, setGroupSearch] = useState('');
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -489,7 +491,8 @@ export const UserManagement: React.FC = () => {
         email: '',
         active: true,
         groupIds: [],
-        permissions: { ...DEFAULT_PERMISSIONS }
+        permissions: { ...DEFAULT_PERMISSIONS },
+        appScope: AppScope.WEB
       });
     }
   }, [users, groups, searchTerm, statusFilter]);
@@ -527,6 +530,7 @@ export const UserManagement: React.FC = () => {
         groupId: selectedGroupIds[0] || '', // legado: mantém o primeiro grupo
         groupIds: selectedGroupIds,
         permissions: userPermissions,
+        appScope: formData.appScope || AppScope.WEB,
       };
 
       if (editingUser) {
@@ -754,7 +758,7 @@ export const UserManagement: React.FC = () => {
             {activeTab === 'users' ? (
               <button onClick={() => {
                 setEditingUser(null);
-                setFormData({ name: '', email: '', active: true, groupIds: [], permissions: { ...DEFAULT_PERMISSIONS } });
+                setFormData({ name: '', email: '', active: true, groupIds: [], permissions: { ...DEFAULT_PERMISSIONS }, appScope: AppScope.WEB });
                 setGroupSearch('');
                 setSaveError(null);
                 setIsModalOpen(true);
@@ -814,6 +818,9 @@ export const UserManagement: React.FC = () => {
                               const g = groups.find(g => g.id === groupId);
                               return g ? g.name : 'Nenhum Grupo';
                             })()}
+                            {user.appScope === AppScope.HYBRID && (
+                              <span className="ml-1 px-1.5 py-0.5 rounded bg-violet-100 text-violet-600 text-[8px] font-bold border border-violet-200">WEB + APP</span>
+                            )}
                           </p>
                         </div>
                       </div>
@@ -1107,6 +1114,34 @@ export const UserManagement: React.FC = () => {
                               {formData.active
                                 ? 'O usuário pode acessar o sistema normalmente.'
                                 : 'O acesso deste usuário está suspenso.'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Escopo de Plataforma (App Scope) */}
+                      <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 space-y-4">
+                        <h3 className="text-sm font-bold text-slate-900 border-l-4 border-violet-500 pl-3">escopo de acesso</h3>
+                        <div
+                          onClick={() => setFormData({ ...formData, appScope: formData.appScope === AppScope.HYBRID ? AppScope.WEB : AppScope.HYBRID })}
+                          className={`flex items-center gap-4 p-5 rounded-xl border transition-all cursor-pointer ${
+                            formData.appScope === AppScope.HYBRID
+                              ? 'bg-violet-50 border-violet-200'
+                              : 'bg-slate-50 border-slate-200'
+                          }`}
+                        >
+                          <div className={`w-10 h-6 rounded-full relative transition-all ${formData.appScope === AppScope.HYBRID ? 'bg-violet-500' : 'bg-slate-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${formData.appScope === AppScope.HYBRID ? 'left-5' : 'left-1'}`} />
+                          </div>
+                          <div>
+                            <p className={`text-xs font-bold flex items-center gap-2 ${formData.appScope === AppScope.HYBRID ? 'text-violet-700' : 'text-slate-500'}`}>
+                              <Smartphone size={14} />
+                              {formData.appScope === AppScope.HYBRID ? 'Acesso Web + App Móvel' : 'Somente Painel Web'}
+                            </p>
+                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                              {formData.appScope === AppScope.HYBRID
+                                ? 'Este usuário pode acessar tanto o painel web quanto o app do técnico.'
+                                : 'Ative para permitir que este usuário também acesse o aplicativo móvel.'}
                             </p>
                           </div>
                         </div>

@@ -44,6 +44,25 @@ export const GlobalAlertProvider: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const handleSlowNetwork = () => {
+      const id = Date.now() + Math.random();
+      setAlerts(prev => {
+        // Prevent duplicate slow network warnings
+        if (prev.some(a => a.message.includes('conexão está lenta'))) return prev;
+        return [...prev, { id, message: 'Sua conexão está lenta, estamos tentando reconectar...', type: 'info' }];
+      });
+      setTimeout(() => {
+        setAlerts(prev => prev.filter(a => a.id !== id));
+      }, 8000);
+    };
+
+    window.addEventListener('NEXUS_SLOW_NETWORK_WARNING', handleSlowNetwork);
+    return () => {
+      window.removeEventListener('NEXUS_SLOW_NETWORK_WARNING', handleSlowNetwork);
+    };
+  }, []);
+
   if (alerts.length === 0) return null;
 
   return safeCreatePortal(
