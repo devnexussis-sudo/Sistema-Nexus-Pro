@@ -122,7 +122,7 @@ async function executeTool(
   debugLogs.push({ event: "tool_called", toolName, args });
   try {
     switch (toolName) {
-      case "find_customer": {
+      case "check_customer_registration": {
         const docArg = args.cnpj || args.document;
         if (docArg) {
           const cleanCnpj = docArg.replace(/\D/g, "");
@@ -482,7 +482,7 @@ ESTADO ATUAL: ${newState}`,
         const toolResult = await executeTool(toolName, toolArgs, supabase, settings);
         const parsed = JSON.parse(toolResult);
 
-        if (toolName === "find_customer" && parsed.found && parsed.customer) {
+        if (toolName === "check_customer_registration" && parsed.found && parsed.customer) {
           customerId = parsed.customer.id;
           newState = "CUSTOMER_FOUND";
         } else if (toolName === "escalate_to_human" && parsed.escalated) {

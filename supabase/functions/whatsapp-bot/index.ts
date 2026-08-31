@@ -317,7 +317,7 @@ serve(async (req: Request) => {
       else if (hasLocation)                  text = `[📍 Localização Recebida] ${mediaWarning}`;
       else if (hasContact)                   text = `[👤 Contato Recebido] ${mediaWarning}`;
       else {
-        console.warn("[WPP Bot] Tipo desconhecido sem texto. type:", msgType, "| msgKeys:", msgKeys);
+        console.warn("[WPP Bot] Tipo desconhecido sem texto. type:", msgType, "| msgKeys:", Object.keys(msgData).join(','));
         text = `[Mensagem não reconhecida] ${mediaWarning}`;
       }
 

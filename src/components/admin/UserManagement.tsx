@@ -1321,13 +1321,14 @@ export const UserManagement: React.FC = () => {
                 </div>
               </div>
             </form>
-          </div>
+          </div>,
+          document.body
         )
       }
 
       {/* 🚨 Modal de Confirmação de Exclusão de Grupo */}
       {
-        groupToDelete && (
+        groupToDelete && createPortal(
           <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-900/90 backdrop-blur-md p-6">
             <div className="bg-white rounded-[3rem] w-full max-w-lg p-12 shadow-2xl border border-red-100 animate-scale-in">
               <div className="flex flex-col items-center text-center space-y-8">
