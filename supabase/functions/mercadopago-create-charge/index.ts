@@ -21,6 +21,11 @@ serve(async (req) => {
       cardToken, issuerId, paymentMethodId, payer: brickPayer
     } = body;
 
+    const descPrefix = itemType === 'INVOICE' ? 'Fatura' : (itemType === 'ORDER' ? 'OS' : 'Orçamento');
+    const cleanDisplayId = String(displayId || '').replace(/^(FAT|OS|ORC)-?/i, '').trim();
+    const finalDisplayId = cleanDisplayId || String(itemId || '').slice(0, 8);
+    const descStr = `${descPrefix} #${finalDisplayId}`.slice(0, 60);
+
     if (body.action === 'get_public_key' && tenantId) {
       const supabaseAdmin = createClient(
         Deno.env.get("SUPABASE_URL") ?? "",
@@ -133,7 +138,7 @@ serve(async (req) => {
         body: JSON.stringify({
           items: [
             {
-              title: `${title} (#${displayId || itemId.slice(0, 8)})`.slice(0, 60),
+              title: descStr,
               quantity: 1,
               currency_id: "BRL",
               unit_price: numAmount
@@ -172,49 +177,7 @@ serve(async (req) => {
       };
     };
 
-    const generateEdgePixBRCode = (params: { pixKey: string; merchantName?: string; merchantCity?: string; amount: number; txId?: string }): string => {
-      const { pixKey, merchantName = 'DUNO', merchantCity = 'BRASILIA', amount: amt, txId = '***' } = params;
-      const formatField = (id: string, value: string) => {
-        const len = String(value.length).padStart(2, '0');
-        return `${id}${len}${value}`;
-      };
 
-      const cleanKey = pixKey.trim();
-      const cleanName = merchantName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9 ]/g, '').slice(0, 25).toUpperCase();
-      const cleanCity = merchantCity.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9 ]/g, '').slice(0, 15).toUpperCase();
-      const formattedAmount = Number(amt).toFixed(2);
-      const cleanTxId = (txId || '***').replace(/[^a-zA-Z0-9]/g, '').slice(0, 25) || '***';
-
-      const merchantAccountInfo = 
-        formatField('00', 'br.gov.bcb.pix') +
-        formatField('01', cleanKey);
-
-      let payload = 
-        formatField('00', '01') +
-        formatField('26', merchantAccountInfo) +
-        formatField('52', '0000') +
-        formatField('53', '986') +
-        formatField('54', formattedAmount) +
-        formatField('58', 'BR') +
-        formatField('59', cleanName || 'DUNO') +
-        formatField('60', cleanCity || 'BRASILIA') +
-        formatField('62', formatField('05', cleanTxId)) +
-        '6304';
-
-      let crc = 0xFFFF;
-      for (let i = 0; i < payload.length; i++) {
-        crc ^= payload.charCodeAt(i) << 8;
-        for (let j = 0; j < 8; j++) {
-          if ((crc & 0x8000) !== 0) {
-            crc = (crc << 1) ^ 0x1021;
-          } else {
-            crc = (crc << 1);
-          }
-          crc &= 0xFFFF;
-        }
-      }
-      return payload + crc.toString(16).toUpperCase().padStart(4, '0');
-    };
 
     if (paymentMethodType === "pix") {
       const doc = customerDocument ? String(customerDocument).replace(/\D/g, '') : '';
@@ -228,9 +191,9 @@ serve(async (req) => {
         last_name: lastName
       };
 
-      if (doc) {
+      if (doc && (doc.length === 11 || doc.length === 14)) {
         payerObj.identification = {
-          type: doc.length >= 14 ? 'CNPJ' : 'CPF',
+          type: doc.length === 14 ? 'CNPJ' : 'CPF',
           number: doc
         };
       }
@@ -245,7 +208,7 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           transaction_amount: numAmount,
-          description: `${title} (#${displayId || itemId.slice(0, 8)})`.slice(0, 60),
+          description: descStr,
           payment_method_id: "pix",
           date_of_expiration: expiresAt,
           payer: payerObj,
@@ -256,7 +219,12 @@ serve(async (req) => {
 
       const mpData = await mpResponse.json();
 
-      if (mpResponse.ok && mpData.point_of_interaction?.transaction_data?.qr_code) {
+      if (!mpResponse.ok) {
+        const detailErr = mpData.cause?.[0]?.description || mpData.cause?.[0]?.message || mpData.message || "";
+        throw new Error(`Erro do Mercado Pago ao gerar PIX: ${detailErr || JSON.stringify(mpData)}`);
+      }
+
+      if (mpData.point_of_interaction?.transaction_data?.qr_code) {
         paymentResult = {
           paymentId: String(mpData.id),
           pixCopiaECola: mpData.point_of_interaction.transaction_data.qr_code,
@@ -264,30 +232,7 @@ serve(async (req) => {
           ticketUrl: mpData.point_of_interaction.transaction_data.ticket_url
         };
       } else {
-        console.warn("[MP Create Charge Edge] /v1/payments Pix failed or blocked, generating native EMV Pix code...", mpData);
-        // Busca email da conta para usar como chave Pix do pagador
-        const { data: settings } = await supabaseAdmin
-          .from("tenant_mercadopago_settings")
-          .select("account_email")
-          .eq("tenant_id", tenantId)
-          .maybeSingle();
-
-        const pixKey = (settings?.account_email && settings.account_email.includes('@')) 
-          ? settings.account_email 
-          : 'alex.valeseg@gmail.com';
-
-        const nativePixCode = generateEdgePixBRCode({
-          pixKey,
-          merchantName: customerName || 'DUNO',
-          merchantCity: 'POUSO ALEGRE',
-          amount: numAmount,
-          txId: (displayId || itemId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 25)
-        });
-
-        paymentResult = {
-          paymentId: `pix_${Date.now()}`,
-          pixCopiaECola: nativePixCode
-        };
+        throw new Error(`Mercado Pago não retornou o QR Code do PIX. Resposta: ${JSON.stringify(mpData)}`);
       }
     } else if (paymentMethodType === "boleto") {
       const doc = customerDocument ? String(customerDocument).replace(/\D/g, '') : '';
@@ -305,7 +250,7 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           transaction_amount: numAmount,
-          description: `${title} (#${displayId || itemId.slice(0, 8)})`.slice(0, 60),
+          description: descStr,
           payment_method_id: "bolbradesco",
           date_of_expiration: expiresAt,
           payer: {
@@ -345,7 +290,51 @@ serve(async (req) => {
           ticketUrl: mpData.transaction_details?.external_resource_url || mpData.point_of_interaction?.transaction_data?.ticket_url
         };
       }
-    } else if (paymentMethodType === "credit_card" && cardToken) {
+    } else if ((paymentMethodType === "credit_card" || paymentMethodType === "card_link") && (cardToken || body.cardNumber)) {
+      let activeCardToken = cardToken;
+      let activePaymentMethodId = paymentMethodId;
+
+      if (!activeCardToken && body.cardNumber) {
+        const cleanCardNum = String(body.cardNumber).replace(/\D/g, '');
+        const cleanDoc = String(customerDocument || '').replace(/\D/g, '');
+
+        if (!activePaymentMethodId) {
+          if (cleanCardNum.startsWith('4')) activePaymentMethodId = 'visa';
+          else if (/^5[1-5]/.test(cleanCardNum) || /^2[2-7]/.test(cleanCardNum)) activePaymentMethodId = 'master';
+          else if (/^3[47]/.test(cleanCardNum)) activePaymentMethodId = 'amex';
+          else if (/^(636368|438935|504175|5067|5090|6500|6504|6550)/.test(cleanCardNum)) activePaymentMethodId = 'elo';
+          else activePaymentMethodId = 'visa';
+        }
+
+        const tokenRes = await fetch("https://api.mercadopago.com/v1/card_tokens", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            card_number: cleanCardNum,
+            expiration_month: Number(body.expMonth),
+            expiration_year: Number(String(body.expYear).length === 2 ? '20' + body.expYear : body.expYear),
+            security_code: String(body.cvv || ''),
+            cardholder: {
+              name: String(body.cardholderName || customerName || 'TITULAR').toUpperCase(),
+              identification: cleanDoc ? {
+                type: cleanDoc.length >= 14 ? 'CNPJ' : 'CPF',
+                number: cleanDoc
+              } : undefined
+            }
+          })
+        });
+
+        const tokenData = await tokenRes.json();
+        if (!tokenRes.ok || !tokenData.id) {
+          const errDetail = tokenData.cause?.[0]?.description || tokenData.message || 'Dados do cartão inválidos.';
+          throw new Error(`Mercado Pago: ${errDetail}`);
+        }
+        activeCardToken = tokenData.id;
+      }
+
       // Cria cobrança de Cartão de Crédito Transparente via API do Mercado Pago (/v1/payments)
       const mpResponse = await fetch("https://api.mercadopago.com/v1/payments", {
         method: "POST",
@@ -356,10 +345,10 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           transaction_amount: numAmount,
-          token: cardToken,
-          description: `${title} (#${displayId || itemId.slice(0, 8)})`.slice(0, 60),
+          token: activeCardToken,
+          description: descStr,
           installments: Number(installments) || 1,
-          payment_method_id: paymentMethodId,
+          payment_method_id: activePaymentMethodId || 'visa',
           issuer_id: issuerId,
           payer: brickPayer || {
             email: customerEmail && customerEmail.includes("@") ? customerEmail : "cliente@dunoup.com.br"
@@ -413,18 +402,62 @@ serve(async (req) => {
       paymentResult = await createEdgePreferenceFallback("card_link");
     }
 
-    // Salva os metadados do gateway na OS ou Orçamento
+    // Salva os metadados do gateway na OS, Orçamento ou Fatura
     try {
-      const table = itemType === "ORDER" ? "orders" : "quotes";
-      await supabaseAdmin
-        .from(table)
-        .update({
+      let table = "orders";
+      if (itemType === "QUOTE") table = "quotes";
+      if (itemType === "INVOICE") table = "invoices";
+
+      let updatePayload: any = {};
+      
+      if (table === "invoices") {
+        updatePayload = {
+          payment_gateway_id: paymentResult.paymentId,
+          payment_method: (paymentMethodType === "card_link" || paymentMethodType === "credit_card") ? "credit_card" : paymentMethodType,
+          status: "PENDING",
+          notes: JSON.stringify({
+             gateway_provider: "mercadopago",
+             gateway_payment_id: paymentResult.paymentId,
+             gateway_pix_code: paymentMethodType === "pix" ? paymentResult.pixCopiaECola : null,
+             gateway_ticket_url: paymentResult.ticketUrl,
+             gateway_status: "pending"
+          })
+        };
+      } else {
+        updatePayload = {
           gateway_provider: "mercadopago",
           gateway_payment_id: paymentResult.paymentId,
-          gateway_pix_code: paymentResult.pixCopiaECola,
+          gateway_pix_code: paymentMethodType === "pix" ? paymentResult.pixCopiaECola : null,
           gateway_ticket_url: paymentResult.ticketUrl,
-          gateway_status: "pending"
-        })
+          gateway_status: "pending",
+          payment_method: (paymentMethodType === "card_link" || paymentMethodType === "credit_card") ? "credit_card" : paymentMethodType
+        };
+      }
+
+      if (installments) {
+        const numInst = Number(installments);
+        
+        try {
+          if (table === "orders") {
+            const { data: existing } = await supabaseAdmin.from("orders").select("form_data, approval_metadata").eq('id', itemId).maybeSingle();
+            const existingFD = (existing?.form_data && typeof existing.form_data === 'object') ? existing.form_data : {};
+            const existingAM = (existing?.approval_metadata && typeof existing.approval_metadata === 'object') ? existing.approval_metadata : {};
+            updatePayload.form_data = { ...existingFD, mpInstallments: numInst, installments: numInst, max_installments: numInst };
+            updatePayload.approval_metadata = { ...existingAM, mpInstallments: numInst, installments: numInst, max_installments: numInst };
+          } else if (table === "quotes") {
+            const { data: existing } = await supabaseAdmin.from("quotes").select("approval_metadata").eq('id', itemId).maybeSingle();
+            const existingAM = (existing?.approval_metadata && typeof existing.approval_metadata === 'object') ? existing.approval_metadata : {};
+            updatePayload.approval_metadata = { ...existingAM, mpInstallments: numInst, installments: numInst, max_installments: numInst };
+          }
+          // Invoices não possuem form_data nem approval_metadata na tabela, salvam apenas no gateway_payment_id
+        } catch(e) {
+          console.warn("[MP Create Charge Edge] Erro ao ler metadados para merge:", e);
+        }
+      }
+
+      await supabaseAdmin
+        .from(table)
+        .update(updatePayload)
         .eq("id", itemId);
     } catch (dbErr) {
       console.warn("[MP Create Charge Edge] DB update warning:", dbErr);

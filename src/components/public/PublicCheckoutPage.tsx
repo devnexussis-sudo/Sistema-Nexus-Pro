@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { NexusBranding } from '../ui/NexusBranding';
 import { initMercadoPago, Payment } from '@mercadopago/sdk-react';
+import { supabase } from '../../lib/supabase';
 
 interface PublicCheckoutPageProps {
   typeProp?: 'order' | 'quote';
@@ -22,6 +23,7 @@ const StablePaymentBrick = React.memo(({
   forcedInstallments,
   onSubmit,
   onError,
+  preferenceId,
 }: {
   mpPublicKey: string;
   amount: number;
@@ -29,6 +31,7 @@ const StablePaymentBrick = React.memo(({
   forcedInstallments?: number;
   onSubmit: (method: 'card_link', formData: any) => Promise<void>;
   onError: (e: any) => void;
+  preferenceId?: string;
 }) => {
   const installments = forcedInstallments && forcedInstallments > 0 ? forcedInstallments : undefined;
 
@@ -36,12 +39,12 @@ const StablePaymentBrick = React.memo(({
     <Payment
       initialization={{
         amount,
+        preferenceId,
         payer: { email: payerEmail },
       }}
       customization={{
         paymentMethods: {
           creditCard: 'all',
-          // Limita o dropdown até o máximo configurado pelo operador
           maxInstallments: installments || 12,
           minInstallments: 1,
         },
@@ -67,7 +70,8 @@ const StablePaymentBrick = React.memo(({
 
 export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp, idProp }) => {
   const params = useParams<{ type?: string; id?: string }>();
-  const itemType = (typeProp || params.type || 'order').toLowerCase() === 'quote' ? 'QUOTE' : 'ORDER';
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+  const itemType = pathname.includes('/quote/') ? 'QUOTE' : pathname.includes('/invoice/') ? 'INVOICE' : 'ORDER';
   const itemId = idProp || params.id || '';
 
   const [item, setItem] = useState<any>(null);
@@ -97,14 +101,26 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
   let forcedDueDate: string | undefined = undefined;
 
   if (item) {
-    const itemsTotal = (item.items || []).reduce((acc: number, curr: any) => acc + (Number(curr.total) || (Number(curr.unitPrice || 0) * curr.quantity) || 0), 0);
-    const fallbackTotal = Number(item.totalValue || item.total_value || item.value || (item.formData as any)?.totalValue || (item.formData as any)?.price || 0);
-    let subtotal = itemsTotal > 0 ? itemsTotal : fallbackTotal;
-    const disc = Number(item.discount) || 0;
-    const type = disc > 0 ? (item.discountType || 'fixed') : 'fixed';
-    const discountAmount = type === 'percent' ? (subtotal * disc / 100) : disc;
-    totalAmount = Math.max(0, subtotal - discountAmount);
-    if (totalAmount === 0 && fallbackTotal > 0) totalAmount = fallbackTotal;
+    if (item.netTotal !== undefined && item.netTotal !== null && Number(item.netTotal) > 0) {
+      totalAmount = Number(item.netTotal);
+    } else {
+      const itemsTotal = (item.items || []).reduce((acc: number, curr: any) => acc + (Number(curr.total) || (Number(curr.unitPrice || 0) * curr.quantity) || 0), 0);
+      const fallbackTotal = Number(item.totalValue || item.total_value || item.value || (item.formData as any)?.totalValue || (item.formData as any)?.price || 0);
+      let subtotal = itemsTotal > 0 ? itemsTotal : fallbackTotal;
+
+      const fd = item.formData || item.form_data || {};
+      const am = item.approvalMetadata || item.approval_metadata || {};
+
+      const rawDiscount = Number(item.discount || item.discount_amount || item.discountAmount || fd.billingDiscount || am.billingDiscount || 0);
+      const discType = item.discountType || fd.billingDiscountType || am.billingDiscountType || 'fixed';
+      const discountVal = discType === 'percent' ? (subtotal * rawDiscount / 100) : rawDiscount;
+
+      const shippingVal = Number(item.shipping || item.shipping_amount || item.shippingAmount || fd.billingShipping || am.billingShipping || 0);
+      const additionsVal = Number(item.otherAdditions || item.other_additions_amount || item.otherAdditionsAmount || fd.billingOtherAdditions || am.billingOtherAdditions || 0);
+
+      totalAmount = Math.max(0, subtotal - discountVal + shippingVal + additionsVal);
+      if (totalAmount === 0 && fallbackTotal > 0) totalAmount = fallbackTotal;
+    }
 
     const backendMethod = (item.paymentMethod || item.payment_method || '').toLowerCase();
     if (backendMethod.includes('pix')) forcedMethod = 'pix';
@@ -143,12 +159,120 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
       try {
         setLoading(true);
         setError(null);
-        let fetchedData;
+        let fetchedData: any = null;
 
         if (itemType === 'ORDER') {
           fetchedData = await DataService.getPublicOrderById(itemId);
         } else {
           fetchedData = await DataService.getPublicQuoteById(itemId);
+        }
+
+        // Fallback 1: se não achou e é ORDER, tenta QUOTE e vice-versa (links misturados)
+        if (!fetchedData) {
+          if (itemType === 'ORDER') fetchedData = await DataService.getPublicQuoteById(itemId);
+          else if (itemType === 'QUOTE') fetchedData = await DataService.getPublicOrderById(itemId);
+        }
+
+        // Se achou uma OS ou Orçamento, verifica se ela possui uma Fatura (FAT) gerada com ajustes de valor (Desconto/Frete/Acréscimos)
+        if (fetchedData && fetchedData.id) {
+          const refType = itemType === 'QUOTE' ? 'QUOTE' : 'ORDER';
+          const { data: invLink } = await supabase
+            .from('invoice_items')
+            .select('invoice_id, invoices(*)')
+            .eq('reference_type', refType)
+            .eq('reference_id', fetchedData.id)
+            .maybeSingle();
+
+          if (invLink && invLink.invoices) {
+            const inv = invLink.invoices as any;
+            let parsedNotes: any = {};
+            try { parsedNotes = JSON.parse(inv.notes || '{}'); } catch (e) {}
+
+            const baseAmt = Number(inv.total_amount || 0);
+            const discAmt = Number(inv.discount_amount || 0);
+            const shipAmt = Number(inv.shipping_amount || 0);
+            const addAmt = Number(inv.other_additions_amount || 0);
+            const invNet = Math.max(0, baseAmt - discAmt + shipAmt + addAmt);
+
+            fetchedData = {
+              ...fetchedData,
+              invoiceId: inv.id,
+              displayId: inv.display_id || fetchedData.displayId,
+              netTotal: invNet > 0 ? invNet : baseAmt,
+              totalValue: invNet > 0 ? invNet : baseAmt,
+              total_amount: baseAmt,
+              discount_amount: discAmt,
+              shipping_amount: shipAmt,
+              other_additions_amount: addAmt,
+              gatewayPaymentId: inv.gateway_payment_id || inv.payment_gateway_id || fetchedData.gatewayPaymentId,
+              gatewayPixCode: inv.gateway_pix_code || parsedNotes.gateway_pix_code || fetchedData.gatewayPixCode,
+              gatewayTicketUrl: inv.gateway_ticket_url || parsedNotes.gateway_ticket_url || fetchedData.gatewayTicketUrl,
+              gatewayStatus: inv.gateway_status || fetchedData.gatewayStatus,
+              paymentMethod: inv.payment_method || inv.paymentMethod || fetchedData.paymentMethod
+            };
+          }
+        }
+
+        // Fallback 2: Tenta INVOICES diretamente (Faturas consolidadas)
+        if (!fetchedData) {
+          const { data: invData } = await supabase.from('invoices').select('*').or(`id.eq.${itemId},display_id.eq.${itemId}`).maybeSingle();
+          if (invData) {
+            let parsedNotes: any = {};
+            try { parsedNotes = JSON.parse(invData.notes || '{}'); } catch (e) {}
+
+            const { data: invItems } = await supabase.from('invoice_items').select('*').eq('invoice_id', invData.id);
+            let refItems: any[] = [];
+            if (invItems && invItems.length > 0) {
+              const orderIds = invItems.filter((i: any) => i.reference_type === 'ORDER').map((i: any) => i.reference_id);
+              const quoteIds = invItems.filter((i: any) => i.reference_type === 'QUOTE').map((i: any) => i.reference_id);
+              
+              if (orderIds.length > 0) {
+                const { data: orders } = await supabase.from('orders').select('*').in('id', orderIds);
+                if (orders) refItems = [...refItems, ...orders];
+              }
+              if (quoteIds.length > 0) {
+                const { data: quotes } = await supabase.from('quotes').select('*').in('id', quoteIds);
+                if (quotes) refItems = [...refItems, ...quotes];
+              }
+            }
+
+            let invInst = 0;
+            if (refItems.length > 0) {
+              const firstWithInst = refItems.find(r => r.form_data?.installments || r.approval_metadata?.installments);
+              if (firstWithInst) {
+                invInst = Number(firstWithInst.form_data?.installments || firstWithInst.approval_metadata?.installments || 0);
+              }
+            }
+
+            const baseAmt = Number(invData.total_amount || 0);
+            const discAmt = Number(invData.discount_amount || 0);
+            const shipAmt = Number(invData.shipping_amount || 0);
+            const addAmt = Number(invData.other_additions_amount || 0);
+            const invNet = Math.max(0, baseAmt - discAmt + shipAmt + addAmt);
+
+            fetchedData = {
+              id: invData.id,
+              type: 'INVOICE',
+              displayId: invData.display_id || invData.invoice_number || `FAT-${invData.id.slice(0, 6)}`,
+              tenantId: invData.tenant_id,
+              customerName: invData.customer_name || 'Cliente',
+              customerDocument: invData.customer_document,
+              customerEmail: invData.customer_email,
+              netTotal: invNet > 0 ? invNet : baseAmt,
+              totalValue: invNet > 0 ? invNet : baseAmt,
+              total_amount: baseAmt,
+              discount_amount: discAmt,
+              shipping_amount: shipAmt,
+              other_additions_amount: addAmt,
+              billingStatus: invData.status === 'PAID' ? 'PAID' : 'PENDING',
+              gatewayPaymentId: invData.gateway_payment_id || invData.payment_gateway_id,
+              gatewayPixCode: invData.gateway_pix_code || parsedNotes.gateway_pix_code,
+              gatewayTicketUrl: invData.gateway_ticket_url || parsedNotes.gateway_ticket_url,
+              gatewayStatus: invData.gateway_status,
+              paymentMethod: invData.payment_method || invData.paymentMethod,
+              formData: invData.form_data || { installments: invInst > 0 ? invInst : undefined }
+            };
+          }
         }
 
         if (!fetchedData) {
@@ -176,6 +300,7 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
           } else if (isCardMethod) {
             // Cartão de Crédito pendente — SEMPRE mostra o Brick inline, ignora URLs antigas de redirect
             setSelectedMethod('card_link');
+            // NÃO setamos paymentResult aqui para cartão, senão a UI acha que já foi pago e exibe a tela de "Aguardando Banco"
           } else if (fetchedData.gatewayPixCode || fetchedData.gatewayTicketUrl) {
             // Pix ou Boleto pendente — restaura dados existentes
             const hasPix = !!fetchedData.gatewayPixCode;
@@ -235,7 +360,7 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
     }
   }, [item?.id, forcedMethod, paymentResult, isPaidConfirmed, generating, selectedMethod]);
 
-  // 3. Polling automático de status a cada 4 segundos (NUNCA para cartão aguardando preenchimento)
+  // 3. Polling automático de status a cada 1.5 segundos
   useEffect(() => {
     // Cartão: só faz polling APÓS o cliente ter submetido o formulário (paymentId gerado)
     if (selectedMethod === 'card_link' && !paymentResult?.paymentId) return;
@@ -250,15 +375,49 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
 
       if (res.isPaid) {
         setIsPaidConfirmed(true);
+        try {
+          const bc = new BroadcastChannel('nexus_payment_sync');
+          bc.postMessage({ type: 'PAYMENT_APPROVED', itemId: item.id });
+          bc.close();
+        } catch (e) {}
+
+        if (item) {
+          const invId = item.invoiceId || (item.type === 'INVOICE' ? item.id : null);
+          const methodStr = selectedMethod === 'pix' ? 'Pix' : (selectedMethod === 'card_link' ? 'Cartão de Crédito' : 'Boleto');
+          const nowIso = new Date().toISOString();
+          
+          if (invId) {
+            supabase.from('invoices').update({
+              status: 'PAID',
+              gateway_status: 'approved',
+              paid_at: nowIso,
+              payment_method: methodStr
+            }).eq('id', invId).then(() => {});
+          }
+
+          if (itemType === 'ORDER' || item.type === 'ORDER') {
+            supabase.from('orders').update({
+              billing_status: 'PAID',
+              gateway_status: 'approved',
+              paid_at: nowIso,
+              payment_method: methodStr
+            }).eq('id', item.id).then(() => {});
+          } else if (itemType === 'QUOTE' || item.type === 'QUOTE') {
+            supabase.from('quotes').update({
+              billing_status: 'PAID',
+              gateway_status: 'approved',
+              paid_at: nowIso,
+              payment_method: methodStr
+            }).eq('id', item.id).then(() => {});
+          }
+        }
       } else if (res.status === 'rejected') {
-        // Se foi recusado no processamento assíncrono, para o polling, mostra erro e permite tentar de novo
         setError('Pagamento recusado pelo banco ou emissor do cartão. Por favor, tente com outro cartão ou forma de pagamento.');
-        setPaymentResult(null); // Volta a renderizar o Brick do cartão para tentar de novo
+        setPaymentResult(null);
       } else if (res.status) {
-        // Atualiza o objeto paymentResult silenciosamente para que possamos mostrar o status na UI
         setPaymentResult((prev: any) => prev ? { ...prev, currentStatus: res.status } : null);
       }
-    }, 4000);
+    }, 1500);
 
     return () => clearInterval(interval);
   }, [paymentResult?.paymentId, isPaidConfirmed, item?.id, itemType]);
@@ -578,15 +737,17 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
                           #{item.displayId || item.id.slice(0, 8)}
                         </p>
                       </div>
-                      <a 
-                        href={`#/${itemType === 'ORDER' ? 'order/view' : 'view-quote'}/${item.id}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center shrink-0 gap-2 text-[10px] font-bold uppercase tracking-widest text-[#1c2d4f] bg-white hover:bg-slate-100 px-4 py-2.5 rounded-xl border border-slate-200 shadow-sm transition-colors active:scale-95"
-                      >
-                        <ExternalLink size={14} />
-                        Acessar Documento
-                      </a>
+                      {itemType !== 'INVOICE' && (
+                        <a 
+                          href={`#/${itemType === 'ORDER' ? 'order/view' : 'view-quote'}/${item.id}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center shrink-0 gap-2 text-[10px] font-bold uppercase tracking-widest text-[#1c2d4f] bg-white hover:bg-slate-100 px-4 py-2.5 rounded-xl border border-slate-200 shadow-sm transition-colors active:scale-95"
+                        >
+                          <ExternalLink size={14} />
+                          Acessar Documento
+                        </a>
+                      )}
                     </div>
                   </div>
                   
@@ -663,6 +824,7 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
                           amount={totalAmount}
                           payerEmail={item.customerEmail || item.customer_email || ''}
                           forcedInstallments={forcedInstallments}
+                          preferenceId={item.gatewayPaymentId || item.gateway_payment_id || undefined}
                           onSubmit={handleGenerateCharge}
                           onError={handleBrickError}
                         />

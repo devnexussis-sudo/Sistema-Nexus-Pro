@@ -96,7 +96,14 @@ export const FinancialService = {
             let query = supabase.from('accounts_payable').select('*').eq('tenant_id', tenantId);
             if (filters?.start) query = query.gte('due_date', filters.start);
             if (filters?.end) query = query.lte('due_date', filters.end);
-            if (filters?.status && filters.status !== 'ALL') query = query.eq('status', filters.status);
+            if (filters?.status && filters.status !== 'ALL') {
+                if (filters.status === 'OVERDUE') {
+                    const today = new Date().toISOString().split('T')[0];
+                    query = query.eq('status', 'PENDING').lt('due_date', today);
+                } else {
+                    query = query.eq('status', filters.status);
+                }
+            }
 
             const { data, error } = await query.order('due_date', { ascending: false }).limit(200);
             if (error) throw error;

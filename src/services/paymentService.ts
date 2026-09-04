@@ -3,51 +3,6 @@ import { MercadoPagoSettings } from '../types';
 import { getCurrentTenantId } from '../lib/tenantContext';
 import { NexusQueryClient } from '../hooks/nexusHooks';
 
-function crc16(str: string): string {
-  let crc = 0xFFFF;
-  for (let i = 0; i < str.length; i++) {
-    crc ^= str.charCodeAt(i) << 8;
-    for (let j = 0; j < 8; j++) {
-      if ((crc & 0x8000) !== 0) {
-        crc = ((crc << 1) ^ 0x1021) & 0xFFFF;
-      } else {
-        crc = (crc << 1) & 0xFFFF;
-      }
-    }
-  }
-  return crc.toString(16).toUpperCase().padStart(4, '0');
-}
-
-function generatePixBRCode(params: { pixKey: string; merchantName?: string; merchantCity?: string; amount: number; txId?: string }): string {
-  const { pixKey, merchantName, merchantCity, amount, txId } = params;
-
-  const formattedAmount = Number(amount).toFixed(2);
-  const cleanKey = pixKey.trim();
-  const cleanName = (merchantName || 'NEXUS').normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 25).toUpperCase();
-  const cleanCity = (merchantCity || 'BRASILIA').normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 15).toUpperCase();
-  const cleanTxId = (txId || '***').replace(/[^a-zA-Z0-9]/g, '').slice(0, 25) || '***';
-
-  const pPayloadFormat = '000201';
-  const gui = '0014br.gov.bcb.pix';
-  const keyField = `01${String(cleanKey.length).padStart(2, '0')}${cleanKey}`;
-  const merchantAccountInfoLength = String(gui.length + keyField.length).padStart(2, '0');
-  const pMerchantAccountInfo = `26${merchantAccountInfoLength}${gui}${keyField}`;
-
-  const pCategory = '52040000';
-  const pCurrency = '5303986';
-  const pAmount = `54${String(formattedAmount.length).padStart(2, '0')}${formattedAmount}`;
-  const pCountry = '5802BR';
-  const pName = `59${String(cleanName.length).padStart(2, '0')}${cleanName}`;
-  const pCity = `60${String(cleanCity.length).padStart(2, '0')}${cleanCity}`;
-  const txIdField = `05${String(cleanTxId.length).padStart(2, '0')}${cleanTxId}`;
-  const pAdditionalData = `62${String(txIdField.length).padStart(2, '0')}${txIdField}`;
-
-  const rawPayload = `${pPayloadFormat}${pMerchantAccountInfo}${pCategory}${pCurrency}${pAmount}${pCountry}${pName}${pCity}${pAdditionalData}6304`;
-  const checksum = crc16(rawPayload);
-
-  return `${rawPayload}${checksum}`;
-}
-
 export const PaymentService = {
   /**
    * Obtém a configuração do Mercado Pago para o tenant atual.
@@ -305,7 +260,7 @@ export const PaymentService = {
    * ZERO SIMULAÇÕES: Conecta diretamente à API do Mercado Pago usando a credencial real do Tenant.
    */
   async createMercadoPagoCharge(params: {
-    itemType: 'ORDER' | 'QUOTE';
+    itemType: 'ORDER' | 'QUOTE' | 'INVOICE';
     itemId: string;
     displayId?: string;
     title: string;
@@ -399,6 +354,11 @@ export const PaymentService = {
         ? params.expiresAt 
         : new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
+      const descPrefix = params.itemType === 'INVOICE' ? 'Fatura' : (params.itemType === 'ORDER' ? 'OS' : 'Orçamento');
+      const cleanDisplayId = String(params.displayId || '').replace(/^(FAT|OS|ORC)-?/i, '').trim();
+      const finalDisplayId = cleanDisplayId || params.itemId.slice(0, 8);
+      const descStr = `${descPrefix} #${finalDisplayId}`.slice(0, 60);
+
       // Função auxiliar para gerar Checkout Preference quando a API direta /v1/payments não for autorizada
       const createPreferenceFallback = async (methodType: 'pix' | 'boleto' | 'card_link') => {
         const chosenInstallments = Number(params.installments) || 1;
@@ -421,7 +381,7 @@ export const PaymentService = {
           body: JSON.stringify({
             items: [
               {
-                title: `${params.title} (#${params.displayId || params.itemId.slice(0, 8)})`.slice(0, 60),
+                title: descStr,
                 quantity: 1,
                 currency_id: 'BRL',
                 unit_price: numAmount
@@ -460,7 +420,7 @@ export const PaymentService = {
         const realPaymentId = String(prefData.id);
         const realTicketUrl = prefData.init_point || prefData.sandbox_init_point;
 
-        const table = params.itemType === 'ORDER' ? 'orders' : 'quotes';
+        const table = params.itemType === 'ORDER' ? 'orders' : params.itemType === 'INVOICE' ? 'invoices' : 'quotes';
         await supabase
           .from(table)
           .update({
@@ -494,9 +454,9 @@ export const PaymentService = {
           last_name: lastName
         };
 
-        if (doc) {
+        if (doc && (doc.length === 11 || doc.length === 14)) {
           payerObj.identification = {
-            type: doc.length >= 14 ? 'CNPJ' : 'CPF',
+            type: doc.length === 14 ? 'CNPJ' : 'CPF',
             number: doc
           };
         }
@@ -510,7 +470,7 @@ export const PaymentService = {
           },
           body: JSON.stringify({
             transaction_amount: numAmount,
-            description: `${params.title} (#${params.displayId || params.itemId.slice(0, 8)})`.slice(0, 60),
+            description: descStr,
             payment_method_id: 'pix',
             date_of_expiration: expiresAtIso,
             payer: payerObj,
@@ -523,46 +483,7 @@ export const PaymentService = {
 
         if (!mpRes.ok) {
           const detailErr = mpData.cause?.[0]?.description || mpData.cause?.[0]?.message || mpData.message || '';
-          if (mpRes.status === 401 || mpRes.status === 403 || String(detailErr).includes('UNAUTHORIZED') || String(detailErr).includes('unauthorized') || mpData.error === 'unauthorized' || mpData.blocked_by === 'PolicyAgent') {
-            // Se a API direta /v1/payments for bloqueada por falta de homologação no Mercado Pago:
-            // Tenta verificar se há Chave Pix configurada no tenant para gerar Pix BR Code nativo instantâneo
-            const { data: mpSet } = await supabase
-              .from('tenant_mercadopago_settings')
-              .select('account_email')
-              .eq('tenant_id', tenantId)
-              .maybeSingle();
-
-            const fallbackPixKey = (mpSet?.account_email && mpSet.account_email.includes('@')) 
-              ? mpSet.account_email 
-              : 'alex.valeseg@gmail.com';
-
-            const nativePixCode = generatePixBRCode({
-              pixKey: fallbackPixKey,
-              merchantName: params.customerName || 'NEXUS PRO',
-              merchantCity: 'POUSO ALEGRE',
-              amount: numAmount,
-              txId: (params.displayId || params.itemId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 25)
-            });
-
-            const table = params.itemType === 'ORDER' ? 'orders' : 'quotes';
-            await supabase
-              .from(table)
-              .update({
-                gateway_provider: 'pix_direct',
-                gateway_pix_code: nativePixCode,
-                gateway_status: 'pending'
-              })
-              .eq('id', params.itemId);
-
-            return {
-              success: true,
-              paymentId: `pix_${Date.now()}`,
-              pixCopiaECola: nativePixCode,
-              expiresAt: expiresAtIso,
-              message: 'Pix Copia e Cola gerado com sucesso!'
-            };
-          }
-          throw new Error(`Mercado Pago: ${detailErr || 'Erro ao gerar Pix.'}`);
+          throw new Error(`Erro do Mercado Pago ao gerar PIX: ${detailErr || JSON.stringify(mpData)}`);
         }
 
         const realPaymentId = String(mpData.id);
@@ -570,14 +491,30 @@ export const PaymentService = {
         const realQrBase64 = mpData.point_of_interaction?.transaction_data?.qr_code_base64;
         const realTicketUrl = mpData.point_of_interaction?.transaction_data?.ticket_url;
 
-        const table = params.itemType === 'ORDER' ? 'orders' : 'quotes';
-        const updatePayload: any = {
-          gateway_provider: 'mercadopago',
-          gateway_payment_id: realPaymentId,
-          gateway_pix_code: realPixCode || null,
-          gateway_ticket_url: realTicketUrl || null,
-          gateway_status: mpData.status || 'pending'
-        };
+        const table = params.itemType === 'ORDER' ? 'orders' : params.itemType === 'INVOICE' ? 'invoices' : 'quotes';
+        
+        let updatePayload: any = {};
+        if (table === 'invoices') {
+          updatePayload = {
+            payment_gateway_id: realPaymentId,
+            status: 'PENDING',
+            notes: JSON.stringify({
+              gateway_provider: 'mercadopago',
+              gateway_payment_id: realPaymentId,
+              gateway_pix_code: realPixCode || null,
+              gateway_ticket_url: realTicketUrl || null,
+              gateway_status: mpData.status || 'pending'
+            })
+          };
+        } else {
+          updatePayload = {
+            gateway_provider: 'mercadopago',
+            gateway_payment_id: realPaymentId,
+            gateway_pix_code: realPixCode || null,
+            gateway_ticket_url: realTicketUrl || null,
+            gateway_status: mpData.status || 'pending'
+          };
+        }
 
         await supabase
           .from(table)
@@ -609,7 +546,7 @@ export const PaymentService = {
           },
           body: JSON.stringify({
             transaction_amount: numAmount,
-            description: `${params.title} (#${params.displayId || params.itemId.slice(0, 8)})`.slice(0, 60),
+            description: descStr,
             payment_method_id: 'bolbradesco',
             date_of_expiration: expiresAtIso,
             payer: {
@@ -639,15 +576,32 @@ export const PaymentService = {
         const realPaymentId = String(mpData.id);
         const realTicketUrl = mpData.transaction_details?.external_resource_url || mpData.point_of_interaction?.transaction_data?.ticket_url;
 
-        const table = params.itemType === 'ORDER' ? 'orders' : 'quotes';
-        await supabase
-          .from(table)
-          .update({
+        const table = params.itemType === 'ORDER' ? 'orders' : params.itemType === 'INVOICE' ? 'invoices' : 'quotes';
+        
+        let updatePayload: any = {};
+        if (table === 'invoices') {
+          updatePayload = {
+            payment_gateway_id: realPaymentId,
+            status: 'PENDING',
+            notes: JSON.stringify({
+              gateway_provider: 'mercadopago',
+              gateway_payment_id: realPaymentId,
+              gateway_ticket_url: realTicketUrl || null,
+              gateway_status: mpData.status || 'pending'
+            })
+          };
+        } else {
+          updatePayload = {
             gateway_provider: 'mercadopago',
             gateway_payment_id: realPaymentId,
-            gateway_ticket_url: realTicketUrl,
-            gateway_status: 'pending'
-          })
+            gateway_ticket_url: realTicketUrl || null,
+            gateway_status: mpData.status || 'pending'
+          };
+        }
+
+        await supabase
+          .from(table)
+          .update(updatePayload)
           .eq('id', params.itemId);
 
         return {
@@ -674,20 +628,20 @@ export const PaymentService = {
    * Funciona instantaneamente tanto localmente quanto em produção!
    */
   async checkPaymentStatus(params: {
-    itemType: 'ORDER' | 'QUOTE';
+    itemType: 'ORDER' | 'QUOTE' | 'INVOICE';
     itemId: string;
     gatewayPaymentId?: string;
   }): Promise<{ isPaid: boolean; status: string; paidAt?: string; paidAmount?: number; receiptUrl?: string | null; paymentMethod?: string; statusDetail?: string }> {
-    const table = params.itemType === 'ORDER' ? 'orders' : 'quotes';
+    const table = params.itemType === 'ORDER' ? 'orders' : params.itemType === 'INVOICE' ? 'invoices' : 'quotes';
 
     // 0. Se no banco local já consta como liquidado/faturado, confirma instantaneamente
     const { data: dbRecord } = await supabase
       .from(table)
-      .select('billing_status, paid_at, gateway_status, tenant_id')
+      .select('billing_status, status, paid_at, gateway_status, tenant_id')
       .eq('id', params.itemId)
       .maybeSingle();
 
-    if (dbRecord?.billing_status === 'PAID' || dbRecord?.gateway_status === 'approved') {
+    if (dbRecord?.billing_status === 'PAID' || dbRecord?.status === 'PAID' || dbRecord?.gateway_status === 'approved') {
       return { isPaid: true, status: 'approved', paidAt: dbRecord.paid_at || new Date().toISOString() };
     }
 
@@ -727,27 +681,55 @@ export const PaymentService = {
             if (edgeJson.isPaid) {
               const { data: updatedDb } = await supabase
                 .from(table)
-                .select('billing_status, paid_at')
+                .select('billing_status, status, paid_at')
                 .eq('id', params.itemId)
                 .maybeSingle();
 
-              if (updatedDb?.billing_status === 'PAID') {
+              if (updatedDb?.billing_status === 'PAID' || updatedDb?.status === 'PAID') {
                 NexusQueryClient.invalidateQuotes();
                 NexusQueryClient.invalidateOrders();
                 NexusQueryClient.invalidateFinancials();
                 return { isPaid: true, status: 'approved', paidAt: updatedDb.paid_at || new Date().toISOString() };
+              } else {
+                // Edge function confirmou que está pago no Mercado Pago, mas o webhook ainda não atualizou o banco local.
+                // Forçamos a atualização síncrona aqui para garantir.
+                const updateObj: any = {
+                  paid_at: new Date().toISOString(),
+                  gateway_status: 'approved',
+                  gateway_payment_id: String(gtwId || params.gatewayPaymentId)
+                };
+                if (table === 'invoices') {
+                  updateObj.status = 'PAID';
+                  updateObj.payment_gateway_id = String(gtwId || params.gatewayPaymentId);
+                } else {
+                  updateObj.billing_status = 'PAID';
+                }
+                
+                await supabase.from(table).update(updateObj).eq('id', params.itemId);
+                
+                NexusQueryClient.invalidateQuotes();
+                NexusQueryClient.invalidateOrders();
+                NexusQueryClient.invalidateFinancials();
+                return { isPaid: true, status: 'approved', paidAt: updateObj.paid_at };
               }
             } else {
               // Edge function respondeu com sucesso, mas ainda não está pago. 
               // Retorna o status real (ex: 'rejected', 'in_process', 'pending') para o frontend poder tratar recusas.
               return { isPaid: false, status: edgeJson.gatewayStatus || 'pending' };
             }
+          } else if (edgeJson.error) {
+            console.error('[PaymentService] Edge Function returned error:', edgeJson.error);
+            throw new Error(`Erro no servidor (Edge): ${edgeJson.error}`);
           }
         } else {
           console.warn('[PaymentService] Edge Function returned non-ok status:', edgeRes.status);
+          throw new Error(`Servidor inacessível (Status ${edgeRes.status})`);
         }
-      } catch (edgeErr) {
+      } catch (edgeErr: any) {
         console.warn('[PaymentService] Server-side Edge Function check notice:', edgeErr);
+        if (edgeErr.message && edgeErr.message.includes('Edge')) {
+           throw edgeErr; // throw custom edge errors directly to the UI for debugging
+        }
       }
 
       // 2. Fallback direto se a Edge Function não responder (CORS costuma bloquear)
@@ -813,7 +795,7 @@ export const PaymentService = {
 
       if (isPaid) {
         const paidAt = mpData.date_approved || new Date().toISOString();
-        const table = params.itemType === 'ORDER' ? 'orders' : 'quotes';
+        const table = params.itemType === 'ORDER' ? 'orders' : params.itemType === 'INVOICE' ? 'invoices' : 'quotes';
         const paidAmount = Number(mpData.transaction_amount || 0);
 
         const pmId = String(mpData.payment_method_id || '').toLowerCase();
@@ -824,15 +806,24 @@ export const PaymentService = {
           cleanPaymentMethod = 'Boleto';
         } else if (pmId.includes('visa') || pmId.includes('master') || pmId.includes('elo') || pmId.includes('amex') || pmId.includes('credit') || pmId.includes('card')) {
           cleanPaymentMethod = 'Cartão de Crédito';
+          if (mpData.installments && mpData.installments > 1) {
+            cleanPaymentMethod += ` (${mpData.installments}x)`;
+          }
         }
 
         const updateObj: any = {
-          billing_status: 'PAID',
           payment_method: cleanPaymentMethod,
           paid_at: paidAt,
           gateway_status: 'approved',
           gateway_payment_id: realPaymentId
         };
+
+        if (table === 'invoices') {
+          updateObj.status = 'PAID';
+          updateObj.payment_gateway_id = realPaymentId;
+        } else {
+          updateObj.billing_status = 'PAID';
+        }
 
         // Busca anexos existentes para incluir o comprovante Mercado Pago
         const { data: existingDoc } = await supabase.from(table).select('attachments').eq('id', params.itemId).maybeSingle();
@@ -887,7 +878,7 @@ export const PaymentService = {
             type: 'INCOME',
             category: 'Serviço (O.S.)',
             amount: itemData.total_value || itemData.value || 0,
-            description: `Faturamento via Mercado Pago — ${params.itemType} #${params.itemId.slice(0, 8)}`,
+            description: `Faturamento via Mercado Pago — ${descStr}`,
             reference_id: params.itemId,
             reference_type: params.itemType,
             payment_method: cleanPaymentMethod,

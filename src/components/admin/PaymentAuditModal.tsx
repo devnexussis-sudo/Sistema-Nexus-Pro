@@ -10,7 +10,7 @@ interface PaymentAuditModalProps {
   isOpen: boolean;
   onClose: () => void;
   item: {
-    type: 'ORDER' | 'QUOTE';
+    type: 'ORDER' | 'QUOTE' | 'INVOICE';
     id: string;
     displayId?: string;
     title: string;
@@ -143,6 +143,8 @@ export const PaymentAuditModal: React.FC<PaymentAuditModalProps> = ({
             min-height: 0 !important;
             overflow: visible !important;
             background: white !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           body * {
             visibility: hidden;
@@ -212,7 +214,7 @@ export const PaymentAuditModal: React.FC<PaymentAuditModalProps> = ({
                   </span>
                 </h3>
                 <p className="text-[11px] text-slate-400">
-                  {item.type === 'ORDER' ? 'Ordem de Serviço' : 'Orçamento'} #{item.displayId || item.id.slice(0, 8)} • {item.customerName}
+                  {item.type === 'INVOICE' ? 'Fatura' : item.type === 'ORDER' ? 'Ordem de Serviço' : 'Orçamento'} #{item.displayId || item.id.slice(0, 8)} • {item.customerName}
                 </p>
               </div>
             </div>
@@ -251,7 +253,7 @@ export const PaymentAuditModal: React.FC<PaymentAuditModalProps> = ({
                 <div className="border-2 border-slate-800 px-4 py-2 rounded-xl bg-slate-50 min-w-[170px]">
                   <div className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Fatura & Comprovante</div>
                   <div className="text-sm font-black text-slate-900 tracking-tight whitespace-nowrap">
-                    {item.type === 'ORDER' ? 'O.S.' : 'ORÇ'} #{item.displayId || item.id.slice(0, 8).toUpperCase()}
+                    {item.type === 'INVOICE' ? 'FATURA' : item.type === 'ORDER' ? 'O.S.' : 'ORÇ'} #{item.displayId || item.id.slice(0, 8).toUpperCase()}
                   </div>
                 </div>
                 <div className="text-[8px] font-medium text-slate-400 mt-1.5 uppercase tracking-wide">
@@ -418,13 +420,13 @@ export const PaymentAuditModal: React.FC<PaymentAuditModalProps> = ({
             </div>
 
             <div className="pt-2 border-t border-slate-200 text-center text-[8px] text-slate-400">
-              Documento de Auditoria e Faturamento Eletrônico • DUNO NEXUS v2.0 • Reconciliação Bancária Automatizada
+              Documento de Auditoria e Faturamento Eletrônico • DUNO • Reconciliação Bancária Automatizada
             </div>
           </div>
 
           {/* Footer Actions (No Print) */}
           <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between no-print">
-            <span className="text-[11px] text-slate-400 font-medium">Documento gerado automaticamente pelo Nexus OS</span>
+            <span className="text-[11px] text-slate-400 font-medium">Documento gerado automaticamente pelo DUNO</span>
             <div className="flex items-center gap-2">
               <button
                 onClick={handlePrintAudit}

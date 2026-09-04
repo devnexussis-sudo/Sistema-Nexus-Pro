@@ -270,6 +270,21 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
         setActiveModalTab('gerais');
     };
 
+    const handleEditQuote = (quote: Quote) => {
+        setSelectedQuote(quote);
+        setCustomerName(quote.customerName);
+        setTitle(quote.title || '');
+        setDescription(quote.description || '');
+        setItems(quote.items || []);
+        setNotes(quote.notes || '');
+        setValidUntil(quote.validUntil ? quote.validUntil.split('T')[0] : '');
+        setLinkedOrderId(quote.linkedOrderId || '');
+        setDiscount(quote.discount || 0);
+        setDiscountType(quote.discountType || 'fixed');
+        setIsModalOpen(true);
+        setActiveModalTab('gerais');
+    };
+
     const handleConvertToOrder = async (quote: Quote) => {
         showConfirm('Deseja converter este orçamento em uma Ordem de Serviço ativa?', async () => {
             try {
@@ -1326,7 +1341,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 if (!canEdit('quotes')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
                                                 if (isLocked) { e.preventDefault(); showAlert('Propostas aprovadas ou faturadas não podem ser editadas.'); return; }
                                                 setIsViewModalOpen(false);
-                                                handleOpenCreateModal(viewQuote);
+                                                handleEditQuote(viewQuote);
                                             }}
                                             className={`inline-flex items-center justify-center min-w-max h-8 sm:h-9 px-3 sm:px-3.5 gap-1.5 border rounded-lg text-xs font-medium transition-all shrink-0 whitespace-nowrap ${isLocked
                                                 ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'

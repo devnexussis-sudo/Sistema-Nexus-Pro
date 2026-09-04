@@ -352,9 +352,14 @@ serve(async (req: Request) => {
 
     // ── Encontrar tenant
     const url = new URL(req.url);
-    const tenantIdParam = url.searchParams.get("tenant_id");
+    const rawTenantIdParam = url.searchParams.get("tenant_id");
+    
+    // A UaiZap anexa o caminho da rota no final da URL configurada. 
+    // Ex: ?tenant_id=UUID/messages/text -> Precisamos limpar isso
+    const tenantIdParam = rawTenantIdParam ? rawTenantIdParam.split('/')[0] : null;
+    
     const instanceId = payload.instanceName || payload.instance || payload.instanceId || payload.session || '';
-    console.log("[WPP Bot] instanceId:", instanceId, "| tenantIdParam:", tenantIdParam);
+    console.log("[WPP Bot] instanceId:", instanceId, "| tenantIdParam:", tenantIdParam, "| raw:", rawTenantIdParam);
 
     let tenants: any[] | null = null;
     

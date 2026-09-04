@@ -202,6 +202,7 @@ serve(async (req) => {
     let paidAt = new Date().toISOString();
     let paymentMethod = "Mercado Pago";
     let paidAmount = 0;
+    let gatewayStatus = "pending";
 
     let accessTokens: string[] = [];
 
@@ -244,6 +245,7 @@ serve(async (req) => {
             if (approvedPayment) {
               externalReference = approvedPayment.external_reference || body.item_id;
               isApproved = true;
+              gatewayStatus = approvedPayment.status;
               paidAt = approvedPayment.date_approved || new Date().toISOString();
               paidAmount = Number(approvedPayment.transaction_amount || 0);
 
@@ -267,6 +269,7 @@ serve(async (req) => {
             const mpData = await mpRes.json();
             externalReference = mpData.external_reference;
             isApproved = mpData.status === "approved" || mpData.status === "accredited";
+            gatewayStatus = mpData.status || "pending";
             paidAt = mpData.date_approved || new Date().toISOString();
             paidAmount = Number(mpData.transaction_amount || 0);
 
@@ -287,68 +290,154 @@ serve(async (req) => {
 
     // Função auxiliar para atualizar e registrar no fluxo de caixa
     const processPayment = async (table: "orders" | "quotes", record: any) => {
-      if (record.billing_status === "PAID") return;
-      
-      const updateObj: any = {
-        billing_status: "PAID",
-        payment_method: paymentMethod,
-        paid_at: paidAt,
-        gateway_status: "approved"
-      };
-
-      await supabaseAdmin.from(table).update(updateObj).eq("id", record.id);
-
-      if (table === "orders") {
-        await supabaseAdmin.from("cash_flow").insert([{
-          tenant_id: record.tenant_id,
-          customer_id: record.customer_id,
-          technician_id: record.assigned_to,
-          type: "INCOME",
-          category: "Serviço (O.S.)",
-          amount: paidAmount || record.total_value || 0,
-          description: `Faturamento automático via Mercado Pago — O.S. #${record.id.slice(0, 8)}`,
-          reference_id: record.id,
-          reference_type: "ORDER",
+      if (record.billing_status !== "PAID" || record.gateway_status !== "approved") {
+        const updateObj: any = {
+          billing_status: "PAID",
           payment_method: paymentMethod,
-          entry_date: paidAt,
-          created_at: paidAt,
-          created_by: "system_webhook"
-        }]);
-      } else {
-        await supabaseAdmin.from("cash_flow").insert([{
-          tenant_id: record.tenant_id,
-          customer_id: record.customer_id,
-          type: "INCOME",
-          category: "Serviço (Orçamento)",
-          amount: paidAmount || record.total_value || 0,
-          description: `Faturamento automático via Mercado Pago — Orçamento #${record.id.slice(0, 8)}`,
-          reference_id: record.id,
-          reference_type: "QUOTE",
+          paid_at: paidAt,
+          gateway_status: "approved"
+        };
+
+        await supabaseAdmin.from(table).update(updateObj).eq("id", record.id);
+
+        if (table === "orders") {
+          await supabaseAdmin.from("cash_flow").insert([{
+            tenant_id: record.tenant_id,
+            customer_id: record.customer_id,
+            technician_id: record.assigned_to,
+            type: "INCOME",
+            category: "Serviço (O.S.)",
+            amount: paidAmount || record.total_value || 0,
+            description: `Faturamento automático via Mercado Pago — O.S. #${record.id.slice(0, 8)}`,
+            reference_id: record.id,
+            reference_type: "ORDER",
+            payment_method: paymentMethod,
+            entry_date: paidAt,
+            created_at: paidAt,
+            created_by: "system_webhook"
+          }]);
+        } else {
+          await supabaseAdmin.from("cash_flow").insert([{
+            tenant_id: record.tenant_id,
+            customer_id: record.customer_id,
+            type: "INCOME",
+            category: "Serviço (Orçamento)",
+            amount: paidAmount || record.total_value || 0,
+            description: `Faturamento automático via Mercado Pago — Orçamento #${record.id.slice(0, 8)}`,
+            reference_id: record.id,
+            reference_type: "QUOTE",
+            payment_method: paymentMethod,
+            entry_date: paidAt,
+            created_at: paidAt,
+            created_by: "system_webhook"
+          }]);
+        }
+      }
+
+      // Atualiza a Fatura pai vinculada (invoices)
+      const refType = table === "orders" ? "ORDER" : "QUOTE";
+      const { data: invItems } = await supabaseAdmin
+        .from("invoice_items")
+        .select("invoice_id")
+        .eq("reference_type", refType)
+        .eq("reference_id", record.id);
+
+      for (const item of (invItems || [])) {
+        await supabaseAdmin.from("invoices").update({
+          status: "PAID",
+          gateway_status: "approved",
           payment_method: paymentMethod,
-          entry_date: paidAt,
-          created_at: paidAt,
-          created_by: "system_webhook"
-        }]);
+          paid_at: paidAt,
+          gateway_payment_id: String(paymentId)
+        }).eq("id", item.invoice_id);
       }
     };
 
-    // 2. Apenas se o pagamento foi EFETIVAMENTE APROVADO no Mercado Pago
-    if (isApproved) {
-      if (externalReference) {
-        let { data: order } = await supabaseAdmin.from("orders").select("*").eq("id", externalReference).maybeSingle();
-        if (order) {
-          await processPayment("orders", order);
-        } else {
-          let { data: quote } = await supabaseAdmin.from("quotes").select("*").eq("id", externalReference).maybeSingle();
+    const processInvoice = async (invoice: any) => {
+      const updateObj: any = {
+        status: "PAID",
+        gateway_status: "approved",
+        payment_method: paymentMethod,
+        paid_at: paidAt,
+        gateway_payment_id: String(paymentId),
+        payment_gateway_id: String(paymentId)
+      };
+
+      await supabaseAdmin.from("invoices").update(updateObj).eq("id", invoice.id);
+
+      const { data: items } = await supabaseAdmin.from("invoice_items").select("*").eq("invoice_id", invoice.id);
+      
+      for (const item of (items || [])) {
+        if (item.reference_type === "ORDER") {
+          const { data: order } = await supabaseAdmin.from("orders").select("*").eq("id", item.reference_id).maybeSingle();
+          if (order) await processPayment("orders", order);
+        } else if (item.reference_type === "QUOTE") {
+          const { data: quote } = await supabaseAdmin.from("quotes").select("*").eq("id", item.reference_id).maybeSingle();
           if (quote) await processPayment("quotes", quote);
         }
+      }
+    };
+
+    const updateGatewayStatus = async (table: "invoices" | "orders" | "quotes", id: string) => {
+      const updateData: any = { gateway_status: gatewayStatus };
+      if (table === "invoices" && (gatewayStatus === "cancelled" || gatewayStatus === "rejected" || gatewayStatus === "refunded")) {
+         updateData.status = "CANCELED";
+      }
+      await supabaseAdmin.from(table).update(updateData).eq("id", id);
+    };
+
+    const isUUID = (str: string) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(str);
+
+    if (externalReference) {
+      let invoice;
+      if (isUUID(externalReference)) {
+        const res = await supabaseAdmin.from("invoices").select("*").or(`id.eq.${externalReference},display_id.eq.${externalReference}`).maybeSingle();
+        invoice = res.data;
+      } else {
+        const res = await supabaseAdmin.from("invoices").select("*").eq("display_id", externalReference).maybeSingle();
+        invoice = res.data;
+      }
+      
+      if (invoice) {
+        if (isApproved) await processInvoice(invoice);
+        else await updateGatewayStatus("invoices", invoice.id);
+      } else {
+        let order;
+        if (isUUID(externalReference)) {
+            const res = await supabaseAdmin.from("orders").select("*").eq("id", externalReference).maybeSingle();
+            order = res.data;
+        }
+        if (order) {
+          if (isApproved) await processPayment("orders", order);
+          else await updateGatewayStatus("orders", order.id);
+        } else {
+          let quote;
+          if (isUUID(externalReference)) {
+              const res = await supabaseAdmin.from("quotes").select("*").eq("id", externalReference).maybeSingle();
+              quote = res.data;
+          }
+          if (quote) {
+            if (isApproved) await processPayment("quotes", quote);
+            else await updateGatewayStatus("quotes", quote.id);
+          }
+        }
+      }
+    } else {
+      let { data: invoice } = await supabaseAdmin.from("invoices").select("*").or(`gateway_payment_id.eq.${String(paymentId)},payment_gateway_id.eq.${String(paymentId)}`).maybeSingle();
+      if (invoice) {
+        if (isApproved) await processInvoice(invoice);
+        else await updateGatewayStatus("invoices", invoice.id);
       } else {
         let { data: order } = await supabaseAdmin.from("orders").select("*").eq("gateway_payment_id", String(paymentId)).maybeSingle();
         if (order) {
-          await processPayment("orders", order);
+          if (isApproved) await processPayment("orders", order);
+          else await updateGatewayStatus("orders", order.id);
         } else {
           let { data: quote } = await supabaseAdmin.from("quotes").select("*").eq("gateway_payment_id", String(paymentId)).maybeSingle();
-          if (quote) await processPayment("quotes", quote);
+          if (quote) {
+            if (isApproved) await processPayment("quotes", quote);
+            else await updateGatewayStatus("quotes", quote.id);
+          }
         }
       }
     }

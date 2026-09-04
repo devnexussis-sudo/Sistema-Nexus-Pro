@@ -144,8 +144,11 @@ export const OrderService = {
             gatewayPaymentId: (data as any).gateway_payment_id,
             gatewayPixCode: (data as any).gateway_pix_code,
             gatewayTicketUrl: (data as any).gateway_ticket_url,
-            gatewayStatus: (data as any).gateway_status,
-            // 🖊️ Assinatura do cliente — coletada pelo técnico no encerramento da OS
+            formData: data.form_data,
+            form_data: data.form_data,
+            approvalMetadata: data.approval_metadata,
+            approval_metadata: data.approval_metadata,
+            installments: (data.form_data as any)?.mpInstallments || (data.form_data as any)?.installments || (data.approval_metadata as any)?.mpInstallments || (data.approval_metadata as any)?.installments,
             signature: data.client_signature_url || data.signature_url,
             signatureName: data.client_signature_name,
             signatureDoc: data.signature_doc,
@@ -811,7 +814,15 @@ export const OrderService = {
 
     getPublicOrderById: async (id: string, signal?: AbortSignal, retryCount = 0): Promise<ServiceOrder | null> => {
         if (isCloudEnabled) {
-            // 🚀 Estratégia Primária de Alta Performance (Sem cascatas de erro)
+            // 🚀 Estratégia 0: Tenta via cliente Supabase (autenticado se houver sessão)
+            try {
+                const { data, error } = await supabase.from('orders').select('*').eq('id', id).maybeSingle();
+                if (!error && data) {
+                    return OrderService._mapOrderFromDB(data);
+                }
+            } catch { /* silent */ }
+
+            // 🚀 Estratégia Primária de Alta Performance (Público)
             try {
                 const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ||
                     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { safeCreatePortal } from '../../utils/portal';
 import { AlertCircle, X, CheckCircle, Info } from 'lucide-react';
 
@@ -6,6 +6,7 @@ import { AlertCircle, X, CheckCircle, Info } from 'lucide-react';
 // Para window.confirm, use o hook useDialog() do DialogContext.
 export const GlobalAlertProvider: React.FC = () => {
   const [alerts, setAlerts] = useState<Array<{ id: number, message: string, type: 'error' | 'success' | 'info' }>>([]);
+  const lastSlowNetworkWarning = useRef<number>(0);
 
   useEffect(() => {
     const originalAlert = window.alert;
@@ -46,9 +47,15 @@ export const GlobalAlertProvider: React.FC = () => {
 
   useEffect(() => {
     const handleSlowNetwork = () => {
+      const now = Date.now();
+      // Cooldown de 1 minuto (60000 ms) para evitar spam de alertas
+      if (now - lastSlowNetworkWarning.current < 60000) return;
+      
+      lastSlowNetworkWarning.current = now;
+      
       const id = Date.now() + Math.random();
       setAlerts(prev => {
-        // Prevent duplicate slow network warnings
+        // Prevent duplicate slow network warnings if it's already on screen
         if (prev.some(a => a.message.includes('conexão está lenta'))) return prev;
         return [...prev, { id, message: 'Sua conexão está lenta, estamos tentando reconectar...', type: 'info' }];
       });

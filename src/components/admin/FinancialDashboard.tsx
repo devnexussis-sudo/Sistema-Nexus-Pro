@@ -8,7 +8,7 @@ import {
     Search, X, DollarSign, Calendar, Users, Tag,
     CreditCard, ArrowRight, CheckCircle2, FileText, Printer, ShieldCheck, MapPin,
     Layout as Layer, Info, UserCheck, Wallet, Smartphone, Layers, Wrench, Check, ArrowUpRight,
-    TrendingUp, Clock, FileSpreadsheet, ChevronRight, ChevronDown, Plus, Slash, ArrowUp, ArrowDown, ArrowUpDown, Filter, Loader2, Share2, Hexagon, Paperclip, Image as ImageIcon, RefreshCw, Eye
+    TrendingUp, Clock, FileSpreadsheet, ChevronRight, ChevronDown, Plus, Slash, ArrowUp, ArrowDown, ArrowUpDown, Filter, Loader2, Share2, Hexagon, Paperclip, Image as ImageIcon, RefreshCw, Eye, Receipt, AlertTriangle
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { NexusBranding } from '../ui/NexusBranding';
@@ -22,6 +22,7 @@ import { PaymentAuditModal } from './PaymentAuditModal';
 import { supabase } from '../../lib/supabase';
 import { PaymentService } from '../../services/paymentService';
 import { AccountsPayableTab } from './AccountsPayableTab';
+import { InvoiceReceiptTemplate } from './InvoiceReceiptTemplate';
 
 interface FinancialDashboardProps {
     orders: ServiceOrder[];
@@ -84,6 +85,32 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
     const [dateFilterType, setDateFilterType] = useState<'createdAt' | 'paidAt' | 'dueDate'>('dueDate');
     const [statusFilter, setStatusFilter] = useState('ALL');
+
+    // Faturas específicas states
+    const [invSearchTerm, setInvSearchTerm] = useState('');
+    const [invStartDate, setInvStartDate] = useState(initStart);
+    const [invEndDate, setInvEndDate] = useState(initEnd);
+    const [invStatusFilter, setInvStatusFilter] = useState('ALL');
+
+    const handleInvDateValidation = (start: string, end: string) => {
+        if (start && end) {
+            const d1 = new Date(start);
+            const d2 = new Date(end);
+            if (d2 < d1) return;
+            const diffTime = Math.abs(d2.getTime() - d1.getTime());
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            if (diffDays > 365) {
+                showAlert('Atenção: O período selecionado não pode ser maior que 1 ano. A data limite foi ajustada.', 'warning');
+                setInvStartDate(start);
+                setInvEndDate(new Date(d1.getTime() + 31536000000).toISOString().split('T')[0]);
+                setCurrentInvoicePage(1);
+                return;
+            }
+        }
+        setInvStartDate(start);
+        setInvEndDate(end);
+        setCurrentInvoicePage(1);
+    };
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [selectedItem, setSelectedItem] = useState<any | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -102,9 +129,23 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const [isMpModalOpen, setIsMpModalOpen] = useState(false);
     const [mpModalItem, setMpModalItem] = useState<any | null>(null);
 
+    // Modal de Detalhes da Fatura (Faturas Geradas)
+    const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
+    const [isInvoiceDetailModalOpen, setIsInvoiceDetailModalOpen] = useState(false);
+    const [isEditingInvoiceValues, setIsEditingInvoiceValues] = useState(false);
+    const [editInvoiceDiscount, setEditInvoiceDiscount] = useState(0);
+    const [editInvoiceShipping, setEditInvoiceShipping] = useState(0);
+    const [editInvoiceAdditions, setEditInvoiceAdditions] = useState(0);
+
     // Verifica se Mercado Pago está conectado (bloqueia botão se não estiver)
     const [isMpConnected, setIsMpConnected] = useState<boolean | null>(null);
     const [mpTooltipId, setMpTooltipId] = useState<string | null>(null);
+
+    // Cancelar Fatura
+    const [cancelInvoiceModal, setCancelInvoiceModal] = useState<{ isOpen: boolean; invoice: any | null }>({ isOpen: false, invoice: null });
+    
+    // Status Mercado Pago Check
+    const [checkingInvoiceId, setCheckingInvoiceId] = useState<string | null>(null);
 
     useEffect(() => {
         const checkMpConnection = async () => {
@@ -122,43 +163,162 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
     const [auditModalItem, setAuditModalItem] = useState<any | null>(null);
 
-    // Supabase Realtime: Atualização instantânea na tela assim que o pagamento for liquidado pelo Webhook
+    // Supabase Realtime & BroadcastChannel: Atualização instantânea na tela assim que o pagamento for liquidado
     useEffect(() => {
         const channel = supabase
             .channel('realtime_financial_dashboard_gateway')
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, () => {
-                console.log('⚡ [Realtime] Liquidação de O.S. detectada!');
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+                console.log('⚡ [Realtime] Mudança em O.S. detectada!');
                 onRefresh();
+                window.dispatchEvent(new Event('refresh_invoices'));
             })
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'quotes' }, () => {
-                console.log('⚡ [Realtime] Liquidação de Orçamento detectada!');
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'quotes' }, () => {
+                console.log('⚡ [Realtime] Mudança em Orçamento detectada!');
                 onRefresh();
+                window.dispatchEvent(new Event('refresh_invoices'));
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, () => {
+                console.log('⚡ [Realtime] Mudança em Faturas detectada!');
+                onRefresh();
+                window.dispatchEvent(new Event('refresh_invoices'));
             })
             .subscribe();
 
+        let bc: BroadcastChannel | null = null;
+        try {
+            bc = new BroadcastChannel('nexus_payment_sync');
+            bc.onmessage = (msg) => {
+                if (msg.data?.type === 'PAYMENT_APPROVED') {
+                    console.log('⚡ [BroadcastChannel] Pagamento aprovado em outra aba!');
+                    onRefresh();
+                    window.dispatchEvent(new Event('refresh_invoices'));
+                }
+            };
+        } catch (e) {}
+
         return () => {
             supabase.removeChannel(channel);
+            if (bc) bc.close();
         };
     }, []);
 
-    const [paymentMethod, setPaymentMethod] = useState('Dinheiro');
+    const [paymentMethod, setPaymentMethod] = useState('');
     const [boletoDueDate, setBoletoDueDate] = useState<string>('');
     const [installments, setInstallments] = useState(2);
     const [billingNotes, setBillingNotes] = useState('');
     const [receiptFile, setReceiptFile] = useState<File | null>(null);
     const [billingDiscount, setBillingDiscount] = useState(0);
     const [billingDiscountType, setBillingDiscountType] = useState<'fixed' | 'percent'>('fixed');
+    const [billingShipping, setBillingShipping] = useState(0);
+    const [billingOtherAdditions, setBillingOtherAdditions] = useState(0);
     const [isProcessing, setIsProcessing] = useState(false);
     const [editingDueDate, setEditingDueDate] = useState<string>('');
+
+    const [optimisticDates, setOptimisticDates] = useState<Record<string, string>>({});
 
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 12;
 
     const [isRefreshing, setIsRefreshing] = useState(false);
 
+    const tenantIdStr = tenant?.id || '';
+    const [invoices, setInvoices] = useState<any[]>([]);
+    const [invoiceItems, setInvoiceItems] = useState<any[]>([]);
+    const [receivablesView, setReceivablesView] = useState<'items' | 'invoices'>('items');
+
+    const loadInvoices = async () => {
+        if (!tenantIdStr) return;
+        try {
+            const { data: inv } = await supabase.from('invoices').select('*').eq('tenant_id', tenantIdStr).order('created_at', { ascending: false });
+            if (inv) setInvoices(inv);
+            
+            const { data: itms } = await supabase.from('invoice_items').select('*').eq('tenant_id', tenantIdStr);
+            if (itms) setInvoiceItems(itms);
+        } catch (e) {
+            console.error('Error loading invoices', e);
+        }
+    };
+
+    const handleCancelInvoice = async () => {
+        if (!cancelInvoiceModal.invoice) return;
+        setIsProcessing(true);
+        try {
+            const { error } = await supabase.from('invoices').update({
+                status: 'CANCELED',
+                notes: JSON.stringify({ ...(cancelInvoiceModal.invoice.notes ? JSON.parse(cancelInvoiceModal.invoice.notes) : {}), gateway_status: 'cancelled' })
+            }).eq('id', cancelInvoiceModal.invoice.id);
+            
+            if (error) throw error;
+            
+            showAlert('Fatura cancelada com sucesso!', 'success');
+            setCancelInvoiceModal({ isOpen: false, invoice: null });
+            setIsInvoiceDetailModalOpen(false);
+            
+            const currentTenantId = tenant?.id || tenantIdStr;
+            if (currentTenantId) {
+                await fetchOrders(currentTenantId);
+                await fetchQuotes(currentTenantId);
+                await loadInvoices();
+            }
+        } catch (err: any) {
+            console.error('Error canceling invoice:', err);
+            showAlert(`Erro ao cancelar fatura: ${err.message}`, 'error');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleOpenInvoiceDetail = (inv: any) => {
+        setSelectedInvoice(inv);
+        setEditInvoiceDiscount(inv.discount_amount || 0);
+        setEditInvoiceShipping(inv.shipping_amount || 0);
+        setEditInvoiceAdditions(inv.other_additions_amount || 0);
+        setIsEditingInvoiceValues(false);
+        setIsInvoiceDetailModalOpen(true);
+    };
+
+    const handleSaveInvoiceAdjustments = async () => {
+        if (!selectedInvoice) return;
+        try {
+            const { error } = await supabase.from('invoices').update({
+                discount_amount: editInvoiceDiscount,
+                shipping_amount: editInvoiceShipping,
+                other_additions_amount: editInvoiceAdditions
+            }).eq('id', selectedInvoice.id);
+
+            if (error) throw error;
+
+            showAlert('Valores da fatura atualizados com sucesso!', 'success');
+            setSelectedInvoice((prev: any) => prev ? ({
+                ...prev,
+                discount_amount: editInvoiceDiscount,
+                shipping_amount: editInvoiceShipping,
+                other_additions_amount: editInvoiceAdditions
+            }) : null);
+            setIsEditingInvoiceValues(false);
+            await loadInvoices();
+        } catch (err: any) {
+            showAlert(`Erro ao salvar ajustes da fatura: ${err.message}`, 'error');
+        }
+    };
+
+    useEffect(() => {
+        const handler = () => { if (mainTab === 'RECEIVABLES') loadInvoices(); };
+        window.addEventListener('refresh_invoices', handler);
+        
+        if (mainTab === 'RECEIVABLES') {
+            loadInvoices();
+        }
+        
+        return () => window.removeEventListener('refresh_invoices', handler);
+    }, [tenantIdStr, mainTab, isRefreshing]);
+
     const handleRefresh = async () => {
         setIsRefreshing(true);
-        try { await onRefresh(); } finally { setIsRefreshing(false); }
+        try { 
+            await onRefresh(); 
+            await loadInvoices();
+        } finally { setIsRefreshing(false); }
     };
 
     // Removido o useEffect que chamava window.print() automaticamente,
@@ -297,13 +457,36 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 return true;
             })
             .map(q => {
-                const isPaid = (q.billingStatus || '').toUpperCase() === 'PAID';
+                const isLinkedInvPaid = invoiceItems.some(invItem => invItem.reference_id === q.id && invoices.some(inv => inv.id === invItem.invoice_id && (inv.status === 'PAID' || inv.gateway_status === 'approved')));
+                const isPaid = (q.billingStatus || '').toUpperCase() === 'PAID' || (q as any).gateway_status === 'approved' || isLinkedInvPaid;
                 const storedVal = Number(q.totalValue) || 0;
                 const discVal = Number(q.discount || (q as any).discount || 0);
                 const discType = q.discountType || (q as any).discount_type || 'fixed';
-                const originalGross = Number((q as any).original_value || 0);
+                
+                let netValue = storedVal;
+                let grossValue = storedVal;
+                let discountAmount = 0;
 
-                const { grossValue, discountAmount, netValue } = computeFinancialValues(storedVal, discVal, discType, isPaid, originalGross);
+                if (discVal > 0) {
+                    const itemsGross = q.items?.reduce((acc, i) => acc + (Number(i.total) || 0), 0) || 0;
+                    if (itemsGross > 0) {
+                        grossValue = itemsGross;
+                        discountAmount = grossValue - netValue;
+                    } else {
+                        if (discType === 'percent' && discVal < 100) {
+                            grossValue = netValue / (1 - (discVal / 100));
+                        } else if (String(discType).toLowerCase() !== 'percent') {
+                            grossValue = netValue + discVal;
+                        }
+                        discountAmount = grossValue - netValue;
+                    }
+                }
+                
+                grossValue = Math.round(grossValue * 100) / 100;
+                discountAmount = Math.round(discountAmount * 100) / 100;
+                netValue = Math.round(netValue * 100) / 100;
+
+                const linkedInv = isLinkedInvPaid ? invoices.find(inv => invoiceItems.some(invItem => invItem.reference_id === q.id && invItem.invoice_id === inv.id)) : null;
 
                 return {
                     type: 'QUOTE' as const,
@@ -313,16 +496,16 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     customerAddress: q.customerAddress,
                     title: q.title,
                     description: q.description,
-                    date: q.approvedAt || (q as any).updatedAt || q.createdAt,
-                    dueDate: q.approvedAt || q.validUntil || (q as any).updatedAt || q.createdAt,
+                    date: optimisticDates[q.id] || q.approvedAt || (q as any).updatedAt || q.createdAt,
+                    dueDate: optimisticDates[q.id] || q.approvedAt || q.validUntil || (q as any).updatedAt || q.createdAt,
                     createdAt: q.createdAt,
                     updatedAt: (q as any).updatedAt || q.createdAt,
-                    paidAt: q.paidAt || null,
+                    paidAt: q.paidAt || linkedInv?.paid_at || null,
                     value: netValue,
                     grossValue,
                     discountAmount,
                     netValue,
-                    status: (q.billingStatus || 'PENDING').toUpperCase(),
+                    status: isPaid ? 'PAID' : (q.billingStatus || 'PENDING').toUpperCase(),
                     original: q,
                     billingDiscount: discVal,
                     billingDiscountType: discType,
@@ -333,24 +516,67 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         const completedOrders = orders
             .filter(o => o.status === OrderStatus.COMPLETED)
             .map(order => {
-                const itemsValue = order.items?.reduce((acc, i) => acc + i.total, 0) || 0;
-                let storedVal = Number((order as any).total_value || (order as any).totalValue || itemsValue || (order.formData as any)?.totalValue || (order.formData as any)?.price || 0);
-                if (order.linkedQuotes && order.linkedQuotes.length > 0) {
-                    storedVal += order.linkedQuotes.reduce((acc, qId) => {
-                        const q = quotes.find(q => q.id === qId);
-                        if (order.billingStatus !== 'PAID' && q?.billingStatus === 'PAID') {
-                            return acc;
-                        }
-                        return acc + (Number(q?.totalValue) || 0);
-                    }, 0);
-                }
-                const techObj = techs.find(t => t.id === order.assignedTo);
-                const isPaid = (order.billingStatus || '').toUpperCase() === 'PAID';
+                const itemsValue = order.items?.reduce((acc, i) => acc + (Number(i.total) || 0), 0) || 0;
+                const formVal = Number((order.formData as any)?.totalValue || (order.formData as any)?.price || 0);
+                const dbTotal = Number((order as any).total_value || (order as any).totalValue || 0);
+                
                 const discVal = Number(order.discount || (order as any).discount || 0);
                 const discType = order.discountType || (order as any).discount_type || 'fixed';
-                const originalGross = Number((order as any).original_value || 0);
+                const isFromQuote = !!((order as any).quote_id || (order.formData as any)?.isFromQuote);
 
-                const { grossValue, discountAmount, netValue } = computeFinancialValues(storedVal, discVal, discType, isPaid, originalGross);
+                let grossValue = 0;
+                let netValue = 0;
+                let discountAmount = 0;
+
+                if (itemsValue > 0) {
+                    grossValue = itemsValue;
+                    if (discVal > 0) {
+                        if (String(discType).toLowerCase() === 'percent') {
+                            discountAmount = grossValue * (discVal / 100);
+                        } else {
+                            discountAmount = discVal;
+                        }
+                    }
+                    netValue = Math.max(0, grossValue - discountAmount);
+                } else if (dbTotal > 0 || formVal > 0) {
+                    const baseVal = dbTotal || formVal;
+                    if ((isFromQuote || discVal > 0) && discVal > 0) {
+                        // Se é derivado de orçamento ou possui valor salvo que já é líquido:
+                        netValue = baseVal;
+                        if (String(discType).toLowerCase() === 'percent' && discVal < 100) {
+                            grossValue = netValue / (1 - (discVal / 100));
+                        } else {
+                            grossValue = netValue + discVal;
+                        }
+                        discountAmount = grossValue - netValue;
+                    } else {
+                        grossValue = baseVal;
+                        netValue = baseVal;
+                    }
+                }
+
+                if (order.linkedQuotes && order.linkedQuotes.length > 0) {
+                    order.linkedQuotes.forEach(qId => {
+                        const q = quotes.find(q => q.id === qId);
+                        if (order.billingStatus !== 'PAID' && q?.billingStatus === 'PAID') return;
+                        if (q) {
+                            const qNet = Number(q.totalValue) || 0;
+                            const qGross = q.items?.reduce((acc, i) => acc + (Number(i.total) || 0), 0) || qNet;
+                            netValue += qNet;
+                            grossValue += qGross;
+                            discountAmount += (qGross - qNet);
+                        }
+                    });
+                }
+
+                grossValue = Math.round(grossValue * 100) / 100;
+                discountAmount = Math.round(discountAmount * 100) / 100;
+                netValue = Math.round(netValue * 100) / 100;
+
+                const techObj = techs.find(t => t.id === order.assignedTo);
+                const isLinkedInvPaid = invoiceItems.some(invItem => invItem.reference_id === order.id && invoices.some(inv => inv.id === invItem.invoice_id && (inv.status === 'PAID' || inv.gateway_status === 'approved')));
+                const isPaid = (order.billingStatus || '').toUpperCase() === 'PAID' || (order as any).gateway_status === 'approved' || isLinkedInvPaid;
+                const linkedInv = isLinkedInvPaid ? invoices.find(inv => invoiceItems.some(invItem => invItem.reference_id === order.id && invItem.invoice_id === inv.id)) : null;
 
                 return {
                     type: 'ORDER' as const,
@@ -360,16 +586,16 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     customerAddress: order.customerAddress,
                     title: order.title,
                     description: order.description,
-                    date: order.updatedAt,
-                    dueDate: order.scheduledDate || order.updatedAt,
+                    date: optimisticDates[order.id] || order.updatedAt,
+                    dueDate: optimisticDates[order.id] || order.scheduledDate || order.updatedAt,
                     createdAt: order.createdAt,
                     updatedAt: order.updatedAt,
-                    paidAt: order.paidAt || null,
+                    paidAt: order.paidAt || linkedInv?.paid_at || null,
                     value: netValue,
                     grossValue,
                     discountAmount,
                     netValue,
-                    status: (order.billingStatus || 'PENDING').toUpperCase(),
+                    status: isPaid ? 'PAID' : (order.billingStatus || 'PENDING').toUpperCase(),
                     original: order,
                     billingDiscount: discVal,
                     billingDiscountType: discType,
@@ -381,7 +607,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         return [...approvedQuotes, ...completedOrders].sort((a, b) =>
             new Date(b.date).getTime() - new Date(a.date).getTime()
         );
-    }, [orders, quotes, techs]);
+    }, [orders, quotes, techs, invoices, invoiceItems]);
 
     // 2. Aplicar Filtros
     const filteredItems = useMemo(() => {
@@ -454,7 +680,32 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         return sortableItems;
     }, [filteredItems, sortConfig]);
 
-    // Scanner automático contínuo de faturas pendentes em background (a cada 8 segundos)
+    const filteredInvoices = useMemo(() => {
+        return invoices.filter(inv => {
+            const matchesSearch = 
+                inv.customer_name?.toLowerCase().includes(invSearchTerm.toLowerCase()) ||
+                inv.customer_document?.toLowerCase().includes(invSearchTerm.toLowerCase()) ||
+                inv.display_id?.toLowerCase().includes(invSearchTerm.toLowerCase());
+                
+            let targetDate = inv.created_at;
+            let itemDate = '';
+            if (targetDate) {
+                itemDate = new Date(targetDate).toISOString().split('T')[0];
+            }
+            
+            const matchesDate =
+                (!invStartDate && !invEndDate) || 
+                (targetDate && (!invStartDate || itemDate >= invStartDate) && (!invEndDate || itemDate <= invEndDate));
+                
+            const matchesStatus = invStatusFilter === 'ALL' || 
+                (invStatusFilter === 'PAID' && (inv.status === 'PAID' || inv.gateway_status === 'approved')) ||
+                (invStatusFilter === 'PENDING' && (inv.status !== 'PAID' && inv.gateway_status !== 'approved'));
+                
+            return matchesSearch && matchesDate && matchesStatus;
+        });
+    }, [invoices, invSearchTerm, invStartDate, invEndDate, invStatusFilter]);
+
+    // Scanner automático contínuo de faturas e lançamentos pendentes em background (a cada 8 segundos)
     useEffect(() => {
         let isCancelled = false;
 
@@ -464,9 +715,17 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 return i.status !== 'PAID' && rawId;
             });
 
-            if (pendingItems.length === 0) return;
+            const pendingInvoices = invoices.filter(inv => {
+                const rawId = inv.gateway_payment_id || inv.payment_gateway_id;
+                return inv.status !== 'PAID' && inv.gateway_status !== 'approved' && (rawId || inv.id);
+            });
 
-            let didUpdate = false;
+            if (pendingItems.length === 0 && pendingInvoices.length === 0) return;
+
+            let didUpdateItems = false;
+            let didUpdateInvoices = false;
+
+            // Varre Lançamentos (OS/Orçamentos)
             for (const item of pendingItems) {
                 if (isCancelled) break;
                 try {
@@ -477,15 +736,34 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         gatewayPaymentId: rawId
                     });
                     if (res.isPaid) {
-                        didUpdate = true;
+                        didUpdateItems = true;
                     }
-                } catch (err) {
-                    // Falhas de rede ignoradas silenciosamente
-                }
-                await new Promise(r => setTimeout(r, 400));
+                } catch (err) {}
+                await new Promise(r => setTimeout(r, 300));
             }
 
-            if (didUpdate && !isCancelled && onRefresh) {
+            // Varre Faturas Geradas (FATs)
+            for (const inv of pendingInvoices) {
+                if (isCancelled) break;
+                try {
+                    const rawId = inv.gateway_payment_id || inv.payment_gateway_id;
+                    const res = await PaymentService.checkPaymentStatus({
+                        itemType: 'INVOICE',
+                        itemId: inv.id,
+                        gatewayPaymentId: rawId
+                    });
+                    if (res.isPaid) {
+                        didUpdateInvoices = true;
+                    }
+                } catch (err) {}
+                await new Promise(r => setTimeout(r, 300));
+            }
+
+            if (didUpdateInvoices && !isCancelled) {
+                await loadInvoices();
+            }
+
+            if (didUpdateItems && !isCancelled && onRefresh) {
                 NexusQueryClient.invalidateQuotes();
                 NexusQueryClient.invalidateOrders();
                 NexusQueryClient.invalidateFinancials();
@@ -496,14 +774,14 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         // Roda a primeira varredura imediatamente
         scanBackground();
 
-        // E repete continuamente a cada 8 segundos enquanto a tela estiver aberta
-        const intervalId = setInterval(scanBackground, 8000);
+        // E repete continuamente a cada 2.5 segundos em background
+        const intervalId = setInterval(scanBackground, 2500);
 
         return () => {
             isCancelled = true;
             clearInterval(intervalId);
         };
-    }, [filteredItems, onRefresh]);
+    }, [filteredItems, invoices, onRefresh]);
 
     // 🛡️ RECONCILIADOR DE SEGURANÇA: Reverte automaticamente itens para PENDING se o pagamento no Mercado Pago não estiver aprovado
     useEffect(() => {
@@ -539,14 +817,14 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     console.warn(`[FinancialDashboard] 🚨 Item ${item.type} #${item.id} não possui pagamento aprovado no Mercado Pago! Revertendo para PENDING...`);
                     try {
                         if (item.type === 'QUOTE') {
-                            await QuoteService.updateQuote({
+                            await DataService.updateQuote({
                                 ...(orig),
                                 id: item.id,
                                 billingStatus: 'PENDING',
                                 gatewayStatus: 'pending'
                             });
                         } else {
-                            await OrderService.updateOrder({
+                            await DataService.updateOrder({
                                 ...(orig),
                                 id: item.id,
                                 billingStatus: 'PENDING',
@@ -580,6 +858,18 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
     const totalPages = Math.ceil(sortedItems.length / ITEMS_PER_PAGE);
 
+    const [currentInvoicePage, setCurrentInvoicePage] = useState(1);
+    
+    // Volta pra página 1 sempre que os filtros mudarem
+    useEffect(() => { setCurrentInvoicePage(1); }, [searchTerm, startDate, endDate, statusFilter]);
+
+    const paginatedInvoices = useMemo(() => {
+        const start = (currentInvoicePage - 1) * ITEMS_PER_PAGE;
+        return filteredInvoices.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredInvoices, currentInvoicePage]);
+    
+    const totalInvoicePages = Math.ceil(filteredInvoices.length / ITEMS_PER_PAGE);
+
     // 3. Estatísticas
     const stats = useMemo(() => {
         const totalFaturado = filteredItems.filter(i => i.status === 'PAID').reduce((acc, i) => acc + i.value, 0);
@@ -594,7 +884,25 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
     // 4. Seleção
     const toggleSelect = (id: string) => {
-        setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+        const link = invoiceItems.find(ii => ii.reference_id === id);
+        let idsToToggle = [id];
+        
+        if (link) {
+            const pendingInv = invoices.find(inv => inv.id === link.invoice_id && inv.status === 'PENDING');
+            if (pendingInv) {
+                const allLinks = invoiceItems.filter(ii => ii.invoice_id === pendingInv.id);
+                idsToToggle = allLinks.map(ii => ii.reference_id);
+            }
+        }
+
+        setSelectedIds(prev => {
+            const isCurrentlySelected = prev.includes(id);
+            if (isCurrentlySelected) {
+                return prev.filter(i => !idsToToggle.includes(i));
+            } else {
+                return Array.from(new Set([...prev, ...idsToToggle]));
+            }
+        });
     };
     const selectedTotal = useMemo(() => {
         return filteredItems.filter(i => selectedIds.includes(i.id)).reduce((acc, i) => {
@@ -606,6 +914,46 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     // 5. Handlers
     const handleInvoiceBatch = () => {
         if (selectedIds.length === 0) return;
+
+        const hasPaidItems = selectedIds.some(id => {
+            const item = filteredItems.find(i => i.id === id);
+            return item?.status === 'PAID' || item?.original?.billingStatus === 'PAID' || item?.original?.billing_status === 'PAID';
+        });
+
+        if (hasPaidItems) {
+            showAlert('Não é possível faturar itens que já constam como faturados/pagos.', 'error');
+            return;
+        }
+
+        if (selectedIds.length > 1) {
+            const getCustomerIdentifiers = (item: any) => {
+                const id = item?.original?.customerId || item?.original?.customer_id;
+                const name = (item?.customerName || item?.original?.customer_name || '').trim().toLowerCase();
+                const doc = ((item as any)?.customerDocument || item?.original?.customer_document || item?.original?.customerDocument || '')
+                    .toString().replace(/\D/g, '');
+                return { id, name, doc };
+            };
+
+            const firstItem = filteredItems.find(i => i.id === selectedIds[0]);
+            const firstCust = getCustomerIdentifiers(firstItem);
+
+            const sameCustomer = selectedIds.every(id => {
+                const item = filteredItems.find(i => i.id === id);
+                const cust = getCustomerIdentifiers(item);
+
+                if (firstCust.id && cust.id) return firstCust.id === cust.id;
+                if (firstCust.doc && cust.doc) return firstCust.doc === cust.doc;
+                if (firstCust.name && cust.name) return firstCust.name === cust.name;
+
+                return true;
+            });
+
+            if (!sameCustomer) {
+                showAlert('O faturamento agrupado só é permitido para itens do mesmo cliente.', 'error');
+                return;
+            }
+        }
+
         setIsInvoiceModalOpen(true);
     };
 
@@ -615,167 +963,212 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     };
 
     const confirmInvoice = async () => {
+        if (!paymentMethod) {
+            showAlert('Por favor, selecione uma forma de pagamento antes de faturar.', 'error');
+            return;
+        }
         setIsProcessing(true);
         const finalMethod = getPaymentMethodLabel();
         const paidAt = new Date().toISOString();
         const targetRawItem = filteredItems.find(i => selectedIds.includes(i.id)) || (selectedItem && selectedIds.includes(selectedItem.id) ? selectedItem : null);
-        const baseAmount = selectedIds.length === 1 ? (targetRawItem?.value || selectedItem?.value || 0) : selectedTotal;
-        const discountValue = billingDiscountType === 'percent' ? (baseAmount * billingDiscount / 100) : billingDiscount;
-        const finalAmount = Math.max(0, baseAmount - discountValue);
         
+        const itemsBaseTotal = selectedIds.length === 1 ? (targetRawItem?.value || selectedItem?.value || 0) : selectedTotal;
+        const discountValue = billingDiscountType === 'percent' ? (itemsBaseTotal * billingDiscount / 100) : billingDiscount;
+        const finalAmount = Math.max(0, itemsBaseTotal - discountValue + billingShipping + billingOtherAdditions);
+        const baseAmount = itemsBaseTotal;
         const isMpIntegrationTriggered = isMpConnected && (paymentMethod === 'Pix' || paymentMethod === 'Cartão Crédito' || paymentMethod === 'Boleto');
         
-        if (isMpIntegrationTriggered && selectedIds.length > 1) {
-            showAlert('A geração de cobrança via Mercado Pago deve ser feita individualmente (um item por vez).', 'error');
-            setIsProcessing(false);
-            return;
-        }
-
-        let uploadedReceiptUrl = '';
-        if (receiptFile) {
-            try {
-                const folderId = selectedIds[0] || Date.now().toString();
-                uploadedReceiptUrl = await StorageService.uploadFinancialReceipt(receiptFile, `financial/receipts/${folderId}`);
-            } catch (err) {
-                console.error("[FinancialDashboard] Error uploading receipt:", err);
-            }
-        }
-        
         try {
-            for (const id of selectedIds) {
-                // ─── Prioridade: usa selectedItem (estado mais atualizado) quando possível ───
-                // Isso garante que orçamentos recém-vinculados via handleLinkQuote sejam incluídos
-                // mesmo antes do onRefresh() reconstruir filteredItems.
-                const rawItem = filteredItems.find(i => i.id === id);
-                if (!rawItem) continue;
+            const currentTenantId = tenant?.id || tenantIdStr || '';
+            const firstItem = filteredItems.find(i => i.id === selectedIds[0]);
+            const fullCust = customers.find(c => c.id === (firstItem?.original?.customerId || firstItem?.original?.customer_id));
+            const customerDoc = (firstItem as any)?.customerDocument || fullCust?.document || (fullCust as any)?.cpf || (fullCust as any)?.cnpj || firstItem?.original?.customer_document || firstItem?.original?.customerDocument;
+            
+            const invoiceStatus = isMpIntegrationTriggered ? 'PENDING' : 'PAID';
 
-                // Mescla linkedQuotes do selectedItem se este for o item sendo faturado
-                const item = (selectedItem && selectedItem.id === id)
-                    ? {
-                        ...rawItem,
-                        value: selectedItem.value,
-                        original: {
-                            ...rawItem.original,
-                            linkedQuotes: (selectedItem.original as any)?.linkedQuotes ?? (rawItem.original as any)?.linkedQuotes
-                        }
+            // Verifica se os itens já pertencem a UMA ÚNICA fatura PENDENTE
+            const existingLinks = invoiceItems.filter(ii => selectedIds.includes(ii.reference_id));
+            const existingInvoiceIds = Array.from(new Set(existingLinks.map(ii => ii.invoice_id)));
+            const existingPendingInvoices = invoices.filter(inv => existingInvoiceIds.includes(inv.id) && inv.status === 'PENDING');
+            
+            let targetInvoice = null;
+
+            if (existingPendingInvoices.length === 1) {
+                const pendingInv = existingPendingInvoices[0];
+                const itemsOfThisInvoice = invoiceItems.filter(ii => ii.invoice_id === pendingInv.id);
+                const hasAllExisting = itemsOfThisInvoice.every(ii => selectedIds.includes(ii.reference_id));
+                
+                if (hasAllExisting) {
+                    targetInvoice = pendingInv;
+                } else {
+                    showAlert(`Alguns itens pertencem à fatura pendente ${pendingInv.display_id || pendingInv.id.slice(0,6)}. Você deve selecionar todos os itens dessa fatura para atualizá-la, ou excluir a fatura anterior.`, 'error');
+                    setIsProcessing(false);
+                    return;
+                }
+            } else if (existingPendingInvoices.length > 1) {
+                showAlert('Os itens selecionados pertencem a múltiplas faturas pendentes. Por favor, cancele as faturas anteriores antes de prosseguir.', 'error');
+                setIsProcessing(false);
+                return;
+            }
+
+            let invoice;
+
+            if (targetInvoice) {
+                // ATUALIZA Fatura Existente
+                const { data: updatedInv, error: updError } = await supabase.from('invoices').update({
+                    total_amount: baseAmount,
+                    discount_amount: discountValue,
+                    shipping_amount: billingShipping,
+                    other_additions_amount: billingOtherAdditions,
+                    payment_method: finalMethod,
+                    status: invoiceStatus,
+                    paid_at: isMpIntegrationTriggered ? null : paidAt
+                }).eq('id', targetInvoice.id).select('*').single();
+
+                if (updError) throw updError;
+                invoice = updatedInv;
+
+                // Insere apenas os novos itens (caso o usuário tenha adicionado mais)
+                const itemsOfThisInvoice = invoiceItems.filter(ii => ii.invoice_id === targetInvoice.id);
+                const existingItemIds = itemsOfThisInvoice.map(ii => ii.reference_id);
+                const newIds = selectedIds.filter(id => !existingItemIds.includes(id));
+
+                if (newIds.length > 0) {
+                    const newInvoiceItemsData = newIds.map(id => {
+                        const item = filteredItems.find(i => i.id === id);
+                        return {
+                            invoice_id: targetInvoice.id,
+                            tenant_id: currentTenantId,
+                            reference_type: item?.type || 'ORDER',
+                            reference_id: id,
+                            amount: item?.value || 0
+                        };
+                    });
+                    await supabase.from('invoice_items').insert(newInvoiceItemsData);
+                }
+            } else {
+                // 1. Sempre gera Nova Fatura
+                const { data: newInv, error: invoiceError } = await supabase.from('invoices').insert([{
+                    tenant_id: currentTenantId,
+                    customer_name: fullCust?.name || firstItem?.customerName || 'Cliente',
+                    customer_document: customerDoc,
+                    total_amount: baseAmount,
+                    discount_amount: discountValue,
+                    shipping_amount: billingShipping,
+                    other_additions_amount: billingOtherAdditions,
+                    payment_method: finalMethod,
+                    status: invoiceStatus,
+                    paid_at: isMpIntegrationTriggered ? null : paidAt
+                }]).select('*').single();
+
+                if (invoiceError || !newInv) throw invoiceError || new Error('Failed to create invoice');
+                invoice = newInv;
+
+                // 2. Sempre vincula itens à Fatura
+                const invoiceItemsData = selectedIds.map(id => {
+                    const item = filteredItems.find(i => i.id === id);
+                    return {
+                        invoice_id: invoice.id,
+                        tenant_id: currentTenantId,
+                        reference_type: item?.type || 'ORDER',
+                        reference_id: id,
+                        amount: item?.value || 0
+                    };
+                });
+
+                await supabase.from('invoice_items').insert(invoiceItemsData);
+            }
+
+            if (isMpIntegrationTriggered) {
+                // Fluxo Mercado Pago (Gera Link)
+                const mpMethod = finalMethod === 'Pix' ? 'pix' : (finalMethod === 'Boleto' ? 'boleto' : 'card_link');
+                const res = await PaymentService.createMercadoPagoCharge({
+                    itemType: 'INVOICE',
+                    itemId: invoice.id,
+                    displayId: invoice.display_id,
+                    title: selectedIds.length === 1 ? (firstItem?.title || 'Fatura') : `Fatura (${selectedIds.length} Itens)`,
+                    amount: finalAmount,
+                    customerName: invoice.customer_name,
+                    customerDocument: invoice.customer_document,
+                    customerZip: fullCust?.zip || (fullCust as any)?.cep,
+                    customerStreet: fullCust?.address || (fullCust as any)?.street,
+                    customerNumber: fullCust?.number,
+                    customerNeighborhood: fullCust?.neighborhood,
+                    customerCity: fullCust?.city,
+                    customerState: fullCust?.state,
+                    paymentMethodType: mpMethod,
+                    installments: (finalMethod && (finalMethod.includes('Cartão') || finalMethod.includes('cartao') || finalMethod.includes('credit') || finalMethod.includes('card'))) ? installments : undefined,
+                    tenantId: currentTenantId
+                });
+
+                if (!res.success) {
+                    showAlert(`Erro ao gerar fatura: ${res.error}`, 'error');
+                    setIsProcessing(false);
+                    return;
+                }
+
+                const notesObj = {
+                    gateway_provider: 'mercadopago',
+                    gateway_payment_id: res.paymentId,
+                    gateway_pix_code: res.pixCopiaECola || res.qrCode,
+                    gateway_ticket_url: res.ticketUrl,
+                    gateway_status: 'pending'
+                };
+                
+                await supabase.from('invoices').update({ 
+                    payment_gateway_id: res.paymentId,
+                    notes: JSON.stringify(notesObj)
+                }).eq('id', invoice.id);
+
+                setMpModalItem({
+                    type: 'INVOICE',
+                    id: invoice.id,
+                    displayId: invoice.display_id || `FAT-${invoice.id.slice(0,6)}`,
+                    title: selectedIds.length === 1 ? (firstItem?.title || 'Fatura') : `Fatura (${selectedIds.length} Itens)`,
+                    value: finalAmount,
+                    customerName: invoice.customer_name,
+                    customerDocument: invoice.customer_document,
+                    gatewayPaymentId: res.paymentId,
+                    gatewayPixCode: res.pixCopiaECola || res.qrCode,
+                    gatewayTicketUrl: res.ticketUrl,
+                    gatewayPaymentMethod: mpMethod,
+                    gatewayStatus: 'pending',
+                    billingStatus: 'PENDING'
+                });
+                setIsInvoiceModalOpen(false);
+                setIsMpModalOpen(true);
+            } else {
+                // Fluxo Manual (Dinheiro / Transferência)
+                let uploadedReceiptUrl = '';
+                if (receiptFile) {
+                    try {
+                        const folderId = invoice.id;
+                        uploadedReceiptUrl = await StorageService.uploadFinancialReceipt(receiptFile, `financial/receipts/${folderId}`);
+                    } catch (err) {
+                        console.error("[FinancialDashboard] Error uploading receipt:", err);
                     }
-                    : rawItem;
+                }
 
-                if (item.type === 'ORDER') {
-                    const effectiveDiscount = billingDiscount > 0 ? billingDiscount : (item.original?.discount || 0);
-                    const effectiveDiscountType = billingDiscount > 0 ? billingDiscountType : (item.original?.discountType || 'fixed');
-                    
-                    if (isMpIntegrationTriggered) {
-                        const mpMethod = finalMethod === 'Pix' ? 'pix' : (finalMethod === 'Boleto' ? 'boleto' : 'card_link');
-                        const fullCust = customers.find(c => c.id === item.original?.customerId || c.id === item.original?.customer_id);
-                        const customerDoc = (item as any).customerDocument || fullCust?.document || (fullCust as any)?.cpf || (fullCust as any)?.cnpj || item.original?.customer_document || item.original?.customerDocument;
-                        const customerZip = fullCust?.zip || (fullCust as any)?.cep || undefined;
-                        const customerStreet = fullCust?.address || (fullCust as any)?.street || undefined;
-                        const customerNumber = fullCust?.number || undefined;
-                        const customerNeighborhood = fullCust?.neighborhood || undefined;
-                        const customerCity = fullCust?.city || undefined;
-                        const customerState = fullCust?.state || undefined;
+                for (const id of selectedIds) {
+                    const rawItem = filteredItems.find(i => i.id === id);
+                    if (!rawItem) continue;
 
-                        if (mpMethod === 'boleto' && !customerDoc) {
-                            showAlert('Para gerar o Boleto diretamente, o cliente precisa ter um CPF/CNPJ cadastrado. Atualize o cadastro do cliente e tente novamente.', 'error');
-                            setIsProcessing(false);
-                            return;
-                        }
+                    const effectiveDiscount = billingDiscount > 0 ? billingDiscount : (rawItem.original?.discount || 0);
+                    const effectiveDiscountType = billingDiscount > 0 ? billingDiscountType : (rawItem.original?.discountType || 'fixed');
 
-                        if (mpMethod === 'boleto' && (!customerZip || !customerStreet || !customerCity || !customerState)) {
-                            showAlert('Para gerar o Boleto registrado, o cliente precisa ter um endereço completo (CEP, Rua, Cidade, Estado) cadastrado. Atualize o cadastro do cliente e tente novamente.', 'error');
-                            setIsProcessing(false);
-                            return;
-                        }
-
-                        const itemBaseVal = Number(item.grossValue || item.original?.total_value || item.original?.totalValue || item.value || 0);
-                        const itemDisc = billingDiscountType === 'percent' ? (itemBaseVal * billingDiscount / 100) : billingDiscount;
-                        const itemAmount = (billingDiscount > 0) ? Math.max(0, Math.round((itemBaseVal - itemDisc) * 100) / 100) : (item.value || finalAmount);
-
-                        const res = await PaymentService.createMercadoPagoCharge({
-                            itemType: 'ORDER',
-                            itemId: item.id,
-                            displayId: item.displayId || undefined,
-                            title: item.title || 'Ordem de Serviço',
-                            amount: itemAmount,
-                            customerName: item.customerName,
-                            customerDocument: customerDoc,
-                            customerZip: customerZip,
-                            customerStreet: customerStreet,
-                            customerNumber: customerNumber,
-                            customerNeighborhood: customerNeighborhood,
-                            customerCity: customerCity,
-                            customerState: customerState,
-                            paymentMethodType: mpMethod,
-                            installments: mpMethod === 'card_link' ? installments : undefined,
-                            expiresAt: (mpMethod === 'boleto' && boletoDueDate) ? boletoDueDate : undefined,
-                            tenantId: item.original?.tenantId || item.original?.tenant_id
-                        });
-
-                        if (!res.success) {
-                            throw new Error(res.message || 'Erro ao gerar cobrança Mercado Pago.');
-                        }
-
-                        const updatedOrder = {
-                            ...(item.original as ServiceOrder),
-                            paymentMethod: finalMethod,
-                            // formData (camelCase) é o que updateOrder lê e salva como form_data no banco
-                            formData: {
-                                ...((item.original as ServiceOrder).formData || {}),
-                                mpInstallments: mpMethod === 'card_link' ? installments : undefined,
-                                mpDueDate: mpMethod === 'boleto' ? boletoDueDate : undefined
-                            },
-                            discount: effectiveDiscount,
-                            discountType: effectiveDiscountType,
-                            billingNotes: billingNotes || item.original?.billingNotes,
-                            gatewayProvider: 'mercadopago',
-                            gatewayPaymentId: res.paymentId,
-                            gatewayPixCode: res.pixCopiaECola,
-                            gatewayTicketUrl: res.ticketUrl,
-                            gatewayStatus: 'pending'
-                        } as any;
-                        await DataService.updateOrder(updatedOrder);
-
-                        setMpModalItem({
-                            ...item,
-                            customerDocument: customerDoc,
-                            customerEmail: (item as any).customerEmail || fullCust?.email || item.original?.customer_email || item.original?.customerEmail,
-                            value: itemAmount,
-                            original: updatedOrder,
-                            gatewayPaymentId: res.paymentId,
-                            gatewayPixCode: res.pixCopiaECola,
-                            gatewayTicketUrl: res.ticketUrl,
-                            gatewayPaymentMethod: mpMethod
-                        });
-                        
-                        if (selectedItem && selectedItem.id === item.id) {
-                            setSelectedItem((prev: any) => prev ? ({
-                                ...prev,
-                                original: {
-                                    ...prev.original,
-                                    discount: effectiveDiscount,
-                                    discountType: effectiveDiscountType,
-                                    gateway_payment_id: res.paymentId,
-                                    gateway_pix_code: res.pixCopiaECola || (mpMethod === 'pix' ? res.ticketUrl : undefined),
-                                    gateway_ticket_url: res.ticketUrl
-                                }
-                            }) : null);
-                        }
-                    } else {
-                        // Atualiza O.S. principal dando BAIXA MANUAL
+                    if (rawItem.type === 'ORDER') {
                         await DataService.updateOrder({
-                            ...(item.original as ServiceOrder),
+                            ...(rawItem.original as ServiceOrder),
                             billingStatus: 'PAID',
                             paymentMethod: finalMethod,
                             billingNotes: billingNotes,
-                            receiptUrl: uploadedReceiptUrl || item.original?.receiptUrl,
+                            receiptUrl: uploadedReceiptUrl || rawItem.original?.receiptUrl,
                             discount: effectiveDiscount,
                             discountType: effectiveDiscountType,
                             paidAt
                         });
 
-                        // Atualiza TODOS os orçamentos vinculados (incluindo os recém-linkados)
-                        const linkedQuoteIds: string[] = item.original.linkedQuotes ?? [];
+                        const linkedQuoteIds: string[] = rawItem.original.linkedQuotes ?? [];
                         for (const qId of linkedQuoteIds) {
                             const qOrigin = quotes.find(q => q.id === qId);
                             if (qOrigin) {
@@ -783,148 +1176,41 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                     ...qOrigin,
                                     billingStatus: 'PAID',
                                     paymentMethod: finalMethod,
-                                    billingNotes: `Faturado via O.S. ${item.displayId || '#' + item.id.slice(0, 8)}`,
+                                    billingNotes: `Faturado via FAT ${invoice.display_id || invoice.id.slice(0, 8)}`,
                                     receiptUrl: uploadedReceiptUrl || qOrigin.receiptUrl,
                                     paidAt
                                 });
                             }
                         }
-                    }
-                } else {
-                    // Orçamento autônomo faturado
-                    const effectiveDiscount = billingDiscount > 0 ? billingDiscount : (item.original?.discount || 0);
-                    const effectiveDiscountType = billingDiscount > 0 ? billingDiscountType : (item.original?.discountType || 'fixed');
-                    
-                    if (isMpIntegrationTriggered) {
-                        const mpMethod = finalMethod === 'Pix' ? 'pix' : (finalMethod === 'Boleto' ? 'boleto' : 'card_link');
-                        const fullCust = customers.find(c => c.id === item.original?.customerId || c.id === item.original?.customer_id);
-                        const customerDoc = (item as any).customerDocument || fullCust?.document || (fullCust as any)?.cpf || (fullCust as any)?.cnpj || item.original?.customer_document || item.original?.customerDocument;
-                        const customerZip = fullCust?.zip || (fullCust as any)?.cep || undefined;
-                        const customerStreet = fullCust?.address || (fullCust as any)?.street || undefined;
-                        const customerNumber = fullCust?.number || undefined;
-                        const customerNeighborhood = fullCust?.neighborhood || undefined;
-                        const customerCity = fullCust?.city || undefined;
-                        const customerState = fullCust?.state || undefined;
-
-                        if (mpMethod === 'boleto' && !customerDoc) {
-                            showAlert('Para gerar o Boleto diretamente, o cliente precisa ter um CPF/CNPJ cadastrado. Atualize o cadastro do cliente e tente novamente.', 'error');
-                            setIsProcessing(false);
-                            return;
-                        }
-
-                        if (mpMethod === 'boleto' && (!customerZip || !customerStreet || !customerCity || !customerState)) {
-                            showAlert('Para gerar o Boleto registrado, o cliente precisa ter um endereço completo (CEP, Rua, Cidade, Estado) cadastrado. Atualize o cadastro do cliente e tente novamente.', 'error');
-                            setIsProcessing(false);
-                            return;
-                        }
-
-                        const itemBaseVal = Number(item.grossValue || item.original?.total_value || item.original?.totalValue || item.value || 0);
-                        const itemDisc = billingDiscountType === 'percent' ? (itemBaseVal * billingDiscount / 100) : billingDiscount;
-                        const itemAmount = (billingDiscount > 0) ? Math.max(0, Math.round((itemBaseVal - itemDisc) * 100) / 100) : (item.value || finalAmount);
-
-                        const res = await PaymentService.createMercadoPagoCharge({
-                            itemType: 'QUOTE',
-                            itemId: item.id,
-                            displayId: item.displayId || undefined,
-                            title: item.title || 'Orçamento',
-                            amount: itemAmount,
-                            customerName: item.customerName,
-                            customerDocument: customerDoc,
-                            customerZip: customerZip,
-                            customerStreet: customerStreet,
-                            customerNumber: customerNumber,
-                            customerNeighborhood: customerNeighborhood,
-                            customerCity: customerCity,
-                            customerState: customerState,
-                            paymentMethodType: mpMethod,
-                            installments: mpMethod === 'card_link' ? installments : undefined,
-                            expiresAt: (mpMethod === 'boleto' && boletoDueDate) ? boletoDueDate : undefined,
-                            tenantId: item.original?.tenantId || item.original?.tenant_id
-                        });
-
-                        if (!res.success) {
-                            throw new Error(res.message || 'Erro ao gerar cobrança Mercado Pago.');
-                        }
-
-                        const updatedQuote = {
-                            ...item.original,
-                            paymentMethod: finalMethod,
-                            approvalMetadata: {
-                                ...(item.original.approvalMetadata || item.original.approval_metadata || {}),
-                                mpInstallments: mpMethod === 'card_link' ? installments : undefined,
-                                mpDueDate: mpMethod === 'boleto' ? boletoDueDate : undefined
-                            },
-                            discount: effectiveDiscount,
-                            discountType: effectiveDiscountType,
-                            billingNotes: billingNotes || item.original?.billingNotes,
-                            gatewayProvider: 'mercadopago',
-                            gatewayPaymentId: res.paymentId,
-                            gatewayPixCode: res.pixCopiaECola,
-                            gatewayTicketUrl: res.ticketUrl,
-                            gatewayStatus: 'pending'
-                        } as any;
-                        await DataService.updateQuote(updatedQuote);
-
-                        setMpModalItem({
-                            ...item,
-                            customerDocument: customerDoc,
-                            customerEmail: (item as any).customerEmail || fullCust?.email || item.original?.customer_email || item.original?.customerEmail,
-                            value: itemAmount,
-                            original: updatedQuote,
-                            gatewayPaymentId: res.paymentId,
-                            gatewayPixCode: res.pixCopiaECola,
-                            gatewayTicketUrl: res.ticketUrl,
-                            gatewayPaymentMethod: mpMethod
-                        });
-                        
-                        if (selectedItem && selectedItem.id === item.id) {
-                            setSelectedItem((prev: any) => prev ? ({
-                                ...prev,
-                                original: {
-                                    ...prev.original,
-                                    discount: effectiveDiscount,
-                                    discountType: effectiveDiscountType,
-                                    gateway_payment_id: res.paymentId,
-                                    gateway_pix_code: res.pixCopiaECola || (mpMethod === 'pix' ? res.ticketUrl : undefined),
-                                    gateway_ticket_url: res.ticketUrl
-                                }
-                            }) : null);
-                        }
                     } else {
                         await DataService.updateQuote({
-                            ...item.original,
+                            ...rawItem.original,
                             billingStatus: 'PAID',
                             paymentMethod: finalMethod,
                             billingNotes: billingNotes,
-                            receiptUrl: uploadedReceiptUrl || item.original?.receiptUrl,
+                            receiptUrl: uploadedReceiptUrl || rawItem.original?.receiptUrl,
                             discount: effectiveDiscount,
                             discountType: effectiveDiscountType,
                             paidAt
                         });
                     }
-                }
 
-                // Registra no fluxo de caixa APENAS SE FOR BAIXA MANUAL
-                if (!isMpIntegrationTriggered) {
                     try {
                         await DataService.registerCashFlow({
                             type: 'INCOME',
-                            category: item.type === 'ORDER' ? 'Serviço (O.S.)' : 'Venda (Orçamento)',
-                            amount: finalAmount,
-                            description: `Faturamento de ${item.type === 'ORDER' ? 'O.S.' : 'Orçamento'} ${item.displayId || '#' + item.id.slice(0, 8)} — Cliente: ${item.customerName}${discountValue > 0 ? ` (Desconto: R$ ${discountValue.toFixed(2)})` : ''}`,
-                            referenceId: item.id,
-                            referenceType: item.type,
+                            category: rawItem.type === 'ORDER' ? 'Serviço (O.S.)' : 'Venda (Orçamento)',
+                            amount: rawItem.value || 0,
+                            description: `Faturamento (Manual) de ${rawItem.type === 'ORDER' ? 'O.S.' : 'Orçamento'} ${rawItem.displayId || '#' + rawItem.id.slice(0, 8)} — Cliente: ${rawItem.customerName}`,
+                            referenceId: rawItem.id,
+                            referenceType: rawItem.type,
                             paymentMethod: finalMethod,
                             entryDate: paidAt,
-                            customerId: item.original?.customerId || undefined,
-                            technicianId: item.type === 'ORDER' ? item.original?.assignedTo : (item.original?.createdBy || undefined)
+                            customerId: rawItem.original?.customerId || undefined,
+                            technicianId: rawItem.type === 'ORDER' ? rawItem.original?.assignedTo : (rawItem.original?.createdBy || undefined)
                         });
-                    } catch (e) { console.warn('Cash flow error (non-blocking):', e); }
+                    } catch (e) { console.warn('Cash flow error:', e); }
                 }
-            }
 
-            // Atualiza UI imediatamente se for manual
-            if (!isMpIntegrationTriggered) {
                 if (selectedItem && selectedIds.includes(selectedItem.id)) {
                     setSelectedItem((prev: any) => prev ? ({
                         ...prev,
@@ -932,21 +1218,17 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         original: { ...prev.original, billingStatus: 'PAID', paymentMethod: finalMethod, paidAt, discount: billingDiscount, discountType: billingDiscountType, receiptUrl: uploadedReceiptUrl || prev.original?.receiptUrl }
                     }) : null);
                 }
-            }
-
-            setSelectedIds([]);
-            setIsInvoiceModalOpen(false);
-            setPaymentMethod('Dinheiro');
-            setBillingNotes('');
-            setBillingDiscount(0);
-            setBillingDiscountType('fixed');
-            
-            if (isMpIntegrationTriggered) {
-                // Abre o Modal do Mercado Pago para gerar a cobrança agora que o desconto foi salvo
-                setIsMpModalOpen(true);
-            } else {
+                showAlert(`Faturamento e Baixa Financeira de ${selectedIds.length} item(s) realizado com sucesso!`, 'success');
+                setIsInvoiceModalOpen(false);
+                setReceiptFile(null);
+                setPaymentMethod('');
+                setInstallments(1);
+                setBoletoDueDate('');
+                setSelectedIds([]);
                 await onRefresh();
             }
+            
+
         } catch (error: any) {
             const rawMsg = String(error.message || error);
             if (!rawMsg.includes('Detalhe da API') && (rawMsg.includes('UNAUTHORIZED') || rawMsg.includes('unauthorized') || rawMsg.includes('não autorizadas'))) {
@@ -1003,9 +1285,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         #printable-receipt { min-height: unset !important; }
         /* Força quebra de página SOMENTE quando há comprovante na 2ª página */
         ${includeAttachment ? '#printable-receipt { page-break-after: always !important; break-after: page !important; }' : ''}
-        .print\\:hidden { display: none !important; }
+        @page { size: A4 portrait !important; margin: 10mm; }
         @media print {
-            @page { margin: 10mm; }
+            @page { size: A4 portrait !important; margin: 10mm; }
             body { margin: 0; padding: 0; }
             #printable-receipt { min-height: unset !important; }
             ${includeAttachment ? '#printable-receipt { page-break-after: always !important; break-after: page !important; }' : ''}
@@ -1156,14 +1438,11 @@ ${container.innerHTML}
 
     const getItemNetValue = (item: any) => {
         if (!item) return 0;
-        const subtotal = item.original?.items?.reduce((a: number, i: any) => a + (Number(i.total) || 0), 0) || item.value;
-        const disc = Number(item.original?.discount) || 0;
-        const infer = subtotal > item.original?.totalValue ? subtotal - item.original?.totalValue : 0;
-        const finalDisc = disc > 0 ? disc : infer;
-        const type = disc > 0 ? (item.original?.discountType || 'fixed') : 'fixed';
-        
-        const discountAmount = type === 'percent' ? (subtotal * finalDisc / 100) : finalDisc;
-        return Math.max(0, subtotal - discountAmount);
+        if (typeof item.netValue === 'number' && !isNaN(item.netValue)) return item.netValue;
+        if (typeof item.value === 'number' && !isNaN(item.value)) return item.value;
+        const totalVal = Number(item.original?.totalValue || item.original?.total_value || 0);
+        if (totalVal > 0) return totalVal;
+        return 0;
     };
 
     const renderInstallmentsDetails = (item: any) => {
@@ -1208,24 +1487,63 @@ ${container.innerHTML}
     return (
         <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden relative font-sans">
             
-            {/* ── TOP LEVEL TAB SWITCHER ── */}
-            <div className="flex bg-white rounded-xl p-1 shadow-sm border border-slate-200 w-full sm:w-fit mb-4 shrink-0">
-                <button
-                    onClick={() => setMainTab('RECEIVABLES')}
-                    className={`flex-1 sm:flex-none px-6 py-2 text-[11px] font-bold uppercase tracking-widest rounded-lg transition-all ${
-                        mainTab === 'RECEIVABLES' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'
-                    }`}
-                >
-                    Contas a Receber
-                </button>
-                <button
-                    onClick={() => setMainTab('PAYABLES')}
-                    className={`flex-1 sm:flex-none px-6 py-2 text-[11px] font-bold uppercase tracking-widest rounded-lg transition-all ${
-                        mainTab === 'PAYABLES' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'
-                    }`}
-                >
-                    Contas a Pagar
-                </button>
+            {/* ── TOP LEVEL TAB SWITCHER & SUB-VIEWS (Stripe / Linear Style) ── */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-0 mb-4 shrink-0">
+                {/* Main Tabs (Stripe style underline tabs) */}
+                <div className="flex items-center gap-6">
+                    <button
+                        onClick={() => setMainTab('RECEIVABLES')}
+                        className={`flex items-center gap-2 pb-3 pt-1 text-sm font-semibold border-b-2 transition-all relative ${
+                            mainTab === 'RECEIVABLES'
+                                ? 'border-[#1c2d4f] text-[#1c2d4f]'
+                                : 'border-transparent text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        <TrendingUp size={16} className={mainTab === 'RECEIVABLES' ? 'text-[#1c2d4f]' : 'text-slate-400'} />
+                        <span>Contas a Receber</span>
+                    </button>
+
+                    <button
+                        onClick={() => setMainTab('PAYABLES')}
+                        className={`flex items-center gap-2 pb-3 pt-1 text-sm font-semibold border-b-2 transition-all relative ${
+                            mainTab === 'PAYABLES'
+                                ? 'border-amber-600 text-amber-700'
+                                : 'border-transparent text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        <ArrowUpRight size={16} className={mainTab === 'PAYABLES' ? 'text-amber-600' : 'text-slate-400'} />
+                        <span>Contas a Pagar</span>
+                    </button>
+                </div>
+
+                {/* Sub-View Switcher for Receivables (Right aligned clean pill group) */}
+                {mainTab === 'RECEIVABLES' && (
+                    <div className="flex items-center gap-1.5 pb-2 sm:pb-2">
+                        <button
+                            onClick={() => setReceivablesView('items')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                                receivablesView === 'items'
+                                    ? 'bg-[#1c2d4f] text-white shadow-xs'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                            }`}
+                        >
+                            <FileText size={13} className={receivablesView === 'items' ? 'text-white' : 'text-slate-400'} />
+                            <span>Lançamentos (OS/Orçamentos)</span>
+                        </button>
+
+                        <button
+                            onClick={() => setReceivablesView('invoices')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                                receivablesView === 'invoices'
+                                    ? 'bg-[#1c2d4f] text-white shadow-xs'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                            }`}
+                        >
+                            <Receipt size={13} className={receivablesView === 'invoices' ? 'text-white' : 'text-slate-400'} />
+                            <span>Faturas Geradas</span>
+                        </button>
+                    </div>
+                )}
             </div>
 
             {mainTab === 'PAYABLES' && (
@@ -1236,19 +1554,27 @@ ${container.innerHTML}
 
             {mainTab === 'RECEIVABLES' && (
                 <>
-                {/* ── FILTROS + STATS ── */}
-                <div className="flex-shrink-0 space-y-2.5 mb-2.5">
-                    {/* Row 1: Search & Toggle & Export */}
-                    <div className="flex flex-col xl:flex-row gap-2.5 items-center w-full">
-                    <div className="flex w-full xl:w-auto flex-1 gap-2.5">
+                {/* ── HEADER DE AÇÕES ── */}
+
+                        {/* ── FILTROS + STATS ── */}
+                        <div className="flex-shrink-0 space-y-2.5 mb-2.5">
+                            {/* Row 1: Search & Toggle & Export */}
+                            <div className="flex flex-col xl:flex-row gap-2.5 items-center w-full">
+                                <div className="flex w-full xl:w-auto flex-1 gap-2.5">
                         <div className="relative flex-1 group">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#1c2d4f] transition-colors" size={14} />
                             <input
                                 type="text"
-                                placeholder="Pesquisar por cliente, protocolo ou ORC..."
+                                placeholder={receivablesView === 'items' ? "Pesquisar por cliente, protocolo ou ORC..." : "Pesquisar por fatura ou cliente..."}
                                 className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-4 py-1.5 h-9 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f]/10 transition-all shadow-sm"
-                                value={searchTerm}
-                                onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                                value={receivablesView === 'items' ? searchTerm : invSearchTerm}
+                                onChange={e => { 
+                                    if (receivablesView === 'items') {
+                                        setSearchTerm(e.target.value); setCurrentPage(1); 
+                                    } else {
+                                        setInvSearchTerm(e.target.value); setCurrentInvoicePage(1);
+                                    }
+                                }}
                             />
                         </div>
                         <button
@@ -1260,6 +1586,43 @@ ${container.innerHTML}
                     </div>
 
                     <div className="flex items-center gap-2.5 ml-auto w-full xl:w-auto justify-end">
+                        {/* Ações em Lote */}
+                        {receivablesView === 'items' && selectedIds.length > 0 && (
+                            <div className="flex items-center gap-3 px-3 py-1 bg-white border border-slate-200 rounded-lg shadow-sm animate-in fade-in h-9 mr-2">
+                                <div className="flex items-center gap-2 pr-3 border-r border-slate-200">
+                                    <span className="text-[10px] font-semibold text-slate-500 uppercase">Sel. ({selectedIds.length})</span>
+                                    <span className="text-[11px] font-bold text-emerald-600">{formatCurrency(selectedTotal)}</span>
+                                </div>
+
+                                <button
+                                    onClick={handleExportExcel}
+                                    className="flex items-center gap-2 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded text-[10px] font-semibold uppercase transition-all"
+                                    title="Exportar Seleção para Excel"
+                                >
+                                    <FileSpreadsheet size={13} /> Excel
+                                </button>
+
+                                <button
+                                    onClick={() => {
+                                        if (can('financial', 'invoice')) handleInvoiceBatch();
+                                        else showAlert("Acesso Negado: Você não tem permissão para faturar.", 'warning');
+                                    }}
+                                    className={`flex items-center gap-2 px-3 py-1 text-white rounded text-[10px] font-semibold uppercase transition-all shadow-sm ${can('financial', 'invoice') ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-300 text-white/50 cursor-not-allowed'}`}
+                                    title="Faturar Seleção"
+                                >
+                                    <DollarSign size={13} /> Faturar
+                                </button>
+
+                                <button
+                                    onClick={() => setSelectedIds([])}
+                                    className="p-1 ml-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded transition-all"
+                                    title="Limpar Seleção"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        )}
+
                         <button
                             onClick={handleRefresh}
                             disabled={isRefreshing}
@@ -1271,60 +1634,14 @@ ${container.innerHTML}
                                 : <RefreshCw size={16} className="group-hover:rotate-180 transition-transform duration-500" />}
                             {isRefreshing && <span className="text-[10px] font-medium text-primary-500">Atualizando...</span>}
                         </button>
-
-
-                        {/* Ações em Lote (Seleção) - Realocado para o Header */}
-                        {selectedIds.length > 0 && (
-                            <div className="flex items-center gap-3 px-3 py-1 bg-slate-900 rounded-xl shadow-2xl animate-in fade-in slide-in-from-right-4 ring-4 ring-slate-100/50 h-9">
-                                <div className="flex flex-col pr-3 border-r border-slate-700 justify-center">
-                                    <span className="text-[9px] font-semibold text-slate-400 uppercase leading-none mb-0.5">Sel.</span>
-                                    <span className="text-xs font-semibold text-white leading-none tracking-wider">{selectedIds.length}</span>
-                                </div>
-                                <div className="flex flex-col pr-3 border-r border-slate-700 justify-center">
-                                    <span className="text-[9px] font-semibold text-emerald-500 uppercase leading-none mb-0.5">Total</span>
-                                    <span className="text-[11px] font-semibold text-emerald-400 leading-none tracking-wide">{formatCurrency(selectedTotal)}</span>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={handleExportExcel}
-                                        className="flex items-center gap-2 px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-white rounded-md text-[10px] font-semibold uppercase transition-all shadow-lg shadow-emerald-500/20 active:scale-95 whitespace-nowrap"
-                                        title="Exportar Seleção para Excel"
-                                    >
-                                        <FileSpreadsheet size={13} /> Excel
-                                    </button>
-
-                                    <button
-                                        onClick={() => {
-                                            if (can('financial', 'invoice')) handleInvoiceBatch();
-                                            else showAlert("Acesso Negado: Você não tem permissão para faturar.", 'warning');
-                                        }}
-                                        className={`flex items-center gap-2 px-2.5 py-1 text-white rounded-md text-[10px] font-semibold uppercase transition-all whitespace-nowrap ${can('financial', 'invoice') ? 'bg-slate-800 hover:bg-slate-800 shadow-lg shadow-slate-800/20 active:scale-95' : 'bg-slate-800/30 text-white/50 grayscale cursor-not-allowed'}`}
-                                        title="Faturar Seleção"
-                                    >
-                                        <DollarSign size={13} /> Faturar
-                                    </button>
-
-                                    <div className="w-px h-4 bg-slate-700 mx-0.5" />
-
-                                    <button
-                                        onClick={() => setSelectedIds([])}
-                                        className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-md transition-all ring-1 ring-transparent hover:ring-rose-200"
-                                        title="Limpar Seleção"
-                                    >
-                                        <X size={14} />
-                                    </button>
-                                </div>
-                            </div>
-                        )}
                     </div>
                 </div>
 
-                {/* Collapsible Filters */}
-                {showFilters && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200 shadow-sm">
+                {/* Collapsible Filters - Lançamentos */}
+                {showFilters && receivablesView === 'items' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200 shadow-sm">
                         {/* Tipo de Data */}
-                        <div className="sm:col-span-1 lg:col-span-3 flex flex-col gap-1">
+                        <div className="sm:col-span-1 lg:col-span-1 flex flex-col gap-1">
                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">Filtrar Data Por</label>
                             <select 
                                 value={dateFilterType}
@@ -1338,7 +1655,7 @@ ${container.innerHTML}
                         </div>
 
                         {/* Data Inicial (De) */}
-                        <div className="sm:col-span-1 lg:col-span-3 flex flex-col gap-1">
+                        <div className="sm:col-span-1 lg:col-span-1 flex flex-col gap-1">
                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">De (Início)</label>
                             <div className="relative flex items-center bg-white border border-slate-200 rounded-lg shadow-sm h-9 px-2.5">
                                 <Calendar size={14} className="text-slate-400 shrink-0 mr-2" />
@@ -1352,7 +1669,7 @@ ${container.innerHTML}
                         </div>
 
                         {/* Data Final (Até) */}
-                        <div className="sm:col-span-1 lg:col-span-3 flex flex-col gap-1">
+                        <div className="sm:col-span-1 lg:col-span-1 flex flex-col gap-1">
                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">Até (Fim)</label>
                             <div className="relative flex items-center bg-white border border-slate-200 rounded-lg shadow-sm h-9 px-2.5">
                                 <Calendar size={14} className="text-slate-400 shrink-0 mr-2" />
@@ -1366,7 +1683,7 @@ ${container.innerHTML}
                         </div>
 
                         {/* Técnico / Responsável */}
-                        <div className="sm:col-span-1 lg:col-span-3 flex flex-col gap-1">
+                        <div className="sm:col-span-1 lg:col-span-1 flex flex-col gap-1">
                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">Técnico / Responsável</label>
                             <div className="relative w-full min-h-9" ref={techDropdownRef}>
                                 <div 
@@ -1427,36 +1744,108 @@ ${container.innerHTML}
                         </div>
 
                         {/* Estado do Lançamento */}
-                        <div className="sm:col-span-2 lg:col-span-12 flex flex-col gap-1 pt-1 border-t border-slate-200/60 mt-1">
+                        <div className="sm:col-span-2 lg:col-span-1 flex flex-col gap-1">
                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">Estado do Lançamento</label>
-                            <div className="flex bg-white border border-slate-200 rounded-lg shadow-sm h-9 p-0.5 gap-1 max-w-md">
-                                {[
-                                    { value: 'ALL', label: 'Todos' },
-                                    { value: 'PENDING', label: 'Pendente' },
-                                    { value: 'PAID', label: 'Faturado' },
-                                ].map(opt => (
-                                    <button
-                                        key={opt.value}
-                                        onClick={() => { setStatusFilter(opt.value); setCurrentPage(1); }}
-                                        className={`flex-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${
-                                            statusFilter === opt.value
-                                                ? opt.value === 'PENDING'
-                                                    ? 'bg-amber-500 text-white shadow-sm'
-                                                    : opt.value === 'PAID'
-                                                        ? 'bg-emerald-500 text-white shadow-sm'
-                                                        : 'bg-slate-800 text-white shadow-sm'
-                                                : 'text-slate-500 hover:bg-slate-50'
-                                        }`}
-                                    >
-                                        {opt.label}
-                                    </button>
-                                ))}
+                            <select
+                                value={statusFilter}
+                                onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                                className="w-full bg-white border border-slate-200 text-xs font-semibold uppercase text-slate-700 outline-none cursor-pointer px-3 py-2 rounded-lg h-9 shadow-sm"
+                            >
+                                <option value="ALL">Todos</option>
+                                <option value="PENDING">Pendente</option>
+                                <option value="PAID">Faturado</option>
+                            </select>
+                        </div>
+
+                        {/* Limpar Filtros */}
+                        <div className="sm:col-span-2 lg:col-span-1 flex flex-col justify-end gap-1">
+                            <button
+                                onClick={() => {
+                                    setDateFilterType('dueDate');
+                                    const date = new Date();
+                                    setStartDate(new Date(date.getFullYear(), date.getMonth(), 1).toISOString().split('T')[0]);
+                                    setEndDate(new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split('T')[0]);
+                                    setTechFilter('ALL');
+                                    setStatusFilter('ALL');
+                                    setSearchTerm('');
+                                    setCurrentPage(1);
+                                }}
+                                className="h-9 w-full flex items-center justify-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all"
+                                title="Limpar todos os filtros"
+                            >
+                                <X size={14} /> Limpar
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Collapsible Filters - Faturas */}
+                {showFilters && receivablesView === 'invoices' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200 shadow-sm">
+                        {/* Data Inicial (De) */}
+                        <div className="sm:col-span-1 lg:col-span-1 flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">De (Início)</label>
+                            <div className="relative flex items-center bg-white border border-slate-200 rounded-lg shadow-sm h-9 px-2.5">
+                                <Calendar size={14} className="text-slate-400 shrink-0 mr-2" />
+                                <input 
+                                    type="date" 
+                                    value={invStartDate} 
+                                    onChange={e => handleInvDateValidation(e.target.value, invEndDate)} 
+                                    className="bg-transparent border-none text-xs font-semibold text-slate-800 outline-none cursor-pointer w-full" 
+                                />
                             </div>
+                        </div>
+
+                        {/* Data Final (Até) */}
+                        <div className="sm:col-span-1 lg:col-span-1 flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">Até (Fim)</label>
+                            <div className="relative flex items-center bg-white border border-slate-200 rounded-lg shadow-sm h-9 px-2.5">
+                                <Calendar size={14} className="text-slate-400 shrink-0 mr-2" />
+                                <input 
+                                    type="date" 
+                                    value={invEndDate} 
+                                    onChange={e => handleInvDateValidation(invStartDate, e.target.value)} 
+                                    className="bg-transparent border-none text-xs font-semibold text-slate-800 outline-none cursor-pointer w-full" 
+                                />
+                            </div>
+                        </div>
+
+                        {/* Estado da Fatura */}
+                        <div className="sm:col-span-2 lg:col-span-1 flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">Estado da Fatura</label>
+                            <select
+                                value={invStatusFilter}
+                                onChange={(e) => { setInvStatusFilter(e.target.value); setCurrentInvoicePage(1); }}
+                                className="w-full bg-white border border-slate-200 text-xs font-semibold uppercase text-slate-700 outline-none cursor-pointer px-3 py-2 rounded-lg h-9 shadow-sm"
+                            >
+                                <option value="ALL">Todas</option>
+                                <option value="PENDING">Pendentes</option>
+                                <option value="PAID">Pagas</option>
+                            </select>
+                        </div>
+
+                        {/* Limpar Filtros */}
+                        <div className="sm:col-span-2 lg:col-span-1 flex flex-col justify-end gap-1">
+                            <button
+                                onClick={() => {
+                                    const date = new Date();
+                                    setInvStartDate(new Date(date.getFullYear(), date.getMonth(), 1).toISOString().split('T')[0]);
+                                    setInvEndDate(new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split('T')[0]);
+                                    setInvStatusFilter('ALL');
+                                    setInvSearchTerm('');
+                                    setCurrentInvoicePage(1);
+                                }}
+                                className="h-9 w-full flex items-center justify-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all"
+                                title="Limpar todos os filtros"
+                            >
+                                <X size={14} /> Limpar
+                            </button>
                         </div>
                     </div>
                 )}
 
                 {/* Stats Cards */}
+                {receivablesView === 'items' && (
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
                     {[
                         { label: 'Total Recebido', value: formatCurrency(stats.totalFaturado), icon: <DollarSign size={16} />, color: 'from-emerald-500 to-emerald-600', textMain: 'text-white' },
@@ -1475,8 +1864,11 @@ ${container.innerHTML}
                         </div>
                     ))}
                 </div>
+                )}
             </div>
 
+            {receivablesView === 'items' ? (
+            <>
             {/* 💻 DESKTOP TABLE VIEW */}
             <div className="bg-white border border-slate-200 rounded-xl hidden md:flex flex-col overflow-hidden flex-1 min-h-0 shadow-sm relative financial-table-container">
                 <div className="flex-1 overflow-x-auto custom-scrollbar">
@@ -1485,8 +1877,9 @@ ${container.innerHTML}
                             <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">
                                 <th className="px-2 py-2.5 w-8 text-center">
                                     <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-200 text-[#1c2d4f] cursor-pointer" checked={paginatedItems.length > 0 && paginatedItems.every(i => selectedIds.includes(i.id))} onChange={() => { 
-                                        const pageIds = paginatedItems.map(i => i.id);
-                                        const allSelected = pageIds.every(id => selectedIds.includes(id));
+                                        const unbilledPageItems = paginatedItems.filter(i => !invoiceItems.some(inv => inv.reference_id === i.id));
+                                        const pageIds = unbilledPageItems.map(i => i.id);
+                                        const allSelected = pageIds.length > 0 && pageIds.every(id => selectedIds.includes(id));
                                         if (allSelected) {
                                             setSelectedIds(prev => prev.filter(id => !pageIds.includes(id)));
                                         } else {
@@ -1543,19 +1936,28 @@ ${container.innerHTML}
                                         <p className="text-xs font-semibold text-slate-300 uppercase tracking-widest">Nenhum lançamento encontrado</p>
                                     </td>
                                 </tr>
-                            ) : paginatedItems.map(item => (
+                            ) : paginatedItems.map(item => {
+                                const isFaturado = invoiceItems.some(invItem => invItem.reference_id === item.id);
+                                const faturaId = isFaturado ? invoiceItems.find(invItem => invItem.reference_id === item.id)?.invoice_id : null;
+                                const faturaDoc = faturaId ? invoices.find(inv => inv.id === faturaId)?.display_id : null;
+                                return (
                                 <tr
                                     key={item.id}
                                     className={`group hover:bg-slate-50 transition-all cursor-pointer ${selectedIds.includes(item.id) ? 'bg-[#1c2d4f]/5' : 'bg-white'}`}
                                     onClick={() => { setDetailTab('overview'); setSelectedItem(item); setEditingDueDate(''); setIsSidebarOpen(true); }}
                                 >
                                     <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
-                                        <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-300 text-[#1c2d4f] cursor-pointer" checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} />
+                                        <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-300 text-[#1c2d4f] cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed" disabled={isFaturado} checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} />
                                     </td>
                                     <td className="px-2 py-2 whitespace-nowrap">
                                         <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border w-fit block ${item.type === 'QUOTE' ? 'bg-[#1c2d4f]/10 text-[#1c2d4f] border-[#1c2d4f]/20' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
                                             {getDocLabel(item)}
                                         </span>
+                                        {isFaturado && faturaDoc && (
+                                            <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 block w-fit mt-1">
+                                                FAT: {faturaDoc}
+                                            </span>
+                                        )}
                                     </td>
                                     <td className="px-2 py-2">
                                         <p className="text-xs font-bold text-slate-800 truncate max-w-[120px] lg:max-w-[140px] 2xl:max-w-[200px]" title={item.customerName}>{item.customerName}</p>
@@ -1575,7 +1977,7 @@ ${container.innerHTML}
                                     <td className="px-2 py-2 whitespace-nowrap">
                                         <div className="flex flex-col">
                                             <span className="text-[11px] font-bold text-rose-600">
-                                                {new Date(item.dueDate || item.date).toLocaleDateString('pt-BR')}
+                                                {new Date((item.dueDate || item.date) + (!(item.dueDate || item.date).includes('T') ? 'T12:00:00' : '')).toLocaleDateString('pt-BR')}
                                             </span>
                                             <span className="text-[9px] text-rose-400">Prazo</span>
                                         </div>
@@ -1616,13 +2018,46 @@ ${container.innerHTML}
                                         </div>
                                     </td>
                                     <td className="px-2 py-2 text-center whitespace-nowrap">
-                                        <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${item.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
-                                            <span className={`w-1.5 h-1.5 rounded-full ${item.status === 'PAID' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
-                                            {item.status === 'PAID' ? 'Faturado' : 'Pendente'}
+                                        <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${item.status === 'PAID' || (item.original as any)?.billing_status === 'PAID' || (item.original as any)?.gateway_status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${item.status === 'PAID' || (item.original as any)?.billing_status === 'PAID' || (item.original as any)?.gateway_status === 'approved' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+                                            {item.status === 'PAID' || (item.original as any)?.billing_status === 'PAID' || (item.original as any)?.gateway_status === 'approved' ? 'Faturado' : 'Pendente'}
                                         </div>
                                     </td>
                                     <td className="px-2 py-2 text-center whitespace-nowrap" onClick={e => e.stopPropagation()}>
                                         <div className="flex items-center justify-center gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={async (e) => {
+                                                    e.stopPropagation();
+                                                    if (checkingInvoiceId === item.id) return;
+                                                    const rawMpId = (item.original as any)?.gateway_payment_id || (item.original as any)?.gatewayPaymentId || invoices.find(inv => invoiceItems.some(ii => ii.reference_id === item.id && ii.invoice_id === inv.id))?.gateway_payment_id;
+                                                    setCheckingInvoiceId(item.id);
+                                                    try {
+                                                        const res = await PaymentService.checkPaymentStatus({
+                                                            itemType: item.type,
+                                                            itemId: item.id,
+                                                            gatewayPaymentId: rawMpId
+                                                        });
+                                                        if (onRefresh) await onRefresh();
+                                                        await loadInvoices();
+                                                        if (res.isPaid) {
+                                                            showAlert(`O.S./Orçamento #${getDocLabel(item)} consta como PAGO no Mercado Pago.`, 'success');
+                                                        } else {
+                                                            showAlert(`O.S./Orçamento #${getDocLabel(item)} consta como ${res.status === 'pending' ? 'Pendente' : (res.status || 'pendente')} no Mercado Pago.`, 'info');
+                                                        }
+                                                    } catch (err: any) {
+                                                        showAlert(`Erro ao consultar Mercado Pago: ${err.message}`, 'error');
+                                                    } finally {
+                                                        setCheckingInvoiceId(null);
+                                                    }
+                                                }}
+                                                disabled={checkingInvoiceId === item.id}
+                                                className="p-1 text-sky-600 hover:text-sky-800 hover:bg-sky-50 rounded transition-colors disabled:opacity-50"
+                                                title="Checar Status no Mercado Pago"
+                                            >
+                                                {checkingInvoiceId === item.id ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                                            </button>
+
                                             <button
                                                 type="button"
                                                 onClick={() => {
@@ -1667,7 +2102,7 @@ ${container.innerHTML}
                                         </div>
                                     </td>
                                 </tr>
-                            ))}
+                            )})}
                         </tbody>
                     </table>
                 </div>
@@ -1686,7 +2121,11 @@ ${container.innerHTML}
                         <p className="text-xs font-medium uppercase tracking-widest">Nenhum lançamento encontrado</p>
                     </div>
                 ) : (
-                    paginatedItems.map(item => (
+                    paginatedItems.map(item => {
+                        const isFaturado = invoiceItems.some(invItem => invItem.reference_id === item.id);
+                        const faturaId = isFaturado ? invoiceItems.find(invItem => invItem.reference_id === item.id)?.invoice_id : null;
+                        const faturaDoc = faturaId ? invoices.find(inv => inv.id === faturaId)?.display_id : null;
+                        return (
                         <div 
                             key={item.id}
                             className={`bg-white p-3 rounded-2xl shadow-sm border ${selectedIds.includes(item.id) ? 'border-primary-400 ring-1 ring-primary-100' : 'border-slate-200/60'} active:scale-[0.98] transition-all flex flex-col gap-2 relative overflow-hidden`}
@@ -1695,16 +2134,23 @@ ${container.innerHTML}
                             {/* Checkbox absoluto para seleção rápida (Longo Press ou click direto) */}
                             <div 
                                 className="absolute top-3 right-3 p-2 -m-2 z-10"
-                                onClick={(e) => { e.stopPropagation(); toggleSelect(item.id); }}
+                                onClick={(e) => { e.stopPropagation(); if (!isFaturado) toggleSelect(item.id); }}
                             >
-                                <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-[#1c2d4f]" checked={selectedIds.includes(item.id)} readOnly />
+                                <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-[#1c2d4f] disabled:opacity-30 disabled:cursor-not-allowed" disabled={isFaturado} checked={selectedIds.includes(item.id)} readOnly />
                             </div>
 
                             <div className="flex items-start justify-between gap-2 pr-8">
                                 <div className="flex flex-col gap-1">
-                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded w-max ${item.type === 'QUOTE' ? 'bg-[#1c2d4f]/10 text-[#1c2d4f]' : 'bg-slate-100 text-slate-600'}`}>
-                                        {getDocLabel(item)}
-                                    </span>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded w-max ${item.type === 'QUOTE' ? 'bg-[#1c2d4f]/10 text-[#1c2d4f]' : 'bg-slate-100 text-slate-600'}`}>
+                                            {getDocLabel(item)}
+                                        </span>
+                                        {isFaturado && faturaDoc && (
+                                            <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                                                FAT: {faturaDoc}
+                                            </span>
+                                        )}
+                                    </div>
                                     <h3 className="text-sm font-bold text-slate-800 line-clamp-1">{item.customerName}</h3>
                                 </div>
                             </div>
@@ -1716,7 +2162,7 @@ ${container.innerHTML}
                                 </div>
                                 <div className="flex flex-col gap-0.5">
                                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Vencimento</span>
-                                    <span className="text-xs font-bold text-rose-600">{new Date(item.dueDate || item.date).toLocaleDateString('pt-BR')}</span>
+                                    <span className="text-xs font-bold text-rose-600">{new Date((item.dueDate || item.date) + (!(item.dueDate || item.date).includes('T') ? 'T12:00:00' : '')).toLocaleDateString('pt-BR')}</span>
                                 </div>
                             </div>
 
@@ -1728,7 +2174,8 @@ ${container.innerHTML}
                                 </div>
                             </div>
                         </div>
-                    ))
+                    )
+                })
                 )}
             </div>
             
@@ -1752,6 +2199,155 @@ ${container.innerHTML}
                     }}
                 />
             </div>
+            </>
+            ) : (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col flex-1 h-[calc(100vh-200px)]">
+                    <div className="overflow-auto custom-scrollbar flex-1">
+                        <table className="w-full text-left border-collapse min-w-[800px]">
+                            <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
+                                <tr>
+                                    <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Fatura</th>
+                                    <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Cliente</th>
+                                    <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Data Emissão</th>
+                                    <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Data Pagamento</th>
+                                    <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right whitespace-nowrap">Valor Total</th>
+                                    <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center whitespace-nowrap">Status</th>
+                                    <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center whitespace-nowrap">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {paginatedInvoices.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={7} className="py-12 text-center text-slate-500 text-sm">
+                                            {invoices.length === 0 ? 'Nenhuma fatura gerada até o momento.' : 'Nenhuma fatura encontrada com os filtros atuais.'}
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    paginatedInvoices.map((inv: any) => (
+                                        <tr 
+                                            key={inv.id} 
+                                            onClick={() => handleOpenInvoiceDetail(inv)}
+                                            className="hover:bg-slate-50 transition-colors group cursor-pointer"
+                                        >
+                                            <td className="py-3 px-4">
+                                                <div className="flex flex-col gap-0.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <FileText size={16} className="text-[#009EE3] shrink-0" />
+                                                        <span className="font-semibold text-slate-800 text-xs whitespace-nowrap">{inv.display_id}</span>
+                                                    </div>
+                                                    {(() => {
+                                                        const rawMpId = inv.gateway_payment_id || inv.payment_gateway_id;
+                                                        return rawMpId ? (
+                                                            <span className="text-[10px] text-[#009EE3] font-mono font-bold pl-6 break-all whitespace-normal max-w-[250px]">
+                                                                MP ID: #{rawMpId}
+                                                            </span>
+                                                        ) : null;
+                                                    })()}
+                                                </div>
+                                            </td>
+                                            <td className="py-3 px-4">
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs font-semibold text-slate-700">{inv.customer_name}</span>
+                                                    <span className="text-[10px] text-slate-400 font-mono">{inv.customer_document}</span>
+                                                </div>
+                                            </td>
+                                            <td className="py-3 px-4 text-xs text-slate-600 whitespace-nowrap">
+                                                {new Date(inv.created_at).toLocaleDateString('pt-BR')}
+                                            </td>
+                                            <td className="py-3 px-4 text-xs font-semibold text-slate-700 whitespace-nowrap">
+                                                {inv.paid_at ? new Date(inv.paid_at).toLocaleDateString('pt-BR') : <span className="text-slate-400 font-normal">—</span>}
+                                            </td>
+                                            <td className="py-3 px-4 text-right whitespace-nowrap">
+                                                <span className="text-sm font-bold text-emerald-600">
+                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(inv.total_amount - (inv.discount_amount || 0) + (inv.shipping_amount || 0) + (inv.other_additions_amount || 0))}
+                                                </span>
+                                            </td>
+                                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                                                <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${inv.status === 'PAID' || inv.gateway_status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${inv.status === 'PAID' || inv.gateway_status === 'approved' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+                                                    {inv.status === 'PAID' || inv.gateway_status === 'approved' ? 'Faturado' : 'Pendente'}
+                                                </div>
+                                            </td>
+                                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                                                <div className="flex items-center justify-center gap-1" onClick={e => e.stopPropagation()}>
+                                                    <button
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            if (checkingInvoiceId === inv.id) return;
+                                                            const rawMpId = inv.gateway_payment_id || inv.payment_gateway_id;
+                                                            setCheckingInvoiceId(inv.id);
+                                                            try {
+                                                                const res = await PaymentService.checkPaymentStatus({
+                                                                    itemType: 'INVOICE',
+                                                                    itemId: inv.id,
+                                                                    gatewayPaymentId: rawMpId
+                                                                });
+                                                                await loadInvoices();
+                                                                if (res.isPaid) {
+                                                                    showAlert(`A Fatura ${inv.display_id} consta como PAGA no Mercado Pago.`, 'success');
+                                                                } else {
+                                                                    showAlert(`A Fatura ${inv.display_id} consta como ${res.status === 'pending' ? 'Pendente' : (res.status || 'pendente')} no Mercado Pago.`, 'info');
+                                                                }
+                                                            } catch (err: any) {
+                                                                showAlert(`Erro ao consultar Mercado Pago: ${err.message}`, 'error');
+                                                            } finally {
+                                                                setCheckingInvoiceId(null);
+                                                            }
+                                                        }}
+                                                        disabled={checkingInvoiceId === inv.id}
+                                                        className="p-1 text-sky-600 hover:text-sky-800 hover:bg-sky-50 rounded transition-colors disabled:opacity-50"
+                                                        title="Consultar e atualizar status no Mercado Pago"
+                                                    >
+                                                        {checkingInvoiceId === inv.id ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleOpenInvoiceDetail(inv)}
+                                                        className="p-1 text-slate-400 hover:text-primary-700 hover:bg-primary-50 rounded transition-colors"
+                                                        title="Ver Detalhes da Fatura"
+                                                    >
+                                                        <Eye size={14} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            flushSync(() => {
+                                                                setPrintItem({ ...inv, type: 'INVOICE' });
+                                                                setIsPrintModalOpen(true);
+                                                            });
+                                                            setTimeout(() => executePrint(false), 100);
+                                                        }}
+                                                        className="p-1 text-slate-400 hover:text-primary-700 hover:bg-primary-50 rounded transition-colors"
+                                                        title="Imprimir Recibo PDF"
+                                                    >
+                                                        <Printer size={14} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    {totalInvoicePages > 1 && (
+                        <div className="p-4 border-t border-slate-100 bg-white">
+                            <Pagination
+                                currentPage={currentInvoicePage}
+                                totalPages={totalInvoicePages}
+                                onPageChange={(page) => {
+                                    setIsPageChanging(true);
+                                    setCurrentInvoicePage(page);
+                                    setTimeout(() => {
+                                        setIsPageChanging(false);
+                                        const container = document.querySelector('.overflow-auto.custom-scrollbar');
+                                        if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
+                                    }, 200);
+                                }}
+                            />
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* MOBILE FAB FOR BATCH ACTIONS */}
             {selectedIds.length > 0 && (
@@ -1969,7 +2565,7 @@ ${container.innerHTML}
                                                         <button
                                                             type="button"
                                                             onClick={() => {
-                                                                const isOrderOrQuote = ['ORDER', 'QUOTE'].includes(selectedItem.type);
+                                                                const isOrderOrQuote = ['ORDER', 'QUOTE', 'INVOICE'].includes(selectedItem.type);
                                                                 const checkoutUrl = isOrderOrQuote 
                                                                     ? `${window.location.origin}/#/checkout/${selectedItem.type.toLowerCase()}/${selectedItem.original?.id || selectedItem.id}`
                                                                     : (selectedItem.original?.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl);
@@ -2013,7 +2609,7 @@ ${container.innerHTML}
                                                         type="button"
                                                         onClick={() => {
                                                             const companyName = tenant?.name || 'NEXUS';
-                                                            const isOrderOrQuote = ['ORDER', 'QUOTE'].includes(selectedItem.type);
+                                                            const isOrderOrQuote = ['ORDER', 'QUOTE', 'INVOICE'].includes(selectedItem.type);
                                                             const checkoutUrl = isOrderOrQuote 
                                                                 ? `${window.location.origin}/#/checkout/${selectedItem.type.toLowerCase()}/${selectedItem.original?.id || selectedItem.id}`
                                                                 : (selectedItem.original?.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl);
@@ -2282,26 +2878,26 @@ ${container.innerHTML}
                                 {detailTab === 'financial' && (
                                     <div className="space-y-4">
                                         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-                                            {getItemNetValue(selectedItem) < selectedItem.value ? (
+                                            {selectedItem.discountAmount > 0 ? (
                                                 <>
                                                     <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mb-1">Valor Bruto</p>
                                                     <p className="text-xl font-medium tracking-tight text-slate-400 line-through mb-2">
-                                                        {formatCurrency(selectedItem.value)}
+                                                        {formatCurrency(selectedItem.grossValue)}
                                                     </p>
                                                     
                                                     <div className="flex justify-between items-center mb-2">
                                                         <p className="text-[10px] font-semibold text-rose-500 uppercase tracking-widest">Desconto Aplicado</p>
                                                         <p className="text-xs font-medium text-rose-500">
-                                                            {selectedItem.original.discountType === 'percent' && selectedItem.original.discount > 0
-                                                                ? `- ${selectedItem.original.discount}%`
-                                                                : `- ${formatCurrency(selectedItem.value - getItemNetValue(selectedItem))}`}
+                                                            {selectedItem.billingDiscountType === 'percent' && selectedItem.billingDiscount > 0
+                                                                ? `- ${selectedItem.billingDiscount}%`
+                                                                : `- ${formatCurrency(selectedItem.discountAmount)}`}
                                                         </p>
                                                     </div>
 
                                                     <div className="border-t border-slate-100 pt-2 pb-2">
                                                         <p className="text-[10px] font-medium text-emerald-600 uppercase tracking-widest mb-1">Valor Líquido</p>
                                                         <p className="text-2xl font-semibold tracking-tight text-emerald-600">
-                                                            {formatCurrency(getItemNetValue(selectedItem))}
+                                                            {formatCurrency(selectedItem.netValue)}
                                                         </p>
                                                     </div>
                                                 </>
@@ -2309,7 +2905,7 @@ ${container.innerHTML}
                                                 <>
                                                     <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mb-1">Valor Total</p>
                                                     <p className="text-2xl font-semibold tracking-tight text-slate-900 border-b border-slate-100 pb-2 mb-2">
-                                                        {formatCurrency(selectedItem.value)}
+                                                        {formatCurrency(selectedItem.netValue || selectedItem.value)}
                                                     </p>
                                                 </>
                                             )}
@@ -2388,6 +2984,7 @@ ${container.innerHTML}
                                                                                         ),
                                                                                     }
                                                                                 }) : null);
+                                                                                setOptimisticDates(prev => ({ ...prev, [selectedItem.id]: editingDueDate }));
                                                                                 setEditingDueDate('');
                                                                                 await onRefresh();
                                                                             } catch (err: any) {
@@ -2632,28 +3229,28 @@ ${container.innerHTML}
             {/* ── MODAL DE FATURAMENTO (Padrão OS Big Tech) ── */}
             {isInvoiceModalOpen && createPortal(
                 <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in" onClick={() => setIsInvoiceModalOpen(false)}>
-                    <div className="bg-white rounded-xl w-full max-w-4xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200" onClick={e => e.stopPropagation()}>
+                    <div className="bg-white rounded-xl w-full max-w-6xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200" onClick={e => e.stopPropagation()}>
                         
                         {/* HEADER - Padrão OS */}
-                        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center shrink-0 bg-white">
+                        <div className="px-6 py-5 bg-white border-b border-slate-200 flex justify-between items-center shrink-0">
                             <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-lg flex items-center justify-center border bg-slate-50 border-slate-200 text-slate-400">
-                                    <ShieldCheck size={20} />
+                                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500 shadow-sm">
+                                    <Layers size={20} />
                                 </div>
                                 <div>
                                     <div className="flex items-center gap-3">
-                                        <h2 className="text-base font-semibold text-slate-900 font-poppins">Liquidação Financeira</h2>
-                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-widest bg-emerald-50 text-emerald-600 border border-emerald-200">
-                                            Checkout
+                                        <h2 className="text-lg font-semibold text-slate-800 font-poppins tracking-wide">Faturamento e Liquidação</h2>
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest bg-emerald-50 text-emerald-600 border border-emerald-200">
+                                            Módulo Financeiro
                                         </span>
                                     </div>
-                                    <p className="text-xs text-slate-500 font-medium mt-0.5">
-                                        {selectedIds.length === 1 ? (selectedItem ? getDocLabel(selectedItem) : 'Transação') : `${selectedIds.length} Documentos selecionados`} • {selectedIds.length === 1 ? selectedItem?.customerName : 'Múltiplos clientes'}
+                                    <p className="text-xs text-slate-500 font-medium mt-1">
+                                        {selectedIds.length === 1 ? '1 Documento selecionado' : `${selectedIds.length} Documentos selecionados`} • Cliente: {selectedIds.length === 1 ? selectedItem?.customerName : filteredItems.find(i => i.id === selectedIds[0])?.customerName}
                                     </p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
-                                <button onClick={() => setIsInvoiceModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
+                                <button onClick={() => setIsInvoiceModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-800 transition-all rounded-lg hover:bg-slate-100">
                                     <X size={20} />
                                 </button>
                             </div>
@@ -2661,92 +3258,50 @@ ${container.innerHTML}
 
                         {/* BODY - SCROLLABLE BG-SLATE-50 */}
                         <div className="flex-1 overflow-y-auto bg-slate-50 p-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
+                            <div className="max-w-6xl mx-auto space-y-6">
                                 
-                                {/* Lado Esquerdo - Detalhes e Resumo */}
-                                <div className="space-y-6">
-                                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all">
-                                        <h3 className="text-sm font-medium text-slate-800 mb-4 flex items-center gap-2">
-                                            <Layers size={16} className="text-slate-400"/> Documentos a Faturar
-                                        </h3>
-                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100">
-                                            <div>
-                                                <p className="text-sm font-medium text-slate-700">{selectedIds.length === 1 ? (selectedItem ? getDocLabel(selectedItem) : '—') : `${selectedIds.length} Itens Lançados`}</p>
-                                                <p className="text-xs text-slate-500 font-medium mt-0.5">{selectedIds.length === 1 ? selectedItem?.customerName : 'Múltiplos clientes'}</p>
-                                            </div>
-                                            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm text-slate-400">
-                                                <Wallet size={16} />
-                                            </div>
+                                {/* Lado Esquerdo - Composição da Fatura */}
+                                <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all">
+                                    <h3 className="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-wide">
+                                        <Layers size={16} className="text-slate-400"/> Composição da Fatura
+                                    </h3>
+                                    <div className="border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+                                        <div className="max-h-[220px] overflow-y-auto bg-slate-50">
+                                            <table className="w-full text-left text-xs">
+                                                <thead className="bg-slate-100 sticky top-0 text-slate-500 shadow-sm z-10">
+                                                    <tr>
+                                                        <th className="px-3 py-2.5 font-medium whitespace-nowrap">Documento</th>
+                                                        <th className="px-3 py-2.5 font-medium whitespace-nowrap">Data de Conclusão ou Aprovação</th>
+                                                        <th className="px-3 py-2.5 font-medium text-right whitespace-nowrap">Valor</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100">
+                                                    {selectedIds.map(id => {
+                                                        const it = filteredItems.find(i => i.id === id);
+                                                        const dateStr = it?.original?.completion_date || it?.original?.approved_at || it?.original?.created_at;
+                                                        const dateFmt = dateStr ? new Date(dateStr).toLocaleDateString('pt-BR') : '—';
+                                                        return (
+                                                            <tr key={id} className="bg-white hover:bg-slate-50 transition-colors group" title={it?.original?.problem_description || it?.original?.description || 'Sem descrição'}>
+                                                                <td className="px-3 py-3 font-medium text-slate-700 cursor-help underline decoration-dashed decoration-slate-300 underline-offset-4">{it ? getDocLabel(it) : '—'}</td>
+                                                                <td className="px-3 py-3 text-slate-500">{dateFmt}</td>
+                                                                <td className="px-3 py-3 font-semibold text-slate-700 text-right">{formatCurrency(it?.value || 0)}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
                                         </div>
-                                    </div>
-
-                                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all">
-                                        <h3 className="text-sm font-medium text-slate-800 mb-4 flex items-center gap-2">
-                                            <DollarSign size={16} className="text-slate-400"/> Resumo Financeiro
-                                        </h3>
-                                        <div className="space-y-3">
-                                            <div className="flex justify-between items-center text-sm">
-                                                <span className="text-slate-500 font-medium">Subtotal</span>
-                                                <span className="font-medium text-slate-700">{formatCurrency(selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal)}</span>
-                                            </div>
-                                            {(() => {
-                                                const base = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal;
-                                                const dv = billingDiscountType === 'percent' ? (base * billingDiscount / 100) : billingDiscount;
-                                                return dv > 0 ? (
-                                                    <div className="flex justify-between items-center text-sm">
-                                                        <span className="text-rose-500 font-medium tracking-wide">Desconto</span>
-                                                        <span className="font-medium text-rose-500">- {formatCurrency(dv)}</span>
-                                                    </div>
-                                                ) : null;
-                                            })()}
-                                            <div className="pt-4 mt-3 border-t border-slate-100 flex justify-between items-center">
-                                                <span className="text-xs font-semibold text-slate-800 uppercase tracking-widest">Total a Receber</span>
-                                                <span className="text-2xl font-semibold text-emerald-600 tracking-tight">{formatCurrency(Math.max(0, (() => { const base = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal; const dv = billingDiscountType === 'percent' ? (base * billingDiscount / 100) : billingDiscount; return base - dv; })()))}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all">
-                                        <h3 className="text-sm font-medium text-slate-800 mb-4 flex items-center gap-2">
-                                            <FileText size={16} className="text-slate-400"/> Observações e Comprovante
-                                        </h3>
-                                        <textarea
-                                            className="w-full min-h-[100px] bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition-all resize-none placeholder:text-slate-400 mb-4"
-                                            placeholder="Ex: Nº do comprovante transacional, código Pix, NSU da maquineta..."
-                                            value={billingNotes}
-                                            onChange={e => setBillingNotes(e.target.value)}
-                                        />
-                                        
-                                        <div className="flex flex-col gap-2">
-                                            <label className="text-xs font-medium text-slate-600 flex items-center gap-1.5 cursor-pointer">
-                                                <Paperclip size={14} className="text-slate-400"/>
-                                                Anexar Comprovante (Imagem/PDF)
-                                                <input 
-                                                    type="file" 
-                                                    className="hidden" 
-                                                    accept="image/*,application/pdf"
-                                                    onChange={e => {
-                                                        if (e.target.files && e.target.files.length > 0) {
-                                                            setReceiptFile(e.target.files[0]);
-                                                        }
-                                                    }}
-                                                />
-                                            </label>
-                                            {receiptFile && (
-                                                <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-                                                    <span className="text-xs font-medium text-slate-700 truncate max-w-[200px]">{receiptFile.name}</span>
-                                                    <button onClick={() => setReceiptFile(null)} className="text-slate-400 hover:text-rose-500 transition-colors">
-                                                        <X size={14} />
-                                                    </button>
-                                                </div>
-                                            )}
+                                        <div className="bg-white p-3 border-t border-slate-100 flex justify-between items-center text-xs">
+                                            <span className="font-medium text-slate-500">Total Itens ({selectedIds.length})</span>
+                                            <span className="font-semibold text-slate-800">{formatCurrency(selectedTotal)}</span>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Lado Direito - Pagamento e Parcelas */}
-                                <div className="space-y-6">
-                                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all">
+                                {/* ROW 2: Pagamento e Desconto */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Forma de Pagamento */}
+                                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all flex flex-col">
                                         <h3 className="text-sm font-medium text-slate-800 mb-4 flex items-center gap-2">
                                             <CreditCard size={16} className="text-slate-400"/> Forma de Pagamento
                                         </h3>
@@ -2769,8 +3324,6 @@ ${container.innerHTML}
                                         {paymentMethod === 'Cartão Crédito' && (
                                             <div className="mt-5 pt-5 border-t border-slate-100 animate-in fade-in">
                                                 <h4 className="text-[10px] font-semibold tracking-widest uppercase text-slate-400 mb-3">Opções de Parcelamento</h4>
-                                                
-                                                {/* Botões Rápidos 1 a 12 */}
                                                 <div className="grid grid-cols-6 gap-2 mb-3">
                                                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
                                                         <button
@@ -2782,16 +3335,12 @@ ${container.innerHTML}
                                                         </button>
                                                     ))}
                                                 </div>
-                                                
-                                                {/* Opção Manual e Resumo */}
                                                 <div className="p-3 bg-slate-50 rounded-lg flex flex-col md:flex-row items-center justify-between gap-3 border border-slate-100">
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Outro valor:</span>
                                                         <div className="relative">
                                                             <input
-                                                                type="number"
-                                                                min={1}
-                                                                max={999}
+                                                                type="number" min={1} max={999}
                                                                 value={installments || ''}
                                                                 onChange={e => {
                                                                     const val = parseInt(e.target.value);
@@ -2802,7 +3351,6 @@ ${container.innerHTML}
                                                             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-slate-400 pointer-events-none">x</span>
                                                         </div>
                                                     </div>
-                                                    
                                                     <div className="flex flex-col items-end">
                                                         <span className="text-[9px] font-medium text-slate-400 uppercase tracking-widest leading-none mb-1">Valor da Parcela</span>
                                                         <span className="text-sm font-semibold text-slate-800">
@@ -2822,7 +3370,6 @@ ${container.innerHTML}
                                         {paymentMethod === 'Boleto' && (
                                             <div className="mt-5 pt-5 border-t border-slate-100 animate-in fade-in">
                                                 <h4 className="text-[10px] font-semibold tracking-widest uppercase text-slate-400 mb-3">Vencimento do Boleto</h4>
-                                                
                                                 <div className="p-3 bg-slate-50 rounded-lg flex flex-col md:flex-row items-center justify-between gap-3 border border-slate-100">
                                                     <div className="flex items-center gap-2 w-full">
                                                         <Calendar size={16} className="text-slate-400 shrink-0" />
@@ -2838,63 +3385,136 @@ ${container.innerHTML}
                                         )}
                                     </div>
 
-                                    {/* Desconto Extra */}
-                                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all">
+                                    {/* Ajustes Financeiros */}
+                                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all flex flex-col h-full">
                                         <h3 className="text-sm font-medium text-slate-800 mb-4 flex items-center gap-2">
-                                            <Tag size={16} className="text-slate-400"/> Aplicar Desconto Extra
+                                            <Tag size={16} className="text-slate-400"/> Ajustes Financeiros
                                         </h3>
                                         {can('financial', 'discounts') ? (
-                                            <div className="space-y-3 pt-3 border-t border-slate-100">
-                                                <div className="flex gap-2">
+                                            <div className="space-y-3 pt-3 border-t border-slate-100 flex-1 flex flex-col justify-center">
+                                                {/* Desconto */}
+                                                <div className="flex gap-2 w-full">
                                                     <div className="flex rounded-lg overflow-hidden border border-slate-200 shrink-0">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setBillingDiscountType('fixed')}
-                                                            className={`px-3 py-2 text-[10px] font-semibold transition-all ${billingDiscountType === 'fixed' ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
-                                                        >
-                                                            R$
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setBillingDiscountType('percent')}
-                                                            className={`px-3 py-2 text-[10px] font-semibold transition-all ${billingDiscountType === 'percent' ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
-                                                        >
-                                                            %
-                                                        </button>
+                                                        <button type="button" onClick={() => setBillingDiscountType('fixed')} className={`px-3 py-1.5 text-[10px] font-semibold transition-all ${billingDiscountType === 'fixed' ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>R$</button>
+                                                        <button type="button" onClick={() => setBillingDiscountType('percent')} className={`px-3 py-1.5 text-[10px] font-semibold transition-all ${billingDiscountType === 'percent' ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>%</button>
                                                     </div>
                                                     <div className="relative flex-1">
-                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
-                                                            {billingDiscountType === 'percent' ? '%' : 'R$'}
-                                                        </span>
-                                                        <input
-                                                            type="number"
-                                                            min="0"
-                                                            max={billingDiscountType === 'percent' ? 100 : undefined}
-                                                            step={billingDiscountType === 'percent' ? "1" : "0.01"}
-                                                            value={billingDiscount || ''}
-                                                            onChange={(e) => setBillingDiscount(Number(e.target.value))}
-                                                            className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-slate-800/10 transition-all"
-                                                            placeholder="0.00"
-                                                        />
+                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">{billingDiscountType === 'percent' ? '%' : 'R$'}</span>
+                                                        <input type="number" min="0" max={billingDiscountType === 'percent' ? 100 : undefined} step={billingDiscountType === 'percent' ? "1" : "0.01"} value={billingDiscount || ''} onChange={(e) => setBillingDiscount(Number(e.target.value))} className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-slate-800/10 transition-all" placeholder="Desconto" />
                                                     </div>
                                                 </div>
-                                                {billingDiscount > 0 && (
-                                                    <p className="text-[10px] font-medium text-rose-500 bg-rose-50 px-2 py-1.5 rounded-md mt-2 flex items-center justify-between">
-                                                        <span>Desconto concedido:</span>
-                                                        <span className="font-bold">
-                                                            - {billingDiscountType === 'percent'
-                                                                ? formatCurrency((selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal) * billingDiscount / 100)
-                                                                : formatCurrency(billingDiscount)}
-                                                        </span>
-                                                    </p>
-                                                )}
+                                                
+                                                {/* Frete */}
+                                                <div className="flex gap-2 w-full">
+                                                    <div className="flex rounded-lg overflow-hidden border border-slate-200 shrink-0 w-[68px] justify-center bg-slate-50 items-center">
+                                                        <span className="text-[10px] font-semibold text-slate-500">Frete</span>
+                                                    </div>
+                                                    <div className="relative flex-1">
+                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">R$</span>
+                                                        <input type="number" min="0" step="0.01" value={billingShipping || ''} onChange={(e) => setBillingShipping(Number(e.target.value))} className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-slate-800/10 transition-all" placeholder="0.00" />
+                                                    </div>
+                                                </div>
+
+                                                {/* Outros Custos */}
+                                                <div className="flex gap-2 w-full">
+                                                    <div className="flex rounded-lg overflow-hidden border border-slate-200 shrink-0 w-[68px] justify-center bg-slate-50 items-center">
+                                                        <span className="text-[10px] font-semibold text-slate-500">Outros</span>
+                                                    </div>
+                                                    <div className="relative flex-1">
+                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">R$</span>
+                                                        <input type="number" min="0" step="0.01" value={billingOtherAdditions || ''} onChange={(e) => setBillingOtherAdditions(Number(e.target.value))} className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-slate-800/10 transition-all" placeholder="0.00" />
+                                                    </div>
+                                                </div>
                                             </div>
                                         ) : (
                                             <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-start gap-2 opacity-50">
                                                 <ShieldCheck size={14} className="text-slate-400 shrink-0 mt-0.5" />
-                                                <p className="text-[10px] text-slate-500 leading-relaxed">Você não tem permissão para aplicar descontos.</p>
+                                                <p className="text-[10px] text-slate-500 leading-relaxed">Você não tem permissão para ajustes.</p>
                                             </div>
                                         )}
+                                    </div>
+                                </div>
+
+                                {/* ROW 3: Resumo Financeiro (Full width) */}
+                                <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm transition-all">
+                                    <h3 className="text-sm font-medium text-slate-800 mb-4 flex items-center gap-2">
+                                        <DollarSign size={16} className="text-slate-400"/> Resumo Financeiro
+                                    </h3>
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-slate-500 font-medium tracking-wide">Subtotal</span>
+                                            <span className="font-semibold text-slate-700">{formatCurrency(selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal)}</span>
+                                        </div>
+                                        {(() => {
+                                            const base = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal;
+                                            const dv = billingDiscountType === 'percent' ? (base * billingDiscount / 100) : billingDiscount;
+                                            return (
+                                                <>
+                                                    {dv > 0 && (
+                                                        <div className="flex justify-between items-center text-sm">
+                                                            <span className="text-rose-500 font-medium tracking-wide">Desconto</span>
+                                                            <span className="font-semibold text-rose-500">- {formatCurrency(dv)}</span>
+                                                        </div>
+                                                    )}
+                                                    {billingShipping > 0 && (
+                                                        <div className="flex justify-between items-center text-sm">
+                                                            <span className="text-slate-500 font-medium tracking-wide">Frete</span>
+                                                            <span className="font-semibold text-slate-700">+ {formatCurrency(billingShipping)}</span>
+                                                        </div>
+                                                    )}
+                                                    {billingOtherAdditions > 0 && (
+                                                        <div className="flex justify-between items-center text-sm">
+                                                            <span className="text-slate-500 font-medium tracking-wide">Outros Acréscimos</span>
+                                                            <span className="font-semibold text-slate-700">+ {formatCurrency(billingOtherAdditions)}</span>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
+                                        <div className="pt-4 mt-4 border-t border-slate-100 flex justify-between items-end">
+                                            <span className="text-xs font-semibold text-slate-800 uppercase tracking-widest">Total a Receber</span>
+                                            <span className="text-xl font-bold text-emerald-600 tracking-tight">{formatCurrency(Math.max(0, (() => { const base = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal; const dv = billingDiscountType === 'percent' ? (base * billingDiscount / 100) : billingDiscount; return base - dv + billingShipping + billingOtherAdditions; })()))}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {/* ROW 4: Observações e Comprovante (Full width) */}
+                                <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all">
+                                    <h3 className="text-sm font-medium text-slate-800 mb-4 flex items-center gap-2">
+                                        <FileText size={16} className="text-slate-400"/> Observações e Comprovante
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <textarea
+                                            className="w-full min-h-[120px] bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition-all resize-none placeholder:text-slate-400"
+                                            placeholder="Ex: Nº do comprovante transacional, código Pix, NSU da maquineta..."
+                                            value={billingNotes}
+                                            onChange={e => setBillingNotes(e.target.value)}
+                                        />
+                                        
+                                        <div className="flex flex-col gap-2 justify-center">
+                                            <label className="text-sm font-medium text-slate-600 flex flex-col items-center justify-center gap-3 cursor-pointer border-2 border-dashed border-slate-200 rounded-xl p-6 hover:border-slate-400 hover:bg-slate-50 transition-all min-h-[120px]">
+                                                <Paperclip size={24} className="text-slate-400"/>
+                                                <span>Anexar Comprovante (Imagem/PDF)</span>
+                                                <input 
+                                                    type="file" 
+                                                    className="hidden" 
+                                                    accept="image/*,application/pdf"
+                                                    onChange={e => {
+                                                        if (e.target.files && e.target.files.length > 0) {
+                                                            setReceiptFile(e.target.files[0]);
+                                                        }
+                                                    }}
+                                                />
+                                            </label>
+                                            {receiptFile && (
+                                                <div className="flex items-center justify-between bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 mt-2 shadow-sm">
+                                                    <span className="text-xs font-medium text-white truncate max-w-[200px]">{receiptFile.name}</span>
+                                                    <button onClick={() => setReceiptFile(null)} className="text-slate-400 hover:text-rose-400 transition-colors">
+                                                        <X size={16} />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -2952,6 +3572,25 @@ ${container.innerHTML}
 
                         {/* ─── Conteúdo do Recibo FORMAL SAAS (imprimível) — BASEADO NA O.S E ORÇAMENTO ─── */}
                         <div id="print-container" className="w-full">
+                            {printItem.type === 'INVOICE' ? (
+                                <div id="printable-receipt" ref={printRef} className="print:w-full w-[210mm] mx-auto">
+                                    <InvoiceReceiptTemplate 
+                                        invoice={printItem} 
+                                        invoiceItems={invoiceItems} 
+                                        rawItems={[...orders, ...quotes]} 
+                                        customers={customers}
+                                        tenantInfo={{
+                                            name: tenant?.company_name || tenant?.trading_name || tenant?.name || 'Sua Empresa',
+                                            document: tenant?.cnpj || tenant?.document,
+                                            phone: tenant?.phone,
+                                            email: tenant?.admin_email || tenant?.email,
+                                            website: tenant?.website,
+                                            address: (tenant?.address || tenant?.street) ? `${tenant.street || tenant.address}${tenant.number ? ', ' + tenant.number : ''}${tenant.neighborhood ? ' - ' + tenant.neighborhood : ''}${tenant.city ? ', ' + tenant.city : ''}${tenant.state ? '/' + tenant.state : ''}` : undefined,
+                                            logoUrl: tenant?.logo_url || tenant?.logoUrl
+                                        }} 
+                                    />
+                                </div>
+                            ) : (
                             <div id="printable-receipt" ref={printRef} className="bg-white text-[10px] leading-tight font-poppins p-6 print:p-0 print:break-inside-avoid min-h-[1056px] flex flex-col relative w-[210mm] mx-auto print:w-full" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
                             {/* Marca D'Água (Status) */}
                             <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.03] pointer-events-none select-none text-[8rem] font-semibold uppercase -rotate-45 tracking-widest whitespace-nowrap z-0`}>
@@ -3106,21 +3745,6 @@ ${container.innerHTML}
                                         </table>
                                         <div className="bg-slate-50 border-t border-slate-200 divide-y divide-slate-100">
                                             {(() => {
-                                                const grossValue = printItem?.value || 0;
-                                                const storedDisc = Number(printItem?.billingDiscount ?? printItem?.original?.discount ?? 0);
-                                                const storedDiscType = printItem?.billingDiscountType ?? printItem?.original?.discountType ?? 'fixed';
-                                                
-                                                let discountAmount = 0;
-                                                let discLabel = '';
-
-                                                if (storedDisc > 0) {
-                                                    if (storedDiscType === 'percent') {
-                                                        discountAmount = grossValue * (storedDisc / 100);
-                                                        discLabel = `(${storedDisc}%)`;
-                                                    } else {
-                                                        discountAmount = storedDisc;
-                                                    }
-                                                }
 
                                                 const netValue = Math.max(0, grossValue - discountAmount);
                                                 const hasDiscount = discountAmount > 0.01;
@@ -3186,7 +3810,8 @@ ${container.innerHTML}
                                     </div>
                                 </div>
                             </div>
-                            </div>{/* fecha #printable-receipt */}
+                            </div>
+                            )}
 
                             {/* Página 2: Comprovante Anexo (dentro do print-container) */}
                             {(printItem.original?.receiptUrl && printWithAttachment) && (
@@ -3298,6 +3923,378 @@ ${container.innerHTML}
                 />
             )}
 
+            {/* Modal de Detalhes da Fatura Gerada */}
+            {isInvoiceDetailModalOpen && selectedInvoice && createPortal(
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in" onClick={() => setIsInvoiceDetailModalOpen(false)}>
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden border border-slate-200 flex flex-col" onClick={e => e.stopPropagation()}>
+                        
+                        {/* Modal Header */}
+                        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-[#009EE3]/20 flex items-center justify-center border border-[#009EE3]/30">
+                                    <FileText size={20} className="text-[#009EE3]" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-base font-bold text-white tracking-tight">
+                                            Fatura Consolidada {selectedInvoice.display_id}
+                                        </h2>
+                                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                                            selectedInvoice.status === 'PAID' 
+                                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+                                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse'
+                                        }`}>
+                                            {selectedInvoice.status === 'PAID' ? 'Liquidado / Pago' : 'Pendente de Pagamento'}
+                                        </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                        Emitida em {new Date(selectedInvoice.created_at).toLocaleString('pt-BR')}
+                                    </p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setIsInvoiceDetailModalOpen(false)} 
+                                className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-all"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6 bg-slate-50/50">
+                            
+                            {/* Grid 1: Informações Gerais do Cliente e Pagamento */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2">
+                                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block">Dados do Cliente</span>
+                                    <p className="text-sm font-bold text-slate-800">{selectedInvoice.customer_name}</p>
+                                    <p className="text-xs text-slate-500 font-mono">CPF / CNPJ: {selectedInvoice.customer_document || 'Não informado'}</p>
+                                </div>
+
+                                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2">
+                                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block">Forma & Gateway de Pagamento</span>
+                                    <div className="flex flex-col gap-1.5">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm font-bold text-slate-800">
+                                                {(() => {
+                                                    const raw = selectedInvoice.payment_method || 'Mercado Pago';
+                                                    const s = String(raw).toLowerCase();
+                                                    if (s.includes('credit_card') || s.includes('cart') || s.includes('card')) return 'Cartão de Crédito';
+                                                    if (s.includes('pix')) return 'Pix';
+                                                    if (s.includes('ticket') || s.includes('boleto')) return 'Boleto';
+                                                    if (s.includes('cash') || s.includes('dinheiro')) return 'Dinheiro';
+                                                    return raw;
+                                                })()}
+                                            </span>
+                                            {selectedInvoice.status === 'PAID' ? (
+                                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                                    ✓ Pago
+                                                </span>
+                                            ) : (
+                                                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                                                    • Pendente
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {(() => {
+                                            const rawMpId = selectedInvoice.gateway_payment_id || selectedInvoice.payment_gateway_id;
+                                            return rawMpId ? (
+                                                <div className="flex items-center justify-between bg-slate-50 p-2 rounded-xl border border-slate-200 text-xs font-mono">
+                                                    <span className="text-slate-500 font-bold">ID Mercado Pago:</span>
+                                                    <span className="font-extrabold text-[#009EE3] select-all">#{rawMpId}</span>
+                                                </div>
+                                            ) : (
+                                                <p className="text-[11px] text-slate-400 italic">
+                                                    Nenhum ID de Transação Mercado Pago associado ainda.
+                                                </p>
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Grid 2: Itens Agrupados na Fatura */}
+                            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                                <div className="px-4 py-3 bg-slate-100/70 border-b border-slate-200 flex justify-between items-center">
+                                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Itens e Documentos Incluídos no Lote</h3>
+                                    <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
+                                        {invoiceItems.filter(ii => ii.invoice_id === selectedInvoice.id).length} Itens
+                                    </span>
+                                </div>
+                                <div className="divide-y divide-slate-100 overflow-x-auto">
+                                    <table className="w-full text-left border-collapse min-w-[600px]">
+                                        <thead>
+                                            <tr className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                                                <th className="py-2.5 px-4">Documento</th>
+                                                <th className="py-2.5 px-4">Descrição / Título</th>
+                                                <th className="py-2.5 px-4 text-right">Valor Nominal</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {(() => {
+                                                const itemsInInv = invoiceItems.filter(ii => ii.invoice_id === selectedInvoice.id);
+                                                if (itemsInInv.length === 0) {
+                                                    return (
+                                                        <tr>
+                                                            <td colSpan={3} className="py-4 text-center text-xs text-slate-400">
+                                                                Nenhum detalhe de item encontrado.
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                }
+                                                return itemsInInv.map((ii, idx) => {
+                                                    const raw = allItems.find(r => r.id === ii.reference_id);
+                                                    return (
+                                                        <tr key={idx} className="hover:bg-slate-50">
+                                                            <td className="py-3 px-4 font-mono text-xs font-bold text-slate-700">
+                                                                <span className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                                                    {raw ? getDocLabel(raw) : (ii.reference_type === 'QUOTE' ? 'ORÇAMENTO' : 'O.S.')}
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-3 px-4 text-xs text-slate-700 font-medium">
+                                                                {raw?.title || raw?.original?.title || raw?.original?.description || 'Item da Fatura'}
+                                                            </td>
+                                                            <td className="py-3 px-4 text-xs font-bold text-slate-900 text-right">
+                                                                {formatCurrency(ii.amount || raw?.value || 0)}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                });
+                                            })()}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* Resumo Financeiro da Fatura e Ajustes */}
+                            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+                                <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Resumo Financeiro da Cobrança</h3>
+                                    {selectedInvoice.status !== 'PAID' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsEditingInvoiceValues(!isEditingInvoiceValues)}
+                                            className="text-xs text-[#009EE3] hover:underline font-semibold flex items-center gap-1"
+                                        >
+                                            {isEditingInvoiceValues ? 'Cancelar Edição' : '✏️ Editar Desconto / Adicionais'}
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2 text-xs">
+                                        <div className="flex justify-between">
+                                            <span className="text-slate-500 font-medium">Subtotal dos Itens:</span>
+                                            <span className="font-bold text-slate-800">{formatCurrency(selectedInvoice.total_amount)}</span>
+                                        </div>
+                                        
+                                        {/* Desconto */}
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-rose-500 font-medium">Desconto:</span>
+                                            {isEditingInvoiceValues ? (
+                                                <input 
+                                                    type="number"
+                                                    value={editInvoiceDiscount}
+                                                    onChange={e => setEditInvoiceDiscount(parseFloat(e.target.value) || 0)}
+                                                    className="w-28 px-2 py-1 text-xs border border-rose-200 rounded font-mono text-right outline-none focus:ring-1 focus:ring-rose-400"
+                                                />
+                                            ) : (
+                                                <span className="font-bold text-rose-500">- {formatCurrency(selectedInvoice.discount_amount || 0)}</span>
+                                            )}
+                                        </div>
+
+                                        {/* Frete */}
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-slate-500 font-medium">Frete:</span>
+                                            {isEditingInvoiceValues ? (
+                                                <input 
+                                                    type="number"
+                                                    value={editInvoiceShipping}
+                                                    onChange={e => setEditInvoiceShipping(parseFloat(e.target.value) || 0)}
+                                                    className="w-28 px-2 py-1 text-xs border border-slate-200 rounded font-mono text-right outline-none focus:ring-1 focus:ring-blue-400"
+                                                />
+                                            ) : (
+                                                <span className="font-bold text-slate-800">+ {formatCurrency(selectedInvoice.shipping_amount || 0)}</span>
+                                            )}
+                                        </div>
+
+                                        {/* Outros Acréscimos */}
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-slate-500 font-medium">Outros Acréscimos:</span>
+                                            {isEditingInvoiceValues ? (
+                                                <input 
+                                                    type="number"
+                                                    value={editInvoiceAdditions}
+                                                    onChange={e => setEditInvoiceAdditions(parseFloat(e.target.value) || 0)}
+                                                    className="w-28 px-2 py-1 text-xs border border-slate-200 rounded font-mono text-right outline-none focus:ring-1 focus:ring-blue-400"
+                                                />
+                                            ) : (
+                                                <span className="font-bold text-slate-800">+ {formatCurrency(selectedInvoice.other_additions_amount || 0)}</span>
+                                            )}
+                                        </div>
+
+                                        {isEditingInvoiceValues && (
+                                            <div className="pt-2 flex justify-end">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleSaveInvoiceAdjustments}
+                                                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
+                                                >
+                                                    Salvar Alterações
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Total Final */}
+                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-center items-end">
+                                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Valor Total da Fatura</span>
+                                        <span className="text-2xl font-black text-[#009EE3] tracking-tight mt-1">
+                                            {formatCurrency(
+                                                selectedInvoice.total_amount - 
+                                                (isEditingInvoiceValues ? editInvoiceDiscount : (selectedInvoice.discount_amount || 0)) + 
+                                                (isEditingInvoiceValues ? editInvoiceShipping : (selectedInvoice.shipping_amount || 0)) + 
+                                                (isEditingInvoiceValues ? editInvoiceAdditions : (selectedInvoice.other_additions_amount || 0))
+                                            )}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        {/* Modal Footer (Ações) */}
+                        <div className="px-6 py-4 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                            <div className="flex items-center gap-2">
+                                {selectedInvoice.payment_gateway_id && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const finalVal = selectedInvoice.total_amount - (selectedInvoice.discount_amount || 0) + (selectedInvoice.shipping_amount || 0) + (selectedInvoice.other_additions_amount || 0);
+                                            setAuditModalItem({
+                                                id: selectedInvoice.id,
+                                                type: 'INVOICE',
+                                                displayId: selectedInvoice.display_id,
+                                                title: `Fatura ${selectedInvoice.display_id}`,
+                                                amount: finalVal,
+                                                customerName: selectedInvoice.customer_name,
+                                                customerDocument: selectedInvoice.customer_document,
+                                                paymentMethod: selectedInvoice.payment_method,
+                                                gatewayProvider: selectedInvoice.gateway_provider || 'Mercado Pago',
+                                                gatewayPaymentId: selectedInvoice.gateway_payment_id || selectedInvoice.payment_gateway_id,
+                                                gatewayStatus: selectedInvoice.gateway_status,
+                                                paidAt: selectedInvoice.paid_at,
+                                                billingStatus: selectedInvoice.status,
+                                                createdAt: selectedInvoice.created_at,
+                                                original: selectedInvoice
+                                            });
+                                            setIsAuditModalOpen(true);
+                                        }}
+                                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-1.5"
+                                    >
+                                        <ShieldCheck size={15} /> Auditoria Gateway
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="flex items-center gap-2.5">
+                                {/* Botão Abrir / Refaturar Mercado Pago */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const finalVal = selectedInvoice.total_amount - (selectedInvoice.discount_amount || 0) + (selectedInvoice.shipping_amount || 0) + (selectedInvoice.other_additions_amount || 0);
+                                        setMpModalItem({
+                                            type: 'ORDER',
+                                            id: selectedInvoice.id,
+                                            displayId: selectedInvoice.display_id,
+                                            title: `Fatura ${selectedInvoice.display_id}`,
+                                            value: finalVal,
+                                            customerName: selectedInvoice.customer_name,
+                                            customerDocument: selectedInvoice.customer_document,
+                                            gatewayPaymentId: selectedInvoice.payment_gateway_id,
+                                            gatewayStatus: selectedInvoice.status || 'pending',
+                                            billingStatus: selectedInvoice.status || 'PENDING'
+                                        });
+                                        setIsInvoiceDetailModalOpen(false);
+                                        setIsMpModalOpen(true);
+                                    }}
+                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm"
+                                >
+                                    <CreditCard size={15} /> 
+                                    {selectedInvoice.status === 'PAID' ? 'Ver Cobrança Mercado Pago' : 'Gerar / Refaturar Mercado Pago'}
+                                </button>
+
+                                {/* Botão Imprimir Fatura PDF */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        flushSync(() => {
+                                            setPrintItem({ ...selectedInvoice, type: 'INVOICE' });
+                                            setIsPrintModalOpen(true);
+                                        });
+                                        setTimeout(() => executePrint(false), 100);
+                                    }}
+                                    className="px-4 py-2 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm"
+                                >
+                                    <Printer size={15} /> Imprimir Fatura (PDF)
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Modal Cancelar Fatura */}
+            {cancelInvoiceModal.isOpen && cancelInvoiceModal.invoice && createPortal(
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col relative animate-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-slate-100 flex items-start gap-4">
+                            <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center shrink-0 text-rose-600">
+                                <AlertTriangle size={24} />
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-800">Cancelar Fatura</h2>
+                                <p className="text-sm text-slate-500 mt-1">
+                                    Deseja realmente cancelar a fatura <span className="font-bold">{cancelInvoiceModal.invoice.display_id}</span>?
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div className="p-6 bg-slate-50 space-y-3 text-sm text-slate-700">
+                            <p className="font-bold text-slate-800">Consequências desta ação:</p>
+                            <ul className="space-y-2 list-disc pl-5">
+                                <li>O status desta fatura será alterado para <span className="font-bold text-rose-600">CANCELADO</span>.</li>
+                                <li>Se houver uma cobrança pendente no Mercado Pago (Link/Pix/Boleto), ela será ignorada pelo sistema local. (Opcionalmente, você pode cancelá-la manualmente no painel do MP).</li>
+                                <li>As OS e Orçamentos que estavam vinculados a esta fatura voltarão a ficar <span className="font-bold text-amber-600">PENDENTES</span> e disponíveis para serem faturados novamente.</li>
+                            </ul>
+                        </div>
+                        
+                        <div className="p-5 bg-white border-t border-slate-100 flex items-center justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setCancelInvoiceModal({ isOpen: false, invoice: null })}
+                                className="px-4 py-2 font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                            >
+                                Voltar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleCancelInvoice}
+                                disabled={isProcessing}
+                                className="px-4 py-2 font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 rounded-xl transition-colors flex items-center gap-2"
+                            >
+                                {isProcessing ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : null}
+                                Confirmar Cancelamento
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
             <style>{`
                 @keyframes slideInRight {
                     from { transform: translateX(100%); opacity: 0; }
@@ -3305,6 +4302,7 @@ ${container.innerHTML}
                 }
                 .animate-slide-in-right { animation: slideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
                 @media print {
+                    @page { size: A4 portrait !important; margin: 10mm; }
                     .print\\:hidden { visibility: hidden !important; display: none !important; }
                 }
             `}</style>

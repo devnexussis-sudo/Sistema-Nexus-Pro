@@ -300,9 +300,9 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
 
                 {/* Retractable Filters Panel */}
                 {showFilters && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 p-3 bg-white rounded-xl border border-slate-200/80 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3 bg-white rounded-xl border border-slate-200/80 animate-in fade-in slide-in-from-top-2 duration-200">
                         {/* De (Início) */}
-                        <div className="sm:col-span-1 lg:col-span-4 flex flex-col gap-1">
+                        <div className="sm:col-span-1 lg:col-span-1 flex flex-col gap-1">
                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">De (Início)</label>
                             <div className="relative flex items-center bg-slate-50 border border-slate-200 rounded-lg shadow-sm h-9 px-2.5">
                                 <Calendar size={14} className="text-slate-400 shrink-0 mr-2" />
@@ -316,7 +316,7 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
                         </div>
 
                         {/* Até (Fim) */}
-                        <div className="sm:col-span-1 lg:col-span-4 flex flex-col gap-1">
+                        <div className="sm:col-span-1 lg:col-span-1 flex flex-col gap-1">
                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">Até (Fim)</label>
                             <div className="relative flex items-center bg-slate-50 border border-slate-200 rounded-lg shadow-sm h-9 px-2.5">
                                 <Calendar size={14} className="text-slate-400 shrink-0 mr-2" />
@@ -330,22 +330,37 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
                         </div>
 
                         {/* Status Filter */}
-                        <div className="sm:col-span-2 lg:col-span-4 flex flex-col gap-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">Status</label>
-                            <div className="relative h-9 flex items-center bg-slate-50 border border-slate-200 rounded-lg shadow-sm">
-                                <Filter className="absolute left-2.5 text-slate-400 pointer-events-none" size={14} />
-                                <select
-                                    value={statusFilter}
-                                    onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-                                    className="w-full h-full pl-8 pr-7 py-0 text-xs font-bold uppercase tracking-wider text-slate-700 bg-transparent border-none focus:ring-0 outline-none cursor-pointer appearance-none"
-                                >
-                                    <option value="ALL">Todas</option>
-                                    <option value="PENDING">Pendentes</option>
-                                    <option value="PAID">Pagas</option>
-                                    <option value="CANCELLED">Inativas</option>
-                                </select>
-                                <ChevronDown size={14} className="absolute right-2 text-slate-400 pointer-events-none" />
-                            </div>
+                        <div className="sm:col-span-2 lg:col-span-1 flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">Status da Conta</label>
+                            <select
+                                value={statusFilter}
+                                onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                                className="w-full bg-white border border-slate-200 text-xs font-semibold uppercase text-slate-700 outline-none cursor-pointer px-3 py-2 rounded-lg h-9 shadow-sm"
+                            >
+                                <option value="ALL">Todas</option>
+                                <option value="PENDING">Pendentes</option>
+                                <option value="OVERDUE">Atrasadas</option>
+                                <option value="PAID">Pagas</option>
+                                <option value="CANCELLED">Inativas</option>
+                            </select>
+                        </div>
+
+                        {/* Limpar Filtros */}
+                        <div className="sm:col-span-2 lg:col-span-1 flex flex-col justify-end gap-1">
+                            <button
+                                onClick={() => {
+                                    const date = new Date();
+                                    setStartDate(new Date(date.getFullYear(), date.getMonth(), 1).toISOString().split('T')[0]);
+                                    setEndDate(new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split('T')[0]);
+                                    setStatusFilter('ALL');
+                                    setSearchTerm('');
+                                    setCurrentPage(1);
+                                }}
+                                className="h-9 w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all"
+                                title="Limpar todos os filtros"
+                            >
+                                <X size={14} /> Limpar
+                            </button>
                         </div>
                     </div>
                 )}
