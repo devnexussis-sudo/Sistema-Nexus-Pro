@@ -70,9 +70,21 @@ const StablePaymentBrick = React.memo(({
 
 export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp, idProp }) => {
   const params = useParams<{ type?: string; id?: string }>();
-  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
-  const itemType = pathname.includes('/quote/') ? 'QUOTE' : pathname.includes('/invoice/') ? 'INVOICE' : 'ORDER';
-  const itemId = idProp || params.id || '';
+  
+  // Suporte a HashRouter: busca no hash ou no pathname
+  const fullPath = (typeof window !== 'undefined' ? (window.location.hash || window.location.pathname) : '').toLowerCase();
+  
+  const rawType = (typeProp || (params.id ? params.type : '') || '').toLowerCase();
+  let itemType = 'ORDER';
+  if (rawType === 'quote' || rawType === 'orcamento' || fullPath.includes('/quote/') || fullPath.includes('/view-quote/')) {
+    itemType = 'QUOTE';
+  } else if (rawType === 'invoice' || rawType === 'fatura' || fullPath.includes('/invoice/')) {
+    itemType = 'INVOICE';
+  } else if (rawType === 'order' || rawType === 'os' || fullPath.includes('/order/')) {
+    itemType = 'ORDER';
+  }
+
+  const itemId = idProp || params.id || params.type || '';
 
   const [item, setItem] = useState<any>(null);
   const [tenant, setTenant] = useState<any>(null);
@@ -172,80 +184,111 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
         setError(null);
         let fetchedData: any = null;
 
+        if (!itemId) {
+          throw new Error('Identificador do documento não fornecido na URL.');
+        }
+
+        // Busca no tipo primário detectado
         if (itemType === 'ORDER') {
           fetchedData = await DataService.getPublicOrderById(itemId);
-        } else {
+        } else if (itemType === 'QUOTE') {
           fetchedData = await DataService.getPublicQuoteById(itemId);
         }
 
-        // Fallback 1: se não achou e é ORDER, tenta QUOTE e vice-versa (links misturados)
+        // Fallback 1: Tenta Orçamento se não encontrou
         if (!fetchedData) {
-          if (itemType === 'ORDER') fetchedData = await DataService.getPublicQuoteById(itemId);
-          else if (itemType === 'QUOTE') fetchedData = await DataService.getPublicOrderById(itemId);
+          try {
+            fetchedData = await DataService.getPublicQuoteById(itemId);
+          } catch (e) {}
+        }
+
+        // Fallback 2: Tenta Ordem de Serviço se não encontrou
+        if (!fetchedData) {
+          try {
+            fetchedData = await DataService.getPublicOrderById(itemId);
+          } catch (e) {}
         }
 
         // Se achou uma OS ou Orçamento, verifica se ela possui uma Fatura (FAT) gerada com ajustes de valor (Desconto/Frete/Acréscimos)
         if (fetchedData && fetchedData.id) {
-          const refType = itemType === 'QUOTE' ? 'QUOTE' : 'ORDER';
-          const { data: invLink } = await publicSupabase
-            .from('invoice_items')
-            .select('invoice_id, invoices(*)')
-            .eq('reference_type', refType)
-            .eq('reference_id', fetchedData.id)
-            .maybeSingle();
+          try {
+            const refType = itemType === 'QUOTE' ? 'QUOTE' : 'ORDER';
+            const { data: invLink } = await publicSupabase
+              .from('invoice_items')
+              .select('invoice_id, invoices(*)')
+              .eq('reference_type', refType)
+              .eq('reference_id', fetchedData.id)
+              .maybeSingle();
 
-          if (invLink && invLink.invoices) {
-            const inv = invLink.invoices as any;
-            let parsedNotes: any = {};
-            try { parsedNotes = JSON.parse(inv.notes || '{}'); } catch (e) {}
+            if (invLink && invLink.invoices) {
+              const inv = invLink.invoices as any;
+              let parsedNotes: any = {};
+              try { parsedNotes = JSON.parse(inv.notes || '{}'); } catch (e) {}
 
-            const baseAmt = Number(inv.total_amount || 0);
-            const discAmt = Number(inv.discount_amount || 0);
-            const shipAmt = Number(inv.shipping_amount || 0);
-            const addAmt = Number(inv.other_additions_amount || 0);
-            const invNet = Math.max(0, baseAmt - discAmt + shipAmt + addAmt);
+              const baseAmt = Number(inv.total_amount || 0);
+              const discAmt = Number(inv.discount_amount || 0);
+              const shipAmt = Number(inv.shipping_amount || 0);
+              const addAmt = Number(inv.other_additions_amount || 0);
+              const invNet = Math.max(0, baseAmt - discAmt + shipAmt + addAmt);
 
-            fetchedData = {
-              ...fetchedData,
-              invoiceId: inv.id,
-              displayId: inv.display_id || fetchedData.displayId,
-              netTotal: invNet > 0 ? invNet : baseAmt,
-              totalValue: invNet > 0 ? invNet : baseAmt,
-              total_amount: baseAmt,
-              discount_amount: discAmt,
-              shipping_amount: shipAmt,
-              other_additions_amount: addAmt,
-              gatewayPaymentId: inv.gateway_payment_id || inv.payment_gateway_id || fetchedData.gatewayPaymentId,
-              gatewayPixCode: inv.gateway_pix_code || parsedNotes.gateway_pix_code || fetchedData.gatewayPixCode,
-              gatewayTicketUrl: inv.gateway_ticket_url || parsedNotes.gateway_ticket_url || fetchedData.gatewayTicketUrl,
-              gatewayStatus: inv.gateway_status || fetchedData.gatewayStatus,
-              paymentMethod: inv.payment_method || inv.paymentMethod || fetchedData.paymentMethod
-            };
+              fetchedData = {
+                ...fetchedData,
+                invoiceId: inv.id,
+                displayId: inv.display_id || fetchedData.displayId,
+                netTotal: invNet > 0 ? invNet : baseAmt,
+                totalValue: invNet > 0 ? invNet : baseAmt,
+                total_amount: baseAmt,
+                discount_amount: discAmt,
+                shipping_amount: shipAmt,
+                other_additions_amount: addAmt,
+                gatewayPaymentId: inv.gateway_payment_id || inv.payment_gateway_id || fetchedData.gatewayPaymentId,
+                gatewayPixCode: inv.gateway_pix_code || parsedNotes.gateway_pix_code || fetchedData.gatewayPixCode,
+                gatewayTicketUrl: inv.gateway_ticket_url || parsedNotes.gateway_ticket_url || fetchedData.gatewayTicketUrl,
+                gatewayStatus: inv.gateway_status || fetchedData.gatewayStatus,
+                paymentMethod: inv.payment_method || inv.paymentMethod || fetchedData.paymentMethod
+              };
+            }
+          } catch (e) {
+            console.warn('[PublicCheckoutPage] Erro ao buscar vínculo de fatura:', e);
           }
         }
 
-        // Fallback 2: Tenta INVOICES diretamente (Faturas consolidadas)
+        // Fallback 3: Tenta INVOICES diretamente (Faturas consolidadas)
         if (!fetchedData) {
-          const { data: invData } = await publicSupabase.from('invoices').select('*').or(`id.eq.${itemId},display_id.eq.${itemId}`).maybeSingle();
+          let invData: any = null;
+          try {
+            const res = await publicSupabase.from('invoices').select('*').or(`id.eq.${itemId},display_id.eq.${itemId}`).maybeSingle();
+            invData = res.data;
+          } catch (e) {}
+
+          if (!invData) {
+            try {
+              const res = await supabase.from('invoices').select('*').or(`id.eq.${itemId},display_id.eq.${itemId}`).maybeSingle();
+              invData = res.data;
+            } catch (e) {}
+          }
+
           if (invData) {
             let parsedNotes: any = {};
             try { parsedNotes = JSON.parse(invData.notes || '{}'); } catch (e) {}
 
-            const { data: invItems } = await publicSupabase.from('invoice_items').select('*').eq('invoice_id', invData.id);
             let refItems: any[] = [];
-            if (invItems && invItems.length > 0) {
-              const orderIds = invItems.filter((i: any) => i.reference_type === 'ORDER').map((i: any) => i.reference_id);
-              const quoteIds = invItems.filter((i: any) => i.reference_type === 'QUOTE').map((i: any) => i.reference_id);
-              
-              if (orderIds.length > 0) {
-                const { data: orders } = await publicSupabase.from('orders').select('*').in('id', orderIds);
-                if (orders) refItems = [...refItems, ...orders];
+            try {
+              const { data: invItems } = await publicSupabase.from('invoice_items').select('*').eq('invoice_id', invData.id);
+              if (invItems && invItems.length > 0) {
+                const orderIds = invItems.filter((i: any) => i.reference_type === 'ORDER').map((i: any) => i.reference_id);
+                const quoteIds = invItems.filter((i: any) => i.reference_type === 'QUOTE').map((i: any) => i.reference_id);
+                
+                if (orderIds.length > 0) {
+                  const { data: orders } = await publicSupabase.from('orders').select('*').in('id', orderIds);
+                  if (orders) refItems = [...refItems, ...orders];
+                }
+                if (quoteIds.length > 0) {
+                  const { data: quotes } = await publicSupabase.from('quotes').select('*').in('id', quoteIds);
+                  if (quotes) refItems = [...refItems, ...quotes];
+                }
               }
-              if (quoteIds.length > 0) {
-                const { data: quotes } = await publicSupabase.from('quotes').select('*').in('id', quoteIds);
-                if (quotes) refItems = [...refItems, ...quotes];
-              }
-            }
+            } catch (e) {}
 
             let invInst = parsedNotes.mpInstallments || parsedNotes.installments || parsedNotes.max_installments || 0;
             if (!invInst && refItems.length > 0) {

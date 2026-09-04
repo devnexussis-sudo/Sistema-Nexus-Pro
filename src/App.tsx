@@ -37,7 +37,11 @@ const PublicAppWrapper: React.FC<{ type: 'order' | 'quote' }> = ({ type }) => {
 
 const PublicCheckoutWrapper: React.FC = () => {
   const { type, id } = useParams<{ type?: string; id?: string }>();
-  return <PublicCheckoutPage typeProp={(type as any) || 'order'} idProp={id} />;
+  // Se 'id' existir, 'type' é 'order'|'quote'|'invoice' e 'id' é o identificador.
+  // Se 'id' for undefined, o parâmetro 'type' na verdade contém o identificador do documento.
+  const actualId = id || type;
+  const actualType = id ? (type as any) : undefined;
+  return <PublicCheckoutPage typeProp={actualType} idProp={actualId} />;
 };
 
 // Componente Interno que usa o AuthContext
