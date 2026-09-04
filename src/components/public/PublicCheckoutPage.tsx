@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { DataService } from '../../services/dataService';
-import { PaymentService } from '../../services/paymentService';
+import { PaymentService, getMercadoPagoErrorMessage } from '../../services/paymentService';
 import { 
   Building2, ShieldCheck, QrCode, CreditCard, ExternalLink, 
-  Copy, CheckCircle2, RefreshCw, Loader2, AlertCircle, Phone, Mail, MapPin, Share2, DollarSign, Hexagon, Globe
+  Copy, CheckCircle2, RefreshCw, Loader2, AlertCircle, Phone, Mail, MapPin, Share2, DollarSign, Hexagon, Globe, Clock
 } from 'lucide-react';
 import { NexusBranding } from '../ui/NexusBranding';
 import { initMercadoPago, Payment } from '@mercadopago/sdk-react';
@@ -498,20 +498,35 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
       } as any);
 
       if (res.success) {
+        const isApproved = res.status === 'approved' || res.status === 'PAID' || res.status === 'accredited';
+        const isRejected = res.status === 'rejected';
+
+        if (isApproved) {
+          setIsPaidConfirmed(true);
+        } else if (isRejected) {
+          const friendlyMessage = getMercadoPagoErrorMessage(res.statusDetail || res.message || 'cc_rejected_other_reason');
+          setError(friendlyMessage);
+          setGenerating(false);
+          return;
+        }
+
         setPaymentResult({
           paymentId: res.paymentId,
           pixCopiaECola: res.pixCopiaECola,
           qrCodeBase64: res.qrCodeBase64,
           ticketUrl: res.ticketUrl,
           expiresAt: res.expiresAt,
+          currentStatus: res.status,
           methodType: method
         });
       } else {
-        setError(res.message || 'Não foi possível gerar a cobrança no momento.');
+        const friendlyMessage = getMercadoPagoErrorMessage(res.message || (res as any).error);
+        setError(friendlyMessage);
       }
     } catch (err: any) {
       console.error('[PublicCheckoutPage] Error generating charge:', err);
-      setError(err.message || 'Erro ao comunicar com o servidor de pagamentos.');
+      const friendlyMessage = getMercadoPagoErrorMessage(err.message);
+      setError(friendlyMessage);
     } finally {
       setGenerating(false);
     }

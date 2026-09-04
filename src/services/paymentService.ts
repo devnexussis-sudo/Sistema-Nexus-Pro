@@ -289,6 +289,8 @@ export const PaymentService = {
     qrCodeBase64?: string;
     ticketUrl?: string;
     expiresAt?: string;
+    status?: string;
+    statusDetail?: string;
     message?: string;
   }> {
     const tenantId = params.tenantId || getCurrentTenantId() || 'default';
@@ -341,7 +343,9 @@ export const PaymentService = {
         console.warn('[PaymentService] Edge function retornou erro:', edgeData.error);
         return {
           success: false,
-          message: edgeData.error || 'Erro ao processar pagamento pela Edge Function.'
+          status: edgeData.status || 'rejected',
+          statusDetail: edgeData.statusDetail,
+          message: edgeData.error || 'Não foi possível autorizar o pagamento com este cartão.'
         };
       }
     } catch (e: any) {
@@ -841,4 +845,37 @@ export const PaymentService = {
       return { isPaid: false, status: 'error' };
     }
   }
+};
+
+export const getMercadoPagoErrorMessage = (codeOrMessage?: string): string => {
+  if (!codeOrMessage) return 'Transação não autorizada pela operadora do cartão. Tente outro cartão ou forma de pagamento.';
+
+  const clean = String(codeOrMessage).trim();
+
+  const dict: Record<string, string> = {
+    'cc_rejected_bad_filled_card_number': 'Número do cartão incorreto. Verifique os dígitos e tente novamente.',
+    'cc_rejected_bad_filled_date': 'Data de validade do cartão incorreta ou expirada.',
+    'cc_rejected_bad_filled_other': 'Dados do cartão incorretos. Revise os campos e tente novamente.',
+    'cc_rejected_bad_filled_security_code': 'Código de segurança (CVV) incorreto.',
+    'cc_rejected_blacklist': 'O cartão foi recusado por razões de segurança. Tente outro cartão.',
+    'cc_rejected_call_for_authorize': 'Pagamento não autorizado. Ligue para a operadora do seu cartão para autorizar esta compra.',
+    'cc_rejected_card_disabled': 'O cartão está bloqueado ou desativado. Ligue para seu banco ou use outro cartão.',
+    'cc_rejected_card_error': 'Não foi possível processar o pagamento com este cartão. Tente outro cartão.',
+    'cc_rejected_duplicated_payment': 'Pagamento duplicado recente. Tente novamente em alguns instantes.',
+    'cc_rejected_high_risk': 'Pagamento recusado pelo sistema de prevenção de fraude do banco. Tente outro cartão.',
+    'cc_rejected_insufficient_amount': 'Saldo ou limite insuficiente no cartão de crédito.',
+    'cc_rejected_invalid_installments': 'O banco emissor não aceita a quantidade de parcelas selecionada.',
+    'cc_rejected_max_attempts': 'Limite de tentativas excedido para este cartão. Tente mais tarde ou use outro cartão.',
+    'cc_rejected_other_reason': 'Pagamento recusado pelo banco emissor. Tente outro cartão ou fale com seu banco.',
+    'in_process_pending_contingency': 'Pagamento em processamento pelo banco emissor. Aguarde a confirmação.',
+    'in_process_merchant_acquirer': 'Pagamento em análise de segurança pelo Mercado Pago. Aguarde alguns minutos.'
+  };
+
+  if (dict[clean]) return dict[clean];
+
+  for (const [key, val] of Object.entries(dict)) {
+    if (clean.toLowerCase().includes(key.toLowerCase())) return val;
+  }
+
+  return clean;
 };

@@ -364,22 +364,22 @@ serve(async (req) => {
         const rawCode = String(mpData.status_detail || mpData.cause?.[0]?.code || mpData.error || "");
         let friendlyMessage = mpData.cause?.[0]?.description || mpData.cause?.[0]?.message || mpData.message || rawCode || "Transação não autorizada pelo emissor.";
 
-        // Tradução de códigos oficiais do Mercado Pago
+        // Tradução detalhada de códigos oficiais do Mercado Pago
         const translations: Record<string, string> = {
-          "cc_rejected_bad_filled_card_number": "Revise o número do cartão.",
-          "cc_rejected_bad_filled_date": "Revise a data de validade do cartão.",
-          "cc_rejected_bad_filled_other": "Revise os dados informados do cartão.",
-          "cc_rejected_bad_filled_security_code": "Revise o código de segurança (CVV).",
-          "cc_rejected_blacklist": "Não pudemos processar seu pagamento. O cartão foi recusado por segurança.",
-          "cc_rejected_call_for_authorize": "Você deve ligar para o emissor do cartão para autorizar o pagamento.",
-          "cc_rejected_card_disabled": "Ligue para a operadora do cartão para ativá-lo ou use outro meio de pagamento.",
-          "cc_rejected_card_error": "Não conseguimos processar o pagamento com este cartão.",
-          "cc_rejected_duplicated_payment": "Você já efetuou um pagamento idêntico recentemente. Tente novamente mais tarde.",
-          "cc_rejected_high_risk": "Seu pagamento foi recusado pelo sistema antifraude. Tente outro cartão ou forma de pagamento.",
-          "cc_rejected_insufficient_amount": "O cartão não possui limite ou saldo insuficiente.",
-          "cc_rejected_invalid_installments": "O emissor do cartão não aceita o número de parcelas escolhido.",
-          "cc_rejected_max_attempts": "Você atingiu o limite de tentativas com este cartão.",
-          "cc_rejected_other_reason": "O banco emissor não processou o pagamento."
+          "cc_rejected_bad_filled_card_number": "Número do cartão incorreto. Verifique os dígitos e tente novamente.",
+          "cc_rejected_bad_filled_date": "Data de validade do cartão incorreta ou expirada.",
+          "cc_rejected_bad_filled_other": "Dados do cartão incorretos. Revise os campos e tente novamente.",
+          "cc_rejected_bad_filled_security_code": "Código de segurança (CVV) incorreto.",
+          "cc_rejected_blacklist": "O cartão foi recusado por razões de segurança. Tente outro cartão.",
+          "cc_rejected_call_for_authorize": "Pagamento não autorizado. Ligue para a operadora do seu cartão para autorizar esta compra.",
+          "cc_rejected_card_disabled": "O cartão está bloqueado ou desativado. Ligue para seu banco ou use outro cartão.",
+          "cc_rejected_card_error": "Não foi possível processar o pagamento com este cartão. Tente outro cartão.",
+          "cc_rejected_duplicated_payment": "Pagamento duplicado recente. Tente novamente em alguns instantes.",
+          "cc_rejected_high_risk": "Pagamento recusado pelo sistema de prevenção de fraude do banco. Tente outro cartão.",
+          "cc_rejected_insufficient_amount": "Saldo ou limite insuficiente no cartão de crédito.",
+          "cc_rejected_invalid_installments": "O banco emissor não aceita a quantidade de parcelas selecionada.",
+          "cc_rejected_max_attempts": "Limite de tentativas excedido para este cartão. Tente mais tarde ou use outro cartão.",
+          "cc_rejected_other_reason": "Pagamento recusado pelo banco emissor. Tente outro cartão ou fale com seu banco."
         };
 
         if (translations[rawCode]) {
@@ -387,10 +387,18 @@ serve(async (req) => {
         }
 
         if (mpResponse.status === 401 || mpResponse.status === 403 || String(friendlyMessage).toLowerCase().includes("unauthorized") || mpData.error === "unauthorized" || mpData.blocked_by === "PolicyAgent") {
-          throw new Error(`❌ Bloqueio do Mercado Pago (403/PolicyAgent). Detalhe da API: ${JSON.stringify(mpData)}`);
-        } else {
-          throw new Error(friendlyMessage);
+          friendlyMessage = "❌ Credenciais do Mercado Pago não autorizadas para esta empresa. Verifique as configurações de integração.";
         }
+
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            status: mpData.status || "rejected",
+            statusDetail: mpData.status_detail || rawCode,
+            error: friendlyMessage 
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       } else {
         paymentResult = {
           paymentId: String(mpData.id),
