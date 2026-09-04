@@ -127,28 +127,39 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
     else if (backendMethod.includes('boleto')) forcedMethod = 'boleto';
     else if (backendMethod.includes('cartão') || backendMethod.includes('cartao') || backendMethod.includes('credit') || backendMethod.includes('card')) forcedMethod = 'card_link';
 
-    // Lê parcelas e vencimento do faturamento (form_data ou formData — compatibilidade)
+    // Helper para extrair a quantidade máxima de parcelas permitidas
+    const parseInstVal = (source: any): number | undefined => {
+      if (!source) return undefined;
+      let obj = source;
+      if (typeof source === 'string') {
+        try { obj = JSON.parse(source); } catch (e) { return undefined; }
+      }
+      if (!obj || typeof obj !== 'object') return undefined;
+      const v = obj.mpInstallments || obj.installments || obj.max_installments || obj.maxInstallments;
+      if (v && !isNaN(Number(v)) && Number(v) > 0) return Number(v);
+      return undefined;
+    };
+
+    forcedInstallments = 
+      parseInstVal(item.formData) || 
+      parseInstVal(item.form_data) || 
+      parseInstVal(item.approvalMetadata) || 
+      parseInstVal(item.approval_metadata) || 
+      parseInstVal(item.notes) ||
+      (item.installments ? Number(item.installments) : undefined) ||
+      (item.mpInstallments ? Number(item.mpInstallments) : undefined) ||
+      (item.max_installments ? Number(item.max_installments) : undefined);
+
     const fd = item.formData || item.form_data || {};
-    if (fd.mpInstallments) {
-      forcedInstallments = Number(fd.mpInstallments);
-    }
-    if (fd.mpDueDate) {
-      forcedDueDate = fd.mpDueDate;
+    if (fd.mpDueDate) forcedDueDate = fd.mpDueDate;
+    if (!forcedDueDate) {
+      const am = item.approvalMetadata || item.approval_metadata;
+      if (am?.mpDueDate) forcedDueDate = am.mpDueDate;
     }
 
-    // Fallback: approvalMetadata
-    if (!forcedInstallments && !forcedDueDate) {
-      const am = item.approvalMetadata || item.approval_metadata;
-      if (am) {
-        if (am.mpInstallments) forcedInstallments = Number(am.mpInstallments);
-        if (am.mpDueDate) forcedDueDate = am.mpDueDate;
-      }
-    }
-    
-    console.log('[Checkout Debug] installments parsed:', {
-      formData: fd,
-      approvalMetadata: item.approvalMetadata || item.approval_metadata,
-      forcedInstallments
+    console.log('[Checkout Debug] Trava de Parcelamento (maxInstallments):', {
+      forcedInstallments,
+      itemTitle: item.displayId || item.id
     });
   }
 
@@ -236,11 +247,11 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
               }
             }
 
-            let invInst = 0;
-            if (refItems.length > 0) {
-              const firstWithInst = refItems.find(r => r.form_data?.installments || r.approval_metadata?.installments);
+            let invInst = parsedNotes.mpInstallments || parsedNotes.installments || parsedNotes.max_installments || 0;
+            if (!invInst && refItems.length > 0) {
+              const firstWithInst = refItems.find(r => r.form_data?.installments || r.form_data?.mpInstallments || r.approval_metadata?.installments || r.approval_metadata?.mpInstallments);
               if (firstWithInst) {
-                invInst = Number(firstWithInst.form_data?.installments || firstWithInst.approval_metadata?.installments || 0);
+                invInst = Number(firstWithInst.form_data?.installments || firstWithInst.form_data?.mpInstallments || firstWithInst.approval_metadata?.installments || firstWithInst.approval_metadata?.mpInstallments || 0);
               }
             }
 
@@ -270,7 +281,8 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
               gatewayTicketUrl: invData.gateway_ticket_url || parsedNotes.gateway_ticket_url,
               gatewayStatus: invData.gateway_status,
               paymentMethod: invData.payment_method || invData.paymentMethod,
-              formData: invData.form_data || { installments: invInst > 0 ? invInst : undefined }
+              notes: invData.notes,
+              formData: invData.form_data || { installments: invInst > 0 ? invInst : undefined, mpInstallments: invInst > 0 ? invInst : undefined }
             };
           }
         }
@@ -360,66 +372,56 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
     }
   }, [item?.id, forcedMethod, paymentResult, isPaidConfirmed, generating, selectedMethod]);
 
-  // 3. Polling automático de status a cada 1.5 segundos
+  // 3. Listener Realtime (Event-driven): Substitui o antigo polling.
+  // Fica aguardando silenciosamente o Webhook do servidor atualizar o banco de dados.
   useEffect(() => {
-    // Cartão: só faz polling APÓS o cliente ter submetido o formulário (paymentId gerado)
     if (selectedMethod === 'card_link' && !paymentResult?.paymentId) return;
     if (!paymentResult?.paymentId || isPaidConfirmed || !item) return;
 
-    const interval = setInterval(async () => {
-      const res = await PaymentService.checkPaymentStatus({
-        itemType,
-        itemId: item.id,
-        gatewayPaymentId: paymentResult.paymentId
-      });
+    const table = itemType === 'ORDER' ? 'orders' : itemType === 'QUOTE' ? 'quotes' : 'invoices';
+    
+    const handleApproved = () => {
+      setIsPaidConfirmed(true);
+      try {
+        const bc = new BroadcastChannel('nexus_payment_sync');
+        bc.postMessage({ type: 'PAYMENT_APPROVED', itemId: item.id });
+        bc.close();
+      } catch (e) {}
+    };
 
-      if (res.isPaid) {
-        setIsPaidConfirmed(true);
-        try {
-          const bc = new BroadcastChannel('nexus_payment_sync');
-          bc.postMessage({ type: 'PAYMENT_APPROVED', itemId: item.id });
-          bc.close();
-        } catch (e) {}
-
-        if (item) {
-          const invId = item.invoiceId || (item.type === 'INVOICE' ? item.id : null);
-          const methodStr = selectedMethod === 'pix' ? 'Pix' : (selectedMethod === 'card_link' ? 'Cartão de Crédito' : 'Boleto');
-          const nowIso = new Date().toISOString();
-          
-          if (invId) {
-            supabase.from('invoices').update({
-              status: 'PAID',
-              gateway_status: 'approved',
-              paid_at: nowIso,
-              payment_method: methodStr
-            }).eq('id', invId).then(() => {});
-          }
-
-          if (itemType === 'ORDER' || item.type === 'ORDER') {
-            supabase.from('orders').update({
-              billing_status: 'PAID',
-              gateway_status: 'approved',
-              paid_at: nowIso,
-              payment_method: methodStr
-            }).eq('id', item.id).then(() => {});
-          } else if (itemType === 'QUOTE' || item.type === 'QUOTE') {
-            supabase.from('quotes').update({
-              billing_status: 'PAID',
-              gateway_status: 'approved',
-              paid_at: nowIso,
-              payment_method: methodStr
-            }).eq('id', item.id).then(() => {});
-          }
+    const channel1 = supabase
+      .channel(`checkout_status_${item.id}`)
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: table,
+        filter: `id=eq.${item.id}`
+      }, (payload) => {
+        const newData = payload.new as any;
+        if (newData.billing_status === 'PAID' || newData.status === 'PAID' || newData.gateway_status === 'approved') {
+          handleApproved();
         }
-      } else if (res.status === 'rejected') {
-        setError('Pagamento recusado pelo banco ou emissor do cartão. Por favor, tente com outro cartão ou forma de pagamento.');
-        setPaymentResult(null);
-      } else if (res.status) {
-        setPaymentResult((prev: any) => prev ? { ...prev, currentStatus: res.status } : null);
-      }
-    }, 1500);
+      })
+      .on('broadcast', { event: 'PAYMENT_APPROVED' }, (payload) => {
+        if (payload.payload?.status === 'PAID') {
+          handleApproved();
+        }
+      })
+      .subscribe();
 
-    return () => clearInterval(interval);
+    const channel2 = supabase
+      .channel(`public_checkout_status_${item.id}`)
+      .on('broadcast', { event: 'PAYMENT_APPROVED' }, (payload) => {
+        if (payload.payload?.status === 'PAID') {
+          handleApproved();
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel1);
+      supabase.removeChannel(channel2);
+    };
   }, [paymentResult?.paymentId, isPaidConfirmed, item?.id, itemType]);
 
   const handleGenerateCharge = useCallback(async (method: 'pix' | 'card_link' | 'boleto', brickFormData?: any) => {

@@ -54,8 +54,60 @@ export const PaymentAuditModal: React.FC<PaymentAuditModalProps> = ({
 
   // Extração ultra-resiliente de campos com múltiplos fallbacks (camelCase e snake_case)
   const orig = (item as any).original || {};
-  const gtwPaymentId = item.gatewayPaymentId || (item as any).gateway_payment_id || orig.gatewayPaymentId || orig.gateway_payment_id || null;
-  const payMethod = item.paymentMethod || (item as any).payment_method || orig.paymentMethod || orig.payment_method || null;
+  const rawGtwPaymentId = item.gatewayPaymentId || (item as any).gateway_payment_id || orig.gatewayPaymentId || orig.gateway_payment_id || orig.payment_gateway_id || null;
+  const isRealNumericPaymentId = rawGtwPaymentId ? /^\d+$/.test(String(rawGtwPaymentId).trim()) : false;
+  const gtwPaymentId = isRealNumericPaymentId ? String(rawGtwPaymentId).trim() : null;
+  const displayGtwPaymentId = isRealNumericPaymentId ? String(rawGtwPaymentId).trim() : 'N/A (Aguardando Pagamento / Manual)';
+  
+  const fd = orig.form_data || (item as any).formData || (item as any).form_data || {};
+  const am = orig.approval_metadata || (item as any).approvalMetadata || (item as any).approval_metadata || {};
+  let parsedNotes: any = {};
+  try {
+    parsedNotes = typeof orig.notes === 'string' ? JSON.parse(orig.notes) : (orig.notes || {});
+  } catch (e) {}
+  if (Object.keys(parsedNotes).length === 0 && (item as any).notes) {
+    try {
+      parsedNotes = typeof (item as any).notes === 'string' ? JSON.parse((item as any).notes) : ((item as any).notes || {});
+    } catch (e) {}
+  }
+
+  let payMethod = item.paymentMethod || 
+    (item as any).payment_method || 
+    orig.paymentMethod || 
+    orig.payment_method || 
+    (item as any).gatewayPaymentMethod || 
+    (item as any).gateway_payment_method || 
+    orig.gatewayPaymentMethod || 
+    orig.gateway_payment_method || 
+    fd.paymentMethod || 
+    fd.payment_method || 
+    am.paymentMethod || 
+    am.payment_method || 
+    parsedNotes.payment_method || 
+    parsedNotes.paymentMethod || 
+    parsedNotes.payment_method_type || 
+    (gtwPaymentId ? 'credit_card' : null);
+
+  const rawInstallments = 
+    (item as any).installments || 
+    (item as any).mpInstallments || 
+    (item as any).max_installments || 
+    orig.installments || 
+    orig.mpInstallments || 
+    orig.max_installments || 
+    fd.installments || 
+    fd.mpInstallments || 
+    fd.max_installments || 
+    am.installments || 
+    am.mpInstallments || 
+    am.max_installments || 
+    parsedNotes.installments || 
+    parsedNotes.mpInstallments || 
+    parsedNotes.max_installments || 
+    1;
+
+  const installmentsCount = Math.max(1, Number(rawInstallments) || 1);
+
   const gtwProvider = item.gatewayProvider || (item as any).gateway_provider || orig.gatewayProvider || orig.gateway_provider || 'Mercado Pago Connect OAuth 2.0';
   const gtwStatus = item.gatewayStatus || (item as any).gateway_status || orig.gatewayStatus || orig.gateway_status || 'pending';
   const paidAtDate = item.paidAt || (item as any).paid_at || orig.paidAt || orig.paid_at || null;
@@ -65,9 +117,46 @@ export const PaymentAuditModal: React.FC<PaymentAuditModalProps> = ({
 
   const isPaid = billingStat === 'PAID' || gtwStatus === 'approved';
 
-  const formatMethodName = (methodStr?: string | null) => {
-    if (!methodStr) return 'Não Especificado';
-    return String(methodStr);
+  const formatMethodName = (methodStr?: string | null, instCount: number = 1) => {
+    if (!methodStr || methodStr.trim() === '') {
+      if (instCount > 1) {
+        return `Cartão de Crédito (em até ${instCount}x)`;
+      }
+      return 'Não Especificado';
+    }
+
+    const s = String(methodStr).trim();
+    const sLower = s.toLowerCase();
+    
+    // Extrai número de parcelas se o próprio nome do método contiver ex: "Cartão Crédito 3x" ou "(3x)"
+    const matchInst = s.match(/(\d+)\s*x/i);
+    const parsedInstFromStr = matchInst ? Number(matchInst[1]) : 0;
+    const finalInst = parsedInstFromStr > 0 ? parsedInstFromStr : instCount;
+
+    let baseName = '';
+    if (sLower.includes('credit_card') || sLower.includes('card_link') || sLower.includes('cartao') || sLower.includes('cartão') || sLower.includes('credit') || sLower.includes('card')) {
+      baseName = 'Cartão de Crédito';
+    } else if (sLower.includes('pix')) {
+      baseName = 'Pix Instantâneo';
+    } else if (sLower.includes('boleto') || sLower.includes('ticket') || sLower.includes('bolbradesco')) {
+      baseName = 'Boleto Bancário';
+    } else if (sLower.includes('money') || sLower.includes('dinheiro') || sLower.includes('cash')) {
+      baseName = 'Dinheiro';
+    } else if (sLower.includes('transfer') || sLower.includes('ted') || sLower.includes('doc')) {
+      baseName = 'Transferência Bancária';
+    } else {
+      baseName = s;
+    }
+
+    if (baseName === 'Cartão de Crédito') {
+      return `Cartão de Crédito (em até ${finalInst}x)`;
+    }
+
+    if (finalInst > 1) {
+      return `${baseName} (${finalInst}x)`;
+    }
+
+    return baseName;
   };
 
   const companyName = tenant?.company_name || tenant?.name || tenant?.companyName || 'DUNO NEXUS PRO';
@@ -368,13 +457,13 @@ export const PaymentAuditModal: React.FC<PaymentAuditModalProps> = ({
                 <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
                   <span className="text-slate-400 block text-[8px] uppercase font-bold">ID Único da Transação (Gateway)</span>
                   <span className="font-mono font-bold text-slate-900 break-all text-xs">
-                    {gtwPaymentId || 'N/A (Aguardando Pagamento / Manual)'}
+                    {displayGtwPaymentId}
                   </span>
                 </div>
                 <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
                   <span className="text-slate-400 block text-[8px] uppercase font-bold">Meio de Pagamento Provedor</span>
                   <span className="font-bold text-slate-900 text-xs">
-                    {formatMethodName(payMethod)}
+                    {formatMethodName(payMethod, installmentsCount)}
                   </span>
                 </div>
                 <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">

@@ -105,97 +105,9 @@ serve(async (req) => {
       console.log("[MP Webhook Edge] 🔒 Assinatura HMAC SHA-256 validada com sucesso!");
     }
 
-    if (body.action === 'reconcile_all') {
-      const { data: tenantSettings } = await supabaseAdmin
-        .from("tenant_mercadopago_settings")
-        .select("mp_access_token, tenant_id");
-
-      const tokenMap = new Map();
-      (tenantSettings || []).forEach((s: any) => {
-        if (s.mp_access_token) tokenMap.set(s.tenant_id, s.mp_access_token);
-      });
-
-      let revertedQuotes = 0;
-      let revertedOrders = 0;
-
-      const { data: paidQuotes } = await supabaseAdmin.from("quotes").select("*").eq("billing_status", "PAID");
-      for (const q of (paidQuotes || [])) {
-        const token = tokenMap.get(q.tenant_id);
-        let isActuallyPaid = false;
-        if (token) {
-          const gtwId = String(q.gateway_payment_id || '').trim();
-          if (gtwId && /^\d+$/.test(gtwId)) {
-            const pRes = await fetch(`https://api.mercadopago.com/v1/payments/${gtwId}`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            if (pRes.ok) {
-              const mpData = await pRes.json();
-              if (mpData.status === 'approved' || mpData.status === 'accredited') isActuallyPaid = true;
-            }
-          }
-          if (!isActuallyPaid && q.id) {
-            const sRes = await fetch(`https://api.mercadopago.com/v1/payments/search?external_reference=${encodeURIComponent(q.id)}&sort=date_created&criteria=desc`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            if (sRes.ok) {
-              const sJson = await sRes.json();
-              if ((sJson.results || []).some((p: any) => p.status === 'approved' || p.status === 'accredited')) isActuallyPaid = true;
-            }
-          }
-        }
-        if (!isActuallyPaid) {
-          await supabaseAdmin.from("quotes").update({
-            billing_status: "PENDING",
-            gateway_status: "pending",
-            paid_at: null,
-            payment_method: null
-          }).eq("id", q.id);
-          await supabaseAdmin.from("cash_flow").delete().eq("reference_id", q.id);
-          revertedQuotes++;
-        }
-      }
-
-      const { data: paidOrders } = await supabaseAdmin.from("orders").select("*").eq("billing_status", "PAID");
-      for (const o of (paidOrders || [])) {
-        const token = tokenMap.get(o.tenant_id);
-        let isActuallyPaid = false;
-        if (token) {
-          const gtwId = String(o.gateway_payment_id || '').trim();
-          if (gtwId && /^\d+$/.test(gtwId)) {
-            const pRes = await fetch(`https://api.mercadopago.com/v1/payments/${gtwId}`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            if (pRes.ok) {
-              const mpData = await pRes.json();
-              if (mpData.status === 'approved' || mpData.status === 'accredited') isActuallyPaid = true;
-            }
-          }
-          if (!isActuallyPaid && o.id) {
-            const sRes = await fetch(`https://api.mercadopago.com/v1/payments/search?external_reference=${encodeURIComponent(o.id)}&sort=date_created&criteria=desc`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            if (sRes.ok) {
-              const sJson = await sRes.json();
-              if ((sJson.results || []).some((p: any) => p.status === 'approved' || p.status === 'accredited')) isActuallyPaid = true;
-            }
-          }
-        }
-        if (!isActuallyPaid) {
-          await supabaseAdmin.from("orders").update({
-            billing_status: "PENDING",
-            gateway_status: "pending",
-            paid_at: null,
-            payment_method: null
-          }).eq("id", o.id);
-          await supabaseAdmin.from("cash_flow").delete().eq("reference_id", o.id);
-          revertedOrders++;
-        }
-      }
-
-      return new Response(JSON.stringify({ success: true, revertedQuotes, revertedOrders }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      });
-    }
+    // REMOVIDO: O bloco legacy 'reconcile_all' foi deletado permanentemente pois realizava
+    // um loop de fetch na API do Mercado Pago para todos os itens pagos. Isso causava 
+    // estrangulamento da API (Rate Limit 429) e timeouts severos na Edge Function.
 
     let externalReference = null;
     let isApproved = false;
@@ -288,6 +200,41 @@ serve(async (req) => {
       }
     }
 
+    // Função para furar o bloqueio de RLS e atualizar todas as telas (Checkout, Modais e Dashboards)
+    const broadcastPaymentApproved = async (itemId: string, tenantId?: string) => {
+      try {
+        console.log(`[MP Webhook Realtime] Disparando broadcast PAYMENT_APPROVED para item ${itemId} (tenant: ${tenantId || 'all'})`);
+        const channelsToNotify = [
+          `checkout_status_${itemId}`,
+          `public_checkout_status_${itemId}`,
+          `modal_checkout_status_${itemId}`,
+          `realtime_financial_dashboard_gateway`
+        ];
+        if (tenantId) {
+          channelsToNotify.push(`nexus-realtime-${tenantId}`);
+        }
+
+        for (const channelName of channelsToNotify) {
+          const ch = supabaseAdmin.channel(channelName);
+          ch.subscribe(async (status: string) => {
+            if (status === "SUBSCRIBED") {
+              await ch.send({
+                type: "broadcast",
+                event: "PAYMENT_APPROVED",
+                payload: { id: itemId, itemId: itemId, status: "PAID", tenantId }
+              });
+              console.log(`[MP Webhook Realtime] Broadcast enviado com sucesso no canal ${channelName}`);
+              setTimeout(() => {
+                try { supabaseAdmin.removeChannel(ch); } catch (_) {}
+              }, 2000);
+            }
+          });
+        }
+      } catch (e) {
+        console.warn("[MP Webhook] Falha no broadcast:", e);
+      }
+    };
+
     // Função auxiliar para atualizar e registrar no fluxo de caixa
     const processPayment = async (table: "orders" | "quotes", record: any) => {
       if (record.billing_status !== "PAID" || record.gateway_status !== "approved") {
@@ -299,6 +246,7 @@ serve(async (req) => {
         };
 
         await supabaseAdmin.from(table).update(updateObj).eq("id", record.id);
+        await broadcastPaymentApproved(record.id, record.tenant_id); // Avisa a tela instantaneamente!
 
         if (table === "orders") {
           await supabaseAdmin.from("cash_flow").insert([{
@@ -350,6 +298,7 @@ serve(async (req) => {
           paid_at: paidAt,
           gateway_payment_id: String(paymentId)
         }).eq("id", item.invoice_id);
+        await broadcastPaymentApproved(item.invoice_id, record.tenant_id); // Avisa a tela do admin também
       }
     };
 
@@ -364,6 +313,7 @@ serve(async (req) => {
       };
 
       await supabaseAdmin.from("invoices").update(updateObj).eq("id", invoice.id);
+      await broadcastPaymentApproved(invoice.id, invoice.tenant_id); // Avisa a tela instantaneamente (Admin/Fatura)
 
       const { data: items } = await supabaseAdmin.from("invoice_items").select("*").eq("invoice_id", invoice.id);
       

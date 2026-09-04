@@ -256,6 +256,13 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                     NexusQueryClient.invalidateTenant();
                 }
             )
+            .on('broadcast', { event: 'PAYMENT_APPROVED' }, (payload) => {
+                console.log('⚡ [AdminApp Realtime] Pagamento Aprovado via Broadcast:', payload);
+                NexusQueryClient.invalidateOrders();
+                NexusQueryClient.invalidateQuotes();
+                window.dispatchEvent(new Event('refresh_invoices'));
+                fetchGlobalData();
+            })
             .subscribe((status) => {
                 console.log(`[AdminApp] 📡 Realtime Status: ${status}`);
             });

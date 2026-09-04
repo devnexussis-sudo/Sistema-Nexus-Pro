@@ -163,45 +163,6 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
     const [auditModalItem, setAuditModalItem] = useState<any | null>(null);
 
-    // Supabase Realtime & BroadcastChannel: Atualização instantânea na tela assim que o pagamento for liquidado
-    useEffect(() => {
-        const channel = supabase
-            .channel('realtime_financial_dashboard_gateway')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-                console.log('⚡ [Realtime] Mudança em O.S. detectada!');
-                onRefresh();
-                window.dispatchEvent(new Event('refresh_invoices'));
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'quotes' }, () => {
-                console.log('⚡ [Realtime] Mudança em Orçamento detectada!');
-                onRefresh();
-                window.dispatchEvent(new Event('refresh_invoices'));
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, () => {
-                console.log('⚡ [Realtime] Mudança em Faturas detectada!');
-                onRefresh();
-                window.dispatchEvent(new Event('refresh_invoices'));
-            })
-            .subscribe();
-
-        let bc: BroadcastChannel | null = null;
-        try {
-            bc = new BroadcastChannel('nexus_payment_sync');
-            bc.onmessage = (msg) => {
-                if (msg.data?.type === 'PAYMENT_APPROVED') {
-                    console.log('⚡ [BroadcastChannel] Pagamento aprovado em outra aba!');
-                    onRefresh();
-                    window.dispatchEvent(new Event('refresh_invoices'));
-                }
-            };
-        } catch (e) {}
-
-        return () => {
-            supabase.removeChannel(channel);
-            if (bc) bc.close();
-        };
-    }, []);
-
     const [paymentMethod, setPaymentMethod] = useState('');
     const [boletoDueDate, setBoletoDueDate] = useState<string>('');
     const [installments, setInstallments] = useState(2);
@@ -219,9 +180,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 12;
 
-    const [isRefreshing, setIsRefreshing] = useState(false);
-
     const tenantIdStr = tenant?.id || '';
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [invoices, setInvoices] = useState<any[]>([]);
     const [invoiceItems, setInvoiceItems] = useState<any[]>([]);
     const [receivablesView, setReceivablesView] = useState<'items' | 'invoices'>('items');
@@ -238,6 +198,50 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             console.error('Error loading invoices', e);
         }
     };
+
+    // Supabase Realtime & BroadcastChannel: Atualização instantânea na tela assim que o pagamento for liquidado
+    useEffect(() => {
+        const handlePaymentUpdate = () => {
+            console.log('⚡ [Realtime Financial] Pagamento/Mudança financeira detectada!');
+            onRefresh();
+            loadInvoices();
+            window.dispatchEvent(new Event('refresh_invoices'));
+        };
+
+        const channel = supabase
+            .channel('realtime_financial_dashboard_gateway')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, handlePaymentUpdate)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'quotes' }, handlePaymentUpdate)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, handlePaymentUpdate)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_flow' }, handlePaymentUpdate)
+            .on('broadcast', { event: 'PAYMENT_APPROVED' }, handlePaymentUpdate)
+            .subscribe();
+
+        let tenantChannel: any = null;
+        if (tenantIdStr) {
+            tenantChannel = supabase
+                .channel(`nexus-realtime-${tenantIdStr}`)
+                .on('broadcast', { event: 'PAYMENT_APPROVED' }, handlePaymentUpdate)
+                .subscribe();
+        }
+
+        let bc: BroadcastChannel | null = null;
+        try {
+            bc = new BroadcastChannel('nexus_payment_sync');
+            bc.onmessage = (msg) => {
+                if (msg.data?.type === 'PAYMENT_APPROVED') {
+                    console.log('⚡ [BroadcastChannel] Pagamento aprovado em outra aba!');
+                    handlePaymentUpdate();
+                }
+            };
+        } catch (e) {}
+
+        return () => {
+            supabase.removeChannel(channel);
+            if (tenantChannel) supabase.removeChannel(tenantChannel);
+            if (bc) bc.close();
+        };
+    }, [tenantIdStr, onRefresh]);
 
     const handleCancelInvoice = async () => {
         if (!cancelInvoiceModal.invoice) return;
@@ -326,7 +330,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     // Agora a impressão é controlada exclusivamente pela função executePrint.
 
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
-        key: 'date',
+        key: 'createdAt',
         direction: 'desc'
     });
 
@@ -486,7 +490,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 discountAmount = Math.round(discountAmount * 100) / 100;
                 netValue = Math.round(netValue * 100) / 100;
 
-                const linkedInv = isLinkedInvPaid ? invoices.find(inv => invoiceItems.some(invItem => invItem.reference_id === q.id && invItem.invoice_id === inv.id)) : null;
+                const linkedInv = invoices.find(inv => invoiceItems.some(invItem => invItem.reference_id === q.id && invItem.invoice_id === inv.id)) || null;
 
                 return {
                     type: 'QUOTE' as const,
@@ -509,6 +513,13 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     original: q,
                     billingDiscount: discVal,
                     billingDiscountType: discType,
+                    paymentMethod: q.paymentMethod || (q as any).payment_method || linkedInv?.payment_method || (q.approvalMetadata as any)?.paymentMethod || (q.approvalMetadata as any)?.payment_method || (q.formData as any)?.paymentMethod || (q.formData as any)?.payment_method || null,
+                    installments: (q as any).installments || (q.formData as any)?.mpInstallments || (q.formData as any)?.installments || (q.approvalMetadata as any)?.mpInstallments || (q.approvalMetadata as any)?.installments || (q.formData as any)?.max_installments || (q.approvalMetadata as any)?.max_installments || null,
+                    gatewayProvider: q.gatewayProvider || (q as any).gateway_provider || linkedInv?.gateway_provider || 'Mercado Pago Connect OAuth 2.0',
+                    gatewayPaymentId: q.gatewayPaymentId || (q as any).gateway_payment_id || linkedInv?.gateway_payment_id || linkedInv?.payment_gateway_id || null,
+                    gatewayStatus: q.gatewayStatus || (q as any).gateway_status || linkedInv?.gateway_status || 'pending',
+                    gatewayPixCode: (q as any).gatewayPixCode || (q as any).gateway_pix_code || linkedInv?.gateway_pix_code || null,
+                    gatewayTicketUrl: (q as any).gatewayTicketUrl || (q as any).gateway_ticket_url || linkedInv?.gateway_ticket_url || null,
                     technician: techs.find(t => t.id === (q as any).createdBy || t.id === (q as any).authorId)?.name || 'Administrador'
                 };
             });
@@ -576,7 +587,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 const techObj = techs.find(t => t.id === order.assignedTo);
                 const isLinkedInvPaid = invoiceItems.some(invItem => invItem.reference_id === order.id && invoices.some(inv => inv.id === invItem.invoice_id && (inv.status === 'PAID' || inv.gateway_status === 'approved')));
                 const isPaid = (order.billingStatus || '').toUpperCase() === 'PAID' || (order as any).gateway_status === 'approved' || isLinkedInvPaid;
-                const linkedInv = isLinkedInvPaid ? invoices.find(inv => invoiceItems.some(invItem => invItem.reference_id === order.id && invItem.invoice_id === inv.id)) : null;
+                const linkedInv = invoices.find(inv => invoiceItems.some(invItem => invItem.reference_id === order.id && invItem.invoice_id === inv.id)) || null;
 
                 return {
                     type: 'ORDER' as const,
@@ -599,6 +610,13 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     original: order,
                     billingDiscount: discVal,
                     billingDiscountType: discType,
+                    paymentMethod: order.paymentMethod || (order as any).payment_method || linkedInv?.payment_method || (order.formData as any)?.paymentMethod || (order.formData as any)?.payment_method || null,
+                    installments: (order as any).installments || (order.formData as any)?.mpInstallments || (order.formData as any)?.installments || (order.approvalMetadata as any)?.mpInstallments || (order.approvalMetadata as any)?.installments || (order.formData as any)?.max_installments || (order.approvalMetadata as any)?.max_installments || null,
+                    gatewayProvider: order.gatewayProvider || (order as any).gateway_provider || linkedInv?.gateway_provider || 'Mercado Pago Connect OAuth 2.0',
+                    gatewayPaymentId: order.gatewayPaymentId || (order as any).gateway_payment_id || linkedInv?.gateway_payment_id || linkedInv?.payment_gateway_id || null,
+                    gatewayStatus: order.gatewayStatus || (order as any).gateway_status || linkedInv?.gateway_status || 'pending',
+                    gatewayPixCode: (order as any).gatewayPixCode || (order as any).gateway_pix_code || linkedInv?.gateway_pix_code || null,
+                    gatewayTicketUrl: (order as any).gatewayTicketUrl || (order as any).gateway_ticket_url || linkedInv?.gateway_ticket_url || null,
                     technician: techObj?.name || order.assignedTo || 'N/A'
                 };
             })
@@ -657,6 +675,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 } else if (sortConfig.key === 'date') {
                     aValue = new Date(a.date).getTime();
                     bValue = new Date(b.date).getTime();
+                } else if (sortConfig.key === 'createdAt') {
+                    aValue = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                    bValue = b.createdAt ? new Date(b.createdAt).getTime() : 0;
                 } else if (sortConfig.key === 'paidAt') {
                     aValue = a.paidAt ? new Date(a.paidAt).getTime() : 0;
                     bValue = b.paidAt ? new Date(b.paidAt).getTime() : 0;
@@ -705,149 +726,19 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         });
     }, [invoices, invSearchTerm, invStartDate, invEndDate, invStatusFilter]);
 
-    // Scanner automático contínuo de faturas e lançamentos pendentes em background (a cada 8 segundos)
-    useEffect(() => {
-        let isCancelled = false;
+    // Scanner automático removido: O sistema agora confia 100% na arquitetura orientada a eventos.
+    // O Webhook do Mercado Pago recebe a notificação, valida a veracidade diretamente na API do MP,
+    // atualiza o banco de dados e o Supabase Realtime empurra a atualização para a tela instantaneamente.
+    // Isso elimina o consumo desnecessário de rede e CPU no navegador.
 
-        const scanBackground = async () => {
-            const pendingItems = filteredItems.filter(i => {
-                const rawId = (i.original as any).gatewayPaymentId || (i.original as any).gateway_payment_id;
-                return i.status !== 'PAID' && rawId;
-            });
-
-            const pendingInvoices = invoices.filter(inv => {
-                const rawId = inv.gateway_payment_id || inv.payment_gateway_id;
-                return inv.status !== 'PAID' && inv.gateway_status !== 'approved' && (rawId || inv.id);
-            });
-
-            if (pendingItems.length === 0 && pendingInvoices.length === 0) return;
-
-            let didUpdateItems = false;
-            let didUpdateInvoices = false;
-
-            // Varre Lançamentos (OS/Orçamentos)
-            for (const item of pendingItems) {
-                if (isCancelled) break;
-                try {
-                    const rawId = (item.original as any).gatewayPaymentId || (item.original as any).gateway_payment_id;
-                    const res = await PaymentService.checkPaymentStatus({
-                        itemType: item.type,
-                        itemId: item.id,
-                        gatewayPaymentId: rawId
-                    });
-                    if (res.isPaid) {
-                        didUpdateItems = true;
-                    }
-                } catch (err) {}
-                await new Promise(r => setTimeout(r, 300));
-            }
-
-            // Varre Faturas Geradas (FATs)
-            for (const inv of pendingInvoices) {
-                if (isCancelled) break;
-                try {
-                    const rawId = inv.gateway_payment_id || inv.payment_gateway_id;
-                    const res = await PaymentService.checkPaymentStatus({
-                        itemType: 'INVOICE',
-                        itemId: inv.id,
-                        gatewayPaymentId: rawId
-                    });
-                    if (res.isPaid) {
-                        didUpdateInvoices = true;
-                    }
-                } catch (err) {}
-                await new Promise(r => setTimeout(r, 300));
-            }
-
-            if (didUpdateInvoices && !isCancelled) {
-                await loadInvoices();
-            }
-
-            if (didUpdateItems && !isCancelled && onRefresh) {
-                NexusQueryClient.invalidateQuotes();
-                NexusQueryClient.invalidateOrders();
-                NexusQueryClient.invalidateFinancials();
-                await onRefresh();
-            }
-        };
-
-        // Roda a primeira varredura imediatamente
-        scanBackground();
-
-        // E repete a cada 30 segundos em background (evita polling excessivo)
-        const intervalId = setInterval(scanBackground, 30000);
-
-        return () => {
-            isCancelled = true;
-            clearInterval(intervalId);
-        };
-    }, [filteredItems, invoices, onRefresh]);
-
-    // 🛡️ RECONCILIADOR DE SEGURANÇA: Reverte automaticamente itens para PENDING se o pagamento no Mercado Pago não estiver aprovado
-    useEffect(() => {
-        const revertUnpaidItems = async () => {
-            const paidItems = filteredItems.filter(i => i.status === 'PAID');
-            let didRevert = false;
-
-            for (const item of paidItems) {
-                const orig = item.original as any;
-                const rawGtwId = String(orig.gatewayPaymentId || orig.gateway_payment_id || '').trim();
-
-                // 1. Se tem ID de Preference (link de checkout não pago) ou não tem ID numérico oficial de pagamento
-                const isPreferenceId = rawGtwId && !/^\d+$/.test(rawGtwId);
-                let shouldRevert = isPreferenceId;
-
-                // 2. Se for ID numérico, valida se realmente consta como aprovado no MP
-                if (!shouldRevert && rawGtwId && /^\d+$/.test(rawGtwId)) {
-                    try {
-                        const statusRes = await PaymentService.checkPaymentStatus({
-                            itemType: item.type,
-                            itemId: item.id,
-                            gatewayPaymentId: rawGtwId
-                        });
-                        if (!statusRes.isPaid) {
-                            shouldRevert = true;
-                        }
-                    } catch {
-                        // Se falhou a checagem, mantém por segurança
-                    }
-                }
-
-                if (shouldRevert) {
-                    console.warn(`[FinancialDashboard] 🚨 Item ${item.type} #${item.id} não possui pagamento aprovado no Mercado Pago! Revertendo para PENDING...`);
-                    try {
-                        if (item.type === 'QUOTE') {
-                            await DataService.updateQuote({
-                                ...(orig),
-                                id: item.id,
-                                billingStatus: 'PENDING',
-                                gatewayStatus: 'pending'
-                            });
-                        } else {
-                            await DataService.updateOrder({
-                                ...(orig),
-                                id: item.id,
-                                billingStatus: 'PENDING',
-                                gatewayStatus: 'pending'
-                            });
-                        }
-                        didRevert = true;
-                    } catch (revertErr) {
-                        console.error('[FinancialDashboard] Erro ao reverter item para PENDING:', revertErr);
-                    }
-                }
-            }
-
-            if (didRevert && onRefresh) {
-                NexusQueryClient.invalidateQuotes();
-                NexusQueryClient.invalidateOrders();
-                NexusQueryClient.invalidateFinancials();
-                await onRefresh();
-            }
-        };
-
-        revertUnpaidItems();
-    }, [filteredItems]);
+    // 🛡️ RECONCILIADOR DE SEGURANÇA — REMOVIDO (Auditoria Arquitetural Set/2026)
+    // ─────────────────────────────────────────────────────────────────────────
+    // O reconciliador client-side foi removido porque:
+    //   1. Causava flickering infinito (invalidava queries a cada render)
+    //   2. Competia com o Webhook do Mercado Pago, gerando race conditions
+    //   3. O browser NUNCA deve ser a autoridade para status financeiro
+    // A reconciliação agora é feita exclusivamente pelo webhook server-side.
+    // ─────────────────────────────────────────────────────────────────────────
 
     const [isPageChanging, setIsPageChanging] = useState(false);
 
@@ -1112,13 +1003,32 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     gateway_payment_id: res.paymentId,
                     gateway_pix_code: res.pixCopiaECola || res.qrCode,
                     gateway_ticket_url: res.ticketUrl,
-                    gateway_status: 'pending'
+                    gateway_status: 'pending',
+                    mpInstallments: installments,
+                    installments: installments,
+                    max_installments: installments
                 };
                 
                 await supabase.from('invoices').update({ 
                     payment_gateway_id: res.paymentId,
                     notes: JSON.stringify(notesObj)
                 }).eq('id', invoice.id);
+
+                for (const id of selectedIds) {
+                    const rawItem = filteredItems.find(i => i.id === id);
+                    if (!rawItem) continue;
+                    if (rawItem.type === 'ORDER') {
+                        await DataService.updateOrder({
+                            ...(rawItem.original as ServiceOrder),
+                            paymentMethod: finalMethod
+                        });
+                    } else {
+                        await DataService.updateQuote({
+                            ...rawItem.original,
+                            paymentMethod: finalMethod
+                        });
+                    }
+                }
 
                 setMpModalItem({
                     type: 'INVOICE',
@@ -1133,8 +1043,12 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     gatewayTicketUrl: res.ticketUrl,
                     gatewayPaymentMethod: mpMethod,
                     gatewayStatus: 'pending',
-                    billingStatus: 'PENDING'
+                    billingStatus: 'PENDING',
+                    installments: installments,
+                    mpInstallments: installments,
+                    notes: JSON.stringify(notesObj)
                 });
+                await loadInvoices();
                 setIsInvoiceModalOpen(false);
                 setIsMpModalOpen(true);
             } else {
@@ -1195,11 +1109,21 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         });
                     }
 
+                    let itemNetValue = rawItem.value || 0;
+                    if (billingDiscount > 0 && itemsBaseTotal > 0) {
+                        if (effectiveDiscountType === 'percent') {
+                            itemNetValue = itemNetValue * (1 - (effectiveDiscount / 100));
+                        } else {
+                            const weight = (rawItem.value || 0) / itemsBaseTotal;
+                            itemNetValue = itemNetValue - (effectiveDiscount * weight);
+                        }
+                    }
+
                     try {
                         await DataService.registerCashFlow({
                             type: 'INCOME',
                             category: rawItem.type === 'ORDER' ? 'Serviço (O.S.)' : 'Venda (Orçamento)',
-                            amount: rawItem.value || 0,
+                            amount: itemNetValue,
                             description: `Faturamento (Manual) de ${rawItem.type === 'ORDER' ? 'O.S.' : 'Orçamento'} ${rawItem.displayId || '#' + rawItem.id.slice(0, 8)} — Cliente: ${rawItem.customerName}`,
                             referenceId: rawItem.id,
                             referenceType: rawItem.type,
@@ -1226,6 +1150,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 setBoletoDueDate('');
                 setSelectedIds([]);
                 await onRefresh();
+                await loadInvoices();
             }
             
 
@@ -1899,8 +1824,8 @@ ${container.innerHTML}
                                 <th className="px-2 py-2.5 cursor-pointer group select-none hover:bg-slate-200/50 transition-colors" onClick={() => requestSort('technician')}>
                                     <div className="flex items-center gap-1">Técnico {getSortIcon('technician')}</div>
                                 </th>
-                                <th className="px-2 py-2.5 cursor-pointer group select-none hover:bg-slate-200/50 transition-colors whitespace-nowrap" onClick={() => requestSort('date')}>
-                                    <div className="flex items-center gap-1">Data Ref. {getSortIcon('date')}</div>
+                                <th className="px-2 py-2.5 cursor-pointer group select-none hover:bg-slate-200/50 transition-colors whitespace-nowrap" onClick={() => requestSort('createdAt')}>
+                                    <div className="flex items-center gap-1">Data Criação {getSortIcon('createdAt')}</div>
                                 </th>
                                 <th className="px-2 py-2.5 cursor-pointer group select-none hover:bg-slate-200/50 transition-colors whitespace-nowrap" onClick={() => requestSort('dueDate')}>
                                     <div className="flex items-center gap-1">Vencimento {getSortIcon('dueDate')}</div>
@@ -1970,8 +1895,8 @@ ${container.innerHTML}
                                     </td>
                                     <td className="px-2 py-2 whitespace-nowrap">
                                         <div className="flex flex-col">
-                                            <span className="text-[11px] text-slate-700 font-medium">{new Date(item.date).toLocaleDateString('pt-BR')}</span>
-                                            <span className="text-[9px] text-slate-400">{item.type === 'QUOTE' ? 'Criação' : 'Conclusão'}</span>
+                                            <span className="text-[11px] text-slate-700 font-medium">{item.createdAt ? new Date(item.createdAt).toLocaleDateString('pt-BR') : '—'}</span>
+                                            <span className="text-[9px] text-slate-400">Criação</span>
                                         </div>
                                     </td>
                                     <td className="px-2 py-2 whitespace-nowrap">
@@ -2074,7 +1999,8 @@ ${container.innerHTML}
                                                         billingDiscountType: item.billingDiscountType,
                                                         customerName: item.customerName,
                                                         customerDocument: (item as any).customerDocument,
-                                                        paymentMethod: (item as any).paymentMethod || (item.original as any)?.payment_method || (item.original as any)?.paymentMethod,
+                                                        paymentMethod: (item as any).paymentMethod || (item as any).payment_method || (item.original as any)?.payment_method || (item.original as any)?.paymentMethod || (item as any).gatewayPaymentMethod || (item.original as any)?.gateway_payment_method || ((item as any).gatewayPaymentId || (item.original as any)?.gateway_payment_id ? 'credit_card' : null),
+                                                        installments: (item as any).installments || (item as any).mpInstallments || (item.original as any)?.installments || (item.original as any)?.mpInstallments || (item.original as any)?.form_data?.mpInstallments || (item.original as any)?.form_data?.installments || (item.original as any)?.approval_metadata?.mpInstallments || (item.original as any)?.approval_metadata?.installments || null,
                                                         gatewayProvider: (item as any).gatewayProvider || (item.original as any)?.gateway_provider || (item.original as any)?.gatewayProvider,
                                                         gatewayPaymentId: (item.original as any)?.gateway_payment_id || (item.original as any)?.gatewayPaymentId || (item as any).gatewayPaymentId,
                                                         gatewayStatus: (item.original as any)?.gateway_status || (item.original as any)?.gatewayStatus || (item as any).gatewayStatus,
@@ -2856,7 +2782,8 @@ ${container.innerHTML}
                                                         billingDiscountType: selectedItem.billingDiscountType,
                                                         customerName: selectedItem.customerName,
                                                         customerDocument: selectedItem.customerDocument,
-                                                        paymentMethod: selectedItem.paymentMethod || selectedItem.original?.payment_method || selectedItem.original?.paymentMethod,
+                                                        paymentMethod: selectedItem.paymentMethod || (selectedItem as any).payment_method || selectedItem.original?.payment_method || selectedItem.original?.paymentMethod || (selectedItem as any).gatewayPaymentMethod || selectedItem.original?.gateway_payment_method || (selectedItem.gatewayPaymentId || selectedItem.original?.gateway_payment_id ? 'credit_card' : null),
+                                                        installments: (selectedItem as any).installments || (selectedItem as any).mpInstallments || (selectedItem.original as any)?.installments || (selectedItem.original as any)?.mpInstallments || (selectedItem.original as any)?.form_data?.mpInstallments || (selectedItem.original as any)?.form_data?.installments || (selectedItem.original as any)?.approval_metadata?.mpInstallments || (selectedItem.original as any)?.approval_metadata?.installments || null,
                                                         gatewayProvider: selectedItem.gatewayProvider || selectedItem.original?.gateway_provider || selectedItem.original?.gatewayProvider,
                                                         gatewayPaymentId: selectedItem.original?.gateway_payment_id || selectedItem.original?.gatewayPaymentId || selectedItem.gatewayPaymentId,
                                                         gatewayStatus: selectedItem.original?.gateway_status || selectedItem.original?.gatewayStatus || selectedItem.gatewayStatus,
@@ -4180,7 +4107,8 @@ ${container.innerHTML}
                                                 amount: finalVal,
                                                 customerName: selectedInvoice.customer_name,
                                                 customerDocument: selectedInvoice.customer_document,
-                                                paymentMethod: selectedInvoice.payment_method,
+                                                paymentMethod: selectedInvoice.payment_method || selectedInvoice.paymentMethod || (selectedInvoice.gateway_payment_id || selectedInvoice.payment_gateway_id ? 'credit_card' : null),
+                                                installments: (selectedInvoice as any).installments || (selectedInvoice as any).mpInstallments || (selectedInvoice.form_data as any)?.mpInstallments || (selectedInvoice.form_data as any)?.installments || null,
                                                 gatewayProvider: selectedInvoice.gateway_provider || 'Mercado Pago',
                                                 gatewayPaymentId: selectedInvoice.gateway_payment_id || selectedInvoice.payment_gateway_id,
                                                 gatewayStatus: selectedInvoice.gateway_status,

@@ -410,14 +410,17 @@ serve(async (req) => {
 
       let updatePayload: any = {};
       
+      const isNumericPaymentId = paymentResult.paymentId && /^\d+$/.test(String(paymentResult.paymentId));
+      const validGtwPaymentId = isNumericPaymentId ? String(paymentResult.paymentId) : null;
+
       if (table === "invoices") {
         updatePayload = {
-          payment_gateway_id: paymentResult.paymentId,
+          payment_gateway_id: validGtwPaymentId,
           payment_method: (paymentMethodType === "card_link" || paymentMethodType === "credit_card") ? "credit_card" : paymentMethodType,
           status: "PENDING",
           notes: JSON.stringify({
              gateway_provider: "mercadopago",
-             gateway_payment_id: paymentResult.paymentId,
+             gateway_payment_id: validGtwPaymentId,
              gateway_pix_code: paymentMethodType === "pix" ? paymentResult.pixCopiaECola : null,
              gateway_ticket_url: paymentResult.ticketUrl,
              gateway_status: "pending"
@@ -426,7 +429,7 @@ serve(async (req) => {
       } else {
         updatePayload = {
           gateway_provider: "mercadopago",
-          gateway_payment_id: paymentResult.paymentId,
+          gateway_payment_id: validGtwPaymentId,
           gateway_pix_code: paymentMethodType === "pix" ? paymentResult.pixCopiaECola : null,
           gateway_ticket_url: paymentResult.ticketUrl,
           gateway_status: "pending",
@@ -445,11 +448,23 @@ serve(async (req) => {
             updatePayload.form_data = { ...existingFD, mpInstallments: numInst, installments: numInst, max_installments: numInst };
             updatePayload.approval_metadata = { ...existingAM, mpInstallments: numInst, installments: numInst, max_installments: numInst };
           } else if (table === "quotes") {
-            const { data: existing } = await supabaseAdmin.from("quotes").select("approval_metadata").eq('id', itemId).maybeSingle();
+            const { data: existing } = await supabaseAdmin.from("quotes").select("form_data, approval_metadata").eq('id', itemId).maybeSingle();
+            const existingFD = (existing?.form_data && typeof existing.form_data === 'object') ? existing.form_data : {};
             const existingAM = (existing?.approval_metadata && typeof existing.approval_metadata === 'object') ? existing.approval_metadata : {};
+            updatePayload.form_data = { ...existingFD, mpInstallments: numInst, installments: numInst, max_installments: numInst };
             updatePayload.approval_metadata = { ...existingAM, mpInstallments: numInst, installments: numInst, max_installments: numInst };
+          } else if (table === "invoices") {
+            let existingNotesObj: any = {};
+            try {
+              if (updatePayload.notes) existingNotesObj = JSON.parse(updatePayload.notes);
+            } catch (e) {}
+            updatePayload.notes = JSON.stringify({
+              ...existingNotesObj,
+              mpInstallments: numInst,
+              installments: numInst,
+              max_installments: numInst
+            });
           }
-          // Invoices não possuem form_data nem approval_metadata na tabela, salvam apenas no gateway_payment_id
         } catch(e) {
           console.warn("[MP Create Charge Edge] Erro ao ler metadados para merge:", e);
         }

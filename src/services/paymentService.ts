@@ -418,6 +418,7 @@ export const PaymentService = {
         }
 
         const realPaymentId = String(prefData.id);
+        const isNumericGtwId = /^\d+$/.test(realPaymentId);
         const realTicketUrl = prefData.init_point || prefData.sandbox_init_point;
 
         const table = params.itemType === 'ORDER' ? 'orders' : params.itemType === 'INVOICE' ? 'invoices' : 'quotes';
@@ -425,7 +426,7 @@ export const PaymentService = {
           .from(table)
           .update({
             gateway_provider: 'mercadopago',
-            gateway_payment_id: realPaymentId,
+            gateway_payment_id: isNumericGtwId ? realPaymentId : null,
             gateway_ticket_url: realTicketUrl,
             gateway_status: 'pending'
           })
@@ -811,82 +812,14 @@ export const PaymentService = {
           }
         }
 
-        const updateObj: any = {
-          payment_method: cleanPaymentMethod,
-          paid_at: paidAt,
-          gateway_status: 'approved',
-          gateway_payment_id: realPaymentId
-        };
-
-        if (table === 'invoices') {
-          updateObj.status = 'PAID';
-          updateObj.payment_gateway_id = realPaymentId;
-        } else {
-          updateObj.billing_status = 'PAID';
-        }
-
-        // Busca anexos existentes para incluir o comprovante Mercado Pago
-        const { data: existingDoc } = await supabase.from(table).select('attachments').eq('id', params.itemId).maybeSingle();
-        if (receiptUrl) {
-          const currentAttachments = Array.isArray(existingDoc?.attachments) ? existingDoc.attachments : [];
-          const mpAttachment = {
-            id: `mp-receipt-${realPaymentId}`,
-            name: `Comprovante_MercadoPago_${realPaymentId}.pdf`,
-            url: receiptUrl,
-            type: 'application/pdf',
-            uploadedAt: paidAt
-          };
-          if (!currentAttachments.some((a: any) => a.id === mpAttachment.id)) {
-            updateObj.attachments = [...currentAttachments, mpAttachment];
-          }
-        }
-
-        const itemTenantId = dbRecord?.tenant_id || tenantId;
-
-        let updateQuery = supabase
-          .from(table)
-          .update(updateObj)
-          .eq('id', params.itemId);
-
-        if (itemTenantId && itemTenantId !== 'default') {
-          updateQuery = updateQuery.eq('tenant_id', itemTenantId);
-        }
-
-        const { error: updateError } = await updateQuery;
-
-        if (updateError) {
-          console.error('[PaymentService] Failed to update billing_status in db:', updateError);
-          // O pagamento foi compensado no Mercado Pago, mas houve erro ao salvar no banco.
-          // Ainda retornamos isPaid = true para que a tela não exiba "pendente no Mercado Pago".
-        } else {
-          NexusQueryClient.invalidateQuotes();
-          NexusQueryClient.invalidateOrders();
-          NexusQueryClient.invalidateFinancials();
-        }
-
-        const { data: itemData } = await supabase
-          .from(table)
-          .select('*')
-          .eq('id', params.itemId)
-          .maybeSingle();
-
-        if (itemData) {
-          await supabase.from('cash_flow').insert([{
-            tenant_id: itemData.tenant_id || tenantId,
-            customer_id: itemData.customer_id,
-            technician_id: itemData.assigned_to,
-            type: 'INCOME',
-            category: 'Serviço (O.S.)',
-            amount: itemData.total_value || itemData.value || 0,
-            description: `Faturamento via Mercado Pago — ${descStr}`,
-            reference_id: params.itemId,
-            reference_type: params.itemType,
-            payment_method: cleanPaymentMethod,
-            entry_date: paidAt,
-            created_at: paidAt,
-            created_by: 'gateway_verification'
-          }]);
-        }
+        // 🛡️ MUTAÇÃO DE BANCO DE DADOS REMOVIDA (Auditoria Arquitetural Set/2026)
+        // ─────────────────────────────────────────────────────────────────────────
+        // Este serviço antes executava `supabase.update(orders)` e `supabase.insert(cash_flow)`.
+        // Isso foi removido para evitar RACE CONDITIONS com o Webhook do Mercado Pago.
+        // O cliente agora apenas **lê** o status da API (retornando isPaid = true para a UI).
+        // Toda a mutação de banco de dados (baixar fatura, criar cash_flow) é de 
+        // responsabilidade EXCLUSIVA da Edge Function `mercadopago-webhook`.
+        // ─────────────────────────────────────────────────────────────────────────
 
         return { 
           isPaid: true, 

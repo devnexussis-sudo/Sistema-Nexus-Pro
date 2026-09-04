@@ -61,11 +61,15 @@ export const QuoteService = {
             receiptUrl: data.approval_metadata?._receiptUrl,
             discount: Number(data.discount) || 0,
             gatewayStatus: data.gateway_status,
+            gatewayProvider: data.gateway_provider,
+            gatewayPaymentId: data.gateway_payment_id,
+            gatewayPixCode: data.gateway_pix_code,
+            gatewayTicketUrl: data.gateway_ticket_url,
             formData: data.form_data,
             form_data: data.form_data,
             approvalMetadata: data.approval_metadata,
             approval_metadata: data.approval_metadata,
-            installments: (data.form_data as any)?.mpInstallments || (data.form_data as any)?.installments || (data.approval_metadata as any)?.mpInstallments || (data.approval_metadata as any)?.installments
+            installments: (data.form_data as any)?.mpInstallments || (data.form_data as any)?.installments || (data.approval_metadata as any)?.mpInstallments || (data.approval_metadata as any)?.installments || (data.form_data as any)?.max_installments || (data.approval_metadata as any)?.max_installments
         };
     },
 

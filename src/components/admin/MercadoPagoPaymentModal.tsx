@@ -88,24 +88,50 @@ export const MercadoPagoPaymentModal: React.FC<MercadoPagoPaymentModalProps> = (
     }
   }, [item?.id, item?.value, item?.gatewayPixCode, item?.gatewayTicketUrl, item?.billingStatus]);
 
-  // Polling automático a cada 1.5 segundos se houver cobrança ativa pendente
+  // Listener Realtime (Event-driven): Substitui o antigo polling.
   useEffect(() => {
     if (!isOpen || !item?.id || isPaidConfirmed || !paymentResult?.paymentId) return;
 
-    const interval = setInterval(async () => {
-      const res = await PaymentService.checkPaymentStatus({
-        itemType: item.type,
-        itemId: item.id,
-        gatewayPaymentId: paymentResult.paymentId
-      });
+    const table = item.type === 'ORDER' ? 'orders' : item.type === 'QUOTE' ? 'quotes' : 'invoices';
 
-      if (res.isPaid) {
-        setIsPaidConfirmed(true);
-        if (onSuccess) onSuccess();
-      }
-    }, 1500);
+    const handleApproved = () => {
+      setIsPaidConfirmed(true);
+      if (onSuccess) onSuccess();
+    };
 
-    return () => clearInterval(interval);
+    const channel1 = supabase
+      .channel(`checkout_status_${item.id}`)
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: table,
+        filter: `id=eq.${item.id}`
+      }, (payload) => {
+        const newData = payload.new as any;
+        if (newData.billing_status === 'PAID' || newData.status === 'PAID' || newData.gateway_status === 'approved') {
+          handleApproved();
+        }
+      })
+      .on('broadcast', { event: 'PAYMENT_APPROVED' }, (payload) => {
+        if (payload.payload?.status === 'PAID') {
+          handleApproved();
+        }
+      })
+      .subscribe();
+
+    const channel2 = supabase
+      .channel(`modal_checkout_status_${item.id}`)
+      .on('broadcast', { event: 'PAYMENT_APPROVED' }, (payload) => {
+        if (payload.payload?.status === 'PAID') {
+          handleApproved();
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel1);
+      supabase.removeChannel(channel2);
+    };
   }, [isOpen, item?.id, item?.type, paymentResult?.paymentId, isPaidConfirmed, onSuccess]);
 
   // Gera a cobrança no Mercado Pago para o tipo selecionado
