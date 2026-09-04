@@ -243,17 +243,26 @@ export const MercadoPagoPaymentModal: React.FC<MercadoPagoPaymentModalProps> = (
   };
 
   const handleSendWhatsApp = () => {
+    const rawPhone = (item as any)?.customerPhone || (item as any)?.customer_phone || (item.original as any)?.customerPhone || (item.original as any)?.customer_phone || (item.original as any)?.phone || '';
+    const cleanPhone = String(rawPhone).replace(/\D/g, '');
+    const phoneParam = cleanPhone.length >= 10 ? (cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`) : '';
+    
+    const formattedAmount = finalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const methodDescription = selectedMethod === 'pix' ? 'Pix Instantâneo' : selectedMethod === 'boleto' ? 'Boleto Bancário' : `Cartão de Crédito (em até ${cardInstallments}x)`;
+
     const text = encodeURIComponent(
-      `🏢 *${companyName}*\n` +
-      `📌 *Pagamento de ${item.type === 'ORDER' ? 'Ordem de Serviço' : 'Orçamento'} #${item.displayId || item.id.slice(0, 8)}*\n\n` +
-      `Olá, *${item.customerName}*!\n` +
-      `Segue o link oficial para efetuar o pagamento via *${selectedMethod === 'pix' ? 'Pix' : selectedMethod === 'boleto' ? 'Boleto' : `Cartão de Crédito (em até ${cardInstallments}x)`}* no valor de *R$ ${finalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*:\n\n` +
-      `🔗 *Link do Checkout:* \n${systemCheckoutUrl}\n\n` +
-      (paymentResult?.pixCopiaECola ? `⚡ *PIX Copia e Cola Direto:*\n\`${paymentResult.pixCopiaECola}\`\n\n` : '') +
-      `Qualquer dúvida, estamos à disposição!\n\n` +
-      `_Agradecemos a preferência!_ 🙏`
+      `🏢 *${companyName.toUpperCase()}*\n` +
+      `📌 *Cobrança Oficial • ${item.type === 'ORDER' ? 'Ordem de Serviço' : (item.type === 'INVOICE' ? 'Fatura' : 'Orçamento')} #${item.displayId || item.id.slice(0, 8)}*\n\n` +
+      `Olá, *${item.customerName}*!\n\n` +
+      `Segue o link oficial para efetuar o pagamento via *${methodDescription}* no valor de *R$ ${formattedAmount}*:\n\n` +
+      `🔗 *Link do Checkout Seguro:*\n${systemCheckoutUrl}\n\n` +
+      (paymentResult?.pixCopiaECola ? `⚡ *Chave PIX Copia e Cola:*\n\`${paymentResult.pixCopiaECola}\`\n\n` : '') +
+      `🔒 _Pagamento processado com segurança por ${companyName}_\n` +
+      `Qualquer dúvida, estamos à inteira disposição!`
     );
-    window.open(`https://wa.me/?text=${text}`, '_blank');
+
+    const waUrl = phoneParam ? `https://wa.me/${phoneParam}?text=${text}` : `https://wa.me/?text=${text}`;
+    window.open(waUrl, '_blank');
   };
 
   if (!isOpen || !item) return null;

@@ -2534,20 +2534,29 @@ ${container.innerHTML}
                                                     <button
                                                         type="button"
                                                         onClick={() => {
-                                                            const companyName = tenant?.name || 'NEXUS';
+                                                            const companyName = tenant?.company_name || tenant?.name || 'NEXUS';
                                                             const isOrderOrQuote = ['ORDER', 'QUOTE', 'INVOICE'].includes(selectedItem.type);
                                                             const checkoutUrl = isOrderOrQuote 
                                                                 ? `${window.location.origin}/#/checkout/${selectedItem.type.toLowerCase()}/${selectedItem.original?.id || selectedItem.id}`
                                                                 : (selectedItem.original?.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl);
 
+                                                            const rawPhone = selectedItem.customerPhone || (selectedItem.original as any)?.customerPhone || (selectedItem.original as any)?.customer_phone || (selectedItem.original as any)?.phone || '';
+                                                            const cleanPhone = String(rawPhone).replace(/\D/g, '');
+                                                            const phoneParam = cleanPhone.length >= 10 ? (cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`) : '';
+                                                            const formattedAmount = getItemNetValue(selectedItem).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
                                                             const text = encodeURIComponent(
-                                                                `🏢 *${companyName}*\n\n` +
-                                                                `Olá, ${selectedItem.customerName}! Tudo bem?\n\n` +
-                                                                `Segue a cobrança da ${selectedItem.type === 'ORDER' ? 'O.S.' : 'Orçamento'} #${getDocLabel(selectedItem)} no valor de *R$ ${getItemNetValue(selectedItem).toFixed(2)}*:\n\n` +
-                                                                ((selectedItem.original?.gateway_pix_code || (selectedItem.original as any)?.gatewayPixCode) ? `*Pix Copia e Cola:*\n${selectedItem.original.gateway_pix_code || (selectedItem.original as any)?.gatewayPixCode}\n\n` : '') +
-                                                                (checkoutUrl ? `*Link de Pagamento:*\n${checkoutUrl}` : '')
+                                                                `🏢 *${companyName.toUpperCase()}*\n` +
+                                                                `📌 *Faturamento Oficial • ${selectedItem.type === 'ORDER' ? 'O.S.' : (selectedItem.type === 'INVOICE' ? 'Fatura' : 'Orçamento')} #${getDocLabel(selectedItem)}*\n\n` +
+                                                                `Olá, *${selectedItem.customerName}*!\n\n` +
+                                                                `Segue o link oficial para pagamento no valor de *R$ ${formattedAmount}*:\n\n` +
+                                                                ((selectedItem.original?.gateway_pix_code || (selectedItem.original as any)?.gatewayPixCode) ? `⚡ *PIX Copia e Cola:*\n\`${selectedItem.original.gateway_pix_code || (selectedItem.original as any)?.gatewayPixCode}\`\n\n` : '') +
+                                                                (checkoutUrl ? `🔗 *Link do Checkout Seguro:*\n${checkoutUrl}\n\n` : '') +
+                                                                `🔒 _Pagamento processado com segurança por ${companyName}_\n` +
+                                                                `Qualquer dúvida, nossa equipe está à disposição!`
                                                             );
-                                                            window.open(`https://wa.me/?text=${text}`, '_blank');
+                                                            const waUrl = phoneParam ? `https://wa.me/${phoneParam}?text=${text}` : `https://wa.me/?text=${text}`;
+                                                            window.open(waUrl, '_blank');
                                                         }}
                                                         className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
                                                     >
