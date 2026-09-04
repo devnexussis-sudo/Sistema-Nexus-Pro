@@ -78,7 +78,7 @@ export const PaymentService = {
   async getMercadoPagoPublicKey(explicitTenantId?: string): Promise<string | null> {
     const tenantId = explicitTenantId || getCurrentTenantId() || 'default';
     try {
-      const { data, error } = await supabase.functions.invoke('mercadopago-create-charge', {
+      const { data } = await supabase.functions.invoke('mercadopago-create-charge', {
         body: { action: 'get_public_key', tenantId }
       });
       if (data && data.success && data.mpPublicKey) {
@@ -87,6 +87,19 @@ export const PaymentService = {
     } catch (err) {
       console.warn('[PaymentService] Error fetching public key via Edge Function:', err);
     }
+
+    try {
+      const { data } = await supabase
+        .from('tenant_mercadopago_settings')
+        .select('mp_public_key')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+
+      if (data?.mp_public_key) {
+        return data.mp_public_key;
+      }
+    } catch (e) {}
+
     return null;
   },
 

@@ -32,38 +32,50 @@ const StablePaymentBrick = React.memo(({
   onError: (e: any) => void;
 }) => {
   const installments = forcedInstallments && forcedInstallments > 0 ? forcedInstallments : undefined;
-  const validAmount = Math.max(0.5, Number(Number(amount || 0).toFixed(2)));
-  const validEmail = payerEmail && payerEmail.includes('@') ? payerEmail : 'cliente@dunoup.com.br';
+  const validAmount = useMemo(() => Math.max(0.5, Number(Number(amount || 0).toFixed(2))), [amount]);
+  const validEmail = useMemo(() => (payerEmail && payerEmail.includes('@') ? payerEmail : 'cliente@dunoup.com.br'), [payerEmail]);
+
+  const initialization = useMemo(() => ({
+    amount: validAmount,
+    payer: { email: validEmail },
+  }), [validAmount, validEmail]);
+
+  const customization = useMemo(() => ({
+    paymentMethods: {
+      creditCard: 'all' as const,
+      maxInstallments: installments || 12,
+      minInstallments: 1,
+    },
+    visual: {
+      defaultPaymentOption: {
+        creditCardForm: true,
+      },
+    },
+  }), [installments]);
+
+  const handleSubmit = useCallback(async (formData: any) => {
+    await onSubmit('card_link', formData);
+  }, [onSubmit]);
+
+  const handleError = useCallback((error: any) => {
+    console.error('[MercadoPago Brick Error]', error);
+    onError(error);
+  }, [onError]);
+
+  const handleReady = useCallback(() => {
+    console.log('[MercadoPago Brick Ready] amount:', validAmount, 'installments:', installments);
+  }, [validAmount, installments]);
 
   return (
-    <Payment
-      initialization={{
-        amount: validAmount,
-        payer: { email: validEmail },
-      }}
-      customization={{
-        paymentMethods: {
-          creditCard: 'all',
-          maxInstallments: installments || 12,
-          minInstallments: 1,
-        },
-        visual: {
-          defaultPaymentOption: {
-            creditCardForm: true,
-          },
-        },
-      }}
-      onSubmit={async (formData) => {
-        await onSubmit('card_link', formData);
-      }}
-      onError={(error) => {
-        console.error('[MercadoPago Brick Error]', error);
-        onError(error);
-      }}
-      onReady={() => {
-        console.log('[MercadoPago Brick Ready] amount:', validAmount, 'installments:', installments);
-      }}
-    />
+    <div className="w-full min-h-[400px]">
+      <Payment
+        initialization={initialization}
+        customization={customization}
+        onSubmit={handleSubmit}
+        onError={handleError}
+        onReady={handleReady}
+      />
+    </div>
   );
 });
 
@@ -88,6 +100,7 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
   const [item, setItem] = useState<any>(null);
   const [tenant, setTenant] = useState<any>(null);
   const [mpPublicKey, setMpPublicKey] = useState<string | null>(null);
+  const [isMpSdkReady, setIsMpSdkReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -375,11 +388,30 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
             const tenantData = await DataService.getTenantById(tenantId);
             if (isMounted) setTenant(tenantData);
 
-            // Carrega a Public Key do MP para o Brick através da Edge Function segura
+            // Carrega a Public Key do MP para o Brick através da Edge Function segura ou query direta
             const publicKey = await PaymentService.getMercadoPagoPublicKey(tenantId);
             if (publicKey && isMounted) {
               setMpPublicKey(publicKey);
-              initMercadoPago(publicKey, { locale: 'pt-BR' });
+              try {
+                initMercadoPago(publicKey, { locale: 'pt-BR' });
+              } catch (e) {
+                console.warn('[PublicCheckoutPage] initMercadoPago warning:', e);
+              }
+
+              let attempts = 0;
+              const checkSdkReady = () => {
+                attempts++;
+                if ((window as any).MercadoPago || (window as any).cardPaymentBrickController) {
+                  if (isMounted) setIsMpSdkReady(true);
+                } else if (attempts < 30) {
+                  setTimeout(checkSdkReady, 100);
+                } else {
+                  if (isMounted) setIsMpSdkReady(true);
+                }
+              };
+              checkSdkReady();
+            } else if (isMounted) {
+              setIsMpSdkReady(true);
             }
           }
         }
@@ -869,13 +901,14 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
                   {/* 💳 VISUALIZAÇÃO DE CARTÃO TRANSPARENTE (BRICK) */}
                   {selectedMethod === 'card_link' && (
                     <div className="bg-white border border-slate-200 rounded-3xl p-2 sm:p-4 space-y-4 max-w-lg mx-auto shadow-sm relative min-h-[350px]">
-                      {(!mpPublicKey || generating || isVerifying) && (
-                        <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-3xl p-4 text-center space-y-2">
+                      {(!mpPublicKey || !isMpSdkReady || generating || isVerifying) && (
+                        <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-3xl p-6 text-center space-y-3">
                           <Loader2 size={32} className="animate-spin text-sky-600 mx-auto" />
                           <span className="text-xs font-bold text-sky-900">
                             {generating ? 'Processando autorização com a operadora do cartão...' : 
                              isVerifying ? 'Verificando status do pagamento com o banco...' :
-                             'Carregando ambiente seguro de pagamento...'}
+                             !mpPublicKey ? 'Carregando credenciais de pagamento seguro...' :
+                             'Carregando formulário seguro do Mercado Pago...'}
                           </span>
                         </div>
                       )}
@@ -911,7 +944,7 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
                         </div>
                       )}
 
-                      {mpPublicKey && totalAmount > 0 && (!paymentResult || paymentResult?.currentStatus !== 'in_process') && (
+                      {mpPublicKey && isMpSdkReady && totalAmount > 0 && (!paymentResult || paymentResult?.currentStatus !== 'in_process') && (
                         <StablePaymentBrick
                           mpPublicKey={mpPublicKey}
                           amount={totalAmount}
