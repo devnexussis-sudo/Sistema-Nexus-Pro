@@ -7,7 +7,7 @@ import {
   Copy, CheckCircle2, RefreshCw, Loader2, AlertCircle, Phone, Mail, MapPin, Share2, DollarSign, Hexagon, Globe, Clock
 } from 'lucide-react';
 import { NexusBranding } from '../ui/NexusBranding';
-import { initMercadoPago, Payment } from '@mercadopago/sdk-react';
+import { initMercadoPago, CardPayment } from '@mercadopago/sdk-react';
 import { supabase, publicSupabase } from '../../lib/supabase';
 
 interface PublicCheckoutPageProps {
@@ -42,33 +42,33 @@ const StablePaymentBrick = React.memo(({
 
   const customization = useMemo(() => ({
     paymentMethods: {
-      creditCard: 'all' as const,
       maxInstallments: installments || 12,
       minInstallments: 1,
     },
     visual: {
-      defaultPaymentOption: {
-        creditCardForm: true,
+      style: {
+        theme: 'default' as const,
       },
     },
   }), [installments]);
 
   const handleSubmit = useCallback(async (formData: any) => {
+    console.log('[CardPayment Brick Submit]', formData);
     await onSubmit('card_link', formData);
   }, [onSubmit]);
 
   const handleError = useCallback((error: any) => {
-    console.error('[MercadoPago Brick Error]', error);
+    console.error('[CardPayment Brick Error]', error);
     onError(error);
   }, [onError]);
 
   const handleReady = useCallback(() => {
-    console.log('[MercadoPago Brick Ready] amount:', validAmount, 'installments:', installments);
+    console.log('[CardPayment Brick Ready] amount:', validAmount, 'installments:', installments);
   }, [validAmount, installments]);
 
   return (
     <div className="w-full min-h-[400px]">
-      <Payment
+      <CardPayment
         initialization={initialization}
         customization={customization}
         onSubmit={handleSubmit}
