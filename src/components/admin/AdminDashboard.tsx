@@ -1145,7 +1145,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="relative flex items-center justify-center">
                 <RefreshCw 
                   size={16} 
-                  className={`${ordersLoading || isManualSyncing ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} 
+                  className={`${ordersLoading || isManualSyncing || ordersFetching ? "animate-spin text-primary-600" : "group-hover:rotate-180 transition-transform duration-500"}`} 
                 />
               </div>
             </button>
@@ -1339,7 +1339,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* Main Table Container - Premium Look */}
       <div className="relative bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col overflow-hidden flex-1 ring-1 ring-slate-200/80">
         {/* 🔄 Page Transition Overlay — Big Tech Standard */}
-        {(ordersFetching || isManualSyncing) && !ordersLoading && pagedOrders.length > 0 && (
+        {isManualSyncing && !ordersLoading && pagedOrders.length > 0 && (
           <div className="absolute inset-0 bg-white/70 backdrop-blur-[2px] z-20 flex items-center justify-center transition-opacity duration-200 animate-fade-in">
             <div className="flex flex-col items-center gap-3">
               <div className="w-8 h-8 border-[3px] border-slate-200 border-t-primary-500 rounded-full animate-spin" />

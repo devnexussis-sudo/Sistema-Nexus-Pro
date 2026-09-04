@@ -774,8 +774,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         // Roda a primeira varredura imediatamente
         scanBackground();
 
-        // E repete continuamente a cada 2.5 segundos em background
-        const intervalId = setInterval(scanBackground, 2500);
+        // E repete a cada 30 segundos em background (evita polling excessivo)
+        const intervalId = setInterval(scanBackground, 30000);
 
         return () => {
             isCancelled = true;
