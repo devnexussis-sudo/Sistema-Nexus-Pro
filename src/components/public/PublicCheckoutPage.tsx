@@ -23,7 +23,6 @@ const StablePaymentBrick = React.memo(({
   forcedInstallments,
   onSubmit,
   onError,
-  preferenceId,
 }: {
   mpPublicKey: string;
   amount: number;
@@ -31,16 +30,16 @@ const StablePaymentBrick = React.memo(({
   forcedInstallments?: number;
   onSubmit: (method: 'card_link', formData: any) => Promise<void>;
   onError: (e: any) => void;
-  preferenceId?: string;
 }) => {
   const installments = forcedInstallments && forcedInstallments > 0 ? forcedInstallments : undefined;
+  const validAmount = Math.max(0.5, Number(Number(amount || 0).toFixed(2)));
+  const validEmail = payerEmail && payerEmail.includes('@') ? payerEmail : 'cliente@dunoup.com.br';
 
   return (
     <Payment
       initialization={{
-        amount,
-        preferenceId,
-        payer: { email: payerEmail },
+        amount: validAmount,
+        payer: { email: validEmail },
       }}
       customization={{
         paymentMethods: {
@@ -62,7 +61,7 @@ const StablePaymentBrick = React.memo(({
         onError(error);
       }}
       onReady={() => {
-        console.log('[MercadoPago Brick Ready] installments:', installments);
+        console.log('[MercadoPago Brick Ready] amount:', validAmount, 'installments:', installments);
       }}
     />
   );
@@ -912,13 +911,12 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
                         </div>
                       )}
 
-                      {mpPublicKey && (!paymentResult || paymentResult?.currentStatus !== 'in_process') && (
+                      {mpPublicKey && totalAmount > 0 && (!paymentResult || paymentResult?.currentStatus !== 'in_process') && (
                         <StablePaymentBrick
                           mpPublicKey={mpPublicKey}
                           amount={totalAmount}
                           payerEmail={item.customerEmail || item.customer_email || ''}
                           forcedInstallments={forcedInstallments}
-                          preferenceId={item.gatewayPaymentId || item.gateway_payment_id || undefined}
                           onSubmit={handleGenerateCharge}
                           onError={handleBrickError}
                         />
