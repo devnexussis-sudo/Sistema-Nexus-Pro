@@ -40,7 +40,7 @@ export const QuoteService = {
             title: data.title,
             description: data.description,
             items: typeof data.items === 'string' ? JSON.parse(data.items) : (data.items || []),
-            totalValue: data.total_value || 0,
+            totalValue: data.total_value || data.total_amount || 0,
             status: data.status || 'ABERTO',
             notes: data.notes,
             validUntil: data.valid_until,

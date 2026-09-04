@@ -150,6 +150,7 @@ export const OrderService = {
             signatureDoc: data.signature_doc,
             videoUrl: data.video_url,
             visitCount: visitCount,
+            total_amount: (data as any).total_amount || (data as any).total_value,
         };
     },
 

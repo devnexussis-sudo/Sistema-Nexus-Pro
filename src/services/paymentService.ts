@@ -78,14 +78,17 @@ export const PaymentService = {
   async getMercadoPagoPublicKey(explicitTenantId?: string): Promise<string | null> {
     const tenantId = explicitTenantId || getCurrentTenantId() || 'default';
     try {
-      const { data } = await supabase.functions.invoke('mercadopago-create-charge', {
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Edge Function Timeout')), 3000));
+      const invokePromise = supabase.functions.invoke('mercadopago-create-charge', {
         body: { action: 'get_public_key', tenantId }
       });
+      
+      const { data } = (await Promise.race([invokePromise, timeoutPromise])) as any;
       if (data && data.success && data.mpPublicKey) {
         return data.mpPublicKey;
       }
     } catch (err) {
-      console.warn('[PaymentService] Error fetching public key via Edge Function:', err);
+      console.warn('[PaymentService] Error fetching public key via Edge Function (timeout or crash):', err);
     }
 
     try {

@@ -390,6 +390,9 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
 
             // Carrega a Public Key do MP para o Brick através da Edge Function segura ou query direta
             const publicKey = await PaymentService.getMercadoPagoPublicKey(tenantId);
+            
+            console.log('[Checkout Debug] getMercadoPagoPublicKey result:', publicKey);
+            
             if (publicKey && isMounted) {
               setMpPublicKey(publicKey);
               try {
@@ -397,19 +400,8 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
               } catch (e) {
                 console.warn('[PublicCheckoutPage] initMercadoPago warning:', e);
               }
-
-              let attempts = 0;
-              const checkSdkReady = () => {
-                attempts++;
-                if ((window as any).MercadoPago || (window as any).cardPaymentBrickController) {
-                  if (isMounted) setIsMpSdkReady(true);
-                } else if (attempts < 30) {
-                  setTimeout(checkSdkReady, 100);
-                } else {
-                  if (isMounted) setIsMpSdkReady(true);
-                }
-              };
-              checkSdkReady();
+              // Set ready immediately so the Brick component can mount and load its internal scripts if needed
+              if (isMounted) setIsMpSdkReady(true);
             } else if (isMounted) {
               setIsMpSdkReady(true);
             }
@@ -903,13 +895,13 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
                     <div className="bg-white border border-slate-200 rounded-3xl p-2 sm:p-4 space-y-4 max-w-lg mx-auto shadow-sm relative min-h-[350px]">
                       {(!mpPublicKey || !isMpSdkReady || generating || isVerifying) && (
                         <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-3xl p-6 text-center space-y-3">
-                          <Loader2 size={32} className="animate-spin text-sky-600 mx-auto" />
-                          <span className="text-xs font-bold text-sky-900">
-                            {generating ? 'Processando autorização com a operadora do cartão...' : 
-                             isVerifying ? 'Verificando status do pagamento com o banco...' :
-                             !mpPublicKey ? 'Carregando credenciais de pagamento seguro...' :
-                             'Carregando formulário seguro do Mercado Pago...'}
-                          </span>
+                           <Loader2 size={32} className="animate-spin text-sky-600 mx-auto" />
+                           <span className="text-xs font-bold text-sky-900">
+                             {generating ? 'Processando autorização com a operadora do cartão...' : 
+                              isVerifying ? 'Verificando status do pagamento com o banco...' :
+                              !mpPublicKey ? 'Carregando credenciais de pagamento seguro...' :
+                              'Carregando formulário seguro do Mercado Pago...'}
+                           </span>
                         </div>
                       )}
                       
