@@ -4,19 +4,24 @@
 
 BEGIN;
 
--- 1. Liberar Leitura Pública para Invoices (Faturas) no Checkout Seguro
+-- 1. Limpar TODAS as assinaturas sobrecarregadas antigas da função get_public_document para evitar erro PGRST203
+DROP FUNCTION IF EXISTS public.get_public_document(text, text);
+DROP FUNCTION IF EXISTS public.get_public_document(uuid, text);
+DROP FUNCTION IF EXISTS public.get_public_document(text, uuid);
+
+-- 2. Liberar Leitura Pública para Invoices (Faturas) no Checkout Seguro
 DROP POLICY IF EXISTS "invoices_public_read" ON public.invoices;
 CREATE POLICY "invoices_public_read" ON public.invoices
   FOR SELECT TO anon
   USING (true);
 
--- 2. Liberar Leitura Pública para Invoice Items
+-- 3. Liberar Leitura Pública para Invoice Items
 DROP POLICY IF EXISTS "invoice_items_public_read" ON public.invoice_items;
 CREATE POLICY "invoice_items_public_read" ON public.invoice_items
   FOR SELECT TO anon
   USING (true);
 
--- 3. Assegurar que Quotes (Orçamentos) e Orders (Ordens de Serviço) possuem acesso público total em SELECT (para token, id e display_id)
+-- 4. Assegurar que Quotes (Orçamentos) e Orders (Ordens de Serviço) possuem acesso público total em SELECT
 DROP POLICY IF EXISTS "quotes_public_read" ON public.quotes;
 CREATE POLICY "quotes_public_read" ON public.quotes
   FOR SELECT TO anon
@@ -27,7 +32,7 @@ CREATE POLICY "orders_public_read" ON public.orders
   FOR SELECT TO anon
   USING (true);
 
--- 4. Função RPC universal para obtenção de documentos públicos (SECURITY DEFINER - Bypassa RLS)
+-- 5. Função RPC única e inequívoca para obtenção de documentos públicos (SECURITY DEFINER - Bypassa RLS)
 CREATE OR REPLACE FUNCTION public.get_public_document(doc_token text, doc_type text DEFAULT 'quote')
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -70,7 +75,6 @@ BEGIN
        OR o.display_id = doc_token
     LIMIT 1;
 
-    -- Fallback para quotes e invoices
     IF v_result IS NULL THEN
       SELECT to_jsonb(q.*) INTO v_result
       FROM public.quotes q

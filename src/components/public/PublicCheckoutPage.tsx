@@ -548,13 +548,17 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
         gatewayPaymentId: paymentResult?.paymentId
       });
 
-      if (res.isPaid) {
+      if (res.isPaid || res.status === 'approved') {
         setIsPaidConfirmed(true);
+      } else if (res.status === 'rejected') {
+        setPaymentResult(null);
+        const friendlyMessage = getMercadoPagoErrorMessage(res.statusDetail || 'cc_rejected_other_reason');
+        setError(friendlyMessage);
       } else {
-        setError('O pagamento ainda não consta como liquidado. Caso já tenha efetuado a transferência PIX, aguarde alguns instantes.');
+        setError('O pagamento ainda consta em análise pelo banco emissor. Caso a transação já tenha sido liberada no app do banco, aguarde alguns instantes e clique em verificar novamente.');
       }
     } catch (err: any) {
-      setError(err.message || 'Erro ao verificar o status.');
+      setError(err.message || 'Erro ao verificar o status do pagamento.');
     } finally {
       setIsVerifying(false);
     }
@@ -865,20 +869,50 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
 
                   {/* 💳 VISUALIZAÇÃO DE CARTÃO TRANSPARENTE (BRICK) */}
                   {selectedMethod === 'card_link' && (
-                    <div className="bg-white border border-slate-200 rounded-3xl p-2 sm:p-4 space-y-4 max-w-lg mx-auto shadow-sm relative min-h-[400px]">
-                      {(!mpPublicKey || generating || paymentResult) && (
-                        <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-3xl">
-                          <Loader2 size={32} className="animate-spin text-sky-600 mb-2" />
-                          <span className="text-xs font-bold text-sky-900 text-center px-4">
-                            {generating ? 'Processando pagamento...' : 
-                             paymentResult?.currentStatus === 'in_process' ? 'O Mercado Pago está analisando seu pagamento (pode levar alguns minutos)...' :
-                             paymentResult?.currentStatus === 'authorized' ? 'Pagamento autorizado, aguardando captura...' :
-                             'Aguardando confirmação do banco...'}
+                    <div className="bg-white border border-slate-200 rounded-3xl p-2 sm:p-4 space-y-4 max-w-lg mx-auto shadow-sm relative min-h-[350px]">
+                      {(!mpPublicKey || generating || isVerifying) && (
+                        <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-3xl p-4 text-center space-y-2">
+                          <Loader2 size={32} className="animate-spin text-sky-600 mx-auto" />
+                          <span className="text-xs font-bold text-sky-900">
+                            {generating ? 'Processando autorização com a operadora do cartão...' : 
+                             isVerifying ? 'Verificando status do pagamento com o banco...' :
+                             'Carregando ambiente seguro de pagamento...'}
                           </span>
                         </div>
                       )}
                       
-                      {mpPublicKey && !paymentResult && (
+                      {/* CARD INTERATIVO DE STATUS EM ANÁLISE (SE RETORNADO PELO MP) */}
+                      {paymentResult?.currentStatus === 'in_process' && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-left space-y-3 shadow-sm">
+                          <div className="flex items-center gap-2">
+                            <Clock size={18} className="text-amber-600 shrink-0 animate-pulse" />
+                            <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wide">
+                              Pagamento em Análise de Segurança
+                            </h4>
+                          </div>
+                          <p className="text-xs text-amber-800 leading-relaxed">
+                            O Mercado Pago e o banco emissor estão validando o pagamento. Isso costuma levar apenas alguns instantes. Assim que aprovado, seu comprovante será exibido aqui.
+                          </p>
+                          <div className="pt-2 flex flex-col sm:flex-row items-center gap-2">
+                            <button
+                              onClick={handleManualCheckStatus}
+                              disabled={isVerifying}
+                              className="w-full sm:w-auto px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-sm cursor-pointer"
+                            >
+                              {isVerifying ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                              Verificar Status Novamente
+                            </button>
+                            <button
+                              onClick={() => { setPaymentResult(null); setError(null); }}
+                              className="w-full sm:w-auto px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all text-center cursor-pointer"
+                            >
+                              Tentar Outro Cartão / Meio
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {mpPublicKey && (!paymentResult || paymentResult?.currentStatus !== 'in_process') && (
                         <StablePaymentBrick
                           mpPublicKey={mpPublicKey}
                           amount={totalAmount}
