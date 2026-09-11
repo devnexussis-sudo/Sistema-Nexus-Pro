@@ -484,6 +484,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return () => window.removeEventListener('NEXUS_OPEN_ORDER', handleOpenOrder);
   }, [pagedOrders]);
 
+  // Sincroniza a OS aberta (selectedOrder) com atualizações no pagedOrders vindas do Realtime
+  useEffect(() => {
+    if (selectedOrder && !isEditing) {
+      const updatedInList = pagedOrders.find(o => o.id === selectedOrder.id);
+      if (updatedInList && updatedInList.updatedAt !== selectedOrder.updatedAt) {
+        setSelectedOrder(updatedInList);
+      }
+    }
+  }, [pagedOrders, selectedOrder, isEditing]);
+
+  // 📡 Realtime Local (Garante atualização na listagem de Atividades instantaneamente)
+  useEffect(() => {
+    const tenantIdStr = tenant?.id || '';
+    if (!tenantIdStr) return;
+
+    const channelName = `admin-orders-rt-${tenantIdStr}`;
+    const handleOrderChange = (payload: any) => {
+        console.log('⚡ [AdminDashboard Realtime] Mudança na OS detectada:', payload.eventType);
+        ordersRefetch();
+    };
+
+    const channel = supabase.channel(channelName)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `tenant_id=eq.${tenantIdStr}` }, handleOrderChange)
+        .subscribe();
+
+    return () => {
+        supabase.removeChannel(channel);
+    };
+  }, [tenant?.id, ordersRefetch]);
+
   // Lazy load: quando abre aba equipamentos — service_order_equipments é fonte principal
   useEffect(() => {
     if (activeTab === 'equipments' && selectedOrder) {

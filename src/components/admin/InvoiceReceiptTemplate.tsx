@@ -1,8 +1,36 @@
 import React from 'react';
 import { Wallet, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { formatInvoiceDisplayId } from '../../utils/invoiceUtils';
 
 const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+};
+
+const formatAsaasDateTime = (dateVal: any): string => {
+    if (!dateVal) return '';
+    const str = String(dateVal).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+        const [y, m, d] = str.split('-');
+        return `${d}/${m}/${y}`;
+    }
+    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(str) && !str.includes('Z') && !str.includes('+')) {
+        const cleanStr = str.replace(' ', 'T');
+        const [datePart, timePart] = cleanStr.split('T');
+        const [y, m, d] = datePart.split('-');
+        const timeSub = timePart.substring(0, 5);
+        return `${d}/${m}/${y} às ${timeSub}`;
+    }
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime())) {
+        if (parsed.getUTCHours() === 0 && parsed.getUTCMinutes() === 0 && parsed.getUTCSeconds() === 0) {
+            const y = parsed.getUTCFullYear();
+            const m = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+            const d = String(parsed.getUTCDate()).padStart(2, '0');
+            return `${d}/${m}/${y}`;
+        }
+        return parsed.toLocaleString('pt-BR');
+    }
+    return str;
 };
 
 export interface InvoiceReceiptProps {
@@ -10,6 +38,7 @@ export interface InvoiceReceiptProps {
     invoiceItems: any[];
     rawItems: any[];
     customers?: any[];
+    installments?: any[];
     tenantInfo?: {
         name?: string;
         document?: string;
@@ -26,9 +55,12 @@ export const InvoiceReceiptTemplate: React.FC<InvoiceReceiptProps> = ({
     invoiceItems, 
     rawItems, 
     customers = [], 
+    installments = [],
     tenantInfo 
 }) => {
     if (!invoice) return null;
+
+    const installmentsList = (installments && installments.length > 0) ? installments : (invoice.installments || []);
 
     // Busca cliente completo na lista de clientes cadastrados
     const fullCust = customers.find(c => 
@@ -83,7 +115,7 @@ export const InvoiceReceiptTemplate: React.FC<InvoiceReceiptProps> = ({
                 quantity: Number(it.quantity || 1),
                 unit_price: Number(it.unitPrice || it.unit_price || 0),
                 typeLabel: 'ITEM',
-                docLabel: invoice.display_id || `FAT-${String(idx + 1).padStart(3, '0')}`,
+                docLabel: formatInvoiceDisplayId(invoice.display_id || (idx + 1)),
                 date: invoice.created_at
             }));
         } else if (rawItems && rawItems.length > 0) {
@@ -121,6 +153,28 @@ export const InvoiceReceiptTemplate: React.FC<InvoiceReceiptProps> = ({
     const shipping = invoice.shipping_amount || 0;
     const additions = invoice.other_additions_amount || 0;
     const totalLiquid = Math.max(0, subtotal - discount + shipping + additions);
+
+    const rawAsaasId = invoice.gateway_payment_id || invoice.payment_gateway_id;
+    const friendlyInvoiceNum = invoice.invoice_number || invoice.asaas_invoice_number || (invoice.notes ? (invoice.notes.match(/fatura[^\d]*(\d+)/i)?.[1]) : null);
+    const paidAtRaw = invoice.paid_at || (installmentsList.find((i: any) => i.paid_at)?.paid_at) || (isPaid ? invoice.updated_at : null);
+    const paidAtFormatted = paidAtRaw ? formatAsaasDateTime(paidAtRaw) : null;
+    const billedUser = invoice.billed_by_name || invoice.created_by_name || invoice.created_by || invoice.form_data?.billed_by || invoice.notes?.billed_by || (typeof invoice.notes === 'string' && invoice.notes.includes('Faturado por:') ? invoice.notes.split('Faturado por:')[1]?.trim() : null) || 'Sistema / Painel';
+
+    const getFormattedPaymentMethod = () => {
+        const m = String(invoice.payment_method || invoice.paymentMethod || '').toLowerCase();
+        const count = installmentsList.length;
+
+        let base = 'Pix';
+        if (m.includes('credit_card') || m.includes('cart') || m.includes('card')) base = 'Cartão de Crédito';
+        else if (m.includes('ticket') || m.includes('boleto')) base = 'Boleto Bancário';
+        else if (m.includes('cash') || m.includes('dinheiro')) base = 'Dinheiro';
+        else if (m.includes('pix')) base = 'Pix';
+        else if (invoice.payment_method) base = invoice.payment_method;
+
+        if (count > 1) return `${base} (${count}x Parcelado)`;
+        if (count === 1) return `${base} (À Vista - 1x)`;
+        return `${base} (À Vista)`;
+    };
 
     return (
         <div className="bg-white text-[10px] leading-tight font-poppins p-6 print:p-0 print:break-inside-avoid min-h-[1056px] flex flex-col relative w-[210mm] mx-auto print:w-full" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
@@ -174,7 +228,7 @@ export const InvoiceReceiptTemplate: React.FC<InvoiceReceiptProps> = ({
                 </div>
 
                 <div className="space-y-3">
-                    {/* Dados Completos do Cliente e Faturamento (Padrão de Mercado) */}
+                    {/* Dados Completos do Cliente e Faturamento (Padrão Gateway Asaas) */}
                     <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
                         <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-medium text-[9px] uppercase tracking-wider text-slate-700 flex justify-between items-center">
                             <span>Dados Completos do Cliente e Faturamento</span>
@@ -211,7 +265,7 @@ export const InvoiceReceiptTemplate: React.FC<InvoiceReceiptProps> = ({
                                 </div>
                             </div>
 
-                            {/* Coluna Faturamento & Gateway */}
+                            {/* Coluna Faturamento & Gateway ASAAS */}
                             <div className="col-span-5 p-2.5 grid grid-cols-2 gap-2.5 bg-slate-50/40">
                                 <div>
                                     <label className="block text-[8px] font-medium text-slate-400 uppercase">Natureza Ref.</label>
@@ -223,138 +277,239 @@ export const InvoiceReceiptTemplate: React.FC<InvoiceReceiptProps> = ({
                                 </div>
                                 <div>
                                     <label className="block text-[8px] font-medium text-slate-400 uppercase">Status do Faturamento</label>
-                                    <div className={`font-medium text-[9px] border px-1.5 py-0.5 rounded inline-block uppercase mt-0.5 ${isPaid ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                                        {isPaid ? 'LIQUIDADO' : 'PENDENTE'}
+                                    <div className={`font-bold text-[9px] border px-1.5 py-0.5 rounded inline-block uppercase mt-0.5 ${isPaid ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                                        {isPaid ? 'LIQUIDADO / PAGO' : 'PENDENTE DE PAGAMENTO'}
                                     </div>
                                 </div>
                                 <div>
                                     <label className="block text-[8px] font-medium text-slate-400 uppercase">Forma de Pagamento</label>
-                                    <div className="font-medium uppercase text-slate-800">{invoice.payment_method || 'Mercado Pago'}</div>
+                                    <div className="font-extrabold uppercase text-slate-900">{getFormattedPaymentMethod()}</div>
                                 </div>
-                                {invoice.payment_gateway_id && (
+
+                                <div className="col-span-2 pt-1 border-t border-slate-200">
+                                    <label className="block text-[8px] font-medium text-slate-400 uppercase">Faturado Por (Operador do Painel)</label>
+                                    <div className="font-mono text-[10px] font-bold text-slate-800 uppercase">{billedUser}</div>
+                                </div>
+
+                                {paidAtFormatted && (
                                     <div className="col-span-2 pt-1 border-t border-slate-200">
-                                        <label className="block text-[8px] font-medium text-slate-400 uppercase">NSU / ID Gateway Transacional</label>
-                                        <div className="font-mono text-[10px] font-bold text-slate-700">{invoice.payment_gateway_id}</div>
+                                        <label className="block text-[8px] font-medium text-slate-400 uppercase">Data da Quitação / Liquidação</label>
+                                        <div className="font-mono text-[10px] font-bold text-emerald-700">{paidAtFormatted}</div>
+                                    </div>
+                                )}
+
+                                {rawAsaasId && (
+                                    <div className="col-span-2 pt-1 border-t border-slate-200">
+                                        <label className="block text-[8px] font-medium text-slate-400 uppercase">ID Transação ASAAS (Gateway)</label>
+                                        <div className="font-mono text-[10px] font-bold text-[#009EE3]">#{rawAsaasId}</div>
+                                    </div>
+                                )}
+
+                                {friendlyInvoiceNum && (
+                                    <div className="col-span-2 pt-1 border-t border-slate-200">
+                                        <label className="block text-[8px] font-medium text-slate-400 uppercase">Nº Fatura Asaas</label>
+                                        <div className="font-mono text-[10px] font-bold text-slate-800">{friendlyInvoiceNum}</div>
                                     </div>
                                 )}
                             </div>
                         </div>
                     </div>
 
-                    {/* Descritivo Completo dos Lançamentos da Fatura */}
-                    <div className="border border-slate-300 rounded-lg overflow-hidden">
+                    {/* Descritivo dos Lançamentos / Composição da Fatura */}
+                    {billedItems.length > 0 && (
+                        <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
+                            <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-medium text-[9px] uppercase tracking-wider text-slate-700 flex justify-between items-center">
+                                <span>Descritivo dos Lançamentos / Composição da Fatura</span>
+                                <span className="text-[8px] font-bold text-slate-500 uppercase">{billedItems.length} Item(ns)</span>
+                            </div>
+                            <table className="w-full text-left table-fixed">
+                                <thead>
+                                    <tr className="bg-slate-50 text-[8px] font-semibold text-slate-500 uppercase border-b border-slate-200">
+                                        <th className="px-3 py-1.5 w-10">#</th>
+                                        <th className="px-3 py-1.5">Descrição do Lançamento</th>
+                                        <th className="px-3 py-1.5 text-center w-24">Doc. Ref.</th>
+                                        <th className="px-3 py-1.5 text-center w-20">Tipo</th>
+                                        <th className="px-3 py-1.5 text-right w-28">Valor Unit. / Subtotal</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200 bg-white">
+                                    {billedItems.map((item: any, idx: number) => (
+                                        <tr key={idx} className="break-inside-avoid">
+                                            <td className="px-3 py-1.5 text-[9px] font-medium text-slate-400 align-top">
+                                                {String(idx + 1).padStart(2, '0')}
+                                            </td>
+                                            <td className="px-3 py-1.5 text-[9px] uppercase font-semibold text-slate-800 break-words whitespace-pre-wrap align-top">
+                                                {item.title}
+                                            </td>
+                                            <td className="px-3 py-1.5 text-[9px] text-center font-mono font-medium text-slate-600 align-top">
+                                                {item.docLabel}
+                                            </td>
+                                            <td className="px-3 py-1.5 text-[9px] text-center font-bold text-slate-500 align-top">
+                                                {item.typeLabel}
+                                            </td>
+                                            <td className="px-3 py-1.5 text-[9px] text-right font-bold font-mono text-slate-900 align-top">
+                                                {formatCurrency(item.amount)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            {/* Resumo Financeiro da Fatura */}
+                            <div className="bg-slate-50 border-t border-slate-200 divide-y divide-slate-100 text-[9px]">
+                                <div className="px-4 py-1.5 flex justify-end gap-8 items-center">
+                                    <span className="text-[8px] uppercase font-medium tracking-wider text-slate-500">Subtotal dos Itens:</span>
+                                    <span className="font-bold text-slate-800 font-mono">{formatCurrency(subtotal)}</span>
+                                </div>
+                                {discount > 0 && (
+                                    <div className="px-4 py-1.5 flex justify-end gap-8 items-center">
+                                        <span className="text-[8px] uppercase font-medium tracking-wider text-rose-500">Desconto Aplicado:</span>
+                                        <span className="font-bold text-rose-600 font-mono">- {formatCurrency(discount)}</span>
+                                    </div>
+                                )}
+                                {shipping > 0 && (
+                                    <div className="px-4 py-1.5 flex justify-end gap-8 items-center">
+                                        <span className="text-[8px] uppercase font-medium tracking-wider text-slate-600">Frete:</span>
+                                        <span className="font-bold text-slate-800 font-mono">+ {formatCurrency(shipping)}</span>
+                                    </div>
+                                )}
+                                {additions > 0 && (
+                                    <div className="px-4 py-1.5 flex justify-end gap-8 items-center">
+                                        <span className="text-[8px] uppercase font-medium tracking-wider text-slate-600">Outros Acréscimos:</span>
+                                        <span className="font-bold text-slate-800 font-mono">+ {formatCurrency(additions)}</span>
+                                    </div>
+                                )}
+                                <div className="bg-slate-900 text-white px-4 py-2 flex justify-end gap-8 items-center">
+                                    <span className="text-[9px] uppercase font-bold tracking-widest text-slate-300">Valor Total Líquido do Faturamento:</span>
+                                    <span className="text-sm font-extrabold font-mono text-emerald-400">{formatCurrency(totalLiquid)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Tabela de Pagamento & Datas de Liquidação */}
+                    <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
                         <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-medium text-[9px] uppercase tracking-wider text-slate-700 flex justify-between items-center">
-                            <span>Descritivo dos Lançamentos da Fatura</span>
-                            <span className="text-[8px] font-bold text-slate-500 uppercase">{billedItems.length} Lançamentos Incluídos</span>
+                            <span>Tabela de Pagamento & Datas de Liquidação</span>
+                            <span className="text-[8px] font-bold text-slate-500 uppercase">
+                                {installmentsList.length > 0 ? `${installmentsList.length} Parcela(s)` : 'Pagamento Único / À Vista'}
+                            </span>
                         </div>
                         <table className="w-full text-left table-fixed">
                             <thead>
                                 <tr className="bg-slate-50 text-[8px] font-semibold text-slate-500 uppercase border-b border-slate-200">
-                                    <th className="px-3 py-2 w-8">#</th>
-                                    <th className="px-3 py-2 w-28">Ref. Documento</th>
-                                    <th className="px-3 py-2">Descrição Detalhada do Serviço / Produto</th>
-                                    <th className="px-3 py-2 text-center w-16">Tipo</th>
-                                    <th className="px-3 py-2 text-right w-24">V. Nominal</th>
+                                    <th className="px-3 py-1.5 w-24">Parcela</th>
+                                    <th className="px-3 py-1.5 w-32">Forma de Pagamento</th>
+                                    <th className="px-3 py-1.5 w-24">Vencimento</th>
+                                    <th className="px-3 py-1.5 text-right w-24">Valor</th>
+                                    <th className="px-3 py-1.5 text-center w-28">Status</th>
+                                    <th className="px-3 py-1.5 text-right">Data de Pagamento (Pago em)</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200 bg-white">
-                                {billedItems.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={5} className="px-3 py-4 text-center text-slate-400 text-xs">Nenhum item discriminado na fatura.</td>
-                                    </tr>
+                                {installmentsList.length > 0 ? (
+                                    installmentsList.map((inst: any, idx: number) => {
+                                        const instPaid = inst.status === 'PAID' || inst.status === 'RECEIVED' || inst.status === 'CONFIRMED' || inst.status === 'ANTICIPATED';
+                                        const rawPaidAt = inst.paid_at || (instPaid ? inst.updated_at : null);
+                                        const paidDate = instPaid ? (formatAsaasDateTime(rawPaidAt) || 'Liquidado') : '-';
+                                        const instMethod = (() => {
+                                            const m = String(inst.payment_method || invoice.payment_method || '').toLowerCase();
+                                            if (m.includes('credit_card') || m.includes('cart') || m.includes('card')) return 'Cartão de Crédito';
+                                            if (m.includes('pix')) return 'PIX';
+                                            return 'Boleto Bancário';
+                                        })();
+
+                                        return (
+                                            <tr key={idx} className="break-inside-avoid">
+                                                <td className="px-3 py-1.5 text-[9px] font-bold font-mono text-slate-800">
+                                                    Parcela {inst.installment_number || idx + 1} de {inst.total_installments || installmentsList.length}
+                                                </td>
+                                                <td className="px-3 py-1.5 text-[9px] text-slate-700">
+                                                    {instMethod}
+                                                </td>
+                                                <td className="px-3 py-1.5 text-[9px] font-mono text-slate-700">
+                                                    {inst.due_date ? new Date((inst.due_date) + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}
+                                                </td>
+                                                <td className="px-3 py-1.5 text-[9px] font-bold font-mono text-right text-slate-900">
+                                                    {formatCurrency(inst.amount)}
+                                                </td>
+                                                <td className="px-3 py-1.5 text-[9px] text-center font-bold">
+                                                    <span className={`px-2 py-0.5 rounded text-[8px] ${instPaid ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-800 border border-amber-300'}`}>
+                                                        {instPaid ? 'LIQUIDADO' : 'PENDENTE'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-3 py-1.5 text-[9px] text-right font-mono font-bold text-slate-700">
+                                                    {paidDate}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
                                 ) : (
-                                    billedItems.map((item, index) => (
-                                        <tr key={index} className="break-inside-avoid">
-                                            <td className="px-3 py-2 text-[10px] font-medium text-slate-400 align-top">
-                                                {String(index + 1).padStart(2, '0')}
-                                            </td>
-                                            <td className="px-3 py-2 text-[10px] font-bold font-mono text-slate-700 align-top">
-                                                {item.docLabel}
-                                            </td>
-                                            <td className="px-3 py-2 text-[10px] uppercase font-medium text-slate-800 break-words whitespace-pre-wrap align-top">
-                                                {item.title}
-                                            </td>
-                                            <td className="px-3 py-2 text-[10px] text-center font-medium text-slate-600 align-top">
-                                                {item.typeLabel}
-                                            </td>
-                                            <td className="px-3 py-2 text-[10px] text-right font-semibold text-slate-900 font-mono align-top">
-                                                {formatCurrency(item.amount)}
-                                            </td>
-                                        </tr>
-                                    ))
+                                    <tr className="break-inside-avoid">
+                                        <td className="px-3 py-1.5 text-[9px] font-bold font-mono text-slate-800">
+                                            Parcela 1 de 1
+                                        </td>
+                                        <td className="px-3 py-1.5 text-[9px] text-slate-700 font-semibold">
+                                            {getFormattedPaymentMethod()}
+                                        </td>
+                                        <td className="px-3 py-1.5 text-[9px] font-mono text-slate-700">
+                                            {invoice.created_at ? new Date(invoice.created_at).toLocaleDateString('pt-BR') : '-'}
+                                        </td>
+                                        <td className="px-3 py-1.5 text-[9px] font-bold font-mono text-right text-slate-900">
+                                            {formatCurrency(totalLiquid)}
+                                        </td>
+                                        <td className="px-3 py-1.5 text-[9px] text-center font-bold">
+                                            <span className={`px-2 py-0.5 rounded text-[8px] ${isPaid ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-800 border border-amber-300'}`}>
+                                                {isPaid ? 'LIQUIDADO' : 'PENDENTE'}
+                                            </span>
+                                        </td>
+                                        <td className="px-3 py-1.5 text-[9px] text-right font-mono font-bold text-emerald-700">
+                                            {paidAtFormatted || (isPaid ? 'Liquidado' : '-')}
+                                        </td>
+                                    </tr>
                                 )}
                             </tbody>
                         </table>
-                        
-                        {/* Composição Financeira & Totais */}
-                        <div className="bg-slate-50 border-t border-slate-200 divide-y divide-slate-100">
-                            <div className="px-6 py-2 flex justify-end gap-12 items-center">
-                                <span className="text-[8px] uppercase font-medium tracking-widest text-slate-400">Subtotal dos Lançamentos</span>
-                                <span className="text-[10px] font-medium text-slate-600 font-mono">{formatCurrency(subtotal)}</span>
-                            </div>
-                            {discount > 0 && (
-                                <div className="px-6 py-2 flex justify-end gap-12 items-center">
-                                    <span className="text-[8px] uppercase font-medium tracking-widest text-rose-400 italic">Desconto Aplicado</span>
-                                    <span className="text-[10px] font-medium text-rose-500 font-mono italic">- {formatCurrency(discount)}</span>
-                                </div>
-                            )}
-                            {shipping > 0 && (
-                                <div className="px-6 py-2 flex justify-end gap-12 items-center">
-                                    <span className="text-[8px] uppercase font-medium tracking-widest text-slate-400">Frete / Deslocamento</span>
-                                    <span className="text-[10px] font-medium text-slate-700 font-mono">+ {formatCurrency(shipping)}</span>
-                                </div>
-                            )}
-                            {additions > 0 && (
-                                <div className="px-6 py-2 flex justify-end gap-12 items-center">
-                                    <span className="text-[8px] uppercase font-medium tracking-widest text-slate-400">Outros Acréscimos</span>
-                                    <span className="text-[10px] font-medium text-slate-700 font-mono">+ {formatCurrency(additions)}</span>
-                                </div>
-                            )}
-                            <div className="bg-slate-800 text-white px-6 py-3 flex justify-end gap-12 items-center">
-                                <span className="text-[10px] uppercase font-semibold tracking-[0.2em] text-slate-300">Valor Total Líquido do Voucher</span>
-                                <span className="text-xl font-semibold tracking-tighter font-mono">{formatCurrency(totalLiquid)}</span>
-                            </div>
-                        </div>
                     </div>
 
-                    {/* Declaração de Quitação & Autenticidade Padrão de Mercado */}
-                    <div className="border border-slate-300 rounded-lg p-3 bg-slate-50/60 break-inside-avoid">
-                        <div className="flex items-start gap-2">
-                            <ShieldCheck size={14} className="text-slate-500 shrink-0 mt-0.5" />
-                            <p className="text-[8px] text-slate-500 leading-relaxed font-medium">
-                                Atestamos para os devidos fins que os lançamentos listados neste comprovante de faturamento representam serviços prestados e/ou ordens aprovadas de acordo com as especificações pactuadas entre as partes. {isPaid ? 'Este documento possui validade de quitação para o valor total indicado.' : 'O recibo definitivo de quitação será emitido após a liquidação do valor pelo gateway transacional.'}
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Autenticação e Assinaturas */}
+                    {/* Seção de Autenticação e Assinaturas da Empresa e do Cliente */}
                     <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-2">
-                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-medium text-[9px] uppercase tracking-wider text-slate-700">Autenticação e Assinaturas</div>
-                        <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white text-center">
-                            <div className="p-4 flex flex-col items-center justify-center gap-3">
-                                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">Emitente / Responsável</p>
-                                <div className="h-[60px] flex items-center justify-center text-slate-300 italic text-[10px] font-medium uppercase">
-                                    Visto Eletrônico Nexus
+                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-medium text-[9px] uppercase tracking-wider text-slate-700 flex justify-between items-center">
+                            <span>Autenticação e Assinaturas</span>
+                            <span className="text-[8px] font-bold text-slate-500 uppercase">Aceite e Conformidade</span>
+                        </div>
+                        <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white p-4">
+                            {/* Assinatura da Empresa */}
+                            <div className="px-4 flex flex-col items-center justify-between min-h-[85px] text-center">
+                                <div className="w-full text-[8px] font-semibold text-slate-400 uppercase tracking-widest text-left">
+                                    Empresa / Emitente
                                 </div>
-                                <div className="w-full border-t border-slate-300 pt-2">
-                                    <p className="text-[12px] font-semibold text-slate-900 uppercase">{tenantInfo?.name || 'Assinatura Oficial'}</p>
-                                    <p className="text-[9px] font-medium text-slate-500 uppercase tracking-widest mt-0.5">Emissão Eletrônica</p>
+                                <div className="w-4/5 border-b-2 border-slate-400 my-3"></div>
+                                <div className="w-full">
+                                    <p className="text-[10px] font-bold text-slate-900 uppercase">
+                                        {tenantInfo?.name || 'Assinatura da Empresa / Responsável'}
+                                    </p>
+                                    <p className="text-[8px] text-slate-500 uppercase font-mono mt-0.5">
+                                        {tenantInfo?.document ? `CNPJ/CPF: ${tenantInfo.document}` : 'Empresa Emitente'}
+                                    </p>
+                                    <p className="text-[8px] text-sky-800 font-semibold uppercase mt-0.5">
+                                        Operador: {billedUser}
+                                    </p>
                                 </div>
                             </div>
-                            <div className="p-4 flex flex-col items-center justify-center gap-3">
-                                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">De Acordo / Assinatura do Cliente</p>
-                                <div className="h-[60px] flex items-center justify-center">
-                                    {isPaid ? (
-                                        <span className="text-emerald-500 italic text-[10px] font-bold uppercase flex items-center gap-1">
-                                            <CheckCircle2 size={12} /> Liquidado Eletronicamente
-                                        </span>
-                                    ) : (
-                                        <span className="text-slate-200 italic text-[10px] font-medium uppercase">—</span>
-                                    )}
+
+                            {/* Assinatura do Cliente */}
+                            <div className="px-4 flex flex-col items-center justify-between min-h-[85px] text-center">
+                                <div className="w-full text-[8px] font-semibold text-slate-400 uppercase tracking-widest text-left">
+                                    Cliente / Tomador do Serviço
                                 </div>
-                                <div className="w-full border-t border-slate-300 pt-2">
-                                    <p className="text-[12px] font-semibold text-slate-900 uppercase">{invoice.customer_name || 'Cliente'}</p>
-                                    <p className="text-[9px] font-medium text-slate-500 uppercase tracking-widest mt-0.5">{doc ? `Doc: ${doc}` : ''}</p>
+                                <div className="w-4/5 border-b-2 border-slate-400 my-3"></div>
+                                <div className="w-full">
+                                    <p className="text-[10px] font-bold text-slate-900 uppercase">
+                                        {invoice.customer_name || 'Assinatura do Cliente / Contratante'}
+                                    </p>
+                                    <p className="text-[8px] text-slate-500 uppercase font-mono mt-0.5">
+                                        {doc !== 'Não informado' ? `CPF/CNPJ: ${doc}` : 'Contratante / Cliente'}
+                                    </p>
                                 </div>
                             </div>
                         </div>

@@ -46,6 +46,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
 
   const [activeTab, setActiveTab] = useState<'list' | 'families'>('list');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isReadOnly, setIsReadOnly] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [modalTab, setModalTab] = useState<'dados' | 'historico'>('dados');
@@ -109,6 +110,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingId(null);
+    setIsReadOnly(false);
     setEqFormData({ active: true });
     setFamilyFormData({ active: true });
     setModalTab('dados');
@@ -232,6 +234,26 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
       console.error("ERRO NEXUS ATIVO:", error);
       alert(`Erro ao salvar equipamento: ${error.message || 'Falha na conexão com o servidor'}`);
     }
+  };
+
+  const handleViewEquipment = (e: any, evt: React.MouseEvent) => {
+    evt.stopPropagation();
+    setIsReadOnly(true);
+    setEqFormData(e);
+    setEditingId(e.id);
+    const cName = customers.find(c => c.id === e.customerId)?.name || '';
+    setClientSearch(cName);
+    const fName = families.find(f => f.id === e.familyId)?.name || '';
+    setFamilySearch(fName);
+    setIsModalOpen(true);
+  };
+
+  const handleViewFamily = (f: any, evt: React.MouseEvent) => {
+    evt.stopPropagation();
+    setIsReadOnly(true);
+    setFamilyFormData(f);
+    setEditingId(f.id);
+    setIsModalOpen(true);
   };
 
   const toggleEquipmentStatus = async (equipment: Equipment) => {
@@ -394,7 +416,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
               </thead>
               <tbody>
                 {paginatedItems.map((e: any) => (
-                  <tr key={e.id} className="bg-white hover:bg-primary-50/40 transition-all group shadow-sm hover:shadow-md cursor-pointer">
+                  <tr key={e.id} onClick={(evt) => handleViewEquipment(e, evt)} className="bg-white hover:bg-primary-50/40 transition-all group shadow-sm hover:shadow-md cursor-pointer">
                     <td className="px-3 py-1 rounded-l-[1.5rem] border border-slate-100 border-r-0 text-center hidden md:table-cell">
                       <span className="font-mono text-[11px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2.5 py-1 rounded-lg tracking-widest border border-[#1c2d4f]/15">
                         {formatAssetCode(e.assetCode)}
@@ -444,6 +466,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                             <button onClick={(evt) => {
                               if (!canEdit('equipments')) { evt.preventDefault(); evt.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
                               evt.stopPropagation();
+                              setIsReadOnly(false);
                               setEqFormData(e);
                               setEditingId(e.id);
                               const cName = customers.find(c => c.id === e.customerId)?.name || '';
@@ -471,7 +494,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
               </thead>
               <tbody>
                 {paginatedItems.map((f: any) => (
-                  <tr key={f.id} className="bg-white hover:bg-primary-50/30 transition-all group shadow-sm cursor-pointer">
+                  <tr key={f.id} onClick={(evt) => handleViewFamily(f, evt)} className="bg-white hover:bg-primary-50/30 transition-all group shadow-sm cursor-pointer">
                     <td className="px-3 py-1 rounded-l-[1.5rem] border border-slate-100 border-r-0 font-bold text-xs max-w-[200px]">
                       <div className="flex items-center gap-3">
                         <div className="p-2.5 rounded-xl bg-primary-50 text-primary-600 shadow-inner group-hover:bg-primary-600 group-hover:text-white transition-all shrink-0">
@@ -499,6 +522,8 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                             </button>
                             <button onClick={(evt) => {
                               if (!canEdit('equipments')) { evt.preventDefault(); evt.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                              evt.stopPropagation();
+                              setIsReadOnly(false);
                               setFamilyFormData(f); setEditingId(f.id); setIsModalOpen(true);
                             }} className={`p-2.5 bg-slate-50 text-slate-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95 ${!canEdit('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`}><Edit2 size={16} /></button>
                           </>
@@ -519,18 +544,8 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                 return (
                   <div 
                     key={item.id}
-                    onClick={(e) => {
-                      if (canEdit('equipments')) {
-                        setEqFormData(item);
-                        setEditingId(item.id);
-                        const cName = customers.find(c => c.id === item.customerId)?.name || '';
-                        setClientSearch(cName);
-                        const fName = families.find(f => f.id === item.familyId)?.name || '';
-                        setFamilySearch(fName);
-                        setIsModalOpen(true);
-                      }
-                    }}
-                    className={`bg-white p-3 rounded-2xl shadow-sm border border-slate-200/60 active:scale-[0.98] transition-transform flex flex-col gap-2 ${!item.active ? 'opacity-60' : ''}`}
+                    onClick={(e) => handleViewEquipment(item, e)}
+                    className={`bg-white p-3 rounded-2xl shadow-sm border border-slate-200/60 active:scale-[0.98] transition-transform flex flex-col gap-2 cursor-pointer ${!item.active ? 'opacity-60' : ''}`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex gap-3">
@@ -562,12 +577,8 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                 return (
                   <div 
                     key={item.id}
-                    onClick={(e) => {
-                      if (canEdit('equipments')) {
-                        setFamilyFormData(item); setEditingId(item.id); setIsModalOpen(true);
-                      }
-                    }}
-                    className={`bg-white p-3 rounded-2xl shadow-sm border border-slate-200/60 active:scale-[0.98] transition-transform flex flex-col gap-2 ${!item.active ? 'opacity-60' : ''}`}
+                    onClick={(e) => handleViewFamily(item, e)}
+                    className={`bg-white p-3 rounded-2xl shadow-sm border border-slate-200/60 active:scale-[0.98] transition-transform flex flex-col gap-2 cursor-pointer ${!item.active ? 'opacity-60' : ''}`}
                   >
                      <div className="flex items-start justify-between gap-2">
                         <div className="flex gap-3">
@@ -623,7 +634,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-                      {activeTab === 'list' ? (editingId ? 'Editar Ativo' : 'Novo Ativo') : (editingId ? 'Editar Categoria' : 'Nova Categoria')}
+                      {isReadOnly ? (activeTab === 'list' ? 'Detalhes do Ativo' : 'Detalhes da Categoria') : (activeTab === 'list' ? (editingId ? 'Editar Ativo' : 'Novo Ativo') : (editingId ? 'Editar Categoria' : 'Nova Categoria'))}
                     </h2>
                     <div className="flex items-center gap-2 mt-0.5">
                       <p className="text-[10px] font-bold text-slate-400">Nexus Inventário • controle técnico</p>
@@ -680,14 +691,15 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                           <Input
                             label="Nome do Ativo e Local de Instalação"
                             required
+                            disabled={isReadOnly}
                             placeholder="Ex: Gerador Principal - Bloco A, 2º Andar"
                             icon={<Tag size={16} />}
-                            className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm"
+                            className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50"
                             value={eqFormData.name || ''}
                             onChange={e => setEqFormData({ ...eqFormData, name: e.target.value })}
                           />
                         </div>
-                        <Input label="Modelo" required icon={<Laptop size={16} />} className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={eqFormData.model || ''} onChange={e => setEqFormData({ ...eqFormData, model: e.target.value })} />
+                        <Input label="Modelo" disabled={isReadOnly} required icon={<Laptop size={16} />} className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={eqFormData.model || ''} onChange={e => setEqFormData({ ...eqFormData, model: e.target.value })} />
                         
                         <div className="w-full relative">
                           <label className="text-[11px] font-bold text-slate-700 mb-1.5 flex items-center justify-between ml-1">
@@ -702,29 +714,32 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                               <input
                                 type="text"
                                 required
+                                disabled={isReadOnly}
                                 placeholder="Ex: 849204"
                                 value={eqFormData.serialNumber || ''}
                                 onChange={e => setEqFormData({ ...eqFormData, serialNumber: e.target.value })}
-                                className={`w-full h-11 pl-10 pr-4 bg-white border rounded-xl text-xs font-bold font-mono text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all ${!eqFormData.serialNumber?.trim() ? 'border-amber-400' : 'border-slate-300'}`}
+                                className={`w-full h-11 pl-10 pr-4 bg-white border rounded-xl text-xs font-bold font-mono text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all disabled:bg-slate-50 ${!eqFormData.serialNumber?.trim() ? 'border-amber-400' : 'border-slate-300'}`}
                               />
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const generated = generateRandomSerial();
-                                setEqFormData({ ...eqFormData, serialNumber: generated });
-                              }}
-                              className="h-11 px-3.5 bg-primary-50/70 hover:bg-primary-100/80 border border-primary-200/80 text-primary-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-sm active:scale-95 shrink-0"
-                              title="Gerar número de série automático"
-                            >
-                              <Sparkles size={15} className="text-primary-600" />
-                              <span className="hidden sm:inline">Gerar Serial</span>
-                            </button>
+                            {!isReadOnly && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const generated = generateRandomSerial();
+                                  setEqFormData({ ...eqFormData, serialNumber: generated });
+                                }}
+                                className="h-11 px-3.5 bg-primary-50/70 hover:bg-primary-100/80 border border-primary-200/80 text-primary-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-sm active:scale-95 shrink-0"
+                                title="Gerar número de série automático"
+                              >
+                                <Sparkles size={15} className="text-primary-600" />
+                                <span className="hidden sm:inline">Gerar Serial</span>
+                              </button>
+                            )}
                           </div>
                         </div>
                         
-                        <Input type="date" label="Data de Fabricação" icon={<Calendar size={16} />} className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={eqFormData.manufactureDate || ''} onChange={e => setEqFormData({ ...eqFormData, manufactureDate: e.target.value })} />
-                        <Input type="number" label="Garantia (Meses)" icon={<Calendar size={16} />} className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={eqFormData.warrantyMonths || ''} onChange={e => setEqFormData({ ...eqFormData, warrantyMonths: e.target.value ? parseInt(e.target.value) : undefined })} />
+                        <Input type="date" disabled={isReadOnly} label="Data de Fabricação" icon={<Calendar size={16} />} className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={eqFormData.manufactureDate || ''} onChange={e => setEqFormData({ ...eqFormData, manufactureDate: e.target.value })} />
+                        <Input type="number" disabled={isReadOnly} label="Garantia (Meses)" icon={<Calendar size={16} />} className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={eqFormData.warrantyMonths || ''} onChange={e => setEqFormData({ ...eqFormData, warrantyMonths: e.target.value ? parseInt(e.target.value) : undefined })} />
 
                         {eqFormData.manufactureDate && eqFormData.warrantyMonths ? (
                           <div className="md:col-span-2">
@@ -759,6 +774,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                             <input
                               type="text"
                               required={!eqFormData.familyId}
+                              disabled={isReadOnly}
                               placeholder="Buscar família técnica..."
                               value={familySearch}
                               onChange={(e) => {
@@ -766,11 +782,11 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                                 setEqFormData({ ...eqFormData, familyId: undefined });
                                 setIsFamilyListOpen(true);
                               }}
-                              onFocus={() => setIsFamilyListOpen(true)}
+                              onFocus={() => { if (!isReadOnly) setIsFamilyListOpen(true); }}
                               onBlur={() => setTimeout(() => setIsFamilyListOpen(false), 200)}
-                              className={`w-full h-11 pl-10 pr-4 bg-white border rounded-xl text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all ${!eqFormData.familyId ? 'border-amber-400' : 'border-slate-300'}`}
+                              className={`w-full h-11 pl-10 pr-4 bg-white border rounded-xl text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all disabled:bg-slate-50 ${!eqFormData.familyId ? 'border-amber-400' : 'border-slate-300'}`}
                             />
-                            {eqFormData.familyId && (
+                            {eqFormData.familyId && !isReadOnly && (
                               <button 
                                 type="button" 
                                 onClick={() => { setFamilySearch(''); setEqFormData({ ...eqFormData, familyId: undefined }); setIsFamilyListOpen(true); }}
@@ -818,6 +834,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                             <input
                               type="text"
                               required={!eqFormData.customerId}
+                              disabled={isReadOnly}
                               placeholder="Buscar cliente por nome, CPF ou CNPJ..."
                               value={clientSearch}
                               onChange={(e) => {
@@ -825,11 +842,11 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                                 setEqFormData({ ...eqFormData, customerId: undefined });
                                 setIsClientListOpen(true);
                               }}
-                              onFocus={() => setIsClientListOpen(true)}
+                              onFocus={() => { if (!isReadOnly) setIsClientListOpen(true); }}
                               onBlur={() => setTimeout(() => setIsClientListOpen(false), 200)}
-                              className={`w-full h-11 pl-10 pr-4 bg-white border rounded-xl text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all ${!eqFormData.customerId ? 'border-amber-400' : 'border-slate-300'}`}
+                              className={`w-full h-11 pl-10 pr-4 bg-white border rounded-xl text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all disabled:bg-slate-50 ${!eqFormData.customerId ? 'border-amber-400' : 'border-slate-300'}`}
                             />
-                            {eqFormData.customerId && (
+                            {eqFormData.customerId && !isReadOnly && (
                               <button 
                                 type="button" 
                                 onClick={() => { setClientSearch(''); setEqFormData({ ...eqFormData, customerId: undefined }); setIsClientListOpen(true); }}
@@ -869,7 +886,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                           )}
                         </div>
                       </div>
-                      <TextArea label="Ficha Técnica / Memorial Descritivo" rows={3} className="rounded-xl p-3 border border-slate-300 bg-white text-slate-900 font-bold focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={eqFormData.description || ''} onChange={e => setEqFormData({ ...eqFormData, description: e.target.value })} />
+                      <TextArea label="Ficha Técnica / Memorial Descritivo" disabled={isReadOnly} rows={3} className="rounded-xl p-3 border border-slate-300 bg-white text-slate-900 font-bold focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={eqFormData.description || ''} onChange={e => setEqFormData({ ...eqFormData, description: e.target.value })} />
                     </div>
                   )}
 
@@ -948,8 +965,8 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                   {activeTab === 'families' && (
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-8 space-y-5">
                       <h3 className="text-sm font-bold text-slate-900 border-l-4 border-[#1c2d4f] pl-3">categoria técnica</h3>
-                      <Input label="Nome da Categoria (Família)" required placeholder="Ex: Equipamentos de Redes" icon={<Layers size={16} />} className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={familyFormData.name || ''} onChange={e => setFamilyFormData({ ...familyFormData, name: e.target.value })} />
-                      <TextArea label="Escopo Técnico da Família" placeholder="Quais ativos pertencem a este grupo de processos?" rows={4} className="rounded-xl p-3 border border-slate-300 bg-white text-slate-900 font-bold focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={familyFormData.description || ''} onChange={e => setFamilyFormData({ ...familyFormData, description: e.target.value })} />
+                      <Input label="Nome da Categoria (Família)" disabled={isReadOnly} required placeholder="Ex: Equipamentos de Redes" icon={<Layers size={16} />} className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={familyFormData.name || ''} onChange={e => setFamilyFormData({ ...familyFormData, name: e.target.value })} />
+                      <TextArea label="Escopo Técnico da Família" disabled={isReadOnly} placeholder="Quais ativos pertencem a este grupo de processos?" rows={4} className="rounded-xl p-3 border border-slate-300 bg-white text-slate-900 font-bold focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={familyFormData.description || ''} onChange={e => setFamilyFormData({ ...familyFormData, description: e.target.value })} />
                     </div>
                   )}
 
@@ -960,9 +977,9 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
               {/* FOOTER */}
               <div className="px-8 py-5 border-t border-slate-200 bg-white flex justify-end gap-3 shrink-0">
                 <button type="button" onClick={closeModal} className="h-9 px-5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
-                  Cancelar
+                  {isReadOnly ? 'Fechar' : 'Cancelar'}
                 </button>
-                {(activeTab !== 'list' || modalTab === 'dados') && (
+                {(activeTab !== 'list' || modalTab === 'dados') && !isReadOnly && (
                   <Button
                     onClick={activeTab === 'list' ? handleSaveEquipment : handleSaveFamily}
                     className="h-9 px-6 rounded-xl text-xs font-bold bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white"

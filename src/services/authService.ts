@@ -16,9 +16,15 @@ const recoveryAuthClient = createClient(safeUrl, safeKey, {
         flowType: 'implicit',
         persistSession: false,
         autoRefreshToken: false,
-        detectSessionInUrl: false
+        detectSessionInUrl: false,
+        storageKey: 'nexus_recovery_auth_token'
     }
 });
+
+// Previne "AbortError: Lock broken by another request with the 'steal' option"
+// deduping request simultâneos de inicialização
+let _fetchFullUserPromise: Promise<User | undefined> | null = null;
+let _fetchFullUserId: string | null = null;
 
 export const AuthService = {
 
@@ -183,9 +189,12 @@ export const AuthService = {
 
     // 🛡️ GATEKEEPER: Busca dados enriquecidos do usuário (Role, Permissions, Tenant)
     // Implementa a lógica de permissão MIT/Harvard: Acesso ao PAINEL restrito a registros na tabela 'users'.
-    _fetchFullUser: async (authId: string, email: string, metadata: any): Promise<User | undefined> => {
+    _fetchFullUser: (authId: string, email: string, metadata: any): Promise<User | undefined> => {
+        if (_fetchFullUserPromise && _fetchFullUserId === authId) return _fetchFullUserPromise;
 
-        // 1. Verificação de Identidade na Camada de Gestão (Tabela 'users')
+        const task = async (): Promise<User | undefined> => {
+            try {
+                // 1. Verificação de Identidade na Camada de Gestão (Tabela 'users')
         // Se o usuário não existir nesta tabela, ele pode ser um Técnico, mas NÃO tem acesso ao portal administrativo.
         let dbUser = null;
         let error = null;
@@ -202,6 +211,15 @@ export const AuthService = {
                 
             dbUser = res.data;
             error = res.error;
+
+            // Previne o bug do Web Locks API do Supabase ao religar após inatividade
+            if (error && error.message && (error.message.includes('Lock broken') || error.message.includes('stole it') || error.message.includes('Lock'))) {
+                if (typeof window !== 'undefined') {
+                    console.warn('[AuthService] Web Locks API corrompida. Recarregando a página...');
+                    window.location.reload();
+                    await new Promise(() => {}); // pausa a execução enquanto recarrega
+                }
+            }
 
             // Fail fast on success or deterministic errors
             // PGRST116: Not Found (Deterministic)
@@ -306,6 +324,17 @@ export const AuthService = {
             permissions: permissions,
             appScope: (dbUser.app_scope as AppScope) || AppScope.WEB
         };
+            } finally {
+                if (_fetchFullUserId === authId) {
+                    _fetchFullUserPromise = null;
+                    _fetchFullUserId = null;
+                }
+            }
+        };
+
+        _fetchFullUserId = authId;
+        _fetchFullUserPromise = task();
+        return _fetchFullUserPromise;
     },
 
     refreshUser: async (): Promise<User | undefined> => {

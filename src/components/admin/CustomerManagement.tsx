@@ -92,6 +92,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
 
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isReadOnly, setIsReadOnly] = useState(false);
   const [modalTab, setModalTab] = useState<'dados' | 'ativos'>('dados');
   const [showLinkAsset, setShowLinkAsset] = useState(false);
   const [linkingAsset, setLinkingAsset] = useState(false);
@@ -468,6 +469,15 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
 
   const handleEdit = (customer: Customer, e: React.MouseEvent) => {
     e.stopPropagation();
+    setIsReadOnly(false);
+    setFormData(customer);
+    setEditingId(customer.id);
+    setIsModalOpen(true);
+  };
+
+  const handleView = (customer: Customer, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsReadOnly(true);
     setFormData(customer);
     setEditingId(customer.id);
     setIsModalOpen(true);
@@ -516,6 +526,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingId(null);
+    setIsReadOnly(false);
     setModalTab('dados');
     setShowLinkAsset(false);
     setAssetSearch('');
@@ -653,7 +664,8 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                 return (
                   <React.Fragment key={c.id}>
                     <tr
-                      className={`bg-white hover:bg-slate-50 transition-all group shadow-sm hover:shadow-md ${!c.active ? 'opacity-50' : ''}`}
+                      onClick={(e) => handleView(c, e)}
+                      className={`bg-white hover:bg-slate-50 transition-all group shadow-sm hover:shadow-md cursor-pointer ${!c.active ? 'opacity-50' : ''}`}
                     >
                       <td className="px-4 py-1.5 border-y border-slate-100 rounded-l-[1.5rem] border-l">
                         <div className="flex items-center gap-3">
@@ -728,10 +740,8 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
             paginatedCustomers.map(c => (
               <div 
                 key={c.id}
-                onClick={(e) => {
-                  if (canEdit('customers')) handleEdit(c, e);
-                }}
-                className={`bg-white p-3 rounded-2xl shadow-sm border border-slate-200/60 active:scale-[0.98] transition-transform flex flex-col gap-2 ${!c.active ? 'opacity-60' : ''}`}
+                onClick={(e) => handleView(c, e)}
+                className={`bg-white p-3 rounded-2xl shadow-sm border border-slate-200/60 active:scale-[0.98] transition-transform flex flex-col gap-2 cursor-pointer ${!c.active ? 'opacity-60' : ''}`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex gap-3">
@@ -799,7 +809,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-                      {editingId ? 'Editar Cliente' : 'Novo Cliente'}
+                      {isReadOnly ? 'Detalhes do Cliente' : (editingId ? 'Editar Cliente' : 'Novo Cliente')}
                     </h2>
                     <p className="text-[10px] font-bold text-slate-400 mt-0.5">Nexus Operacional • registro de unidade</p>
                   </div>
@@ -842,14 +852,14 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                     <div className="space-y-4">
                       {/* Tipo Switcher */}
                       <div className="flex bg-slate-100 p-1 rounded-xl w-fit border border-slate-200 shadow-xs">
-                        <button type="button" onClick={() => setFormData({ ...formData, type: 'PJ' })}
+                        <button type="button" disabled={isReadOnly} onClick={() => setFormData({ ...formData, type: 'PJ' })}
                           className={`px-6 py-1.5 rounded-lg text-xs font-bold transition-all ${
                             formData.type === 'PJ' ? 'bg-[#1c2d4f] text-white shadow-sm' : 'text-slate-500 hover:bg-white'
-                          }`}>Empresa (PJ)</button>
-                        <button type="button" onClick={() => setFormData({ ...formData, type: 'PF' })}
+                          } ${isReadOnly ? 'cursor-not-allowed opacity-70' : ''}`}>Empresa (PJ)</button>
+                        <button type="button" disabled={isReadOnly} onClick={() => setFormData({ ...formData, type: 'PF' })}
                           className={`px-6 py-1.5 rounded-lg text-xs font-bold transition-all ${
                             formData.type === 'PF' ? 'bg-[#1c2d4f] text-white shadow-sm' : 'text-slate-500 hover:bg-white'
-                          }`}>Individual (PF)</button>
+                          } ${isReadOnly ? 'cursor-not-allowed opacity-70' : ''}`}>Individual (PF)</button>
                       </div>
 
                       {/* Card: Identificação Principal (Ocupa Toda a Largura Superior) */}
@@ -857,19 +867,19 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                         <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Identificação Principal</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                           <div className="md:col-span-2 lg:col-span-2">
-                            <Input label={formData.type === 'PJ' ? 'Razão Social' : 'Nome Completo'} required className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                            <Input label={formData.type === 'PJ' ? 'Razão Social' : 'Nome Completo'} disabled={isReadOnly} required className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
                           </div>
                           <div className="relative">
-                            <Input label={formData.type === 'PJ' ? 'CNPJ' : 'CPF'} required
-                              className={`rounded-xl py-2 text-xs font-bold border bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm ${documentDuplicate ? 'border-rose-400 bg-rose-50' : 'border-slate-300'}`}
+                            <Input label={formData.type === 'PJ' ? 'CNPJ' : 'CPF'} disabled={isReadOnly} required
+                              className={`rounded-xl py-2 text-xs font-bold border bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50 ${documentDuplicate ? 'border-rose-400 bg-rose-50' : 'border-slate-300'}`}
                               value={formData.document || ''}
                               placeholder={formData.type === 'PJ' ? '00.000.000/0000-00' : '000.000.000-00'}
                               onChange={e => setFormData({ ...formData, document: formData.type === 'PJ' ? formatCNPJ(e.target.value) : formatCPF(e.target.value) })} />
                             {documentDuplicate && <p className="text-rose-500 text-[10px] font-bold mt-1">⚠️ Cadastrado: {documentDuplicate}</p>}
                           </div>
-                          <Input label="E-mail" type="email" required icon={<Mail size={14} />} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} />
-                          <Input label="Telefone" className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.phone || ''} onChange={e => setFormData({ ...formData, phone: formatPhone(e.target.value) })} placeholder="(00) 0000-0000" />
-                          <Input label="WhatsApp" icon={<Phone size={14} className="text-emerald-500" />} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.whatsapp || ''} onChange={e => setFormData({ ...formData, whatsapp: formatPhone(e.target.value) })} placeholder="(00) 00000-0000" />
+                          <Input label="E-mail" disabled={isReadOnly} type="email" required icon={<Mail size={14} />} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} />
+                          <Input label="Telefone" disabled={isReadOnly} required className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={formData.phone || ''} onChange={e => setFormData({ ...formData, phone: formatPhone(e.target.value) })} placeholder="(00) 0000-0000" />
+                          <Input label="WhatsApp" disabled={isReadOnly} icon={<Phone size={14} className="text-emerald-500" />} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={formData.whatsapp || ''} onChange={e => setFormData({ ...formData, whatsapp: formatPhone(e.target.value) })} placeholder="(00) 00000-0000" />
                         </div>
                       </div>
                     </div>
@@ -888,19 +898,19 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                             )}
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <Input label="CEP" onBlur={handleZipBlur} required className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.zip || ''} onChange={e => setFormData({ ...formData, zip: e.target.value })} placeholder="00000-000" />
-                            <Input label="Estado (UF)" onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.state || ''} onChange={e => setFormData({ ...formData, state: e.target.value })} />
-                            <Input label="Cidade" onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.city || ''} onChange={e => setFormData({ ...formData, city: e.target.value })} />
+                            <Input label="CEP" disabled={isReadOnly} onBlur={handleZipBlur} required className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={formData.zip || ''} onChange={e => setFormData({ ...formData, zip: e.target.value })} placeholder="00000-000" />
+                            <Input label="Estado (UF)" disabled={isReadOnly} required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={formData.state || ''} onChange={e => setFormData({ ...formData, state: e.target.value })} />
+                            <Input label="Cidade" disabled={isReadOnly} required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={formData.city || ''} onChange={e => setFormData({ ...formData, city: e.target.value })} />
                           </div>
                           <div>
-                            <Input label="Logradouro" onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm w-full" value={formData.address || ''} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="Rua / Avenida / Alameda..." />
+                            <Input label="Logradouro" disabled={isReadOnly} required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50 w-full" value={formData.address || ''} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="Rua / Avenida / Alameda..." />
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <Input label="Número" required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.number || ''} onChange={e => setFormData({ ...formData, number: e.target.value })} placeholder="123" />
-                            <Input label="Bairro" required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm" value={formData.neighborhood || ''} onChange={e => setFormData({ ...formData, neighborhood: e.target.value })} placeholder="Bairro" />
+                            <Input label="Número" disabled={isReadOnly} required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={formData.number || ''} onChange={e => setFormData({ ...formData, number: e.target.value })} placeholder="123" />
+                            <Input label="Bairro" disabled={isReadOnly} required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={formData.neighborhood || ''} onChange={e => setFormData({ ...formData, neighborhood: e.target.value })} placeholder="Bairro" />
                           </div>
                           <div>
-                            <Input label="Complemento / Referência" icon={<Info size={14} />} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm w-full" value={formData.complement || ''} onChange={e => setFormData({ ...formData, complement: e.target.value })} placeholder="Apto, Sala, Bloco, Ponto de Referência..." />
+                            <Input label="Complemento / Referência" disabled={isReadOnly} icon={<Info size={14} />} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50 w-full" value={formData.complement || ''} onChange={e => setFormData({ ...formData, complement: e.target.value })} placeholder="Apto, Sala, Bloco, Ponto de Referência..." />
                           </div>
                         </div>
                       </div>
@@ -971,10 +981,12 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                   <div className="max-w-4xl mx-auto space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">ativos vinculados ao cliente</h3>
-                      <button type="button" onClick={() => { setShowLinkAsset(true); setAssetSearch(''); }}
-                        className="flex items-center gap-2 px-4 py-2 bg-[#1c2d4f] text-white rounded-xl text-[11px] font-bold hover:bg-[#253a66] transition-all">
-                        <Plus size={14} /> Vincular Ativo
-                      </button>
+                      {!isReadOnly && (
+                        <button type="button" onClick={() => { setShowLinkAsset(true); setAssetSearch(''); }}
+                          className="flex items-center gap-2 px-4 py-2 bg-[#1c2d4f] text-white rounded-xl text-[11px] font-bold hover:bg-[#253a66] transition-all">
+                          <Plus size={14} /> Vincular Ativo
+                        </button>
+                      )}
                     </div>
 
                     {/* Sub-painel: vincular ativo livre */}
@@ -1078,9 +1090,11 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
               
               {/* FOOTER */}
               <div className="px-8 py-4 border-t border-slate-200 bg-white flex justify-end gap-3 shrink-0">
-                <button type="button" onClick={closeModal} className="h-9 px-5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">{t.common.cancel}</button>
-                {modalTab === 'dados' && (
-                  <Button form="customer-form" onClick={handleSubmit} disabled={!!documentDuplicate}
+                <button type="button" onClick={closeModal} className="h-9 px-5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
+                  {isReadOnly ? 'Fechar' : t.common.cancel}
+                </button>
+                {modalTab === 'dados' && !isReadOnly && (
+                  <Button type="submit" form="customer-form" disabled={!!documentDuplicate}
                     className={`h-9 px-6 rounded-xl text-xs font-bold ${
                       documentDuplicate ? 'bg-gray-400 cursor-not-allowed opacity-50' : 'bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]'
                     }`}>

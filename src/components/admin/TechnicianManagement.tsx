@@ -20,6 +20,7 @@ export const TechnicianManagement: React.FC = () => {
   const { canCreate, canEdit } = usePermissions();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isReadOnly, setIsReadOnly] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [technicians, setTechnicians] = useState<UserType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -120,6 +121,7 @@ export const TechnicianManagement: React.FC = () => {
       await loadTechs();
       setIsModalOpen(false);
       setEditingId(null);
+      setIsReadOnly(false);
       setFormData({ name: '', email: '', active: true, phone: '', jobTitle: '' });
       alert("✅ Técnico registrado e vinculado com sucesso!");
     } catch (error: any) {
@@ -135,6 +137,13 @@ export const TechnicianManagement: React.FC = () => {
     }
   };
 
+  const handleViewTech = (t: UserType, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsReadOnly(true);
+    setFormData(t);
+    setEditingId(t.id);
+    setIsModalOpen(true);
+  };
 
 
   return (
@@ -193,6 +202,7 @@ export const TechnicianManagement: React.FC = () => {
                       }
                   }
 
+                  setIsReadOnly(false);
                   setIsModalOpen(true);
                 }}
                 className={`h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl whitespace-nowrap text-white ${!canCreate('technicians') ? 'opacity-50 !cursor-not-allowed' : ''}`}
@@ -217,7 +227,7 @@ export const TechnicianManagement: React.FC = () => {
             </thead>
             <tbody>
               {paginatedTechs.map(t => (
-                <tr key={t.id} className="bg-white hover:bg-emerald-50/40 transition-all group shadow-sm hover:shadow-md">
+                <tr key={t.id} onClick={(e) => handleViewTech(t, e)} className="bg-white hover:bg-emerald-50/40 transition-all group shadow-sm hover:shadow-md cursor-pointer">
                   <td className="px-4 py-1.5 rounded-l-[1.5rem] border border-slate-100 border-r-0">
                     <div className="flex items-center gap-4">
                       <div className="relative group/avatar shrink-0">
@@ -241,6 +251,8 @@ export const TechnicianManagement: React.FC = () => {
                   <td className="px-4 py-1.5 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
                       <button onClick={(e) => {
                         if (!canEdit('technicians')) { e.preventDefault(); alert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                        e.stopPropagation();
+                        setIsReadOnly(false);
                         setFormData(t); setEditingId(t.id); setIsModalOpen(true);
                       }} className={`p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90 ${!canEdit('technicians') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar Técnico"><Edit2 size={16} /></button>
                   </td>
@@ -271,7 +283,7 @@ export const TechnicianManagement: React.FC = () => {
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-                      {editingId ? `Editar Técnico` : 'Novo Técnico'}
+                      {isReadOnly ? 'Detalhes do Técnico' : (editingId ? `Editar Técnico` : 'Novo Técnico')}
                     </h2>
                     <div className="flex items-center gap-2 mt-0.5">
                       <p className="text-[10px] font-bold text-slate-400">Nexus Field • acesso via app móvel</p>
@@ -285,7 +297,7 @@ export const TechnicianManagement: React.FC = () => {
                 </div>
 
                 <button
-                  onClick={() => { setIsModalOpen(false); setEditingId(null); setFormData({ name: '', email: '', active: true, phone: '', jobTitle: '' }); setSaveError(null); }}
+                  onClick={() => { setIsModalOpen(false); setEditingId(null); setIsReadOnly(false); setFormData({ name: '', email: '', active: true, phone: '', jobTitle: '' }); setSaveError(null); }}
                   className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50"
                 >
                   <X size={20} />
@@ -340,40 +352,44 @@ export const TechnicianManagement: React.FC = () => {
                           <Input
                             label="Nome Completo"
                             required
+                            disabled={isReadOnly}
                             placeholder="Ex: Roberto Refrigeração"
                             value={formData.name}
                             onChange={e => setFormData({ ...formData, name: e.target.value })}
-                            className="rounded-xl py-3 font-medium border-slate-200 text-lg"
+                            className="rounded-xl py-3 font-medium border-slate-200 text-lg disabled:bg-slate-50"
                           />
                         </div>
 
                         <Input
                           label="E-mail (Login do App)"
                           required
+                          disabled={isReadOnly}
                           type="email"
                           placeholder="tecnico@nexus.pro"
                           value={formData.email}
                           onChange={e => setFormData({ ...formData, email: e.target.value })}
-                          className="rounded-xl py-3 font-medium border-slate-200"
+                          className="rounded-xl py-3 font-medium border-slate-200 disabled:bg-slate-50"
                           icon={<AtSign size={16} />}
                         />
 
                         <Input
                           label="Telefone / WhatsApp"
+                          disabled={isReadOnly}
                           placeholder="(00) 00000-0000"
                           value={formData.phone}
                           onChange={handlePhoneChange}
-                          className="rounded-xl py-3 font-medium border-slate-200"
+                          className="rounded-xl py-3 font-medium border-slate-200 disabled:bg-slate-50"
                           icon={<Smartphone size={16} />}
                         />
 
                         <div className="md:col-span-2">
                           <Input
                             label="Função / Cargo"
+                            disabled={isReadOnly}
                             placeholder="Ex: Técnico de Ar Condicionado"
                             value={formData.jobTitle}
                             onChange={e => setFormData({ ...formData, jobTitle: e.target.value })}
-                            className="rounded-xl py-3 font-medium border-slate-200"
+                            className="rounded-xl py-3 font-medium border-slate-200 disabled:bg-slate-50"
                             icon={<Smartphone size={16} />}
                           />
                         </div>
@@ -403,7 +419,8 @@ export const TechnicianManagement: React.FC = () => {
                       <div className="w-full">
                         <label className="text-[10px] font-bold text-slate-400 mb-1.5 block ml-1">Status de Acesso</label>
                         <select
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] transition-all outline-none cursor-pointer"
+                          disabled={isReadOnly}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] transition-all outline-none cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
                           value={formData.active ? 'ACTIVE' : 'INACTIVE'}
                           onChange={e => setFormData({ ...formData, active: e.target.value === 'ACTIVE' })}
                         >
@@ -422,19 +439,21 @@ export const TechnicianManagement: React.FC = () => {
               <div className="px-8 py-4 border-t border-slate-200 bg-white flex justify-end gap-3 shrink-0">
                 <button
                   type="button"
-                  onClick={() => { setIsModalOpen(false); setEditingId(null); setFormData({ name: '', email: '', active: true, phone: '', jobTitle: '' }); setSaveError(null); }}
+                  onClick={() => { setIsModalOpen(false); setEditingId(null); setIsReadOnly(false); setFormData({ name: '', email: '', active: true, phone: '', jobTitle: '' }); setSaveError(null); }}
                   className="h-9 px-5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
                 >
-                  Cancelar
+                  {isReadOnly ? 'Fechar' : 'Cancelar'}
                 </button>
-                <Button
-                  onClick={handleSubmit as any}
-                  disabled={loading}
-                  className="h-9 px-6 rounded-xl text-xs font-bold bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white disabled:opacity-70 disabled:cursor-not-allowed transition-all"
-                >
-                  {loading ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Save size={14} className="mr-2" />}
-                  {loading ? 'Salvando...' : editingId ? 'Salvar Alterações' : 'Confirmar Cadastro'}
-                </Button>
+                {!isReadOnly && (
+                  <Button
+                    onClick={handleSubmit as any}
+                    disabled={loading}
+                    className="h-9 px-6 rounded-xl text-xs font-bold bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white disabled:opacity-70 disabled:cursor-not-allowed transition-all"
+                  >
+                    {loading ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Save size={14} className="mr-2" />}
+                    {loading ? 'Salvando...' : editingId ? 'Salvar Alterações' : 'Confirmar Cadastro'}
+                  </Button>
+                )}
               </div>
 
             </div>

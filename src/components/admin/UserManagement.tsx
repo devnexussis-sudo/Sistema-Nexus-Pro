@@ -439,6 +439,7 @@ export const UserManagement: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isReadOnly, setIsReadOnly] = useState(false);
   const [formData, setFormData] = useState<Partial<User>>({
     name: '',
     email: '',
@@ -761,6 +762,7 @@ export const UserManagement: React.FC = () => {
                 setFormData({ name: '', email: '', active: true, groupIds: [], permissions: { ...DEFAULT_PERMISSIONS }, appScope: AppScope.WEB });
                 setGroupSearch('');
                 setSaveError(null);
+                setIsReadOnly(false);
                 setIsModalOpen(true);
               }}
                 className="h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl"
@@ -787,53 +789,71 @@ export const UserManagement: React.FC = () => {
           {activeTab === 'users' ? (
             <table className="w-full border-collapse min-w-[550px]">
               <thead className="sticky top-0 bg-slate-50 z-10">
-                <tr className="text-[10px] font-poppins font-bold text-slate-500 tracking-wider uppercase text-center border-b border-slate-200">
-                  <th className="px-6 py-2.5 text-left">Administrador / Identidade</th>
-                  <th className="px-4 py-2.5 text-center">Status</th>
-                  <th className="px-6 py-2.5 text-right">Ações</th>
+                <tr className="text-[10px] font-poppins font-bold text-slate-500 tracking-wider uppercase text-left border-b border-slate-200">
+                  <th className="px-6 py-3">Identidade</th>
+                  <th className="px-4 py-3">Credencial (E-mail)</th>
+                  <th className="px-4 py-3">Grupo de Acesso</th>
+                  <th className="px-4 py-3 text-center">Status</th>
+                  <th className="px-6 py-3 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedUsers.length > 0 ? paginatedUsers.map(user => (
-                  <tr key={user.id} className={`hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0 group ${!user.active ? 'opacity-60' : ''}`}>
-                    <td className="px-6 py-2">
-                      <div className="flex items-center gap-4">
+                  <tr key={user.id} 
+                      className={`hover:bg-slate-50/50 transition-colors border-b border-slate-200 last:border-0 group ${!user.active ? 'opacity-60' : ''} cursor-pointer`}
+                      onClick={() => {
+                        setEditingUser(user);
+                        setFormData({ ...user, groupIds: user.groupIds || (user.groupId ? [user.groupId] : []) });
+                        setGroupSearch('');
+                        setSaveError(null);
+                        setIsReadOnly(true);
+                        setIsModalOpen(true);
+                      }}
+                  >
+                    <td className="px-6 py-3">
+                      <div className="flex items-center gap-3">
                         <div className="shrink-0">
                           <img
                             src={user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=random&color=fff&bold=true`}
                             alt={user.name}
-                            className="w-10 h-10 rounded-full object-cover border border-slate-200 shadow-sm bg-slate-50"
+                            className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-sm bg-slate-50"
                             onError={(e) => {
                               (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=random&color=fff&bold=true`;
                             }}
                           />
                         </div>
                         <div className="truncate text-left">
-                          <p className="text-[13px] font-bold text-slate-900 truncate max-w-[200px]">{user.name}</p>
-                          <p className="text-[11px] font-bold text-slate-400 mt-0.5 truncate max-w-[200px]">{user.email}</p>
-                          <p className="text-[9px] font-bold text-slate-500 mt-1 truncate max-w-[200px] uppercase tracking-wider flex items-center gap-1">
-                            <FolderTree size={10} className="text-slate-400" />
-                            {(() => {
-                              const groupId = user.groupIds?.[0] || user.groupId;
-                              const g = groups.find(g => g.id === groupId);
-                              return g ? g.name : 'Nenhum Grupo';
-                            })()}
-                            {user.appScope === AppScope.HYBRID && (
-                              <span className="ml-1 px-1.5 py-0.5 rounded bg-violet-100 text-violet-600 text-[8px] font-bold border border-violet-200">WEB + APP</span>
-                            )}
-                          </p>
+                          <p className="text-[12px] font-bold text-slate-900 truncate max-w-[200px]">{user.name}</p>
+                          {user.appScope === AppScope.HYBRID && (
+                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-violet-100 text-violet-600 text-[8px] font-bold border border-violet-200">WEB + APP</span>
+                          )}
                         </div>
                       </div>
                     </td>
 
-                    <td className="px-4 py-2 text-center whitespace-nowrap">
-                      <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold border transition-all ${user.active ? 'bg-primary-50 text-primary-700 border-primary-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
-                        {user.active ? 'Ativo' : 'Inativo'}
+                    <td className="px-4 py-3 text-left whitespace-nowrap">
+                      <p className="text-[11px] font-medium text-slate-600 truncate max-w-[200px]">{user.email}</p>
+                    </td>
+
+                    <td className="px-4 py-3 text-left whitespace-nowrap">
+                      <p className="text-[10px] font-bold text-slate-500 flex items-center gap-1.5 truncate max-w-[150px]">
+                        <FolderTree size={12} className="text-slate-400" />
+                        {(() => {
+                          const groupId = user.groupIds?.[0] || user.groupId;
+                          const g = groups.find(g => g.id === groupId);
+                          return g ? g.name : 'Nenhum Grupo';
+                        })()}
+                      </p>
+                    </td>
+
+                    <td className="px-4 py-3 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <span className={`px-2.5 py-1 rounded-full text-[9px] font-bold border transition-all ${user.active ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                        {user.active ? 'ATIVO' : 'INATIVO'}
                       </span>
                     </td>
-                    <td className="px-6 py-2 text-right">
+                    <td className="px-6 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5 transition-all">
-                        <button onClick={() => { setEditingUser(user); setFormData({ ...user, groupIds: user.groupIds || (user.groupId ? [user.groupId] : []) }); setGroupSearch(''); setSaveError(null); setIsModalOpen(true); }} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Editar Usuário">
+                        <button onClick={(e) => { e.stopPropagation(); setEditingUser(user); setFormData({ ...user, groupIds: user.groupIds || (user.groupId ? [user.groupId] : []) }); setGroupSearch(''); setSaveError(null); setIsReadOnly(false); setIsModalOpen(true); }} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Editar Usuário">
                           <Edit3 size={16} />
                         </button>
                       </div>
@@ -841,7 +861,7 @@ export const UserManagement: React.FC = () => {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={3} className="py-24 text-center">
+                    <td colSpan={5} className="py-24 text-center">
                       <Users size={48} className="mx-auto text-slate-200 mb-4" />
                       <p className="text-[10px] font-bold text-slate-300 italic tracking-[0.2em]">Nenhum usuário localizado</p>
                     </td>
@@ -864,7 +884,7 @@ export const UserManagement: React.FC = () => {
 
                   return filteredGroups.length > 0 ? (
                     filteredGroups.map((group) => (
-                      <tr key={group.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0 group">
+                      <tr key={group.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-200 last:border-0 group">
                         <td className="px-6 py-2 text-left">
                           <div className="flex items-center gap-4">
                             <div className="shrink-0">
@@ -940,7 +960,7 @@ export const UserManagement: React.FC = () => {
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-                      {editingUser ? 'Atualizar Identidade' : 'Registrar Novo Gestor'}
+                      {isReadOnly ? 'Detalhes da Identidade' : (editingUser ? 'Atualizar Identidade' : 'Registrar Novo Gestor')}
                     </h2>
                     <p className="text-[10px] font-bold text-slate-400 mt-0.5">
                       Nexus Operacional • acesso e privilégios corporativos
@@ -948,17 +968,19 @@ export const UserManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Button
-                    type="submit"
-                    disabled={isSaving}
-                    className="rounded-xl px-6 bg-[#1c2d4f] hover:bg-[#1c2d4f]/90 shadow-md py-2.5 h-auto text-xs font-bold disabled:opacity-70 disabled:cursor-not-allowed transition-all"
-                  >
-                    {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Save size={16} className="mr-2" />}
-                    {isSaving ? 'Salvando...' : editingUser ? 'Atualizar' : 'Salvar'}
-                  </Button>
+                  {!isReadOnly && (
+                    <Button
+                      type="submit"
+                      disabled={isSaving}
+                      className="rounded-xl px-6 bg-[#1c2d4f] hover:bg-[#1c2d4f]/90 shadow-md py-2.5 h-auto text-xs font-bold disabled:opacity-70 disabled:cursor-not-allowed transition-all"
+                    >
+                      {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Save size={16} className="mr-2" />}
+                      {isSaving ? 'Salvando...' : editingUser ? 'Atualizar' : 'Salvar'}
+                    </Button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => setIsModalOpen(false)}
+                    onClick={() => { setIsModalOpen(false); setIsReadOnly(false); }}
                     className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50"
                   >
                     <X size={20} />
@@ -1002,8 +1024,9 @@ export const UserManagement: React.FC = () => {
                             <div className="flex flex-wrap items-center gap-2">
                               <button
                                 type="button"
+                                disabled={isReadOnly}
                                 onClick={() => userFileInputRef.current?.click()}
-                                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all flex items-center gap-2"
+                                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 <Upload size={14} className="text-primary-600" /> Alterar Foto do Perfil
                               </button>
@@ -1032,10 +1055,11 @@ export const UserManagement: React.FC = () => {
 
                               <button
                                 type="button"
+                                disabled={isReadOnly}
                                 onClick={() => {
                                   setFormData(prev => ({ ...prev, avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.name || 'User')}&background=random&color=fff&bold=true` }));
                                 }}
-                                className="px-4 py-2 bg-violet-50 hover:bg-violet-100 border border-violet-200 text-violet-700 text-xs font-bold rounded-xl transition-all flex items-center gap-2"
+                                className="px-4 py-2 bg-violet-50 hover:bg-violet-100 border border-violet-200 text-violet-700 text-xs font-bold rounded-xl transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 <Sparkles size={14} className="text-violet-600" /> Gerar Avatar
                               </button>
@@ -1056,8 +1080,9 @@ export const UserManagement: React.FC = () => {
                           <Input
                             label=""
                             required
+                            disabled={isReadOnly}
                             icon={<Users size={16} />}
-                            className="rounded-xl border border-slate-300 bg-white font-bold text-slate-900 text-sm py-2.5 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm"
+                            className="rounded-xl border border-slate-300 bg-white font-bold text-slate-900 text-sm py-2.5 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:opacity-80 disabled:bg-slate-50"
                             value={formData.name || ''}
                             onChange={e => setFormData({ ...formData, name: e.target.value })}
                             autoComplete="new-name"
@@ -1070,8 +1095,9 @@ export const UserManagement: React.FC = () => {
                             label=""
                             type="email"
                             required
+                            disabled={isReadOnly}
                             icon={<Mail size={16} />}
-                            className="rounded-xl border border-slate-300 bg-white font-bold text-slate-900 text-sm py-2.5 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm"
+                            className="rounded-xl border border-slate-300 bg-white font-bold text-slate-900 text-sm py-2.5 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:opacity-80 disabled:bg-slate-50"
                             value={formData.email || ''}
                             onChange={e => setFormData({ ...formData, email: e.target.value })}
                             autoComplete="new-email"
@@ -1099,8 +1125,8 @@ export const UserManagement: React.FC = () => {
                       <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 space-y-4">
                         <h3 className="text-sm font-bold text-slate-900 border-l-4 border-emerald-500 pl-3">status de acesso</h3>
                         <div
-                          onClick={() => setFormData({ ...formData, active: !formData.active })}
-                          className={`flex items-center gap-4 p-5 rounded-xl border transition-all cursor-pointer ${formData.active ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                          onClick={() => { if (!isReadOnly) setFormData({ ...formData, active: !formData.active }) }}
+                          className={`flex items-center gap-4 p-5 rounded-xl border transition-all ${!isReadOnly ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'} ${formData.active ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'
                             }`}
                         >
                           <div className={`w-10 h-6 rounded-full relative transition-all ${formData.active ? 'bg-emerald-500' : 'bg-slate-300'}`}>
@@ -1123,8 +1149,8 @@ export const UserManagement: React.FC = () => {
                       <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 space-y-4">
                         <h3 className="text-sm font-bold text-slate-900 border-l-4 border-violet-500 pl-3">escopo de acesso</h3>
                         <div
-                          onClick={() => setFormData({ ...formData, appScope: formData.appScope === AppScope.HYBRID ? AppScope.WEB : AppScope.HYBRID })}
-                          className={`flex items-center gap-4 p-5 rounded-xl border transition-all cursor-pointer ${
+                          onClick={() => { if (!isReadOnly) setFormData({ ...formData, appScope: formData.appScope === AppScope.HYBRID ? AppScope.WEB : AppScope.HYBRID }) }}
+                          className={`flex items-center gap-4 p-5 rounded-xl border transition-all ${!isReadOnly ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'} ${
                             formData.appScope === AppScope.HYBRID
                               ? 'bg-violet-50 border-violet-200'
                               : 'bg-slate-50 border-slate-200'
@@ -1182,13 +1208,15 @@ export const UserManagement: React.FC = () => {
                               return grp ? (
                                 <span key={gid} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold bg-[#1c2d4f] text-white">
                                   {grp.name}
-                                  <button
-                                    type="button"
-                                    onClick={() => setFormData({ ...formData, groupIds: (formData.groupIds || []).filter(id => id !== gid) })}
-                                    className="ml-0.5 hover:text-red-300 transition-colors"
-                                  >
-                                    <X size={10} />
-                                  </button>
+                                  {!isReadOnly && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setFormData({ ...formData, groupIds: (formData.groupIds || []).filter(id => id !== gid) })}
+                                      className="ml-0.5 hover:text-red-300 transition-colors"
+                                    >
+                                      <X size={10} />
+                                    </button>
+                                  )}
                                 </span>
                               ) : null;
                             })}
@@ -1211,6 +1239,7 @@ export const UserManagement: React.FC = () => {
                                 <button
                                   key={g.id}
                                   type="button"
+                                  disabled={isReadOnly}
                                   onClick={() => {
                                     setFormData({
                                       ...formData,
@@ -1220,7 +1249,7 @@ export const UserManagement: React.FC = () => {
                                   className={`w-full flex items-center gap-2.5 p-2.5 rounded-xl border transition-all text-left ${isSelected
                                     ? 'border-[#1c2d4f] bg-[#1c2d4f05] shadow-sm'
                                     : 'border-slate-100 bg-slate-50/50 hover:border-slate-200 hover:bg-white'
-                                    }`}
+                                    } disabled:opacity-80 disabled:cursor-not-allowed`}
                                 >
                                   {/* Radio visual */}
                                   <div className={`w-4 h-4 rounded-full flex items-center justify-center border transition-all shrink-0 ${isSelected

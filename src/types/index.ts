@@ -389,7 +389,7 @@ export interface ServiceOrder {
   discountType?: 'fixed' | 'percent';
 
   // Gateway de Pagamento Mercado Pago
-  gatewayProvider?: 'mercadopago' | string;
+  gatewayProvider?: 'asaas' | string;
   gatewayPaymentId?: string;
   gatewayPixCode?: string;
   gatewayQrCodeUrl?: string;
@@ -645,7 +645,7 @@ export interface Quote {
   description: string;
   items: QuoteItem[];
   totalValue: number;
-  status: 'ABERTO' | 'APROVADO' | 'REJEITADO' | 'CONVERTIDO' | 'PENDENTE';
+  status: 'ABERTO' | 'APROVADO' | 'REJEITADO' | 'CONVERTIDO' | 'PENDENTE' | 'FATURADO';
   notes?: string;
   rejectionReason?: string;
   validUntil?: string;
@@ -671,8 +671,8 @@ export interface Quote {
   discount?: number;
   discountType?: 'fixed' | 'percent';
 
-  // Gateway de Pagamento Mercado Pago
-  gatewayProvider?: 'mercadopago' | string;
+  // Gateway de Pagamento
+  gatewayProvider?: 'asaas' | string;
   gatewayPaymentId?: string;
   gatewayPixCode?: string;
   gatewayQrCodeUrl?: string;
@@ -680,16 +680,13 @@ export interface Quote {
   gatewayStatus?: string;
 }
 
-export interface MercadoPagoSettings {
+export interface AsaasSettings {
   id?: string;
   tenantId: string;
-  mpUserId?: string;
-  mpPublicKey?: string;
-  mpAccessToken?: string;
-  mpRefreshToken?: string;
-  accountEmail?: string;
-  accountName?: string;
-  status: 'active' | 'disconnected' | 'error';
+  asaasApiKey?: string;
+  asaasWalletId?: string;
+  isActive: boolean;
+  is_sandbox?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

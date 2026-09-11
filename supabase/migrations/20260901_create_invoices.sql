@@ -49,18 +49,36 @@ CREATE POLICY "Users can insert their tenant's invoice_items" ON public.invoice_
 CREATE POLICY "Users can update their tenant's invoice_items" ON public.invoice_items FOR UPDATE USING (tenant_id = (SELECT tenant_id FROM public.users WHERE id = auth.uid()));
 CREATE POLICY "Users can delete their tenant's invoice_items" ON public.invoice_items FOR DELETE USING (tenant_id = (SELECT tenant_id FROM public.users WHERE id = auth.uid()));
 
--- Função e Trigger para Auto-incrementar o display_id da Fatura (ex: FAT-0001)
+-- Função e Trigger para Auto-incrementar o display_id da Fatura (ex: FAT-000001 com 6 dígitos e suporte alfanumérico)
 CREATE OR REPLACE FUNCTION public.set_invoice_display_id()
 RETURNS TRIGGER AS $$
 DECLARE
-  next_seq INTEGER;
+  next_seq BIGINT;
+  offset_seq BIGINT;
+  letter_char CHAR(1);
+  num_part TEXT;
+  formatted_code TEXT;
 BEGIN
-  SELECT COALESCE(MAX(CAST(NULLIF(REGEXP_REPLACE(display_id, '[^0-9]', '', 'g'), '') AS INTEGER)), 0) + 1
+  SELECT COALESCE(MAX(
+    CASE 
+      WHEN display_id ~ '^FAT-[0-9]{1,6}$' THEN CAST(REGEXP_REPLACE(display_id, '[^0-9]', '', 'g') AS BIGINT)
+      ELSE 0
+    END
+  ), 0) + 1
   INTO next_seq
   FROM public.invoices
   WHERE tenant_id = NEW.tenant_id AND display_id LIKE 'FAT-%';
-  
-  NEW.display_id := 'FAT-' || LPAD(next_seq::TEXT, 4, '0');
+
+  IF next_seq <= 999999 THEN
+    formatted_code := LPAD(next_seq::TEXT, 6, '0');
+  ELSE
+    offset_seq := next_seq - 999999;
+    letter_char := CHR(65 + CAST(((offset_seq - 1) / 999999) % 26 AS INTEGER));
+    num_part := LPAD(CAST(((offset_seq - 1) % 999999 + 1) AS TEXT), 5, '0');
+    formatted_code := SUBSTRING(num_part FROM 1 FOR 2) || letter_char || SUBSTRING(num_part FROM 3);
+  END IF;
+
+  NEW.display_id := 'FAT-' || formatted_code;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

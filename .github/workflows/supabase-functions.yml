@@ -28,7 +28,7 @@ jobs:
 
       - name: 🚀 Deploy Edge Functions (WhatsApp Bot & Webhooks)
         run: |
-          supabase functions deploy asaas-webhook --project-ref $PROJECT_ID
+          supabase functions deploy asaas-webhook --project-ref $PROJECT_ID --no-verify-jwt
           supabase functions deploy whatsapp-bot --project-ref $PROJECT_ID
           supabase functions deploy whatsapp-ai-agent --project-ref $PROJECT_ID
           supabase functions deploy whatsapp-admin-send --project-ref $PROJECT_ID

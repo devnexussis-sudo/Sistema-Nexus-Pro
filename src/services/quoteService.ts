@@ -60,6 +60,7 @@ export const QuoteService = {
             billingNotes: data.billing_notes,
             receiptUrl: data.approval_metadata?._receiptUrl,
             discount: Number(data.discount) || 0,
+            discountType: data.discount_type || 'fixed',
             gatewayStatus: data.gateway_status,
             gatewayProvider: data.gateway_provider,
             gatewayPaymentId: data.gateway_payment_id,

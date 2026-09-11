@@ -26,6 +26,7 @@ export const publicSupabase = createClient(safeUrl, safeKey, {
         persistSession: false,
         autoRefreshToken: false,
         detectSessionInUrl: false,
+        storageKey: 'nexus_public_auth_token'
     },
 });
 

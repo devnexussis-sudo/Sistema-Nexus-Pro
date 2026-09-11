@@ -187,9 +187,12 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
 
                 let warningTimeoutId: ReturnType<typeof setTimeout> | undefined;
                 if (typeof window !== 'undefined') {
+                    const urlStr = typeof url === 'string' ? url : (url instanceof URL ? url.toString() : (url as any).url || '');
+                    const isHeavyOperation = isWrite || urlStr.includes('/functions/v1/');
+                    
                     warningTimeoutId = setTimeout(() => {
                         window.dispatchEvent(new CustomEvent('NEXUS_SLOW_NETWORK_WARNING'));
-                    }, 12_000);
+                    }, isHeavyOperation ? 25_000 : 12_000);
                 }
 
                 try {

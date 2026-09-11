@@ -1,44 +1,72 @@
-import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
+const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
 
-const envPath = path.resolve(process.cwd(), '.env');
-const envConfig = dotenv.parse(fs.readFileSync(envPath));
-for (const k in envConfig) {
-  process.env[k] = envConfig[k];
-}
-
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
-
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-async function checkLatestPayment() {
-  const { data: quote } = await supabase
-    .from('quotes')
-    .select('id, gateway_payment_id, tenant_id, billing_status')
-    .not('gateway_payment_id', 'is', null)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-
-  if (!quote) return console.log("No quote found");
-  console.log("Quote:", quote.id, quote.gateway_payment_id);
-
-  const { data: ts } = await supabase.from('tenant_mercadopago_settings').select('mp_access_token').eq('tenant_id', quote.tenant_id).single();
-  const token = ts?.mp_access_token;
+async function run() {
+  const envContent = fs.readFileSync('.env.local', 'utf-8');
+  const urlMatch = envContent.match(/VITE_SUPABASE_URL=(.*)/);
+  const anonMatch = envContent.match(/VITE_SUPABASE_ANON_KEY=(.*)/);
+  const serviceMatch = envContent.match(/SUPABASE_SERVICE_ROLE_KEY=(.*)/);
   
-  if (/^\d+$/.test(quote.gateway_payment_id)) {
-     const r = await fetch(`https://api.mercadopago.com/v1/payments/${quote.gateway_payment_id}`, { headers: { Authorization: `Bearer ${token}` }});
-     console.log("Direct status:", await r.json());
-  } else {
-     const r = await fetch(`https://api.mercadopago.com/merchant_orders/search?preference_id=${quote.gateway_payment_id}`, { headers: { Authorization: `Bearer ${token}` }});
-     console.log("MO Data:", JSON.stringify(await r.json(), null, 2));
+  const supabase = createClient(
+    urlMatch[1], 
+    serviceMatch ? serviceMatch[1] : anonMatch[1],
+    { auth: { persistSession: false } }
+  );
 
-     const s = await fetch(`https://api.mercadopago.com/v1/payments/search?external_reference=${quote.id}`, { headers: { Authorization: `Bearer ${token}` }});
-     console.log("Search Data:", JSON.stringify(await s.json(), null, 2));
+  const tenantId = 'cecfe5fd-b14c-4359-a28d-549db815d9e6';
+  
+  // 1. Get MP Token
+  const { data: mpSettings } = await supabase
+    .from('mercadopago_settings')
+    .select('mp_access_token')
+    .eq('tenant_id', tenantId)
+    .single();
+    
+  if (!mpSettings || !mpSettings.mp_access_token) {
+    console.log("No MP token found");
+    return;
   }
+  
+  const token = mpSettings.mp_access_token;
+  
+  // 2. Mock a Boleto Request
+  const payload = {
+    transaction_amount: 100.0,
+    description: "Teste",
+    payment_method_id: "bolbradesco",
+    date_of_expiration: new Date(Date.now() + 86400000 * 30).toISOString(),
+    payer: {
+      email: "cliente@nexus.com",
+      first_name: "Cliente",
+      last_name: "Teste",
+      identification: {
+        type: "CNPJ",
+        number: "00000000000191" // Mock valid CNPJ structure
+      },
+      address: {
+        zip_code: "06233200",
+        street_name: "Rua Teste",
+        street_number: "123",
+        neighborhood: "Centro",
+        city: "São Paulo",
+        federal_unit: "SP"
+      }
+    }
+  };
+
+  console.log("Sending request to MP...");
+  const res = await fetch('https://api.mercadopago.com/v1/payments', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+  
+  const json = await res.json();
+  console.log("Status:", res.status);
+  console.log("Response:", JSON.stringify(json, null, 2));
 }
 
-checkLatestPayment();
+run().catch(console.error);

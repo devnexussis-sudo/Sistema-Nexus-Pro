@@ -690,21 +690,19 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         )}
                                     </td>
                                     <td className="px-4 py-1.5 text-center whitespace-nowrap">
-                                        {quote.billingStatus === 'PAID' ? (
-                                            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-medium bg-emerald-900 text-emerald-300 border border-emerald-700">
-                                                <span className="w-1 h-1 rounded-full bg-emerald-400" />
-                                                Faturado
-                                            </div>
-                                        ) : (
-                                            <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-medium ${quote.status === 'ABERTO' ? 'bg-primary-50 text-primary-600 border border-primary-100' :
-                                                quote.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                                                    quote.status === 'CONVERTIDO' ? 'bg-slate-900 text-emerald-400 border border-slate-700' :
-                                                        'bg-rose-50 text-rose-500 border border-rose-100'
-                                                }`}>
-                                                <span className={`w-1 h-1 rounded-full animate-pulse ${quote.status === 'ABERTO' ? 'bg-primary-600' : quote.status === 'APROVADO' ? 'bg-emerald-600' : quote.status === 'CONVERTIDO' ? 'bg-emerald-400' : 'bg-rose-500'}`} />
-                                                {quote.status}
-                                            </div>
-                                        )}
+                                        {(() => {
+                                            const displayStatus = (quote.billingStatus === 'PAID' || quote.status === 'FATURADO') ? 'FATURADO' : quote.status;
+                                            return (
+                                                <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-medium ${displayStatus === 'ABERTO' ? 'bg-primary-50 text-primary-600 border border-primary-100' :
+                                                    displayStatus === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                                        (displayStatus === 'CONVERTIDO' || displayStatus === 'FATURADO') ? 'bg-slate-900 text-emerald-400 border border-slate-700' :
+                                                            'bg-rose-50 text-rose-500 border border-rose-100'
+                                                    }`}>
+                                                    <span className={`w-1 h-1 rounded-full animate-pulse ${displayStatus === 'ABERTO' ? 'bg-primary-600' : displayStatus === 'APROVADO' ? 'bg-emerald-600' : (displayStatus === 'CONVERTIDO' || displayStatus === 'FATURADO') ? 'bg-emerald-400' : 'bg-rose-500'}`} />
+                                                    {displayStatus}
+                                                </div>
+                                            );
+                                        })()}
                                     </td>
                                     <td className="px-4 py-2 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                         <div className="flex justify-center items-center gap-1">
@@ -777,21 +775,19 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
                                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
                                     <span className="text-[10px] text-slate-500 truncate max-w-[150px]">{quote.title}</span>
-                                    {quote.billingStatus === 'PAID' ? (
-                                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-medium bg-emerald-900 text-emerald-300 border border-emerald-700">
-                                            <span className="w-1 h-1 rounded-full bg-emerald-400" />
-                                            Faturado
-                                        </div>
-                                    ) : (
-                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-medium ${quote.status === 'ABERTO' ? 'bg-primary-50 text-primary-600 border border-primary-100' :
-                                            quote.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                                                quote.status === 'CONVERTIDO' ? 'bg-slate-900 text-emerald-400 border border-slate-700' :
-                                                    'bg-rose-50 text-rose-500 border border-rose-100'
-                                            }`}>
-                                            <span className={`w-1 h-1 rounded-full animate-pulse ${quote.status === 'ABERTO' ? 'bg-primary-600' : quote.status === 'APROVADO' ? 'bg-emerald-600' : quote.status === 'CONVERTIDO' ? 'bg-emerald-400' : 'bg-rose-500'}`} />
-                                            {quote.status}
-                                        </div>
-                                    )}
+                                    {(() => {
+                                        const displayStatus = (quote.billingStatus === 'PAID' || quote.status === 'FATURADO') ? 'FATURADO' : quote.status;
+                                        return (
+                                            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-medium ${displayStatus === 'ABERTO' ? 'bg-primary-50 text-primary-600 border border-primary-100' :
+                                                displayStatus === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                                    (displayStatus === 'CONVERTIDO' || displayStatus === 'FATURADO') ? 'bg-slate-900 text-emerald-400 border border-slate-700' :
+                                                        'bg-rose-50 text-rose-500 border border-rose-100'
+                                                }`}>
+                                                <span className={`w-1 h-1 rounded-full animate-pulse ${displayStatus === 'ABERTO' ? 'bg-primary-600' : displayStatus === 'APROVADO' ? 'bg-emerald-600' : (displayStatus === 'CONVERTIDO' || displayStatus === 'FATURADO') ? 'bg-emerald-400' : 'bg-rose-500'}`} />
+                                                {displayStatus}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             </div>
                         ))

@@ -9,13 +9,13 @@ import {
 } from 'lucide-react';
 import { DataService } from '../../services/dataService';
 import { PaymentService } from '../../services/paymentService';
-import { MercadoPagoSettings } from '../../types';
+import { AsaasSettings } from '../../types';
 
 export const IntegrationsPage: React.FC = () => {
   const { data: tenant } = useTenant();
   const [activeTab, setActiveTab] = useState<'payments' | 'api_keys' | 'webhooks'>('payments');
-  const [mpSettings, setMpSettings] = useState<MercadoPagoSettings | null>(null);
-  const [loadingMp, setLoadingMp] = useState(false);
+  const [asaasSettings, setAsaasSettings] = useState<AsaasSettings | null>(null);
+  const [loadingAsaas, setLoadingAsaas] = useState(false);
   
   // API Keys state
   const [apiKeys, setApiKeys] = useState<any[]>([]);
@@ -51,135 +51,79 @@ export const IntegrationsPage: React.FC = () => {
 
   useEffect(() => {
     if (tenant?.id) {
-      fetchMercadoPago();
+      fetchAsaas();
       fetchApiKeys();
       fetchWebhooks();
     }
   }, [tenant?.id]);
 
-  const fetchMercadoPago = async () => {
-    setLoadingMp(true);
+  const fetchAsaas = async () => {
+    setLoadingAsaas(true);
     try {
-      const settings = await PaymentService.getMercadoPagoSettings(tenant?.id);
-      setMpSettings(settings);
+      const settings = await PaymentService.getAsaasSettings(tenant?.id);
+      setAsaasSettings(settings);
     } finally {
-      setLoadingMp(false);
+      setLoadingAsaas(false);
     }
   };
 
-  const [customAppId, setCustomAppId] = useState('');
-  const [customAccessToken, setCustomAccessToken] = useState('');
-  const [customPublicKey, setCustomPublicKey] = useState('');
+  const [customApiKey, setCustomApiKey] = useState('');
+  const [customWalletId, setCustomWalletId] = useState('');
+  const [customIsSandbox, setCustomIsSandbox] = useState(true);
   const [savingManual, setSavingManual] = useState(false);
 
-  const handleConnectMercadoPago = () => {
-    const cleanAppId = customAppId.trim();
-
-    // Validação: o Client ID do Mercado Pago é SEMPRE numérico
-    if (!cleanAppId) {
-      alert('Informe o App ID / Client ID numérico da sua aplicação no Mercado Pago Developers antes de conectar.\n\nExemplo: 849204819204\n\nEncontre em: mercadopago.com.br/developers/pt/apps');
+  const handleSaveAsaasSettings = async () => {
+    const key = customApiKey.trim();
+    if (!key) {
+      alert('Informe a API Key do Asaas.');
       return;
     }
-
-    if (cleanAppId.includes('@') || !/^\d+$/.test(cleanAppId)) {
-      alert('\u274C Client ID inválido!\n\nO App ID / Client ID é SOMENTE números (ex: 849204819204).\n\nNão é o seu e-mail nem o seu Access Token.\n\nAcesse mercadopago.com.br/developers/pt/apps, abra sua aplicação e copie o "Client ID" numérico.');
-      return;
-    }
-
-    const url = PaymentService.getOAuthConnectUrl(cleanAppId);
-
-    if (!url) {
-      alert('Não foi possível gerar o link de autorização. Verifique o App ID informado.');
-      return;
-    }
-
-    window.open(url, '_blank');
-  };
-
-  const handleSaveManualCredentials = async () => {
-    const token = customAccessToken.trim().replace(/^["']|["']$/g, '');
-    if (!token) return;
 
     setSavingManual(true);
     try {
-      if (!token.startsWith('APP_USR-') && !token.startsWith('TEST-')) {
-        alert('❌ Formato de Access Token inválido!\n\nO Access Token do Mercado Pago deve começar com "APP_USR-" (Produção) ou "TEST-" (Sandbox).\n\nCertifique-se de copiar o Access Token em:\nmercadopago.com.br/settings/account/credentials → Credenciais de produção');
-        setSavingManual(false);
-        return;
-      }
-
-      // ── ETAPA 1: Validar o token NA API REAL do Mercado Pago via Edge Function ──────────────
-      // Isso evita o erro de CORS do navegador, pois o servidor que faz a requisição.
-      let accountEmail = 'Credencial Vinculada';
-      let accountName = 'Conta Mercado Pago';
-      let mpUserId = customAppId.trim() || undefined;
-
-      const { data: verifyData, error: verifyError } = await supabase.functions.invoke('mercadopago-verify-token', {
-        body: { token }
-      });
-
-      if (verifyError || !verifyData || !verifyData.valid) {
-        // Token inválido — não salva nada
-        const errMsg = verifyData?.error || verifyError?.message || 'Token rejeitado pelo servidor.';
-        alert(`❌ Access Token inválido ou não autorizado!\n\nO Mercado Pago rejeitou este token: "${errMsg}"\n\nVerifique se você copiou o Access Token de Produção em:\nmercadopago.com.br/settings/account/credentials → Credenciais de produção`);
-        return;
-      }
-
-      // ── ETAPA 2: Token válido — pega os dados reais retornados pela Edge Function ─────────────
-      accountEmail = verifyData.accountEmail;
-      accountName  = verifyData.accountName;
-      mpUserId     = verifyData.userId || customAppId.trim() || '';
-
-      // ── ETAPA 3: Salva no banco com dados reais ───────────────────────────
-      const success = await PaymentService.saveMercadoPagoSettings({
-        mpAccessToken: token,
-        mpPublicKey: customPublicKey.trim() || undefined,
-        mpUserId,
-        accountEmail
+      const success = await PaymentService.saveAsaasSettings({
+        asaasApiKey: key,
+        asaasWalletId: customWalletId.trim() || undefined,
+        is_sandbox: customIsSandbox
       }, tenant?.id);
 
       if (success) {
-        setMpSettings({
+        setAsaasSettings({
           tenantId: tenant?.id || 'current',
-          accountEmail,
-          accountName,
-          status: 'active'
+          asaasApiKey: key,
+          is_sandbox: customIsSandbox,
+          isActive: true
         });
-        alert(`🟢 Conta conectada com sucesso!\n\n👤 ${accountName}\n📧 ${accountEmail}`);
-        setCustomAccessToken('');
-        setCustomPublicKey('');
-        setCustomAppId('');
+        alert('🟢 Conta do Asaas conectada com sucesso!');
+        setCustomApiKey('');
+        setCustomWalletId('');
+        setCustomIsSandbox(true);
       } else {
-        alert('❌ Falha ao salvar as credenciais no banco de dados. Tente novamente.');
+        alert('❌ Falha ao salvar as configurações do Asaas.');
       }
-    } catch (err: any) {
-      console.error('[IntegrationsPage] Erro ao validar token MP:', err);
-      alert('❌ Não foi possível verificar o token. Verifique sua conexão com a internet e tente novamente.');
     } finally {
       setSavingManual(false);
     }
   };
 
-  const handleDisconnectMercadoPago = () => {
+  const handleDisconnectAsaas = () => {
     setConfirmModal({
       isOpen: true,
-      title: 'Desconectar Mercado Pago',
-      message: 'Tem certeza que deseja desconectar sua conta Mercado Pago? Você não poderá mais gerar cobranças automáticas até reconectar.',
+      title: 'Desconectar Asaas',
+      message: 'Tem certeza que deseja desconectar o Asaas? Você não poderá mais gerar cobranças automáticas.',
       confirmText: 'Desconectar',
       isDanger: true,
       onConfirm: async () => {
-        setLoadingMp(true);
+        setLoadingAsaas(true);
         try {
-          // Chama o serviço centralizado com o tenant ID correto
-          await PaymentService.disconnectMercadoPago(tenant?.id);
-          // Aguarda um momento para o banco confirmar, depois re-lê o estado real
+          await PaymentService.disconnectAsaas(tenant?.id);
           await new Promise(resolve => setTimeout(resolve, 500));
-          await fetchMercadoPago();
+          await fetchAsaas();
         } catch (err) {
-          console.error('[IntegrationsPage] Erro ao desconectar MP:', err);
-          setMpSettings(null);
+          console.error('[IntegrationsPage] Erro ao desconectar Asaas:', err);
+          setAsaasSettings(null);
         } finally {
-          setLoadingMp(false);
+          setLoadingAsaas(false);
         }
       }
     });
@@ -355,20 +299,20 @@ export const IntegrationsPage: React.FC = () => {
           <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-[#009EE3]/10 text-[#009EE3] flex items-center justify-center shrink-0 border border-[#009EE3]/20">
+                <div className="w-14 h-14 rounded-2xl bg-[#0055FF]/10 text-[#0055FF] flex items-center justify-center shrink-0 border border-[#0055FF]/20">
                   <CreditCard size={28} />
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                    Mercado Pago
-                    <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-sky-50 text-[#009EE3] border border-[#009EE3]/30">Gateway de Pagamento</span>
+                    Asaas
+                    <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-blue-50 text-[#0055FF] border border-[#0055FF]/30">Gateway de Pagamento</span>
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">Receba Pix, Boleto e Cartão de Crédito diretamente pelo painel.</p>
                 </div>
               </div>
-              {mpSettings?.status === 'active' && (
+              {asaasSettings?.isActive && (
                 <button
-                  onClick={handleDisconnectMercadoPago}
+                  onClick={handleDisconnectAsaas}
                   className="flex items-center gap-2 px-4 py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-semibold transition-all border border-rose-200 shrink-0"
                 >
                   <Unlink size={15} /> Desconectar Conta
@@ -377,11 +321,11 @@ export const IntegrationsPage: React.FC = () => {
             </div>
 
             {/* Status badge */}
-            {loadingMp ? (
+            {loadingAsaas ? (
               <div className="mt-4 flex items-center gap-2 text-slate-400 text-xs">
                 <RefreshCw size={14} className="animate-spin" /> Verificando conexão...
               </div>
-            ) : mpSettings?.status === 'active' ? (
+            ) : asaasSettings?.isActive ? (
               <div className="mt-4 bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center gap-4">
                 <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
                   <CheckCircle2 size={20} />
@@ -389,7 +333,7 @@ export const IntegrationsPage: React.FC = () => {
                 <div>
                   <span className="text-xs font-bold text-emerald-900 uppercase tracking-wider block">Conta Ativa e Vinculada 🟢</span>
                   <p className="text-xs text-emerald-700 mt-0.5">
-                    {mpSettings.accountName || 'Mercado Pago'} — {mpSettings.accountEmail || 'Conectado'}
+                    Integração com Asaas configurada
                   </p>
                 </div>
               </div>
@@ -402,18 +346,18 @@ export const IntegrationsPage: React.FC = () => {
           </div>
 
           {/* ── FORMULÁRIO DE CONEXÃO (somente quando desconectado) ── */}
-          {!loadingMp && mpSettings?.status !== 'active' && (
+          {!loadingAsaas && !asaasSettings?.isActive && (
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5">
 
               {/* Como obter as credenciais */}
-              <div className="flex items-start gap-3 bg-sky-50 border border-sky-200 rounded-2xl p-4">
-                <ShieldAlert size={18} className="text-[#009EE3] shrink-0 mt-0.5" />
+              <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-2xl p-4">
+                <ShieldAlert size={18} className="text-[#0055FF] shrink-0 mt-0.5" />
                 <div className="space-y-1.5">
-                  <p className="text-xs font-bold text-slate-800">Como obter suas credenciais do Mercado Pago:</p>
+                  <p className="text-xs font-bold text-slate-800">Como obter sua API Key do Asaas:</p>
                   <ol className="text-xs text-slate-600 space-y-1 leading-relaxed list-decimal list-inside">
-                    <li>Acesse <a href="https://www.mercadopago.com.br/settings/account/credentials" target="_blank" rel="noreferrer" className="text-[#009EE3] font-semibold hover:underline">mercadopago.com.br/settings/account/credentials</a> e faça login com sua conta</li>
-                    <li>Na seção <strong>Credenciais de produção</strong>, clique em <strong>"Mais informações"</strong> para ver o Access Token</li>
-                    <li>Copie o <strong>Access Token</strong> — começa com <code className="bg-sky-100 px-1 rounded font-mono">APP_USR-</code> (produção) ou <code className="bg-sky-100 px-1 rounded font-mono">TEST-</code> (testes)</li>
+                    <li>Acesse <a href="https://www.asaas.com/customerConfigIntegrations" target="_blank" rel="noreferrer" className="text-[#0055FF] font-semibold hover:underline">Configurações de Integração</a> no seu painel Asaas</li>
+                    <li>Clique em <strong>"Gerar API Key"</strong> se ainda não tiver uma</li>
+                    <li>Copie a <strong>API Key</strong> gerada</li>
                     <li>Cole no campo abaixo e clique em <strong>Salvar e Conectar</strong></li>
                   </ol>
                 </div>
@@ -422,46 +366,58 @@ export const IntegrationsPage: React.FC = () => {
               {/* Campos */}
               <div>
                 <label className="text-[11px] text-slate-700 font-bold uppercase tracking-wider block mb-1.5">
-                  Access Token <span className="text-rose-500 font-normal">(obrigatório)</span>
+                  API Key <span className="text-rose-500 font-normal">(obrigatório)</span>
                 </label>
                 <Input
                   type="password"
-                  placeholder="APP_USR-... ou TEST-..."
-                  value={customAccessToken}
-                  onChange={e => setCustomAccessToken(e.target.value)}
+                  placeholder="Ex: $aact_..."
+                  value={customApiKey}
+                  onChange={e => setCustomApiKey(e.target.value)}
                   className="font-mono font-bold text-slate-900 bg-white border border-slate-300 rounded-xl focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm max-w-md"
                 />
-                <p className="text-[10px] text-slate-400 mt-1">Cole aqui o Token de produção ou de testes do seu painel MP</p>
+                <p className="text-[10px] text-slate-400 mt-1">Cole aqui a sua API Key do painel do Asaas</p>
               </div>
 
               <div>
                 <label className="text-[11px] text-slate-700 font-bold uppercase tracking-wider block mb-1.5">
-                  Public Key <span className="text-slate-400 font-normal">(necessária para o cartão transparente)</span>
+                  Wallet ID <span className="text-slate-400 font-normal">(opcional, apenas para subcontas/split)</span>
                 </label>
                 <Input
                   type="text"
-                  placeholder="APP_USR-... ou TEST-..."
-                  value={customPublicKey}
-                  onChange={e => setCustomPublicKey(e.target.value)}
+                  placeholder="Ex: d452b45f-..."
+                  value={customWalletId}
+                  onChange={e => setCustomWalletId(e.target.value)}
                   className="font-mono font-bold text-slate-900 bg-white border border-slate-300 rounded-xl focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm max-w-md"
                 />
-                <p className="text-[10px] text-slate-400 mt-1">Encontrada na mesma tela, acima do Access Token. Chamada "Public Key" ou "Chave Pública".</p>
+              </div>
+
+              <div className="flex items-center gap-2 mt-2">
+                <input
+                  type="checkbox"
+                  id="sandboxToggle"
+                  checked={customIsSandbox}
+                  onChange={e => setCustomIsSandbox(e.target.checked)}
+                  className="w-4 h-4 text-[#0055FF] bg-white border-slate-300 rounded focus:ring-[#0055FF]"
+                />
+                <label htmlFor="sandboxToggle" className="text-sm font-medium text-slate-700">
+                  Ambiente de Testes (Sandbox)
+                </label>
               </div>
 
               {/* Botão */}
               <div className="flex items-center justify-between pt-1">
                 <a
-                  href="https://www.mercadopago.com.br/settings/account/credentials"
+                  href="https://www.asaas.com/customerConfigIntegrations"
                   target="_blank"
                   rel="noreferrer"
-                  className="text-[11px] text-[#009EE3] hover:underline flex items-center gap-1 font-semibold"
+                  className="text-[11px] text-[#0055FF] hover:underline flex items-center gap-1 font-semibold"
                 >
-                  <ExternalLink size={12} /> Acessar Credenciais do Mercado Pago
+                  <ExternalLink size={12} /> Acessar Configurações no Asaas
                 </a>
                 <button
-                  onClick={handleSaveManualCredentials}
-                  disabled={!customAccessToken.trim() || savingManual}
-                  className="flex items-center gap-2 px-6 py-3 bg-[#009EE3] hover:bg-[#0089c7] disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white rounded-2xl text-sm font-bold transition-all shadow-lg shadow-[#009EE3]/20 active:scale-95"
+                  onClick={handleSaveAsaasSettings}
+                  disabled={!customApiKey.trim() || savingManual}
+                  className="flex items-center gap-2 px-6 py-3 bg-[#0055FF] hover:bg-[#0044cc] disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white rounded-2xl text-sm font-bold transition-all shadow-lg shadow-[#0055FF]/20 active:scale-95"
                 >
                   {savingManual ? (
                     <><RefreshCw size={15} className="animate-spin" /> Conectando...</>

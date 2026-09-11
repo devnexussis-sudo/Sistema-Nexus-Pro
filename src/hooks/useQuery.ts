@@ -223,12 +223,21 @@ export function useQuery<T>(
 
         const handleInvalidation = (e: any) => {
             const targetKey = e.detail?.key;
+            const updatedInPlace = e.detail?.updatedInPlace;
             if (targetKey === '*') {
                 // Full cache purge requested (e.g. on auth change) — clear ALL in-memory entries
                 queryCache.clear();
                 setTimeout(() => { if (isMounted.current) fetchData(true); }, 50);
             } else if (!targetKey || key.startsWith(targetKey)) {
-                setTimeout(() => { if (isMounted.current) fetchData(true); }, 50);
+                if (updatedInPlace) {
+                    const cached = queryCache.get(key);
+                    if (cached && isMounted.current) {
+                        setState(prev => ({ ...prev, data: cached.data }));
+                        previousData.current = cached.data;
+                    }
+                } else {
+                    setTimeout(() => { if (isMounted.current) fetchData(true); }, 50);
+                }
             }
         };
 
@@ -292,6 +301,21 @@ export const queryClient = {
     },
     setQueryData: (key: string, data: any) => {
         queryCache.set(key, { data, timestamp: Date.now() });
+    },
+    updateQueriesData: (keyPrefix: string, updater: (oldData: any) => any) => {
+        for (const key of queryCache.keys()) {
+            if (key.startsWith(keyPrefix) || key === keyPrefix) {
+                const cached = queryCache.get(key);
+                if (cached?.data) {
+                    const newData = updater(cached.data);
+                    queryCache.set(key, { data: newData, timestamp: Date.now() });
+                    try {
+                        localStorage.setItem(`NEXUS_CACHE_${key}`, JSON.stringify({ data: newData, timestamp: Date.now() }));
+                    } catch { /* noop */ }
+                }
+            }
+        }
+        window.dispatchEvent(new CustomEvent('NEXUS_QUERY_INVALIDATE', { detail: { key: keyPrefix, updatedInPlace: true } }));
     },
     getQueryData: (key: string) => {
         return queryCache.get(key)?.data;

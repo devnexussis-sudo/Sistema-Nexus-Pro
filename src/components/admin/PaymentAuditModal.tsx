@@ -114,6 +114,7 @@ export const PaymentAuditModal: React.FC<PaymentAuditModalProps> = ({
   const billingStat = item.billingStatus || (item as any).billing_status || orig.billingStatus || orig.billing_status || 'PENDING';
   const custDoc = item.customerDocument || orig.customerDocument || orig.customer_document || 'Cadastrado no Sistema';
   const custAddress = item.customerAddress || orig.customerAddress || orig.customer_address || 'Não Informado';
+  const billedUser = (item as any).billed_by_name || (item as any).billed_by || (item as any).created_by || orig.billed_by_name || orig.billed_by || orig.created_by || fd.billed_by || am.billed_by || parsedNotes.billed_by || 'Sistema / Painel';
 
   const isPaid = billingStat === 'PAID' || gtwStatus === 'approved';
 
@@ -415,6 +416,10 @@ export const PaymentAuditModal: React.FC<PaymentAuditModalProps> = ({
                       {isPaid ? 'FATURADO / PAGO' : 'PENDENTE'}
                     </div>
                   </div>
+                  <div>
+                    <label className="block text-[8px] font-bold text-slate-400 uppercase">Faturado Por (Operador)</label>
+                    <div className="font-bold text-slate-800 text-xs uppercase">{billedUser}</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -500,6 +505,7 @@ export const PaymentAuditModal: React.FC<PaymentAuditModalProps> = ({
                 <div className="border-b border-slate-400 mb-1.5"></div>
                 <p className="text-[9px] font-bold text-slate-800 uppercase">{companyName}</p>
                 <p className="text-[8px] text-slate-400 uppercase">Responsável Financeiro / Emissor</p>
+                <p className="text-[8px] text-sky-800 font-semibold uppercase mt-0.5">Operador: {billedUser}</p>
               </div>
               <div>
                 <div className="border-b border-slate-400 mb-1.5"></div>

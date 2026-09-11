@@ -3,7 +3,7 @@ import { useAccountsPayable, NexusQueryClient } from '../../hooks/nexusHooks';
 import { useI18n } from '../../i18n';
 import { useDialog } from '../../contexts/DialogContext';
 import { DataService } from '../../services/dataService';
-import { Search, Plus, Filter, CreditCard, Calendar, ArrowUpRight, DollarSign, Loader2, CheckCircle2, Tag, RefreshCcw, Trash2, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown } from 'lucide-react';
+import { Search, Plus, Filter, CreditCard, Calendar, ArrowUpRight, DollarSign, Loader2, CheckCircle2, Tag, RefreshCcw, Trash2, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown, X } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { CreatePayableModal } from './CreatePayableModal';
 import { PayableCategoriesModal } from './PayableCategoriesModal';
@@ -217,30 +217,34 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
     return (
         <div className="space-y-4 pb-8">
             {/* Top Stats Banner */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex items-center justify-between">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* Card 1: Total a Pagar (Verde leve) */}
+                <div className="bg-emerald-50/70 rounded-lg border border-emerald-200/80 px-3.5 py-2 shadow-2xs flex items-center justify-between">
                     <div>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total a Pagar (Período)</p>
-                        <h3 className="text-xl font-black text-slate-800">{totalPending.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</h3>
+                        <p className="text-[9px] font-bold text-emerald-700/90 uppercase tracking-wider">Total a Pagar (Período)</p>
+                        <h3 className="text-base font-extrabold text-emerald-950">{totalPending.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</h3>
                     </div>
-                    <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center">
-                        <DollarSign size={20} className="text-rose-500" />
+                    <div className="w-7 h-7 rounded-md bg-emerald-100/90 flex items-center justify-center shrink-0">
+                        <DollarSign size={15} className="text-emerald-700" />
                     </div>
                 </div>
 
-                <div className={`rounded-xl shadow-sm border p-4 flex items-center justify-between transition-colors ${
-                    selectedIds.length > 0 ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200 opacity-50'
+                {/* Card 2: Selecionadas (Azul leve) */}
+                <div className={`rounded-lg shadow-2xs border px-3.5 py-2 flex items-center justify-between transition-colors ${
+                    selectedIds.length > 0 
+                        ? 'bg-sky-50/70 border-sky-200/90' 
+                        : 'bg-slate-50/60 border-slate-200/70 opacity-70'
                 }`}>
                     <div>
-                        <p className={`text-[10px] font-bold uppercase tracking-widest ${selectedIds.length > 0 ? 'text-indigo-600' : 'text-slate-500'}`}>
+                        <p className={`text-[9px] font-bold uppercase tracking-wider ${selectedIds.length > 0 ? 'text-sky-700/90' : 'text-slate-500'}`}>
                             {selectedIds.length} {selectedIds.length === 1 ? 'Selecionada' : 'Selecionadas'}
                         </p>
-                        <h3 className={`text-xl font-black ${selectedIds.length > 0 ? 'text-indigo-900' : 'text-slate-400'}`}>
+                        <h3 className={`text-base font-extrabold ${selectedIds.length > 0 ? 'text-sky-950' : 'text-slate-400'}`}>
                             {totalSelected.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                         </h3>
                     </div>
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedIds.length > 0 ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-50 text-slate-300'}`}>
-                        <CheckCircle2 size={20} />
+                    <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${selectedIds.length > 0 ? 'bg-sky-100/90 text-sky-700' : 'bg-slate-100 text-slate-300'}`}>
+                        <CheckCircle2 size={15} />
                     </div>
                 </div>
             </div>

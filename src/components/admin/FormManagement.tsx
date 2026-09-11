@@ -141,6 +141,7 @@ export const FormManagement: React.FC = () => {
   const [editingType, setEditingType] = useState<Partial<ServiceType> | null>(null);
   const [editingForm, setEditingForm] = useState<Partial<FormTemplate> | null>(null);
   const [editingRule, setEditingRule] = useState<Partial<ActivationRule> | null>(null);
+  const [isReadOnly, setIsReadOnly] = useState(false);
 
   const [equipmentFamilies, setEquipmentFamilies] = useState<EquipmentFamily[]>([]);
   const [ruleSearchType, setRuleSearchType] = useState('');
@@ -207,6 +208,27 @@ export const FormManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [fieldDropdown, setFieldDropdown] = useState<{ fieldId: string; type: 'fieldType' | 'condField' | 'condValue' } | null>(null);
+
+  const handleViewType = (type: ServiceType, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsReadOnly(true);
+    setEditingType(type);
+    setIsTypeModalOpen(true);
+  };
+
+  const handleViewForm = (form: FormTemplate, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsReadOnly(true);
+    setEditingForm(form);
+    setIsModalOpen(true);
+  };
+
+  const handleViewRule = (rule: ActivationRule, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsReadOnly(true);
+    setEditingRule({ id: rule.id, serviceTypeId: rule.serviceTypeId, equipmentFamily: rule.equipmentFamily, formId: rule.formId, financialFormId: (rule as any).financialFormId });
+    setIsRuleModalOpen(true);
+  };
 
   const FIELD_TYPE_OPTIONS = [
     { value: FormFieldType.TEXT, label: 'Resposta Curta' },
@@ -414,6 +436,7 @@ export const FormManagement: React.FC = () => {
               className={`h-10 px-5 gap-2 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl font-bold transition-all ${!canCreate('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`}
               onClick={(e) => {
                 if (!canCreate('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para esta ação.'); return; }
+                setIsReadOnly(false);
                 if (activeTab === 'types') { setEditingType({ name: '' }); setIsTypeModalOpen(true); }
                 else if (activeTab === 'templates') { setEditingForm({ title: '', fields: [], active: true, category: 'TECHNICAL' }); setIsModalOpen(true); }
                 else if (activeTab === 'rules') { setEditingRule({ serviceTypeId: '', equipmentFamily: '', formId: '', financialFormId: '' }); setIsRuleModalOpen(true); }
@@ -483,7 +506,7 @@ export const FormManagement: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
                       {paginatedTypes.map(type => (
-                        <tr key={type.id} className="hover:bg-slate-50 transition-colors group">
+                        <tr key={type.id} onClick={(e) => handleViewType(type, e)} className="hover:bg-slate-50 transition-colors group cursor-pointer">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
                               <Tag size={16} className={type.active === false ? "text-slate-300" : "text-primary-600"} />
@@ -499,6 +522,8 @@ export const FormManagement: React.FC = () => {
                             <div className="flex justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
                               <button onClick={(e) => {
                                 if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                                e.stopPropagation();
+                                setIsReadOnly(false);
                                 setEditingType(type); setIsTypeModalOpen(true);
                               }} className={`p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar"><Edit2 size={16} /></button>
                               <button onClick={(e) => {
@@ -533,7 +558,7 @@ export const FormManagement: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
                       {paginatedForms.map(form => (
-                        <tr key={form.id} className="hover:bg-slate-50 transition-colors group">
+                        <tr key={form.id} onClick={(e) => handleViewForm(form, e)} className="hover:bg-slate-50 transition-colors group cursor-pointer">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
                               <FileText size={16} className="text-primary-600" />
@@ -588,7 +613,7 @@ export const FormManagement: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
                       {paginatedRules.map(rule => (
-                        <tr key={rule.id} className="hover:bg-slate-50 transition-colors group">
+                        <tr key={rule.id} onClick={(e) => handleViewRule(rule, e)} className="hover:bg-slate-50 transition-colors group cursor-pointer">
                           <td className="px-4 py-3 text-[11px] font-bold text-slate-700">
                              <div className="flex items-center gap-2">
                                <Tag size={14} className="text-slate-400" />
@@ -615,6 +640,8 @@ export const FormManagement: React.FC = () => {
                              <div className="flex justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
                                <button onClick={(e) => {
                                  if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                                 e.stopPropagation();
+                                 setIsReadOnly(false);
                                  setEditingRule({ id: rule.id, serviceTypeId: rule.serviceTypeId, equipmentFamily: rule.equipmentFamily, formId: rule.formId, financialFormId: (rule as any).financialFormId }); setIsRuleModalOpen(true);
                                }} className={`p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar Regra"><Edit2 size={16} /></button>
                                <button onClick={(e) => {
@@ -663,7 +690,7 @@ export const FormManagement: React.FC = () => {
                     <p className="text-[10px] text-slate-400 font-medium mt-0.5">Nexus Forms • Nomeie a operação comercial</p>
                   </div>
                 </div>
-                <button onClick={() => setIsTypeModalOpen(false)} className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50"><X size={20} /></button>
+                <button onClick={() => { setIsTypeModalOpen(false); setIsReadOnly(false); }} className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50"><X size={20} /></button>
               </div>
 
               {/* BODY */}
@@ -671,8 +698,9 @@ export const FormManagement: React.FC = () => {
                 <Input
                   label="Nome do Atendimento (Ex: Garantia)"
                   value={editingType.name}
+                  disabled={isReadOnly}
                   onChange={e => setEditingType({ ...editingType, name: e.target.value })}
-                  className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm"
+                  className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50"
                 />
                 <p className="text-[10px] text-slate-400 font-medium px-1">
                   Dica: Use o mesmo nome que deseja exibir na abertura da Ordem de Serviço.
@@ -681,10 +709,12 @@ export const FormManagement: React.FC = () => {
 
               {/* FOOTER */}
               <div className="px-6 py-4 border-t border-slate-200 bg-white flex justify-end gap-3 shrink-0">
-                <button type="button" onClick={() => setIsTypeModalOpen(false)} className="h-9 px-5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Cancelar</button>
-                <Button onClick={handleSaveType} className="h-9 px-6 rounded-xl text-xs font-semibold bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white">
-                  <Save size={14} className="mr-2" /> Salvar Tipo
-                </Button>
+                <button type="button" onClick={() => { setIsTypeModalOpen(false); setIsReadOnly(false); }} className="h-9 px-5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">{isReadOnly ? 'Fechar' : 'Cancelar'}</button>
+                {!isReadOnly && (
+                  <Button onClick={handleSaveType} className="h-9 px-6 rounded-xl text-xs font-semibold bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white">
+                    <Save size={14} className="mr-2" /> Salvar Tipo
+                  </Button>
+                )}
               </div>
 
             </div>
@@ -712,7 +742,7 @@ export const FormManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
+                  <button onClick={() => { setIsModalOpen(false); setIsReadOnly(false); }} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
                     <X size={20} />
                   </button>
                 </div>
@@ -727,19 +757,21 @@ export const FormManagement: React.FC = () => {
                       <div className="flex-1 w-full">
                         <input
                           type="text"
+                          disabled={isReadOnly}
                           value={editingForm.title}
                           onChange={e => setEditingForm({ ...editingForm, title: e.target.value })}
                           placeholder="Título do Formulário"
-                          className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-base sm:text-lg font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 transition-all placeholder:text-slate-400 shadow-sm"
+                          className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-base sm:text-lg font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 transition-all placeholder:text-slate-400 shadow-sm disabled:bg-slate-50"
                         />
                         <p className="text-[10px] text-slate-400 mt-1.5 ml-0.5">Personalize os campos de coleta de dados abaixo.</p>
                       </div>
                       <div className="w-full sm:w-48 shrink-0">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Categoria do Formulário</label>
                         <select
+                          disabled={isReadOnly}
                           value={editingForm.category || 'TECHNICAL'}
                           onChange={e => setEditingForm({ ...editingForm, category: e.target.value as any })}
-                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm"
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50 disabled:opacity-70 disabled:cursor-not-allowed"
                         >
                           <option value="TECHNICAL">Técnico Operacional</option>
                           <option value="FINANCIAL">Financeiro / Custos</option>
@@ -759,15 +791,17 @@ export const FormManagement: React.FC = () => {
                       >
                         
                         {/* Drag Handle Limitado (Não afeta os inputs) */}
-                        <div
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, index)}
-                          onDragEnd={() => setDraggedFieldIndex(null)}
-                          className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 flex justify-center items-center opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing hover:bg-slate-50 rounded-b-md transition-all z-10"
-                          title="Segure e arraste para reordenar"
-                        >
-                          <GripVertical size={16} className="rotate-90 text-slate-400" />
-                        </div>
+                        {!isReadOnly && (
+                          <div
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, index)}
+                            onDragEnd={() => setDraggedFieldIndex(null)}
+                            className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 flex justify-center items-center opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing hover:bg-slate-50 rounded-b-md transition-all z-10"
+                            title="Segure e arraste para reordenar"
+                          >
+                            <GripVertical size={16} className="rotate-90 text-slate-400" />
+                          </div>
+                        )}
 
                         <div className="flex flex-col sm:flex-row gap-3 mb-3 mt-1 items-start sm:items-center">
                           {/* Number Badge */}
@@ -778,13 +812,14 @@ export const FormManagement: React.FC = () => {
                           {/* Label Input */}
                           <input
                             type="text"
+                            disabled={isReadOnly}
                             value={field.label}
                             onChange={e => setEditingForm({ ...editingForm, fields: editingForm.fields?.map(f => f.id === field.id ? { ...f, label: e.target.value } : f) })}
                             placeholder="Sua pergunta..."
-                            className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all"
+                            className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all disabled:bg-slate-50"
                           />
                           <div className="w-full sm:w-44 shrink-0 relative">
-                            <button type="button" onClick={() => setFieldDropdown(fieldDropdown?.fieldId === field.id && fieldDropdown?.type === 'fieldType' ? null : { fieldId: field.id, type: 'fieldType' })} className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-[11px] font-bold text-left flex items-center justify-between transition-all hover:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 outline-none shadow-sm">
+                            <button type="button" disabled={isReadOnly} onClick={() => setFieldDropdown(fieldDropdown?.fieldId === field.id && fieldDropdown?.type === 'fieldType' ? null : { fieldId: field.id, type: 'fieldType' })} className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-[11px] font-bold text-left flex items-center justify-between transition-all hover:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 outline-none shadow-sm disabled:bg-slate-50 disabled:opacity-80">
                               <span className="text-slate-700">{FIELD_TYPE_OPTIONS.find(o => o.value === field.type)?.label || 'Selecione...'}</span>
                               <ChevronDown size={12} className={`text-slate-400 transition-transform ${fieldDropdown?.fieldId === field.id && fieldDropdown?.type === 'fieldType' ? 'rotate-180' : ''}`} />
                             </button>
@@ -808,13 +843,14 @@ export const FormManagement: React.FC = () => {
                               <List size={13} className="text-slate-400 shrink-0" />
                               <input
                                 type="text"
+                                disabled={isReadOnly}
                                 placeholder="Digite as opções separadas por vírgula..."
                                 value={field.options?.join(', ') || ''}
                                 onChange={e => {
                                   const newOptions = e.target.value.split(',').map(s => s.trim());
                                   setEditingForm({ ...editingForm, fields: editingForm.fields?.map(f => f.id === field.id ? { ...f, options: newOptions } : f) });
                                 }}
-                                className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all placeholder:text-slate-400"
+                                className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all placeholder:text-slate-400 disabled:bg-slate-50"
                               />
                             </div>
                             <div className="flex gap-1.5 flex-wrap pl-5">
@@ -837,7 +873,7 @@ export const FormManagement: React.FC = () => {
                             <Workflow size={16} className="text-amber-600 shrink-0" />
                             <span className="text-xs font-bold text-amber-800 shrink-0">Exibir pergunta se:</span>
                             <div className="relative flex-1 min-w-[150px]">
-                              <button type="button" onClick={() => setFieldDropdown(fieldDropdown?.fieldId === field.id && fieldDropdown?.type === 'condField' ? null : { fieldId: field.id, type: 'condField' })} className="w-full bg-white border border-amber-200 rounded-md px-3 py-2 text-[10px] font-medium text-left flex items-center justify-between transition-all hover:border-amber-300 outline-none">
+                              <button type="button" disabled={isReadOnly} onClick={() => setFieldDropdown(fieldDropdown?.fieldId === field.id && fieldDropdown?.type === 'condField' ? null : { fieldId: field.id, type: 'condField' })} className="w-full bg-white border border-amber-200 rounded-md px-3 py-2 text-[10px] font-medium text-left flex items-center justify-between transition-all hover:border-amber-300 outline-none disabled:bg-slate-50">
                                 <span className={field.condition?.fieldId ? 'text-slate-700' : 'text-slate-400'}>{field.condition?.fieldId ? (editingForm.fields?.find(f => f.id === field.condition?.fieldId)?.label || 'Sem título') : 'Sempre (Padrão)'}</span>
                                 <ChevronDown size={12} className={`text-amber-400 transition-transform ${fieldDropdown?.fieldId === field.id && fieldDropdown?.type === 'condField' ? 'rotate-180' : ''}`} />
                               </button>
@@ -859,7 +895,7 @@ export const FormManagement: React.FC = () => {
                                   if ((parentField?.type === FormFieldType.SELECT || parentField?.type === FormFieldType.MULTI_SELECT) && parentField.options && parentField.options.length > 0) {
                                     return (
                                       <div className="relative w-full">
-                                        <button type="button" onClick={() => setFieldDropdown(fieldDropdown?.fieldId === field.id && fieldDropdown?.type === 'condValue' ? null : { fieldId: field.id, type: 'condValue' })} className="w-full bg-white border border-amber-200 rounded-md px-3 py-2 text-[10px] font-medium text-left flex items-center justify-between transition-all hover:border-amber-300 outline-none">
+                                        <button type="button" disabled={isReadOnly} onClick={() => setFieldDropdown(fieldDropdown?.fieldId === field.id && fieldDropdown?.type === 'condValue' ? null : { fieldId: field.id, type: 'condValue' })} className="w-full bg-white border border-amber-200 rounded-md px-3 py-2 text-[10px] font-medium text-left flex items-center justify-between transition-all hover:border-amber-300 outline-none disabled:bg-slate-50">
                                           <span className={field.condition.value ? 'text-slate-700' : 'text-slate-400'}>{field.condition.value || 'Selecione...'}</span>
                                           <ChevronDown size={12} className={`text-amber-400 transition-transform ${fieldDropdown?.fieldId === field.id && fieldDropdown?.type === 'condValue' ? 'rotate-180' : ''}`} />
                                         </button>
@@ -876,8 +912,9 @@ export const FormManagement: React.FC = () => {
                                   return (
                                     <input
                                       type="text"
+                                      disabled={isReadOnly}
                                       placeholder="Valor..."
-                                      className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 w-full shadow-sm"
+                                      className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 w-full shadow-sm disabled:bg-slate-50"
                                       value={field.condition.value}
                                       onChange={e => {
                                         const val = e.target.value;
@@ -896,10 +933,11 @@ export const FormManagement: React.FC = () => {
                         )}
 
                         {/* Divider */}
-                        <hr className="my-3 border-slate-100" />
+                        {!isReadOnly && <hr className="my-3 border-slate-100" />}
 
                         {/* Controles Inferiores */}
-                        <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4">
+                        {!isReadOnly && (
+                          <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4">
                           
                           {/* Botão de Lógica */}
                           <button
@@ -970,27 +1008,32 @@ export const FormManagement: React.FC = () => {
                           </button>
 
                         </div>
+                        )}
 
                       </div>
                     ))}
                   </div>
 
                   {/* Add Field Button */}
-                  <div className="flex justify-center mt-5">
-                    <button onClick={addField} className="flex items-center gap-1.5 px-5 py-2.5 bg-white border border-slate-200 shadow-sm text-slate-600 rounded-full hover:shadow-md hover:text-[#1c2d4f] hover:border-slate-300 transition-all font-medium text-xs">
-                      <Plus size={16} /> Adicionar Pergunta
-                    </button>
-                  </div>
+                  {!isReadOnly && (
+                    <div className="flex justify-center mt-5">
+                      <button onClick={addField} className="flex items-center gap-1.5 px-5 py-2.5 bg-white border border-slate-200 shadow-sm text-slate-600 rounded-full hover:shadow-md hover:text-[#1c2d4f] hover:border-slate-300 transition-all font-medium text-xs">
+                        <Plus size={16} /> Adicionar Pergunta
+                      </button>
+                    </div>
+                  )}
 
                 </div>
               </div>
 
               {/* FOOTER */}
               <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
-                <Button variant="secondary" className="h-9 px-5 rounded-xl text-xs" onClick={() => setIsModalOpen(false)}>{t.common.cancel}</Button>
-                <Button onClick={handleSaveForm} className="h-9 px-6 rounded-xl text-xs font-bold shadow-md shadow-primary-600/20 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]">
-                  <Save size={14} className="mr-2" /> Gravar Modelo
-                </Button>
+                <Button variant="secondary" className="h-9 px-5 rounded-xl text-xs" onClick={() => { setIsModalOpen(false); setIsReadOnly(false); }}>{isReadOnly ? 'Fechar' : t.common.cancel}</Button>
+                {!isReadOnly && (
+                  <Button onClick={handleSaveForm} className="h-9 px-6 rounded-xl text-xs font-bold shadow-md shadow-primary-600/20 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]">
+                    <Save size={14} className="mr-2" /> Gravar Modelo
+                  </Button>
+                )}
               </div>
             </div>
           </div>, document.body
@@ -1014,7 +1057,7 @@ export const FormManagement: React.FC = () => {
                     <p className="text-[10px] text-slate-400 font-medium mt-0.5">Nexus Forms • {editingRule.id ? 'Altere os campos da regra' : 'Configure o gatilho inteligente'}</p>
                   </div>
                 </div>
-                <button onClick={() => setIsRuleModalOpen(false)} className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50"><X size={20} /></button>
+                <button onClick={() => { setIsRuleModalOpen(false); setIsReadOnly(false); }} className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50"><X size={20} /></button>
               </div>
 
               {/* BODY */}
@@ -1024,7 +1067,7 @@ export const FormManagement: React.FC = () => {
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-slate-700 ml-1 block">Tipo de Serviço</label>
                     <div className="relative">
-                      <button type="button" onClick={() => { setRuleDropdown(ruleDropdown === 'type' ? null : 'type'); setRuleSearchType(''); }} className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-left flex items-center justify-between transition-all hover:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 outline-none shadow-sm">
+                      <button type="button" disabled={isReadOnly} onClick={() => { setRuleDropdown(ruleDropdown === 'type' ? null : 'type'); setRuleSearchType(''); }} className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-left flex items-center justify-between transition-all hover:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 outline-none shadow-sm disabled:bg-slate-50 disabled:opacity-80">
                         <span className={editingRule.serviceTypeId ? 'text-slate-900 font-bold' : 'text-slate-400'}>{serviceTypes.find(s => s.id === editingRule.serviceTypeId)?.name || 'Selecione um Tipo...'}</span>
                         <ChevronDown size={14} className={`text-slate-400 transition-transform ${ruleDropdown === 'type' ? 'rotate-180' : ''}`} />
                       </button>
@@ -1065,7 +1108,7 @@ export const FormManagement: React.FC = () => {
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-slate-700 ml-1 block">Família do Equipamento (Atualizada)</label>
                     <div className="relative">
-                      <button type="button" onClick={() => { setRuleDropdown(ruleDropdown === 'family' ? null : 'family'); setRuleSearchFamily(''); }} className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-left flex items-center justify-between transition-all hover:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 outline-none shadow-sm">
+                      <button type="button" disabled={isReadOnly} onClick={() => { setRuleDropdown(ruleDropdown === 'family' ? null : 'family'); setRuleSearchFamily(''); }} className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-left flex items-center justify-between transition-all hover:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 outline-none shadow-sm disabled:bg-slate-50 disabled:opacity-80">
                         <span className={editingRule.equipmentFamily ? 'text-slate-900 font-bold' : 'text-slate-400'}>{editingRule.equipmentFamily || 'Selecione uma Família...'}</span>
                         <ChevronDown size={14} className={`text-slate-400 transition-transform ${ruleDropdown === 'family' ? 'rotate-180' : ''}`} />
                       </button>
@@ -1106,7 +1149,7 @@ export const FormManagement: React.FC = () => {
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-slate-700 ml-1 block">Checklist Técnico Vinculado</label>
                     <div className="relative">
-                      <button type="button" onClick={() => { setRuleDropdown(ruleDropdown === 'form' ? null : 'form'); setRuleSearchForm(''); }} className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-left flex items-center justify-between transition-all hover:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 outline-none shadow-sm">
+                      <button type="button" disabled={isReadOnly} onClick={() => { setRuleDropdown(ruleDropdown === 'form' ? null : 'form'); setRuleSearchForm(''); }} className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-left flex items-center justify-between transition-all hover:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 outline-none shadow-sm disabled:bg-slate-50 disabled:opacity-80">
                         <span className={editingRule.formId ? 'text-slate-900 font-bold' : 'text-slate-400'}>{forms.find(f => f.id === editingRule.formId)?.title || 'Selecione um Checklist Técnico...'}</span>
                         <ChevronDown size={14} className={`text-slate-400 transition-transform ${ruleDropdown === 'form' ? 'rotate-180' : ''}`} />
                       </button>
@@ -1176,7 +1219,7 @@ export const FormManagement: React.FC = () => {
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-slate-700 ml-1 block">Checklist Financeiro/Custos Vinculado (Opcional)</label>
                     <div className="relative">
-                      <button type="button" onClick={() => { setRuleDropdown(ruleDropdown === 'finForm' ? null : 'finForm'); setRuleSearchFinForm(''); }} className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-left flex items-center justify-between transition-all hover:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 outline-none shadow-sm">
+                      <button type="button" disabled={isReadOnly} onClick={() => { setRuleDropdown(ruleDropdown === 'finForm' ? null : 'finForm'); setRuleSearchFinForm(''); }} className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-left flex items-center justify-between transition-all hover:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 outline-none shadow-sm disabled:bg-slate-50 disabled:opacity-80">
                         <span className={(editingRule as any).financialFormId ? 'text-slate-900 font-bold' : 'text-slate-400'}>{forms.find(f => f.id === (editingRule as any).financialFormId)?.title || 'Nenhum Checklist Financeiro...'}</span>
                         <ChevronDown size={14} className={`text-slate-400 transition-transform ${ruleDropdown === 'finForm' ? 'rotate-180' : ''}`} />
                       </button>
@@ -1252,10 +1295,12 @@ export const FormManagement: React.FC = () => {
 
               {/* FOOTER */}
               <div className="px-6 py-4 border-t border-slate-200 bg-white flex justify-end gap-3 shrink-0">
-                <button type="button" onClick={() => setIsRuleModalOpen(false)} className="h-9 px-5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Cancelar</button>
-                <Button onClick={handleSaveRule} className="h-9 px-6 rounded-xl text-xs font-semibold bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white">
-                  <Workflow size={14} className="mr-2" /> {editingRule.id ? 'Salvar Alterações' : 'Aplicar Vínculo'}
-                </Button>
+                <button type="button" onClick={() => { setIsRuleModalOpen(false); setIsReadOnly(false); }} className="h-9 px-5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">{isReadOnly ? 'Fechar' : 'Cancelar'}</button>
+                {!isReadOnly && (
+                  <Button onClick={handleSaveRule} className="h-9 px-6 rounded-xl text-xs font-semibold bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white">
+                    <Workflow size={14} className="mr-2" /> {editingRule.id ? 'Salvar Alterações' : 'Aplicar Vínculo'}
+                  </Button>
+                )}
               </div>
 
             </div>

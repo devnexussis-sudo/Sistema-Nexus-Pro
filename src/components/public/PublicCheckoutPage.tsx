@@ -1,83 +1,20 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { DataService } from '../../services/dataService';
-import { PaymentService, getMercadoPagoErrorMessage } from '../../services/paymentService';
+import { PaymentService } from '../../services/paymentService';
 import { 
   Building2, ShieldCheck, QrCode, CreditCard, ExternalLink, 
   Copy, CheckCircle2, RefreshCw, Loader2, AlertCircle, Phone, Mail, MapPin, Share2, DollarSign, Hexagon, Globe, Clock
 } from 'lucide-react';
 import { NexusBranding } from '../ui/NexusBranding';
-import { initMercadoPago, CardPayment } from '@mercadopago/sdk-react';
 import { supabase, publicSupabase } from '../../lib/supabase';
+import { formatInvoiceDisplayId } from '../../utils/invoiceUtils';
 
 interface PublicCheckoutPageProps {
   typeProp?: 'order' | 'quote';
   idProp?: string;
 }
 
-// Componente isolado com React.memo para evitar remontagem do Brick durante re-renders do pai
-const StablePaymentBrick = React.memo(({
-  mpPublicKey: _mpPublicKey,
-  amount,
-  payerEmail,
-  forcedInstallments,
-  onSubmit,
-  onError,
-}: {
-  mpPublicKey: string;
-  amount: number;
-  payerEmail: string;
-  forcedInstallments?: number;
-  onSubmit: (method: 'card_link', formData: any) => Promise<void>;
-  onError: (e: any) => void;
-}) => {
-  const installments = forcedInstallments && forcedInstallments > 0 ? forcedInstallments : undefined;
-  const validAmount = useMemo(() => Math.max(0.5, Number(Number(amount || 0).toFixed(2))), [amount]);
-  const validEmail = useMemo(() => (payerEmail && payerEmail.includes('@') ? payerEmail : 'cliente@dunoup.com.br'), [payerEmail]);
-
-  const initialization = useMemo(() => ({
-    amount: validAmount,
-    payer: { email: validEmail },
-  }), [validAmount, validEmail]);
-
-  const customization = useMemo(() => ({
-    paymentMethods: {
-      maxInstallments: installments || 12,
-      minInstallments: 1,
-    },
-    visual: {
-      style: {
-        theme: 'default' as const,
-      },
-    },
-  }), [installments]);
-
-  const handleSubmit = useCallback(async (formData: any) => {
-    console.log('[CardPayment Brick Submit]', formData);
-    await onSubmit('card_link', formData);
-  }, [onSubmit]);
-
-  const handleError = useCallback((error: any) => {
-    console.error('[CardPayment Brick Error]', error);
-    onError(error);
-  }, [onError]);
-
-  const handleReady = useCallback(() => {
-    console.log('[CardPayment Brick Ready] amount:', validAmount, 'installments:', installments);
-  }, [validAmount, installments]);
-
-  return (
-    <div className="w-full min-h-[400px]">
-      <CardPayment
-        initialization={initialization}
-        customization={customization}
-        onSubmit={handleSubmit}
-        onError={handleError}
-        onReady={handleReady}
-      />
-    </div>
-  );
-});
 
 export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp, idProp }) => {
   const params = useParams<{ type?: string; id?: string }>();
@@ -100,7 +37,7 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
   const [item, setItem] = useState<any>(null);
   const [tenant, setTenant] = useState<any>(null);
   const [mpPublicKey, setMpPublicKey] = useState<string | null>(null);
-  const [isMpSdkReady, setIsMpSdkReady] = useState(false);
+  const [isAsaasReady, setIsAsaasReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -114,35 +51,51 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
     ticketUrl?: string;
     expiresAt?: string;
     methodType?: 'pix' | 'card_link' | 'boleto';
+    currentStatus?: string;
+    hostedCheckoutUrl?: string;
   } | null>(null);
   const [copied, setCopied] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isPaidConfirmed, setIsPaidConfirmed] = useState(false);
 
+  let subtotalAmt = 0;
+  let discountAmt = 0;
+  let shippingAmt = 0;
+  let additionsAmt = 0;
   let totalAmount = 0;
   let forcedMethod: 'pix' | 'card_link' | 'boleto' | null = null;
   let forcedInstallments: number | undefined = undefined;
   let forcedDueDate: string | undefined = undefined;
 
   if (item) {
-    if (item.netTotal !== undefined && item.netTotal !== null && Number(item.netTotal) > 0) {
-      totalAmount = Number(item.netTotal);
+    if (item.type === 'INVOICE' || (item.total_amount !== undefined && item.discount_amount !== undefined)) {
+      subtotalAmt = Number(item.total_amount || item.netTotal || 0);
+      discountAmt = Number(item.discount_amount || 0);
+      shippingAmt = Number(item.shipping_amount || 0);
+      additionsAmt = Number(item.other_additions_amount || 0);
+      
+      // Se for INVOICE e subtotalAmt já for o líquido (caso muito antigo), evita recálculo
+      if (subtotalAmt > 0 && discountAmt === 0 && shippingAmt === 0 && additionsAmt === 0) {
+        totalAmount = subtotalAmt;
+      } else {
+        totalAmount = Math.max(0, subtotalAmt - discountAmt + shippingAmt + additionsAmt);
+      }
     } else {
       const itemsTotal = (item.items || []).reduce((acc: number, curr: any) => acc + (Number(curr.total) || (Number(curr.unitPrice || 0) * curr.quantity) || 0), 0);
       const fallbackTotal = Number(item.totalValue || item.total_value || item.value || (item.formData as any)?.totalValue || (item.formData as any)?.price || 0);
-      let subtotal = itemsTotal > 0 ? itemsTotal : fallbackTotal;
+      subtotalAmt = itemsTotal > 0 ? itemsTotal : fallbackTotal;
 
       const fd = item.formData || item.form_data || {};
       const am = item.approvalMetadata || item.approval_metadata || {};
 
       const rawDiscount = Number(item.discount || item.discount_amount || item.discountAmount || fd.billingDiscount || am.billingDiscount || 0);
       const discType = item.discountType || fd.billingDiscountType || am.billingDiscountType || 'fixed';
-      const discountVal = discType === 'percent' ? (subtotal * rawDiscount / 100) : rawDiscount;
+      discountAmt = discType === 'percent' ? (subtotalAmt * rawDiscount / 100) : rawDiscount;
 
-      const shippingVal = Number(item.shipping || item.shipping_amount || item.shippingAmount || fd.billingShipping || am.billingShipping || 0);
-      const additionsVal = Number(item.otherAdditions || item.other_additions_amount || item.otherAdditionsAmount || fd.billingOtherAdditions || am.billingOtherAdditions || 0);
+      shippingAmt = Number(item.shipping || item.shipping_amount || item.shippingAmount || fd.billingShipping || am.billingShipping || 0);
+      additionsAmt = Number(item.otherAdditions || item.other_additions_amount || item.otherAdditionsAmount || fd.billingOtherAdditions || am.billingOtherAdditions || 0);
 
-      totalAmount = Math.max(0, subtotal - discountVal + shippingVal + additionsVal);
+      totalAmount = Math.max(0, subtotalAmt - discountAmt + shippingAmt + additionsAmt);
       if (totalAmount === 0 && fallbackTotal > 0) totalAmount = fallbackTotal;
     }
 
@@ -225,15 +178,22 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
         if (fetchedData && fetchedData.id) {
           try {
             const refType = itemType === 'QUOTE' ? 'QUOTE' : 'ORDER';
-            const { data: invLink } = await publicSupabase
+            const { data: invLinks } = await publicSupabase
               .from('invoice_items')
               .select('invoice_id, invoices(*)')
               .eq('reference_type', refType)
-              .eq('reference_id', fetchedData.id)
-              .maybeSingle();
+              .eq('reference_id', fetchedData.id);
 
-            if (invLink && invLink.invoices) {
-              const inv = invLink.invoices as any;
+            if (invLinks && invLinks.length > 0) {
+              const validLinks = invLinks.filter((link: any) => link.invoices);
+              if (validLinks.length > 0) {
+                validLinks.sort((a: any, b: any) => {
+                  const dA = new Date(a.invoices.created_at || 0).getTime();
+                  const dB = new Date(b.invoices.created_at || 0).getTime();
+                  return dB - dA;
+                });
+                const invLink = validLinks[0];
+                const inv = invLink.invoices as any;
               let parsedNotes: any = {};
               try { parsedNotes = JSON.parse(inv.notes || '{}'); } catch (e) {}
 
@@ -259,6 +219,7 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
                 gatewayStatus: inv.gateway_status || fetchedData.gatewayStatus,
                 paymentMethod: inv.payment_method || inv.paymentMethod || fetchedData.paymentMethod
               };
+              }
             }
           } catch (e) {
             console.warn('[PublicCheckoutPage] Erro ao buscar vínculo de fatura:', e);
@@ -319,7 +280,7 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
             fetchedData = {
               id: invData.id,
               type: 'INVOICE',
-              displayId: invData.display_id || invData.invoice_number || `FAT-${invData.id.slice(0, 6)}`,
+              displayId: formatInvoiceDisplayId(invData.display_id || invData.invoice_number || invData.id),
               tenantId: invData.tenant_id,
               customerName: invData.customer_name || 'Cliente',
               customerDocument: invData.customer_document,
@@ -364,20 +325,18 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
                 methodType: isCardMethod ? 'card_link' : (fetchedData.gatewayPixCode ? 'pix' : 'boleto')
               });
             }
-          } else if (isCardMethod) {
-            // Cartão de Crédito pendente — SEMPRE mostra o Brick inline, ignora URLs antigas de redirect
-            setSelectedMethod('card_link');
-            // NÃO setamos paymentResult aqui para cartão, senão a UI acha que já foi pago e exibe a tela de "Aguardando Banco"
-          } else if (fetchedData.gatewayPixCode || fetchedData.gatewayTicketUrl) {
-            // Pix ou Boleto pendente — restaura dados existentes
+          } else if (fetchedData.gatewayPaymentId && (fetchedData.gatewayPixCode || fetchedData.gatewayTicketUrl)) {
+            // Cobrança já gerada — restaura dados existentes para evitar recriar
             const hasPix = !!fetchedData.gatewayPixCode;
+            const method = isCardMethod ? 'card_link' : (hasPix ? 'pix' : 'boleto');
             setPaymentResult({
               paymentId: fetchedData.gatewayPaymentId,
               pixCopiaECola: fetchedData.gatewayPixCode,
               ticketUrl: fetchedData.gatewayTicketUrl,
-              methodType: hasPix ? 'pix' : 'boleto'
+              hostedCheckoutUrl: isCardMethod ? fetchedData.gatewayTicketUrl : undefined,
+              methodType: method
             });
-            setSelectedMethod(hasPix ? 'pix' : 'boleto');
+            setSelectedMethod(method);
           } else if (fetchedData.billingStatus === 'PAID') {
             setIsPaidConfirmed(true);
           }
@@ -386,24 +345,9 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
           const tenantId = fetchedData.tenantId || fetchedData.tenant_id;
           if (tenantId) {
             const tenantData = await DataService.getTenantById(tenantId);
-            if (isMounted) setTenant(tenantData);
-
-            // Carrega a Public Key do MP para o Brick através da Edge Function segura ou query direta
-            const publicKey = await PaymentService.getMercadoPagoPublicKey(tenantId);
-            
-            console.log('[Checkout Debug] getMercadoPagoPublicKey result:', publicKey);
-            
-            if (publicKey && isMounted) {
-              setMpPublicKey(publicKey);
-              try {
-                initMercadoPago(publicKey, { locale: 'pt-BR' });
-              } catch (e) {
-                console.warn('[PublicCheckoutPage] initMercadoPago warning:', e);
-              }
-              // Set ready immediately so the Brick component can mount and load its internal scripts if needed
-              if (isMounted) setIsMpSdkReady(true);
-            } else if (isMounted) {
-              setIsMpSdkReady(true);
+            if (isMounted) {
+              setTenant(tenantData);
+              setIsAsaasReady(true);
             }
           }
         }
@@ -426,12 +370,9 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
   useEffect(() => {
     if (item && !paymentResult && !isPaidConfirmed && !generating && !selectedMethod) {
       if (forcedMethod) {
-        if (forcedMethod === 'card_link') {
-          // Para cartão, apenas setamos o método para renderizar o formulário do Brick
-          setSelectedMethod('card_link');
-        } else {
-          handleGenerateCharge(forcedMethod);
-        }
+        // Para todos os métodos (incluindo cartão), geramos a cobrança automaticamente.
+        // Para cartão, a edge function retorna um hostedCheckoutUrl que abrimos em nova aba.
+        handleGenerateCharge(forcedMethod);
       } else {
         handleGenerateCharge('pix');
       }
@@ -490,98 +431,82 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
     };
   }, [paymentResult?.paymentId, isPaidConfirmed, item?.id, itemType]);
 
-  const handleGenerateCharge = useCallback(async (method: 'pix' | 'card_link' | 'boleto', brickFormData?: any) => {
+  const handleGenerateCharge = useCallback(async (method: 'pix' | 'card_link' | 'boleto') => {
     if (!item) return;
     setGenerating(true);
+    setSelectedMethod(method);
     setError(null);
-    if (!brickFormData) setSelectedMethod(method);
 
     try {
-      const tenantId = item.tenantId || item.tenant_id;
-      
-      const actualBrickData = brickFormData?.formData || brickFormData;
-
-      const res = await PaymentService.createMercadoPagoCharge({
-        itemType,
+      const res = await PaymentService.createAsaasCharge({
+        itemType: itemType as 'ORDER' | 'QUOTE' | 'INVOICE',
         itemId: item.id,
         displayId: item.displayId || undefined,
-        title: item.title || (itemType === 'ORDER' ? 'Ordem de Serviço' : 'Orçamento'),
+        title: item.title || (itemType === 'ORDER' ? 'Ordem de Serviço' : (itemType === 'INVOICE' ? 'Fatura' : 'Orçamento')),
         amount: totalAmount,
         customerName: item.customerName || item.customer_name || 'Cliente',
-        customerEmail: actualBrickData?.payer?.email || item.customerEmail || item.customer_email,
-        customerDocument: actualBrickData?.payer?.identification?.number || item.customerDocument || item.customer_document,
-        paymentMethodType: (actualBrickData && actualBrickData.token) ? 'credit_card' : method,
-        installments: actualBrickData?.installments || forcedInstallments,
-        expiresAt: method === 'pix' ? new Date(Date.now() + 24*60*60*1000).toISOString() : forcedDueDate,
-        tenantId,
-        cardToken: actualBrickData?.token,
-        issuerId: actualBrickData?.issuer_id,
-        paymentMethodId: actualBrickData?.payment_method_id,
-        payer: actualBrickData?.payer
-      } as any);
+        customerEmail: item.customerEmail || item.customer_email,
+        customerDocument: item.customerDocument || item.customer_document,
+        paymentMethodType: method === 'card_link' ? 'credit_card' : method,
+        installments: method === 'pix' ? 1 : forcedInstallments,
+        expiresAt: method === 'pix' ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : forcedDueDate,
+      });
 
       if (res.success) {
-        const isApproved = res.status === 'approved' || res.status === 'PAID' || res.status === 'accredited';
-        const isRejected = res.status === 'rejected';
-
-        if (isApproved) {
-          setIsPaidConfirmed(true);
-        } else if (isRejected) {
-          const friendlyMessage = getMercadoPagoErrorMessage(res.statusDetail || res.message || 'cc_rejected_other_reason');
-          setError(friendlyMessage);
-          setGenerating(false);
-          return;
+        // Para cartão: o Asaas retorna hostedCheckoutUrl, abrimos em nova aba
+        if (method === 'card_link' && res.hostedCheckoutUrl) {
+          setPaymentResult({
+            paymentId: res.paymentId,
+            pixCopiaECola: '',
+            qrCodeBase64: '',
+            ticketUrl: res.hostedCheckoutUrl,
+            methodType: 'card_link',
+            currentStatus: 'awaiting_redirect',
+            hostedCheckoutUrl: res.hostedCheckoutUrl,
+          });
+          // Abre o checkout hospedado do Asaas automaticamente em nova aba
+          window.open(res.hostedCheckoutUrl, '_blank', 'noopener,noreferrer');
+        } else {
+          setPaymentResult({
+            paymentId: res.paymentId,
+            pixCopiaECola: res.pixCopiaECola || res.qrCode || '',
+            qrCodeBase64: res.qrCodeBase64 || '',
+            ticketUrl: res.ticketUrl,
+            methodType: method,
+            currentStatus: (!res.status || res.status === 'PENDING') ? 'pending' : res.status
+          });
         }
-
-        setPaymentResult({
-          paymentId: res.paymentId,
-          pixCopiaECola: res.pixCopiaECola,
-          qrCodeBase64: res.qrCodeBase64,
-          ticketUrl: res.ticketUrl,
-          expiresAt: res.expiresAt,
-          currentStatus: res.status,
-          methodType: method
-        });
       } else {
-        const friendlyMessage = getMercadoPagoErrorMessage(res.message || (res as any).error);
-        setError(friendlyMessage);
+        setError(res.message || 'Erro ao gerar pagamento');
       }
     } catch (err: any) {
       console.error('[PublicCheckoutPage] Error generating charge:', err);
-      const friendlyMessage = getMercadoPagoErrorMessage(err.message);
-      setError(friendlyMessage);
+      setError(err.message || 'Erro interno ao gerar cobrança');
     } finally {
       setGenerating(false);
     }
   }, [item, itemType, totalAmount, forcedInstallments, forcedDueDate]);
 
-  // Callback estável para erros do Brick (não pode ser inline ou quebra React.memo)
-  const handleBrickError = useCallback((_e: any) => {
-    setError('Ocorreu um erro interno no formulário de pagamento. Recarregue a página.');
-  }, []);
 
   const handleManualCheckStatus = async () => {
-    if (!item) return;
+    const currentTenantId = tenant?.id || item?.tenant_id || item?.tenantId;
+    if (!paymentResult?.paymentId || !currentTenantId) return;
+    
     setIsVerifying(true);
-    setError(null);
     try {
-      const res = await PaymentService.checkPaymentStatus({
-        itemType,
-        itemId: item.id,
-        gatewayPaymentId: paymentResult?.paymentId
-      });
-
-      if (res.isPaid || res.status === 'approved') {
-        setIsPaidConfirmed(true);
-      } else if (res.status === 'rejected') {
-        setPaymentResult(null);
-        const friendlyMessage = getMercadoPagoErrorMessage(res.statusDetail || 'cc_rejected_other_reason');
-        setError(friendlyMessage);
-      } else {
-        setError('O pagamento ainda consta em análise pelo banco emissor. Caso a transação já tenha sido liberada no app do banco, aguarde alguns instantes e clique em verificar novamente.');
+      const res = await PaymentService.syncInstallment(paymentResult.paymentId, currentTenantId);
+      if (res.success && res.newStatus) {
+        if (res.newStatus === 'PAID' || res.newStatus === 'CONFIRMED' || res.newStatus === 'RECEIVED' || res.newStatus === 'RECEIVED_IN_CASH') {
+           setIsPaidConfirmed(true);
+        } else if (res.newStatus === 'REJECTED' || res.newStatus === 'CANCELED') {
+           setError('Pagamento recusado pela operadora de cartão.');
+           setPaymentResult(null);
+        } else {
+           setPaymentResult(prev => prev ? { ...prev, currentStatus: res.newStatus! } : null);
+        }
       }
     } catch (err: any) {
-      setError(err.message || 'Erro ao verificar o status do pagamento.');
+      console.error('Error checking status:', err);
     } finally {
       setIsVerifying(false);
     }
@@ -739,11 +664,39 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
               </div>
             </div>
 
-            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 text-left sm:text-right shrink-0 min-w-[200px]">
+            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 text-left sm:text-right shrink-0 min-w-[200px] flex flex-col gap-1.5">
+              {(discountAmt > 0 || shippingAmt > 0 || additionsAmt > 0) ? (
+                <>
+                  <div className="flex justify-between items-center sm:justify-end gap-3 text-[11px] text-slate-500 font-medium">
+                    <span>Subtotal:</span>
+                    <span>R$ {subtotalAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  {discountAmt > 0 && (
+                    <div className="flex justify-between items-center sm:justify-end gap-3 text-[11px] text-rose-500 font-bold">
+                      <span>Desconto:</span>
+                      <span>- R$ {discountAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
+                  {shippingAmt > 0 && (
+                    <div className="flex justify-between items-center sm:justify-end gap-3 text-[11px] text-sky-600 font-medium">
+                      <span>Frete:</span>
+                      <span>+ R$ {shippingAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
+                  {additionsAmt > 0 && (
+                    <div className="flex justify-between items-center sm:justify-end gap-3 text-[11px] text-sky-600 font-medium">
+                      <span>Acréscimos:</span>
+                      <span>+ R$ {additionsAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
+                  <div className="w-full h-px bg-slate-200 my-1"></div>
+                </>
+              ) : null}
+
               <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest block">
                 Valor Total a Pagar
               </span>
-              <span className="text-xl sm:text-2xl font-bold text-[#1c2d4f] tracking-tight block mt-1">
+              <span className="text-xl sm:text-2xl font-bold text-[#1c2d4f] tracking-tight block">
                 R$ {totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
@@ -808,9 +761,9 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
               {generating ? (
                 <div className="p-8 text-center space-y-3 bg-slate-50 rounded-2xl border border-slate-200">
                   <Loader2 size={32} className="animate-spin text-emerald-600 mx-auto" />
-                  <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Gerando chave de pagamento nativa...</p>
+                  <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Gerando link de pagamento seguro...</p>
                 </div>
-              ) : (paymentResult || selectedMethod === 'card_link') ? (
+              ) : paymentResult ? (
                 <div className="space-y-6">
                   
                   {/* ── Descrição da Cobrança (Movida) ── */}
@@ -890,62 +843,66 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
                     </div>
                   )}
 
-                  {/* 💳 VISUALIZAÇÃO DE CARTÃO TRANSPARENTE (BRICK) */}
-                  {selectedMethod === 'card_link' && (
-                    <div className="bg-white border border-slate-200 rounded-3xl p-2 sm:p-4 space-y-4 max-w-lg mx-auto shadow-sm relative min-h-[350px]">
-                      {(!mpPublicKey || !isMpSdkReady || generating || isVerifying) && (
-                        <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-3xl p-6 text-center space-y-3">
-                           <Loader2 size={32} className="animate-spin text-sky-600 mx-auto" />
-                           <span className="text-xs font-bold text-sky-900">
-                             {generating ? 'Processando autorização com a operadora do cartão...' : 
-                              isVerifying ? 'Verificando status do pagamento com o banco...' :
-                              !mpPublicKey ? 'Carregando credenciais de pagamento seguro...' :
-                              'Carregando formulário seguro do Mercado Pago...'}
-                           </span>
-                        </div>
-                      )}
-                      
-                      {/* CARD INTERATIVO DE STATUS EM ANÁLISE (SE RETORNADO PELO MP) */}
-                      {paymentResult?.currentStatus === 'in_process' && (
-                        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-left space-y-3 shadow-sm">
-                          <div className="flex items-center gap-2">
-                            <Clock size={18} className="text-amber-600 shrink-0 animate-pulse" />
-                            <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wide">
-                              Pagamento em Análise de Segurança
-                            </h4>
-                          </div>
-                          <p className="text-xs text-amber-800 leading-relaxed">
-                            O Mercado Pago e o banco emissor estão validando o pagamento. Isso costuma levar apenas alguns instantes. Assim que aprovado, seu comprovante será exibido aqui.
-                          </p>
-                          <div className="pt-2 flex flex-col sm:flex-row items-center gap-2">
-                            <button
-                              onClick={handleManualCheckStatus}
-                              disabled={isVerifying}
-                              className="w-full sm:w-auto px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-sm cursor-pointer"
-                            >
-                              {isVerifying ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                              Verificar Status Novamente
-                            </button>
-                            <button
-                              onClick={() => { setPaymentResult(null); setError(null); }}
-                              className="w-full sm:w-auto px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all text-center cursor-pointer"
-                            >
-                              Tentar Outro Cartão / Meio
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                  {/* 💳 CARTÃO VIA CHECKOUT HOSPEDADO DO ASAAS (PCI-DSS) */}
+                  {selectedMethod === 'card_link' && paymentResult?.hostedCheckoutUrl && (
+                    <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-5 max-w-lg mx-auto shadow-sm text-center">
+                      <div className="w-16 h-16 mx-auto rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm">
+                        <ShieldCheck size={32} />
+                      </div>
+                      <div>
+                        <h4 className="text-base font-bold text-slate-800 tracking-tight">Link de Pagamento Gerado!</h4>
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed max-w-xs mx-auto">
+                          Você será redirecionado para o ambiente seguro certificado <span className="font-bold text-slate-700">PCI-DSS</span> do Asaas para inserir os dados do cartão.
+                        </p>
+                      </div>
 
-                      {mpPublicKey && isMpSdkReady && totalAmount > 0 && (!paymentResult || paymentResult?.currentStatus !== 'in_process') && (
-                        <StablePaymentBrick
-                          mpPublicKey={mpPublicKey}
-                          amount={totalAmount}
-                          payerEmail={item.customerEmail || item.customer_email || ''}
-                          forcedInstallments={forcedInstallments}
-                          onSubmit={handleGenerateCharge}
-                          onError={handleBrickError}
-                        />
-                      )}
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-left text-xs text-slate-600 space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-slate-500 uppercase tracking-widest text-[10px]">Valor Total</span>
+                          <span className="font-extrabold text-slate-800 text-base">R$ {totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        {forcedInstallments && forcedInstallments > 1 && (
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold text-slate-500 uppercase tracking-widest text-[10px]">Parcelamento</span>
+                            <span className="font-bold text-slate-700">{forcedInstallments}x de R$ {(totalAmount / forcedInstallments).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (sem juros)</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <a
+                          href={paymentResult.hostedCheckoutUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full flex items-center justify-center gap-2 bg-[#1c2d4f] hover:bg-[#152340] text-white py-4 rounded-xl font-bold text-sm shadow-xl shadow-[#1c2d4f]/20 transition-all active:scale-[0.98]"
+                        >
+                          <CreditCard size={18} />
+                          Ir para Pagamento Seguro
+                          <ExternalLink size={14} className="opacity-70" />
+                        </a>
+
+                        <div className="pt-2 flex flex-col sm:flex-row items-center gap-2">
+                          <button
+                            onClick={handleManualCheckStatus}
+                            disabled={isVerifying}
+                            className="w-full sm:w-auto flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-sm cursor-pointer"
+                          >
+                            {isVerifying ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                            Já Paguei — Verificar Status
+                          </button>
+                          <button
+                            onClick={() => { setPaymentResult(null); setSelectedMethod(null as any); setError(null); }}
+                            className="w-full sm:w-auto px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-xl text-xs font-bold transition-all text-center cursor-pointer"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+
+                      <p className="text-[10px] text-slate-400 flex items-center justify-center gap-1.5">
+                        <ShieldCheck size={12} className="text-emerald-500" />
+                        Ambiente 100% Seguro · Dados do cartão nunca passam por este servidor
+                      </p>
                     </div>
                   )}
 
