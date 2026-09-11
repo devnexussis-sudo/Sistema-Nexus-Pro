@@ -66,10 +66,16 @@ serve(async (req) => {
         // 🛰️ Broadcast Realtime Push
         if (nfseRecord.tenant_id) {
           const ch = supabase.channel(`nexus-realtime-${nfseRecord.tenant_id}`);
-          await ch.send({
-            type: 'broadcast',
-            event: 'INVOICE_UPDATED',
-            payload: { invoiceId: nfseRecord.invoice_id, type: 'NFSE', status: nfStatus }
+          ch.subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              ch.send({
+                type: 'broadcast',
+                event: 'INVOICE_UPDATED',
+                payload: { invoiceId: nfseRecord.invoice_id, type: 'NFSE', status: nfStatus }
+              }).then(() => {
+                supabase.removeChannel(ch);
+              });
+            }
           });
         }
 
@@ -269,10 +275,16 @@ serve(async (req) => {
     if (targetTenantId) {
       console.log(`[Asaas Webhook] ⚡ Enviando Realtime Broadcast para Tenant: ${targetTenantId}`);
       const ch = supabase.channel(`nexus-realtime-${targetTenantId}`);
-      await ch.send({
-        type: 'broadcast',
-        event: 'INVOICE_UPDATED',
-        payload: { invoiceId: targetInvoiceId, status: newStatus }
+      ch.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          ch.send({
+            type: 'broadcast',
+            event: 'INVOICE_UPDATED',
+            payload: { invoiceId: targetInvoiceId, status: newStatus }
+          }).then(() => {
+            supabase.removeChannel(ch);
+          });
+        }
       });
     }
 
