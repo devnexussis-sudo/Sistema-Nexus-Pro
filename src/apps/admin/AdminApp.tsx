@@ -188,12 +188,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                 (payload) => {
                     console.log('🔄 Realtime: Order change detected:', payload.eventType);
                     if (payload.eventType === 'UPDATE') {
-                        const newStatus = payload.new.status;
-                        if (newStatus === 'CONCLUÍDO' || newStatus === 'IMPEDIDO') {
-                            NexusQueryClient.invalidateOrders();
-                        } else {
-                            NexusQueryClient.updateOrderInPlace(payload.new);
-                        }
+                        NexusQueryClient.updateOrderInPlace(payload.new);
                     } else {
                         NexusQueryClient.invalidateOrders();
                     }

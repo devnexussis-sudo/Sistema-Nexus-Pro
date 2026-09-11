@@ -289,32 +289,44 @@ export const NexusQueryClient = {
         CacheManager.invalidate('orders');
     },
     updateOrderInPlace: (payload: any) => {
+        const updater = (o: any) => {
+            if (o.id !== payload.id) return o;
+            
+            let newStatus = payload.status ?? o.status;
+            if (newStatus === 'COMPLETED') newStatus = 'CONCLUÍDO';
+            if (newStatus === 'BLOCKED') newStatus = 'IMPEDIDO';
+
+            return {
+                ...o,
+                status: newStatus,
+                billingStatus: payload.billing_status ?? o.billingStatus,
+                updatedAt: payload.updated_at ?? o.updatedAt,
+                createdAt: payload.created_at ?? o.createdAt,
+                scheduledDate: payload.scheduled_date ?? o.scheduledDate,
+                scheduledTime: payload.scheduled_time ?? o.scheduledTime,
+                startDate: payload.start_date ?? o.startDate,
+                endDate: payload.end_date ?? o.endDate,
+                priority: payload.priority ?? o.priority,
+                operationType: payload.operation_type ?? o.operationType,
+                assignedTo: payload.assigned_to ?? o.assignedTo,
+                checkinLocation: payload.checkin_location ?? o.checkinLocation,
+                checkoutLocation: payload.checkout_location ?? o.checkoutLocation,
+                pauseReason: payload.pause_reason ?? o.pauseReason,
+                timeline: payload.timeline ?? o.timeline,
+                formData: payload.form_data ?? o.formData,
+                signature: payload.signature_url || payload.client_signature_url || o.signature,
+                signatureName: payload.client_signature_name ?? o.signatureName
+            };
+        };
+
         queryClient.updateQueriesData('orders_paged', (oldData: any) => {
             if (!oldData || !oldData.data || !Array.isArray(oldData.data)) return oldData;
-            const newData = oldData.data.map((o: any) => {
-                if (o.id !== payload.id) return o;
-                return {
-                    ...o,
-                    status: payload.status ?? o.status,
-                    updatedAt: payload.updated_at ?? o.updatedAt,
-                    createdAt: payload.created_at ?? o.createdAt,
-                    scheduledDate: payload.scheduled_date ?? o.scheduledDate,
-                    scheduledTime: payload.scheduled_time ?? o.scheduledTime,
-                    startDate: payload.start_date ?? o.startDate,
-                    endDate: payload.end_date ?? o.endDate,
-                    priority: payload.priority ?? o.priority,
-                    operationType: payload.operation_type ?? o.operationType,
-                    assignedTo: payload.assigned_to ?? o.assignedTo,
-                    checkinLocation: payload.checkin_location ?? o.checkinLocation,
-                    checkoutLocation: payload.checkout_location ?? o.checkoutLocation,
-                    pauseReason: payload.pause_reason ?? o.pauseReason,
-                    timeline: payload.timeline ?? o.timeline,
-                    formData: payload.form_data ?? o.formData,
-                    signature: payload.signature_url || payload.client_signature_url || o.signature,
-                    signatureName: payload.client_signature_name ?? o.signatureName
-                };
-            });
-            return { ...oldData, data: newData };
+            return { ...oldData, data: oldData.data.map(updater) };
+        });
+
+        queryClient.updateQueriesData('orders', (oldData: any) => {
+            if (!oldData || !Array.isArray(oldData)) return oldData;
+            return oldData.map(updater);
         });
     },
     invalidateTechnicians: () => {

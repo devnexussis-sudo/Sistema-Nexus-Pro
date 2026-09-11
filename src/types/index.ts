@@ -379,7 +379,7 @@ export interface ServiceOrder {
   videoUrl?: string; // Anexo de evidência de vídeo
 
   // Financeiro
-  billingStatus?: 'PENDING' | 'PAID';
+  billingStatus?: 'PENDING' | 'BILLED' | 'PAID';
   paymentMethod?: string;
   paidAt?: string;
   billingNotes?: string;
@@ -663,7 +663,7 @@ export interface Quote {
   approvalLongitude?: number;
 
   // Financeiro
-  billingStatus?: 'PENDING' | 'PAID';
+  billingStatus?: 'PENDING' | 'BILLED' | 'PAID';
   paymentMethod?: string;
   paidAt?: string;
   billingNotes?: string;

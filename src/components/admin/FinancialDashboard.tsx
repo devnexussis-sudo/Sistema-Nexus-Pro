@@ -179,26 +179,47 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const translateStatusToPT = (s: string) => {
         if (!s) return 'Pendente';
         const map: Record<string, string> = {
-            'PAID': 'Pago / Liquidado',
-            'RECEIVED': 'Recebido / Pago',
-            'CONFIRMED': 'Confirmado / Pago',
-            'ANTICIPATED': 'Antecipado / Liquidado',
-            'RECEIVED_IN_CASH': 'Recebido em Dinheiro',
+            'PAID': 'Pago /\nLiquidado',
+            'RECEIVED': 'Recebido /\nPago',
+            'CONFIRMED': 'Confirmado /\nPago',
+            'ANTICIPATED': 'Antecipado /\nLiquidado',
+            'RECEIVED_IN_CASH': 'Recebido em\nDinheiro',
             'AUTHORIZED': 'Autorizado',
             'PENDING': 'Pendente',
-            'OVERDUE': 'Vencido / Atrasado',
+            'BILLED': 'Faturado',
+            'FATURADO': 'Faturado',
+            'OVERDUE': 'Vencido /\nAtrasado',
             'CANCELED': 'Cancelado',
             'REFUNDED': 'Reembolsado',
             'DELETED': 'Excluído',
-            'REFUND_REQUESTED': 'Reembolso Solicitado',
-            'CHARGEBACK_REQUESTED': 'Estorno Solicitado',
+            'REFUND_REQUESTED': 'Reembolso\nSolicitado',
+            'CHARGEBACK_REQUESTED': 'Estorno\nSolicitado',
             'CHARGEBACK_DISPUTE': 'Em Disputa',
-            'AWAITING_CHARGEBACK_REVERSAL': 'Aguardando Reversão',
-            'DUNNING_REQUESTED': 'Recuperação Solicitada',
-            'DUNNING_RECEIVED': 'Recuperação Recebida',
-            'AWAITING_RISK_ANALYSIS': 'Em Análise de Risco'
+            'AWAITING_CHARGEBACK_REVERSAL': 'Aguardando\nReversão',
+            'DUNNING_REQUESTED': 'Recuperação\nSolicitada',
+            'DUNNING_RECEIVED': 'Recuperação\nRecebida',
+            'AWAITING_RISK_ANALYSIS': 'Em Análise\nde Risco'
         };
         return map[s.toUpperCase()] || s;
+    };
+
+    const getStatusStyle = (status: string, gatewayStatus?: string) => {
+        const s = (status || '').toUpperCase();
+        const gs = (gatewayStatus || '').toLowerCase();
+        
+        if (s === 'PAID' || s === 'RECEIVED' || s === 'CONFIRMED' || gs === 'approved') {
+            return { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' };
+        }
+        if (s === 'CANCELED' || s === 'REFUNDED' || s === 'CHARGEBACK_REQUESTED' || s === 'CHARGEBACK_DISPUTE' || s === 'DELETED') {
+            return { bg: 'bg-slate-100 text-slate-700 border-slate-300', dot: 'bg-slate-400' };
+        }
+        if (s === 'OVERDUE') {
+            return { bg: 'bg-rose-50 text-rose-700 border-rose-200', dot: 'bg-rose-500 animate-pulse' };
+        }
+        if (s === 'BILLED' || s === 'FATURADO') {
+            return { bg: 'bg-sky-50 text-sky-700 border-sky-200', dot: 'bg-sky-500' };
+        }
+        return { bg: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500 animate-pulse' };
     };
 
     // Verifica se Mercado Pago está conectado (bloqueia botão se não estiver)
@@ -493,6 +514,19 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             }).eq('id', cancelInvoiceModal.invoice.id);
             
             if (error) throw error;
+            
+            // Reverter status dos itens
+            const invoiceId = cancelInvoiceModal.invoice.id;
+            const items = invoiceItems.filter(ii => ii.invoice_id === invoiceId);
+            for (const item of items) {
+                if (item.reference_type === 'ORDER') {
+                    const os = orders.find(o => o.id === item.reference_id);
+                    if (os) await DataService.updateOrder({ ...os, billingStatus: 'PENDING' });
+                } else if (item.reference_type === 'QUOTE') {
+                    const q = quotes.find(q => q.id === item.reference_id);
+                    if (q) await DataService.updateQuote({ ...q, billingStatus: 'PENDING' });
+                }
+            }
             
             showAlert('Fatura cancelada com sucesso!', 'success');
             setCancelInvoiceModal({ isOpen: false, invoice: null });
@@ -1542,12 +1576,14 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     if (rawItem.type === 'ORDER') {
                         await DataService.updateOrder({
                             ...(rawItem.original as ServiceOrder),
+                            billingStatus: 'BILLED',
                             paymentMethod: finalMethod
                         });
                     } else {
                         await DataService.updateQuote({
                             ...rawItem.original,
                             status: 'FATURADO',
+                            billingStatus: 'BILLED',
                             paymentMethod: finalMethod
                         });
                     }
@@ -1856,7 +1892,7 @@ ${container.innerHTML}
                 orig.status || 'N/A',
                 orig.priority || 'N/A',
                 item.value || 0,
-                item.status === 'PAID' ? 'Liquidada' : 'Pendente',
+                translateStatusToPT(item.status),
                 formatDateTime(item.createdAt),
                 formatDateTime(item.paidAt || item.updatedAt)
             ];
@@ -2536,12 +2572,17 @@ ${container.innerHTML}
                                             )}
                                         </div>
                                     </td>
-                                    <td className="px-2 py-2 text-center whitespace-nowrap">
-                                        <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${item.status === 'PAID' || (item.original as any)?.billing_status === 'PAID' || (item.original as any)?.gateway_status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
-                                            <span className={`w-1.5 h-1.5 rounded-full ${item.status === 'PAID' || (item.original as any)?.billing_status === 'PAID' || (item.original as any)?.gateway_status === 'approved' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
-                                            {item.status === 'PAID' || (item.original as any)?.billing_status === 'PAID' || (item.original as any)?.gateway_status === 'approved' ? 'Liquidada' : 'Pendente'}
-                                        </div>
-                                    </td>
+                                        <td className="px-2 py-2 text-center whitespace-nowrap">
+                                            {(() => {
+                                                const style = getStatusStyle(item.status, (item.original as any)?.gateway_status);
+                                                return (
+                                                    <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold border whitespace-pre-line leading-tight ${style.bg}`}>
+                                                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${style.dot}`} />
+                                                        {translateStatusToPT(item.status)}
+                                                    </div>
+                                                );
+                                            })()}
+                                        </td>
                                     <td className="px-2 py-2 text-center whitespace-nowrap" onClick={e => e.stopPropagation()}>
                                         <div className="flex items-center justify-center gap-1">
                                             <button
@@ -2715,10 +2756,15 @@ ${container.innerHTML}
 
                             <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
                                 <span className="text-[10px] text-slate-500 truncate max-w-[150px]">{item.title}</span>
-                                <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wide ${item.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full ${item.status === 'PAID' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
-                                    {item.status === 'PAID' ? 'Liquidada' : 'Pendente'}
-                                </div>
+                                {(() => {
+                                    const style = getStatusStyle(item.status, (item.original as any)?.gateway_status);
+                                    return (
+                                        <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold border tracking-wide ${style.bg}`}>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+                                            {translateStatusToPT(item.status)}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </div>
                     )
@@ -2828,10 +2874,15 @@ ${container.innerHTML}
                                                 </span>
                                             </td>
                                             <td className="py-3 px-4 text-center whitespace-nowrap">
-                                                <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${inv.status === 'PAID' || inv.gateway_status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
-                                                    <span className={`w-1.5 h-1.5 rounded-full ${inv.status === 'PAID' || inv.gateway_status === 'approved' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
-                                                    {inv.status === 'PAID' || inv.gateway_status === 'approved' ? 'Liquidada' : 'Pendente'}
-                                                </div>
+                                                {(() => {
+                                                    const style = getStatusStyle(inv.status, inv.gateway_status);
+                                                    return (
+                                                        <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold border whitespace-pre-line leading-tight ${style.bg}`}>
+                                                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${style.dot}`} />
+                                                            {translateStatusToPT(inv.status)}
+                                                        </div>
+                                                    );
+                                                })()}
                                             </td>
                                             <td className="py-3 px-4 text-center whitespace-nowrap">
                                                 <div className="flex items-center justify-center gap-1" onClick={e => e.stopPropagation()}>
@@ -3055,9 +3106,14 @@ ${container.innerHTML}
                                         <h2 className="text-sm sm:text-base font-semibold text-slate-900 font-poppins truncate">
                                             {selectedItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'} #{getDocLabel(selectedItem)}
                                         </h2>
-                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-widest border ${selectedItem.status === 'PAID' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-amber-50 text-amber-600 border-amber-200'}`}>
-                                            {selectedItem.status === 'PAID' ? 'Liquidada' : 'Pendente'}
-                                        </span>
+                                        {(() => {
+                                            const style = getStatusStyle(selectedItem.status, (selectedItem.original as any)?.gateway_status);
+                                            return (
+                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-widest border ${style.bg}`}>
+                                                    {translateStatusToPT(selectedItem.status)}
+                                                </span>
+                                            );
+                                        })()}
                                     </div>
                                     <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-0.5 truncate">
                                         {selectedItem.customerName} • {selectedItem.title || (selectedItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço')}
