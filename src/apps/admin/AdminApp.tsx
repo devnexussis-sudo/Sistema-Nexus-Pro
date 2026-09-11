@@ -23,7 +23,6 @@ import { DocsPage } from '../../components/admin/DocsPage';
 import { IntegrationsPage } from '../../components/admin/IntegrationsPage';
 import { WhatsAppInbox } from '../../components/admin/WhatsAppInbox';
 import { SolicitacoesPage } from '../../components/admin/SolicitacoesPage';
-import { OAuthCallbackPage } from '../../components/admin/OAuthCallbackPage';
 import { DataService } from '../../services/dataService';
 import SessionStorage from '../../lib/sessionStorage';
 import {
@@ -188,7 +187,16 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                 },
                 (payload) => {
                     console.log('🔄 Realtime: Order change detected:', payload.eventType);
-                    NexusQueryClient.invalidateOrders();
+                    if (payload.eventType === 'UPDATE') {
+                        const newStatus = payload.new.status;
+                        if (newStatus === 'CONCLUÍDO' || newStatus === 'IMPEDIDO') {
+                            NexusQueryClient.invalidateOrders();
+                        } else {
+                            NexusQueryClient.updateOrderInPlace(payload.new);
+                        }
+                    } else {
+                        NexusQueryClient.invalidateOrders();
+                    }
                 }
             )
             .on(
@@ -256,12 +264,72 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                     NexusQueryClient.invalidateTenant();
                 }
             )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'invoices',
+                    filter: `tenant_id=eq.${tid}`
+                },
+                (payload) => {
+                    console.log('🔄 Realtime: Invoice change detected:', payload.eventType);
+                    const updatedId = payload.new?.id || payload.old?.id;
+                    window.dispatchEvent(new CustomEvent('refresh_invoices', { detail: { id: updatedId } }));
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'invoice_installments',
+                    filter: `tenant_id=eq.${tid}`
+                },
+                (payload) => {
+                    console.log('🔄 Realtime: Invoice installment change detected:', payload.eventType);
+                    const invoiceId = payload.new?.invoice_id || payload.old?.invoice_id;
+                    window.dispatchEvent(new CustomEvent('refresh_invoices', { detail: { id: invoiceId } }));
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'cash_flow',
+                    filter: `tenant_id=eq.${tid}`
+                },
+                (payload) => {
+                    console.log('🔄 Realtime: Cash flow change detected:', payload.eventType);
+                    NexusQueryClient.invalidateFinancials();
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'invoice_nfse',
+                    filter: `tenant_id=eq.${tid}`
+                },
+                (payload) => {
+                    console.log('🔄 Realtime: NF-e change detected:', payload.eventType);
+                    const invoiceId = payload.new?.invoice_id || payload.old?.invoice_id;
+                    window.dispatchEvent(new CustomEvent('refresh_invoices', { detail: { id: invoiceId } }));
+                }
+            )
             .on('broadcast', { event: 'PAYMENT_APPROVED' }, (payload) => {
                 console.log('⚡ [AdminApp Realtime] Pagamento Aprovado via Broadcast:', payload);
                 NexusQueryClient.invalidateOrders();
                 NexusQueryClient.invalidateQuotes();
                 window.dispatchEvent(new Event('refresh_invoices'));
                 fetchGlobalData();
+            })
+            .on('broadcast', { event: 'INVOICE_UPDATED' }, (payload) => {
+                console.log('⚡ [AdminApp Realtime] Invoice Updated via Broadcast:', payload);
+                const invId = payload.payload?.invoiceId;
+                window.dispatchEvent(new CustomEvent('refresh_invoices', { detail: { id: invId } }));
             })
             .subscribe((status) => {
                 console.log(`[AdminApp] 📡 Realtime Status: ${status}`);
@@ -409,7 +477,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                 <Route path="/financial" element={
                     <PermissionGuard requiredMenu="financial">
                         <RouteGuard isLoading={oLoading && fullOrders.length === 0}>
-                            <FinancialDashboard orders={fullOrders} quotes={quotes} techs={techs} customers={customers} tenant={tenantData} onRefresh={fetchGlobalData} />
+                            <FinancialDashboard orders={fullOrders} quotes={quotes} techs={techs} customers={customers} tenant={tenantData} currentUser={auth.user} onRefresh={fetchGlobalData} />
                         </RouteGuard>
                     </PermissionGuard>
                 } />
@@ -426,7 +494,6 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                 <Route path="/whatsapp" element={<PermissionGuard requiredMenu="settings"><WhatsAppInbox /></PermissionGuard>} />
                 <Route path="/solicitacoes" element={<PermissionGuard requiredMenu="settings"><SolicitacoesPage /></PermissionGuard>} />
                 <Route path="/integrations" element={<PermissionGuard requiredMenu="settings"><IntegrationsPage /></PermissionGuard>} />
-                <Route path="/integrations/callback" element={<OAuthCallbackPage />} />
 
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/admin" replace />} />

@@ -5,10 +5,10 @@ import { flushSync, createPortal } from 'react-dom';
 import { ServiceOrder, OrderStatus, User, Quote, Customer } from '../../types';
 import type { DbTenant } from '../../types/database';
 import {
-    Search, X, DollarSign, Calendar, Users, Tag,
+    Search, X, XCircle, Trash2, DollarSign, Calendar, Users, Tag,
     CreditCard, ArrowRight, CheckCircle2, FileText, Printer, ShieldCheck, MapPin,
     Layout as Layer, Info, UserCheck, Wallet, Smartphone, Layers, Wrench, Check, ArrowUpRight,
-    TrendingUp, Clock, FileSpreadsheet, ChevronRight, ChevronDown, Plus, Slash, ArrowUp, ArrowDown, ArrowUpDown, Filter, Loader2, Share2, Hexagon, Paperclip, Image as ImageIcon, RefreshCw, Eye, Receipt, AlertTriangle
+    TrendingUp, Clock, FileSpreadsheet, ChevronRight, ChevronDown, Plus, Slash, ArrowUp, ArrowDown, ArrowUpDown, Filter, Loader2, Share2, Copy, Hexagon, Paperclip, Image as ImageIcon, RefreshCw, Eye, Receipt, AlertTriangle, Calculator, Download, Edit2, Mail, ExternalLink
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { NexusBranding } from '../ui/NexusBranding';
@@ -17,12 +17,40 @@ import { StorageService } from '../../services/storageService';
 import XLSX from 'xlsx-js-style';
 import { NexusQueryClient } from '../../hooks/nexusHooks';
 import { usePermissions } from '../../hooks/usePermissions';
-import { MercadoPagoPaymentModal } from './MercadoPagoPaymentModal';
 import { PaymentAuditModal } from './PaymentAuditModal';
 import { supabase } from '../../lib/supabase';
 import { PaymentService } from '../../services/paymentService';
 import { AccountsPayableTab } from './AccountsPayableTab';
+import { CashFlowTab } from './CashFlowTab';
 import { InvoiceReceiptTemplate } from './InvoiceReceiptTemplate';
+import { formatInvoiceDisplayId } from '../../utils/invoiceUtils';
+
+const formatAsaasDateTime = (dateVal: any): string => {
+    if (!dateVal) return '';
+    const str = String(dateVal).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+        const [y, m, d] = str.split('-');
+        return `${d}/${m}/${y}`;
+    }
+    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(str) && !str.includes('Z') && !str.includes('+')) {
+        const cleanStr = str.replace(' ', 'T');
+        const [datePart, timePart] = cleanStr.split('T');
+        const [y, m, d] = datePart.split('-');
+        const timeSub = timePart.substring(0, 5);
+        return `${d}/${m}/${y} às ${timeSub}`;
+    }
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime())) {
+        if (parsed.getUTCHours() === 0 && parsed.getUTCMinutes() === 0 && parsed.getUTCSeconds() === 0) {
+            const y = parsed.getUTCFullYear();
+            const m = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+            const d = String(parsed.getUTCDate()).padStart(2, '0');
+            return `${d}/${m}/${y}`;
+        }
+        return parsed.toLocaleString('pt-BR');
+    }
+    return str;
+};
 
 interface FinancialDashboardProps {
     orders: ServiceOrder[];
@@ -30,17 +58,18 @@ interface FinancialDashboardProps {
     techs: User[];
     customers?: Customer[];
     tenant?: DbTenant | null;
+    currentUser?: any;
     onRefresh: () => Promise<void>;
 }
 
-export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, quotes, techs, customers = [], tenant, onRefresh }) => {
+export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, quotes, techs, customers = [], tenant, currentUser, onRefresh }) => {
   const { t } = useI18n();
   const { showAlert } = useDialog();
   const { can } = usePermissions();
 
     const printRef = useRef<HTMLDivElement>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [mainTab, setMainTab] = useState<'RECEIVABLES' | 'PAYABLES'>('RECEIVABLES');
+    const [mainTab, setMainTab] = useState<'RECEIVABLES' | 'PAYABLES' | 'CASH_FLOW'>('RECEIVABLES');
 
     const getDefaultDates = () => {
         const dEnd = new Date();
@@ -91,6 +120,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const [invStartDate, setInvStartDate] = useState(initStart);
     const [invEndDate, setInvEndDate] = useState(initEnd);
     const [invStatusFilter, setInvStatusFilter] = useState('ALL');
+    const [invDateFilterType, setInvDateFilterType] = useState<'createdAt' | 'paidAt' | 'dueDate'>('createdAt');
 
     const handleInvDateValidation = (start: string, end: string) => {
         if (start && end) {
@@ -126,8 +156,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const [printItem, setPrintItem] = useState<any | null>(null);
 
     // Modal Mercado Pago
-    const [isMpModalOpen, setIsMpModalOpen] = useState(false);
-    const [mpModalItem, setMpModalItem] = useState<any | null>(null);
+    const [isAsaasModalOpen, setIsAsaasModalOpen] = useState(false);
+    const [asaasModalItem, setAsaasModalItem] = useState<any | null>(null);
 
     // Modal de Detalhes da Fatura (Faturas Geradas)
     const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
@@ -136,6 +166,40 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const [editInvoiceDiscount, setEditInvoiceDiscount] = useState(0);
     const [editInvoiceShipping, setEditInvoiceShipping] = useState(0);
     const [editInvoiceAdditions, setEditInvoiceAdditions] = useState(0);
+
+    // Parcelas da Fatura
+    const [invoiceDetailTab, setInvoiceDetailTab] = useState<'GERAL' | 'PARCELAS' | 'AUDITORIA'>('GERAL');
+    const [invoiceInstallmentsList, setInvoiceInstallmentsList] = useState<any[]>([]);
+    const [generatingInstallments, setGeneratingInstallments] = useState(false);
+    const [installmentCount, setInstallmentCount] = useState(4);
+    const [installmentInterval, setInstallmentInterval] = useState(30);
+    const [syncingInstallmentId, setSyncingInstallmentId] = useState<string | null>(null);
+    const [isSyncingAllInstallments, setIsSyncingAllInstallments] = useState(false);
+
+    const translateStatusToPT = (s: string) => {
+        if (!s) return 'Pendente';
+        const map: Record<string, string> = {
+            'PAID': 'Pago / Liquidado',
+            'RECEIVED': 'Recebido / Pago',
+            'CONFIRMED': 'Confirmado / Pago',
+            'ANTICIPATED': 'Antecipado / Liquidado',
+            'RECEIVED_IN_CASH': 'Recebido em Dinheiro',
+            'AUTHORIZED': 'Autorizado',
+            'PENDING': 'Pendente',
+            'OVERDUE': 'Vencido / Atrasado',
+            'CANCELED': 'Cancelado',
+            'REFUNDED': 'Reembolsado',
+            'DELETED': 'Excluído',
+            'REFUND_REQUESTED': 'Reembolso Solicitado',
+            'CHARGEBACK_REQUESTED': 'Estorno Solicitado',
+            'CHARGEBACK_DISPUTE': 'Em Disputa',
+            'AWAITING_CHARGEBACK_REVERSAL': 'Aguardando Reversão',
+            'DUNNING_REQUESTED': 'Recuperação Solicitada',
+            'DUNNING_RECEIVED': 'Recuperação Recebida',
+            'AWAITING_RISK_ANALYSIS': 'Em Análise de Risco'
+        };
+        return map[s.toUpperCase()] || s;
+    };
 
     // Verifica se Mercado Pago está conectado (bloqueia botão se não estiver)
     const [isMpConnected, setIsMpConnected] = useState<boolean | null>(null);
@@ -147,11 +211,16 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     // Status Mercado Pago Check
     const [checkingInvoiceId, setCheckingInvoiceId] = useState<string | null>(null);
 
+    // NFS-e (Nota Fiscal de Serviço) states
+    const [emittingNfseId, setEmittingNfseId] = useState<string | null>(null);
+    const [nfseDataMap, setNfseDataMap] = useState<Record<string, { status: string; pdfUrl?: string; xmlUrl?: string; number?: string; asaas_nfse_id?: string; error_message?: string }>>({});
+    const [nfseDetailModal, setNfseDetailModal] = useState<{ isOpen: boolean; invoiceId: string | null; data: any | null }>({ isOpen: false, invoiceId: null, data: null });
+
     useEffect(() => {
         const checkMpConnection = async () => {
             try {
-                const settings = await PaymentService.getMercadoPagoSettings();
-                setIsMpConnected(settings?.status === 'active');
+                const settings = await PaymentService.getAsaasSettings();
+                setIsMpConnected(settings?.isActive === true);
             } catch {
                 setIsMpConnected(false);
             }
@@ -182,8 +251,10 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
     const tenantIdStr = tenant?.id || '';
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [spinningInvoiceId, setSpinningInvoiceId] = useState<string | null>(null);
     const [invoices, setInvoices] = useState<any[]>([]);
     const [invoiceItems, setInvoiceItems] = useState<any[]>([]);
+    const [allUsers, setAllUsers] = useState<any[]>([]);
     const [receivablesView, setReceivablesView] = useState<'items' | 'invoices'>('items');
 
     const loadInvoices = async () => {
@@ -194,9 +265,177 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             
             const { data: itms } = await supabase.from('invoice_items').select('*').eq('tenant_id', tenantIdStr);
             if (itms) setInvoiceItems(itms);
+
+            const { data: usersData } = await supabase.from('users').select('id, name');
+            if (usersData) setAllUsers(usersData);
+
+            // Load NFS-e data
+            try {
+                const { data: nfseRecords } = await supabase
+                    .from('invoice_nfse')
+                    .select('invoice_id, status, nfse_number, pdf_url, xml_url, asaas_nfse_id, error_message')
+                    .eq('tenant_id', tenantIdStr);
+                if (nfseRecords && nfseRecords.length > 0) {
+                    const map: Record<string, any> = {};
+                    nfseRecords.forEach((rec: any) => {
+                        map[rec.invoice_id] = {
+                            status: rec.status,
+                            pdfUrl: rec.pdf_url,
+                            xmlUrl: rec.xml_url,
+                            number: rec.nfse_number,
+                            asaas_nfse_id: rec.asaas_nfse_id,
+                            error_message: rec.error_message
+                        };
+                    });
+                    setNfseDataMap(map);
+                }
+            } catch (nfseErr) {
+                // Table may not exist yet — silently ignore
+                console.warn('[NFS-e] Erro ao carregar dados de NFS-e (tabela pode não existir ainda):', nfseErr);
+            }
         } catch (e) {
-            console.error('Error loading invoices', e);
+            console.error('Error loading invoices or users', e);
         }
+    };
+
+    const resolveUserOrTechName = (userIdOrId?: string, explicitName?: string): string => {
+        if (userIdOrId) {
+            const tech = techs.find(t => t.id === userIdOrId || t.name?.toLowerCase() === userIdOrId.toLowerCase());
+            if (tech?.name && !['administrador', 'admin'].includes(tech.name.trim().toLowerCase())) {
+                return tech.name;
+            }
+
+            const u = allUsers.find(u => u.id === userIdOrId || u.email === userIdOrId);
+            if (u) {
+                const uName = u.name || (u as any).full_name;
+                if (uName && !['administrador', 'admin'].includes(uName.trim().toLowerCase())) {
+                    return uName;
+                }
+                if (u.email) {
+                    const prefix = u.email.split('@')[0];
+                    return prefix.charAt(0).toUpperCase() + prefix.slice(1);
+                }
+            }
+
+            if (currentUser && (currentUser.id === userIdOrId || currentUser.email === userIdOrId)) {
+                const cName = currentUser.name || currentUser.user_metadata?.full_name;
+                if (cName && !['administrador', 'admin'].includes(cName.trim().toLowerCase())) {
+                    return cName;
+                }
+                if (currentUser.email) {
+                    const prefix = currentUser.email.split('@')[0];
+                    return prefix.charAt(0).toUpperCase() + prefix.slice(1);
+                }
+            }
+        }
+
+        if (explicitName && explicitName.trim() && !['administrador', 'admin', 'sistema'].includes(explicitName.trim().toLowerCase())) {
+            return explicitName;
+        }
+
+        const activeUser = currentUser || (typeof window !== 'undefined' ? (JSON.parse(sessionStorage.getItem('user') || '{}') || JSON.parse(localStorage.getItem('user') || '{}')) : null);
+        if (activeUser) {
+            const actName = activeUser.name || activeUser.user_metadata?.full_name;
+            if (actName && !['administrador', 'admin'].includes(actName.trim().toLowerCase())) {
+                return actName;
+            }
+            if (activeUser.email) {
+                const prefix = activeUser.email.split('@')[0];
+                return prefix.charAt(0).toUpperCase() + prefix.slice(1);
+            }
+        }
+
+        return explicitName || 'Técnico Responsável';
+    };
+
+    const getBilledUserName = (inv: any) => {
+        if (!inv) return 'Sistema';
+        // 1. Campos diretos de nome armazenados na fatura
+        if (inv.billed_by_name && inv.billed_by_name !== 'Sistema') return inv.billed_by_name;
+        if (inv.form_data?.billed_by && inv.form_data.billed_by !== 'Sistema') return inv.form_data.billed_by;
+        if (inv.created_by_name && inv.created_by_name !== 'Sistema') return inv.created_by_name;
+
+        // 2. Resolução por ID no banco (allUsers, techs, currentUser)
+        const targetId = inv.billed_by || inv.form_data?.billed_by_id || inv.created_by || inv.user_id;
+        if (targetId) {
+            const uMatch = allUsers.find(u => u.id === targetId || u.email === targetId);
+            if (uMatch?.name) return uMatch.name;
+
+            const tMatch = techs.find(t => t.id === targetId || t.email === targetId);
+            if (tMatch?.name) return tMatch.name;
+
+            if (currentUser && (currentUser.id === targetId || currentUser.email === targetId)) {
+                return currentUser.name || currentUser.user_metadata?.full_name || currentUser.email;
+            }
+
+            if (typeof targetId === 'string' && !targetId.includes('-') && targetId.length < 40) {
+                return targetId;
+            }
+        }
+
+        // 3. Fallback inteligente: buscar responsável no item vinculado (OS / Orçamento)
+        const itemsOfInv = invoiceItems.filter(ii => ii.invoice_id === inv.id);
+        for (const item of itemsOfInv) {
+            if (item.reference_type === 'ORDER' || !item.reference_type) {
+                const ord = orders.find(o => o.id === item.reference_id);
+                if (ord) {
+                    const ordTech = techs.find(t => t.id === ord.assignedTo || t.id === (ord as any).createdBy || t.id === (ord as any).authorId) || allUsers.find(u => u.id === ord.assignedTo || u.id === (ord as any).createdBy);
+                    if (ordTech?.name) return ordTech.name;
+                }
+            } else if (item.reference_type === 'QUOTE') {
+                const q = quotes.find(qt => qt.id === item.reference_id);
+                if (q) {
+                    const qTech = techs.find(t => t.id === (q as any).createdBy || t.id === (q as any).authorId) || allUsers.find(u => u.id === (q as any).createdBy);
+                    if (qTech?.name) return qTech.name;
+                }
+            }
+        }
+
+        // 4. Usuário da sessão ativa atual
+        const activeUser = currentUser || (typeof window !== 'undefined' ? (JSON.parse(sessionStorage.getItem('user') || '{}') || JSON.parse(localStorage.getItem('user') || '{}')) : null);
+        if (activeUser?.name || activeUser?.user_metadata?.full_name || activeUser?.email) {
+            return activeUser.name || activeUser.user_metadata?.full_name || activeUser.email;
+        }
+
+        return 'Sistema';
+    };
+
+    const getInvoicePaymentMethodLabel = (inv: any) => {
+        if (!inv) return { label: 'Não Definido', badge: 'bg-slate-100 text-slate-500 border-slate-200' };
+        const methodRaw = String(
+            inv.payment_method || 
+            inv.paymentMethod || 
+            inv.gateway_payment_method || 
+            inv.form_data?.payment_method || 
+            inv.form_data?.paymentMethod || 
+            (inv.notes && typeof inv.notes === 'string' && inv.notes.includes('payment_method') ? (JSON.parse(inv.notes)?.payment_method) : null) || 
+            ''
+        ).trim().toLowerCase();
+
+        if (methodRaw.includes('pix')) {
+            return { label: 'Pix', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200/80 font-bold' };
+        }
+        if (methodRaw.includes('boleto') || methodRaw.includes('ticket') || methodRaw.includes('bolbradesco')) {
+            return { label: 'Boleto', badge: 'bg-indigo-50 text-indigo-700 border-indigo-200/80 font-bold' };
+        }
+        if (methodRaw.includes('credit_card') || methodRaw.includes('cartao') || methodRaw.includes('cartão') || methodRaw.includes('card') || methodRaw.includes('credit')) {
+            return { label: 'Cartão de Crédito', badge: 'bg-purple-50 text-purple-700 border-purple-200/80 font-bold' };
+        }
+        if (methodRaw.includes('deposit') || methodRaw.includes('deposito') || methodRaw.includes('depósito')) {
+            return { label: 'Depósito Bancário', badge: 'bg-blue-50 text-blue-700 border-blue-200/80 font-bold' };
+        }
+        if (methodRaw.includes('transfer') || methodRaw.includes('ted') || methodRaw.includes('doc') || methodRaw.includes('transferencia') || methodRaw.includes('transferência')) {
+            return { label: 'Transferência', badge: 'bg-[#009EE3]/10 text-[#009EE3] border-[#009EE3]/30 font-bold' };
+        }
+        if (methodRaw.includes('cash') || methodRaw.includes('dinheiro') || methodRaw.includes('espécie') || methodRaw.includes('especie')) {
+            return { label: 'Dinheiro', badge: 'bg-teal-50 text-teal-700 border-teal-200/80 font-bold' };
+        }
+
+        if (inv.payment_method) {
+            return { label: inv.payment_method, badge: 'bg-slate-100 text-slate-700 border-slate-200 font-semibold' };
+        }
+
+        return { label: 'Pix', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200/80 font-bold' };
     };
 
     // Supabase Realtime & BroadcastChannel: Atualização instantânea na tela assim que o pagamento for liquidado
@@ -213,6 +452,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, handlePaymentUpdate)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'quotes' }, handlePaymentUpdate)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, handlePaymentUpdate)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'invoice_installments' }, handlePaymentUpdate)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_flow' }, handlePaymentUpdate)
             .on('broadcast', { event: 'PAYMENT_APPROVED' }, handlePaymentUpdate)
             .subscribe();
@@ -272,14 +512,106 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         }
     };
 
+    const loadInvoiceInstallments = async (invoiceId: string) => {
+        try {
+            const { data } = await supabase.from('invoice_installments').select('*').eq('invoice_id', invoiceId).order('installment_number', { ascending: true });
+            setInvoiceInstallmentsList(data || []);
+        } catch (e) {
+            console.error('Error loading installments', e);
+        }
+    };
+
     const handleOpenInvoiceDetail = (inv: any) => {
         setSelectedInvoice(inv);
         setEditInvoiceDiscount(inv.discount_amount || 0);
         setEditInvoiceShipping(inv.shipping_amount || 0);
         setEditInvoiceAdditions(inv.other_additions_amount || 0);
         setIsEditingInvoiceValues(false);
+        setInvoiceDetailTab('GERAL');
+        setInvoiceInstallmentsList([]);
+        loadInvoiceInstallments(inv.id);
         setIsInvoiceDetailModalOpen(true);
     };
+
+    const handleGenerateInstallments = async () => {
+        if (!selectedInvoice) return;
+        setGeneratingInstallments(true);
+        try {
+            // Busca dados completos do cliente para enviar endereço ao MP
+            let custData: any = null;
+            if (selectedInvoice.customer_id) {
+                const { data } = await supabase
+                    .from('customers')
+                    .select('*')
+                    .eq('id', selectedInvoice.customer_id)
+                    .maybeSingle();
+                custData = data;
+            }
+            // Fallback: procura nos clientes carregados em memória
+            if (!custData) {
+                custData = customers.find(c => c.id === selectedInvoice.customer_id);
+            }
+
+            const liquidAmount = Math.max(
+                0,
+                Number(selectedInvoice.total_amount || 0) -
+                Number(selectedInvoice.discount_amount || 0) +
+                Number(selectedInvoice.shipping_amount || 0) +
+                Number(selectedInvoice.other_additions_amount || 0)
+            );
+
+            const result = await PaymentService.createAsaasCharge({
+                itemType: 'INVOICE',
+                itemId: selectedInvoice.id,
+                displayId: selectedInvoice.display_id,
+                amount: liquidAmount > 0 ? liquidAmount : selectedInvoice.total_amount,
+                paymentMethodType: 'boleto',
+                customerName: selectedInvoice.customer_name,
+                customerDocument: selectedInvoice.customer_document,
+                customerEmail: custData?.email,
+                installments: installmentCount
+            });
+
+            if (result.success) {
+                showAlert(result.message, 'success');
+                await loadInvoiceInstallments(selectedInvoice.id);
+                loadInvoices();
+            } else {
+                showAlert(result.message, 'error');
+            }
+        } catch (err: any) {
+            showAlert(`Erro: ${err.message}`, 'error');
+        } finally {
+            setGeneratingInstallments(false);
+        }
+    };
+
+    const handleCancelInstallment = async (installment: any) => {
+        const paymentId = installment.gateway_payment_id || installment.payment_gateway_id;
+        
+        if (!paymentId) {
+            showAlert('Esta parcela não possui um ID de pagamento válido para cancelamento.', 'error');
+            return;
+        }
+
+        if (window.confirm(`Tem certeza que deseja cancelar a parcela ${installment.installment_number}? O boleto no Asaas será cancelado.`)) {
+            try {
+                const result = await PaymentService.cancelInstallment(paymentId, tenantIdStr);
+                if (result.success) {
+                    showAlert(result.message, 'success');
+                    if (selectedInvoice) {
+                        await loadInvoiceInstallments(selectedInvoice.id);
+                        loadInvoices();
+                    }
+                } else {
+                    showAlert(result.message, 'error');
+                }
+            } catch (err: any) {
+                showAlert(`Erro ao cancelar: ${err.message}`, 'error');
+            }
+        }
+    };
+
 
     const handleSaveInvoiceAdjustments = async () => {
         if (!selectedInvoice) return;
@@ -292,7 +624,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
             if (error) throw error;
 
-            showAlert('Valores da fatura atualizados com sucesso!', 'success');
+            showAlert('Valores atualizados! Se usar Mercado Pago, clique em Refaturar para gerar novo link.', 'success');
+            
             setSelectedInvoice((prev: any) => prev ? ({
                 ...prev,
                 discount_amount: editInvoiceDiscount,
@@ -307,7 +640,14 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     };
 
     useEffect(() => {
-        const handler = () => { if (mainTab === 'RECEIVABLES') loadInvoices(); };
+        const handler = (e: any) => { 
+            const updatedId = e.detail?.id;
+            if (updatedId) {
+                setSpinningInvoiceId(updatedId);
+                setTimeout(() => setSpinningInvoiceId(null), 2000);
+            }
+            if (mainTab === 'RECEIVABLES') loadInvoices(); 
+        };
         window.addEventListener('refresh_invoices', handler);
         
         if (mainTab === 'RECEIVABLES') {
@@ -316,6 +656,64 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         
         return () => window.removeEventListener('refresh_invoices', handler);
     }, [tenantIdStr, mainTab, isRefreshing]);
+
+    // Polling automático inteligente e verificação de NFS-e pendentes em background
+    useEffect(() => {
+        if (mainTab !== 'RECEIVABLES' || !tenantIdStr) return;
+
+        const intervalId = setInterval(() => {
+            loadInvoices();
+
+            // Se existirem notas pendentes (SCHEDULED ou SYNCHRONIZED), consulta status no Asaas em background
+            if (nfseDataMap) {
+                Object.entries(nfseDataMap).forEach(([invoiceId, nfse]) => {
+                    if (nfse && (nfse.status === 'SCHEDULED' || nfse.status === 'SYNCHRONIZED')) {
+                        PaymentService.checkNfseStatus(invoiceId, nfse.asaas_nfse_id, tenantIdStr)
+                            .then((res) => {
+                                if (res.success && res.nfse && res.nfse.status !== nfse.status) {
+                                    setNfseDataMap(prev => ({
+                                        ...prev,
+                                        [invoiceId]: {
+                                            status: res.nfse.status,
+                                            pdfUrl: res.nfse.pdfUrl,
+                                            xmlUrl: res.nfse.xmlUrl,
+                                            number: res.nfse.number,
+                                            asaas_nfse_id: res.nfse.id
+                                        }
+                                    }));
+                                    loadInvoices();
+                                }
+                            })
+                            .catch(() => {});
+                    }
+                });
+            }
+        }, 8000);
+
+        return () => clearInterval(intervalId);
+    }, [mainTab, tenantIdStr, nfseDataMap]);
+
+    // Recarrega as parcelas automaticamente quando ocorre um evento realtime
+    useEffect(() => {
+        const handler = (e: any) => {
+            const updatedId = e.detail?.id;
+            if (selectedInvoice?.id && (!updatedId || updatedId === selectedInvoice.id)) {
+                loadInvoiceInstallments(selectedInvoice.id);
+            }
+        };
+        window.addEventListener('refresh_invoices', handler);
+        return () => window.removeEventListener('refresh_invoices', handler);
+    }, [selectedInvoice]);
+
+    // Atualiza o modal de fatura se o status mudar em background
+    useEffect(() => {
+        if (selectedInvoice) {
+            const updated = invoices.find(inv => inv.id === selectedInvoice.id);
+            if (updated && updated.status !== selectedInvoice.status) {
+                setSelectedInvoice(updated);
+            }
+        }
+    }, [invoices, selectedInvoice]);
 
     const handleRefresh = async () => {
         setIsRefreshing(true);
@@ -365,6 +763,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 if (qOrigin) {
                     await DataService.updateQuote({
                         ...qOrigin,
+                        status: 'FATURADO',
                         billingStatus: 'PAID',
                         paymentMethod: paymentMethod,
                         billingNotes: `Faturado via vínculo automático (O.S. ${selectedItem.displayId || selectedItem.id.slice(0,8)} já estava paga)`,
@@ -449,10 +848,10 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 const st = q.status?.toUpperCase() || '';
                 
                 // Exibe incondicionalmente se já foi liquidado
-                if (bSt === 'PAID') return true;
+                if (bSt === 'PAID' || st === 'PAID') return true;
                 
-                // Se não foi liquidado, exige status adequado (aprovado/convertido)
-                if (st !== 'APROVADO' && st !== 'CONVERTIDO') return false;
+                // Se não foi liquidado, exige status adequado (aprovado/convertido/faturado)
+                if (st !== 'APROVADO' && st !== 'CONVERTIDO' && st !== 'FATURADO') return false;
 
                 // Esconde apenas se a O.S. vinculada já for uma O.S. concluída visível na tabela
                 // para não causar dupla contagem de valores simultâneos e pendentes
@@ -463,27 +862,30 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             .map(q => {
                 const isLinkedInvPaid = invoiceItems.some(invItem => invItem.reference_id === q.id && invoices.some(inv => inv.id === invItem.invoice_id && (inv.status === 'PAID' || inv.gateway_status === 'approved')));
                 const isPaid = (q.billingStatus || '').toUpperCase() === 'PAID' || (q as any).gateway_status === 'approved' || isLinkedInvPaid;
+                const itemsGross = q.items?.reduce((acc: number, i: any) => acc + (Number(i.total) || 0), 0) || 0;
                 const storedVal = Number(q.totalValue) || 0;
-                const discVal = Number(q.discount || (q as any).discount || 0);
-                const discType = q.discountType || (q as any).discount_type || 'fixed';
                 
-                let netValue = storedVal;
-                let grossValue = storedVal;
+                const discVal = Number(q.discount || (q as any).discount || (q as any).discount_amount || (q.formData as any)?.billingDiscount || 0);
+                const discType = q.discountType || (q as any).discount_type || (q.formData as any)?.billingDiscountType || 'fixed';
+                const shippingVal = Number((q as any).shipping || (q as any).shipping_amount || (q.formData as any)?.billingShipping || 0);
+                const additionsVal = Number((q as any).otherAdditions || (q as any).other_additions_amount || (q.formData as any)?.billingOtherAdditions || 0);
+
+                let grossValue = itemsGross > 0 ? itemsGross : storedVal;
                 let discountAmount = 0;
 
                 if (discVal > 0) {
-                    const itemsGross = q.items?.reduce((acc, i) => acc + (Number(i.total) || 0), 0) || 0;
-                    if (itemsGross > 0) {
-                        grossValue = itemsGross;
-                        discountAmount = grossValue - netValue;
+                    if (String(discType).toLowerCase() === 'percent') {
+                        discountAmount = grossValue * (discVal / 100);
                     } else {
-                        if (discType === 'percent' && discVal < 100) {
-                            grossValue = netValue / (1 - (discVal / 100));
-                        } else if (String(discType).toLowerCase() !== 'percent') {
-                            grossValue = netValue + discVal;
-                        }
-                        discountAmount = grossValue - netValue;
+                        discountAmount = discVal;
                     }
+                } else if (itemsGross > 0 && storedVal > 0 && itemsGross > storedVal) {
+                    discountAmount = itemsGross - storedVal;
+                }
+
+                let netValue = Math.max(0, grossValue - discountAmount + shippingVal + additionsVal);
+                if (itemsGross === 0 && discVal === 0 && storedVal > 0) {
+                    netValue = Math.max(0, storedVal + shippingVal + additionsVal);
                 }
                 
                 grossValue = Math.round(grossValue * 100) / 100;
@@ -492,11 +894,14 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
                 const linkedInv = invoices.find(inv => invoiceItems.some(invItem => invItem.reference_id === q.id && invItem.invoice_id === inv.id)) || null;
 
+                const fullCustQ = customers.find(c => c.id === (q as any).customer_id || c.id === (q as any).customerId || c.name?.toLowerCase().trim() === q.customerName?.toLowerCase().trim());
+                const actualCustomerNameQ = fullCustQ?.name || q.customerName;
+
                 return {
                     type: 'QUOTE' as const,
                     id: q.id,
                     displayId: q.displayId || null,
-                    customerName: q.customerName,
+                    customerName: actualCustomerNameQ,
                     customerAddress: q.customerAddress,
                     title: q.title,
                     description: q.description,
@@ -520,7 +925,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     gatewayStatus: q.gatewayStatus || (q as any).gateway_status || linkedInv?.gateway_status || 'pending',
                     gatewayPixCode: (q as any).gatewayPixCode || (q as any).gateway_pix_code || linkedInv?.gateway_pix_code || null,
                     gatewayTicketUrl: (q as any).gatewayTicketUrl || (q as any).gateway_ticket_url || linkedInv?.gateway_ticket_url || null,
-                    technician: techs.find(t => t.id === (q as any).createdBy || t.id === (q as any).authorId)?.name || 'Administrador'
+                    technician: resolveUserOrTechName((q as any).createdBy || (q as any).authorId || (q as any).technicianId, techs.find(t => t.id === (q as any).createdBy || t.id === (q as any).authorId)?.name || allUsers.find(u => u.id === (q as any).createdBy || u.id === (q as any).authorId)?.name)
                 };
             });
 
@@ -531,8 +936,10 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 const formVal = Number((order.formData as any)?.totalValue || (order.formData as any)?.price || 0);
                 const dbTotal = Number((order as any).total_value || (order as any).totalValue || 0);
                 
-                const discVal = Number(order.discount || (order as any).discount || 0);
-                const discType = order.discountType || (order as any).discount_type || 'fixed';
+                const discVal = Number(order.discount || (order as any).discount || (order as any).discount_amount || (order.formData as any)?.billingDiscount || 0);
+                const discType = order.discountType || (order as any).discount_type || (order.formData as any)?.billingDiscountType || 'fixed';
+                const shippingVal = Number((order as any).shipping || (order as any).shipping_amount || (order.formData as any)?.billingShipping || 0);
+                const additionsVal = Number((order as any).otherAdditions || (order as any).other_additions_amount || (order.formData as any)?.billingOtherAdditions || 0);
                 const isFromQuote = !!((order as any).quote_id || (order.formData as any)?.isFromQuote);
 
                 let grossValue = 0;
@@ -548,11 +955,10 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             discountAmount = discVal;
                         }
                     }
-                    netValue = Math.max(0, grossValue - discountAmount);
+                    netValue = Math.max(0, grossValue - discountAmount + shippingVal + additionsVal);
                 } else if (dbTotal > 0 || formVal > 0) {
                     const baseVal = dbTotal || formVal;
                     if ((isFromQuote || discVal > 0) && discVal > 0) {
-                        // Se é derivado de orçamento ou possui valor salvo que já é líquido:
                         netValue = baseVal;
                         if (String(discType).toLowerCase() === 'percent' && discVal < 100) {
                             grossValue = netValue / (1 - (discVal / 100));
@@ -560,9 +966,10 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             grossValue = netValue + discVal;
                         }
                         discountAmount = grossValue - netValue;
+                        netValue = Math.max(0, netValue + shippingVal + additionsVal);
                     } else {
                         grossValue = baseVal;
-                        netValue = baseVal;
+                        netValue = Math.max(0, baseVal + shippingVal + additionsVal);
                     }
                 }
 
@@ -589,11 +996,14 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 const isPaid = (order.billingStatus || '').toUpperCase() === 'PAID' || (order as any).gateway_status === 'approved' || isLinkedInvPaid;
                 const linkedInv = invoices.find(inv => invoiceItems.some(invItem => invItem.reference_id === order.id && invItem.invoice_id === inv.id)) || null;
 
+                const fullCustO = customers.find(c => c.id === (order as any).customer_id || c.id === (order as any).customerId || c.name?.toLowerCase().trim() === order.customerName?.toLowerCase().trim());
+                const actualCustomerNameO = fullCustO?.name || order.customerName;
+
                 return {
                     type: 'ORDER' as const,
                     id: order.id,
                     displayId: order.displayId || null,
-                    customerName: order.customerName,
+                    customerName: actualCustomerNameO,
                     customerAddress: order.customerAddress,
                     title: order.title,
                     description: order.description,
@@ -617,7 +1027,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     gatewayStatus: order.gatewayStatus || (order as any).gateway_status || linkedInv?.gateway_status || 'pending',
                     gatewayPixCode: (order as any).gatewayPixCode || (order as any).gateway_pix_code || linkedInv?.gateway_pix_code || null,
                     gatewayTicketUrl: (order as any).gatewayTicketUrl || (order as any).gateway_ticket_url || linkedInv?.gateway_ticket_url || null,
-                    technician: techObj?.name || order.assignedTo || 'N/A'
+                    technician: resolveUserOrTechName(order.assignedTo || (order as any).createdBy || (order as any).authorId, techObj?.name || allUsers.find(u => u.id === order.assignedTo || u.id === order.createdBy || u.id === (order as any).authorId)?.name)
                 };
             })
             .filter(item => item.value > 0);
@@ -625,7 +1035,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         return [...approvedQuotes, ...completedOrders].sort((a, b) =>
             new Date(b.date).getTime() - new Date(a.date).getTime()
         );
-    }, [orders, quotes, techs, invoices, invoiceItems]);
+    }, [orders, quotes, techs, invoices, invoiceItems, allUsers]);
 
     // 2. Aplicar Filtros
     const filteredItems = useMemo(() => {
@@ -702,16 +1112,41 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     }, [filteredItems, sortConfig]);
 
     const filteredInvoices = useMemo(() => {
+        const term = invSearchTerm.toLowerCase().trim();
         return invoices.filter(inv => {
-            const matchesSearch = 
-                inv.customer_name?.toLowerCase().includes(invSearchTerm.toLowerCase()) ||
-                inv.customer_document?.toLowerCase().includes(invSearchTerm.toLowerCase()) ||
-                inv.display_id?.toLowerCase().includes(invSearchTerm.toLowerCase());
+            const operator = getBilledUserName(inv).toLowerCase();
+            const pMethodObj = getInvoicePaymentMethodLabel(inv);
+            const pMethod = pMethodObj.label.toLowerCase();
+            const invNum = String(inv.invoice_number || inv.asaas_invoice_number || '').toLowerCase();
+            const gtwId = String(inv.gateway_payment_id || inv.payment_gateway_id || '').toLowerCase();
+            const displayId = String(inv.display_id || '').toLowerCase();
+            const custName = String(inv.customer_name || '').toLowerCase();
+            const custDoc = String(inv.customer_document || '').toLowerCase();
+            const amountStr = String(inv.total_amount || '').toLowerCase();
+            const notesStr = typeof inv.notes === 'string' ? inv.notes.toLowerCase() : '';
+
+            const matchesSearch = !term ||
+                custName.includes(term) ||
+                custDoc.includes(term) ||
+                displayId.includes(term) ||
+                invNum.includes(term) ||
+                gtwId.includes(term) ||
+                operator.includes(term) ||
+                pMethod.includes(term) ||
+                amountStr.includes(term) ||
+                notesStr.includes(term);
                 
             let targetDate = inv.created_at;
+            if (invDateFilterType === 'paidAt') targetDate = inv.paid_at || (inv.status === 'PAID' ? inv.updated_at : null);
+            if (invDateFilterType === 'dueDate') targetDate = inv.due_date;
+
             let itemDate = '';
             if (targetDate) {
-                itemDate = new Date(targetDate).toISOString().split('T')[0];
+                try {
+                    itemDate = new Date(targetDate).toISOString().split('T')[0];
+                } catch {
+                    itemDate = String(targetDate).split('T')[0];
+                }
             }
             
             const matchesDate =
@@ -724,7 +1159,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 
             return matchesSearch && matchesDate && matchesStatus;
         });
-    }, [invoices, invSearchTerm, invStartDate, invEndDate, invStatusFilter]);
+    }, [invoices, invSearchTerm, invStartDate, invEndDate, invStatusFilter, invDateFilterType, allUsers, invoiceItems, orders, quotes, techs]);
 
     // Scanner automático removido: O sistema agora confia 100% na arquitetura orientada a eventos.
     // O Webhook do Mercado Pago recebe a notificação, valida a veracidade diretamente na API do MP,
@@ -796,11 +1231,11 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         });
     };
     const selectedTotal = useMemo(() => {
-        return filteredItems.filter(i => selectedIds.includes(i.id)).reduce((acc, i) => {
+        return allItems.filter(i => selectedIds.includes(i.id)).reduce((acc, i) => {
             if (selectedItem && selectedItem.id === i.id) return acc + Number(selectedItem.value);
             return acc + Number(i.value);
         }, 0);
-    }, [filteredItems, selectedIds, selectedItem]);
+    }, [allItems, selectedIds, selectedItem]);
 
     // 5. Handlers
     const handleInvoiceBatch = () => {
@@ -845,6 +1280,11 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             }
         }
 
+        setBillingDiscount(0);
+        setBillingDiscountType('fixed');
+        setBillingShipping(0);
+        setBillingOtherAdditions(0);
+
         setIsInvoiceModalOpen(true);
     };
 
@@ -863,7 +1303,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         const paidAt = new Date().toISOString();
         const targetRawItem = filteredItems.find(i => selectedIds.includes(i.id)) || (selectedItem && selectedIds.includes(selectedItem.id) ? selectedItem : null);
         
-        const itemsBaseTotal = selectedIds.length === 1 ? (targetRawItem?.value || selectedItem?.value || 0) : selectedTotal;
+        const itemsBaseTotal = selectedTotal;
         const discountValue = billingDiscountType === 'percent' ? (itemsBaseTotal * billingDiscount / 100) : billingDiscount;
         const finalAmount = Math.max(0, itemsBaseTotal - discountValue + billingShipping + billingOtherAdditions);
         const baseAmount = itemsBaseTotal;
@@ -871,8 +1311,42 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         
         try {
             const currentTenantId = tenant?.id || tenantIdStr || '';
-            const firstItem = filteredItems.find(i => i.id === selectedIds[0]);
-            const fullCust = customers.find(c => c.id === (firstItem?.original?.customerId || firstItem?.original?.customer_id));
+            const firstItem = allItems.find(i => i.id === selectedIds[0]);
+            // Big Tech Standard: Busca EXCLUSIVA por ID para evitar colisão em multi-tenant.
+            // Tenta pegar o customer_id da fatura existente, ou da OS/Orçamento.
+            const targetCustomerId = selectedInvoice?.customer_id || firstItem?.original?.customerId || firstItem?.original?.customer_id;
+            const targetCustomerName = firstItem?.customerName || firstItem?.original?.customer_name || firstItem?.original?.customerName || '';
+            const targetCustomerDoc = (firstItem as any)?.customerDocument || firstItem?.original?.customer_document || firstItem?.original?.customerDocument || '';
+
+            // Busca hierárquica: por ID → por CPF/CNPJ → por nome → cria um objeto sintético com os dados disponíveis
+            let fullCust: any = customers.find(c => c.id === targetCustomerId);
+            if (!fullCust && targetCustomerDoc) {
+                const cleanDoc = targetCustomerDoc.toString().replace(/\D/g, '');
+                fullCust = customers.find(c => {
+                    const cDoc = ((c as any).document || (c as any).cpf || (c as any).cnpj || '').toString().replace(/\D/g, '');
+                    return cDoc && cDoc === cleanDoc;
+                });
+            }
+            if (!fullCust && targetCustomerName) {
+                fullCust = customers.find(c => c.name?.toLowerCase().trim() === targetCustomerName.toLowerCase().trim());
+            }
+            // Fallback sintético: usa os dados que já estão no item para não bloquear o faturamento
+            if (!fullCust && targetCustomerName) {
+                fullCust = {
+                    id: targetCustomerId || '',
+                    name: targetCustomerName,
+                    document: targetCustomerDoc,
+                    email: firstItem?.original?.customer_email || firstItem?.original?.customerEmail || '',
+                    phone: firstItem?.original?.customer_phone || firstItem?.original?.customerPhone || '',
+                };
+            }
+            
+            if (!fullCust) {
+                showAlert('Falha de Integridade: Cliente não identificado pelo ID. Verifique se a Ordem/Orçamento possui um cliente vinculado.', 'error');
+                setIsProcessing(false);
+                return;
+            }
+
             const customerDoc = (firstItem as any)?.customerDocument || fullCust?.document || (fullCust as any)?.cpf || (fullCust as any)?.cnpj || firstItem?.original?.customer_document || firstItem?.original?.customerDocument;
             
             const invoiceStatus = isMpIntegrationTriggered ? 'PENDING' : 'PAID';
@@ -903,20 +1377,38 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             }
 
             let invoice;
+            const operatorName = currentUser?.name || currentUser?.user_metadata?.full_name || currentUser?.email || (typeof window !== 'undefined' ? (JSON.parse(sessionStorage.getItem('user') || '{}').name || JSON.parse(localStorage.getItem('user') || '{}').name) : null) || 'Operador do Painel';
+            const operatorId = currentUser?.id || currentUser?.user_metadata?.sub || 'system';
 
             if (targetInvoice) {
                 // ATUALIZA Fatura Existente
-                const { data: updatedInv, error: updError } = await supabase.from('invoices').update({
+                const updatePayload: any = {
                     total_amount: baseAmount,
                     discount_amount: discountValue,
                     shipping_amount: billingShipping,
                     other_additions_amount: billingOtherAdditions,
                     payment_method: finalMethod,
                     status: invoiceStatus,
-                    paid_at: isMpIntegrationTriggered ? null : paidAt
-                }).eq('id', targetInvoice.id).select('*').single();
+                    paid_at: isMpIntegrationTriggered ? null : paidAt,
+                    billed_by: operatorId,
+                    billed_by_name: operatorName,
+                    created_by: operatorName
+                };
 
-                if (updError) throw updError;
+                let updatedInv = null;
+                let { data: resData, error: updError } = await supabase.from('invoices').update(updatePayload).eq('id', targetInvoice.id).select('*').single();
+                
+                if (updError) {
+                    delete updatePayload.billed_by;
+                    delete updatePayload.billed_by_name;
+                    delete updatePayload.created_by;
+                    delete updatePayload.form_data;
+                    const retryRes = await supabase.from('invoices').update(updatePayload).eq('id', targetInvoice.id).select('*').single();
+                    if (retryRes.error) throw retryRes.error;
+                    updatedInv = retryRes.data;
+                } else {
+                    updatedInv = resData;
+                }
                 invoice = updatedInv;
 
                 // Insere apenas os novos itens (caso o usuário tenha adicionado mais)
@@ -939,8 +1431,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 }
             } else {
                 // 1. Sempre gera Nova Fatura
-                const { data: newInv, error: invoiceError } = await supabase.from('invoices').insert([{
+                const insertPayload: any = {
                     tenant_id: currentTenantId,
+                    customer_id: fullCust?.id,
                     customer_name: fullCust?.name || firstItem?.customerName || 'Cliente',
                     customer_document: customerDoc,
                     total_amount: baseAmount,
@@ -949,10 +1442,26 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     other_additions_amount: billingOtherAdditions,
                     payment_method: finalMethod,
                     status: invoiceStatus,
-                    paid_at: isMpIntegrationTriggered ? null : paidAt
-                }]).select('*').single();
+                    paid_at: isMpIntegrationTriggered ? null : paidAt,
+                    billed_by: operatorId,
+                    billed_by_name: operatorName,
+                    created_by: operatorName
+                };
 
-                if (invoiceError || !newInv) throw invoiceError || new Error('Failed to create invoice');
+                let newInv = null;
+                let { data: resData, error: invoiceError } = await supabase.from('invoices').insert([insertPayload]).select('*').single();
+                
+                if (invoiceError || !resData) {
+                    delete insertPayload.billed_by;
+                    delete insertPayload.billed_by_name;
+                    delete insertPayload.created_by;
+                    delete insertPayload.form_data;
+                    const retryRes = await supabase.from('invoices').insert([insertPayload]).select('*').single();
+                    if (retryRes.error || !retryRes.data) throw retryRes.error || new Error('Failed to create invoice');
+                    newInv = retryRes.data;
+                } else {
+                    newInv = resData;
+                }
                 invoice = newInv;
 
                 // 2. Sempre vincula itens à Fatura
@@ -970,52 +1479,65 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 await supabase.from('invoice_items').insert(invoiceItemsData);
             }
 
-            if (isMpIntegrationTriggered) {
-                // Fluxo Mercado Pago (Gera Link)
-                const mpMethod = finalMethod === 'Pix' ? 'pix' : (finalMethod === 'Boleto' ? 'boleto' : 'card_link');
-                const res = await PaymentService.createMercadoPagoCharge({
-                    itemType: 'INVOICE',
-                    itemId: invoice.id,
-                    displayId: invoice.display_id,
-                    title: selectedIds.length === 1 ? (firstItem?.title || 'Fatura') : `Fatura (${selectedIds.length} Itens)`,
-                    amount: finalAmount,
-                    customerName: invoice.customer_name,
-                    customerDocument: invoice.customer_document,
-                    customerZip: fullCust?.zip || (fullCust as any)?.cep,
-                    customerStreet: fullCust?.address || (fullCust as any)?.street,
-                    customerNumber: fullCust?.number,
-                    customerNeighborhood: fullCust?.neighborhood,
-                    customerCity: fullCust?.city,
-                    customerState: fullCust?.state,
-                    paymentMethodType: mpMethod,
-                    installments: (finalMethod && (finalMethod.includes('Cartão') || finalMethod.includes('cartao') || finalMethod.includes('credit') || finalMethod.includes('card'))) ? installments : undefined,
-                    tenantId: currentTenantId
-                });
+            // Garante que o estado local saiba dos itens recém-inseridos antes de tentar o MP (para não quebrar o Refaturar se o MP falhar)
+            await loadInvoices();
 
-                if (!res.success) {
-                    showAlert(`Erro ao gerar fatura: ${res.error}`, 'error');
-                    setIsProcessing(false);
-                    return;
+            if (isMpIntegrationTriggered) {
+                // Fluxo Asaas (Gera Link/Pix/Boleto ou Prepara Cartão)
+                const asaasMethod = finalMethod === 'Pix' ? 'pix' : (finalMethod === 'Boleto' ? 'boleto' : 'credit_card');
+                
+                // PIX é estritamente à vista (1x). Boleto usa installmentCount. Cartão usa installments.
+                const finalInstallments = asaasMethod === 'pix' ? 1 : (asaasMethod === 'credit_card' ? (installments || 1) : (installmentCount || 1));
+
+                let asaasRes: any = { success: true, paymentId: '', pixCopiaECola: '', qrCode: '', ticketUrl: '', hostedCheckoutUrl: '' };
+
+                // Agora geramos para todos os métodos (inclusive Checkouts do Cartão de Crédito)
+                if (true) {
+                    asaasRes = await PaymentService.createAsaasCharge({
+                        itemType: 'INVOICE',
+                        itemId: invoice.id,
+                        displayId: invoice.display_id,
+                        title: selectedIds.length === 1 ? (firstItem?.title || 'Fatura') : `Fatura (${selectedIds.length} Itens)`,
+                        amount: finalAmount,
+                        customerName: invoice.customer_name,
+                        customerDocument: invoice.customer_document,
+                        customerZip: fullCust?.zip || (fullCust as any)?.cep,
+                        customerStreet: fullCust?.address || (fullCust as any)?.street,
+                        customerNumber: fullCust?.number,
+                        customerNeighborhood: fullCust?.neighborhood,
+                        customerCity: fullCust?.city,
+                        customerState: fullCust?.state,
+                        paymentMethodType: asaasMethod,
+                        installments: finalInstallments,
+                        tenantId: currentTenantId
+                    });
+
+                    if (!asaasRes.success) {
+                        showAlert(`Erro ao gerar fatura no Asaas: ${asaasRes.message || asaasRes.error}`, 'error');
+                        setIsProcessing(false);
+                        return;
+                    }
                 }
 
                 const notesObj = {
-                    gateway_provider: 'mercadopago',
-                    gateway_payment_id: res.paymentId,
-                    gateway_pix_code: res.pixCopiaECola || res.qrCode,
-                    gateway_ticket_url: res.ticketUrl,
+                    gateway_provider: 'asaas',
+                    gateway_payment_id: asaasRes.paymentId,
+                    gateway_pix_code: asaasRes.pixCopiaECola || asaasRes.qrCode,
+                    gateway_ticket_url: asaasRes.ticketUrl || asaasRes.hostedCheckoutUrl,
                     gateway_status: 'pending',
-                    mpInstallments: installments,
-                    installments: installments,
-                    max_installments: installments
+                    asaasInstallments: finalInstallments,
+                    installments: finalInstallments,
+                    max_installments: finalInstallments,
+                    hasInstallments: finalInstallments > 1
                 };
                 
                 await supabase.from('invoices').update({ 
-                    payment_gateway_id: res.paymentId,
+                    payment_gateway_id: asaasRes.paymentId,
                     notes: JSON.stringify(notesObj)
                 }).eq('id', invoice.id);
 
                 for (const id of selectedIds) {
-                    const rawItem = filteredItems.find(i => i.id === id);
+                    const rawItem = allItems.find(i => i.id === id);
                     if (!rawItem) continue;
                     if (rawItem.type === 'ORDER') {
                         await DataService.updateOrder({
@@ -1025,32 +1547,45 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     } else {
                         await DataService.updateQuote({
                             ...rawItem.original,
+                            status: 'FATURADO',
                             paymentMethod: finalMethod
                         });
                     }
                 }
 
-                setMpModalItem({
+                setAsaasModalItem({
                     type: 'INVOICE',
                     id: invoice.id,
-                    displayId: invoice.display_id || `FAT-${invoice.id.slice(0,6)}`,
+                    displayId: formatInvoiceDisplayId(invoice.display_id || invoice.id),
                     title: selectedIds.length === 1 ? (firstItem?.title || 'Fatura') : `Fatura (${selectedIds.length} Itens)`,
                     value: finalAmount,
                     customerName: invoice.customer_name,
                     customerDocument: invoice.customer_document,
-                    gatewayPaymentId: res.paymentId,
-                    gatewayPixCode: res.pixCopiaECola || res.qrCode,
-                    gatewayTicketUrl: res.ticketUrl,
-                    gatewayPaymentMethod: mpMethod,
+                    gatewayPaymentId: asaasRes.paymentId,
+                    gatewayPixCode: asaasRes.pixCopiaECola || asaasRes.qrCode,
+                    gatewayTicketUrl: asaasRes.ticketUrl,
+                    gatewayPaymentMethod: asaasMethod,
                     gatewayStatus: 'pending',
                     billingStatus: 'PENDING',
-                    installments: installments,
-                    mpInstallments: installments,
+                    installments: finalInstallments,
+                    asaasInstallments: finalInstallments,
                     notes: JSON.stringify(notesObj)
                 });
                 await loadInvoices();
                 setIsInvoiceModalOpen(false);
-                setIsMpModalOpen(true);
+
+                if (asaasMethod === 'credit_card') {
+                    // Para cartão de crédito: abrir checkout automaticamente no painel interno
+                    const checkoutUrl = `${window.location.origin}/#/checkout/invoice/${invoice.id}`;
+                    window.open(checkoutUrl, '_blank');
+                    showAlert('Fatura criada! O checkout foi aberto em uma nova aba para o cliente preencher o cartão.', 'success');
+                    setInvoiceDetailTab('GERAL');
+                    setSelectedInvoice(invoice);
+                    await loadInvoices();
+                    setIsInvoiceDetailModalOpen(true);
+                } else {
+                    setIsAsaasModalOpen(true);
+                }
             } else {
                 // Fluxo Manual (Dinheiro / Transferência)
                 let uploadedReceiptUrl = '';
@@ -1088,6 +1623,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             if (qOrigin) {
                                 await DataService.updateQuote({
                                     ...qOrigin,
+                                    status: 'FATURADO',
                                     billingStatus: 'PAID',
                                     paymentMethod: finalMethod,
                                     billingNotes: `Faturado via FAT ${invoice.display_id || invoice.id.slice(0, 8)}`,
@@ -1099,6 +1635,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     } else {
                         await DataService.updateQuote({
                             ...rawItem.original,
+                            status: 'FATURADO',
                             billingStatus: 'PAID',
                             paymentMethod: finalMethod,
                             billingNotes: billingNotes,
@@ -1319,7 +1856,7 @@ ${container.innerHTML}
                 orig.status || 'N/A',
                 orig.priority || 'N/A',
                 item.value || 0,
-                item.status === 'PAID' ? 'Faturado' : 'Pendente',
+                item.status === 'PAID' ? 'Liquidada' : 'Pendente',
                 formatDateTime(item.createdAt),
                 formatDateTime(item.paidAt || item.updatedAt)
             ];
@@ -1413,7 +1950,7 @@ ${container.innerHTML}
         <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden relative font-sans">
             
             {/* ── TOP LEVEL TAB SWITCHER & SUB-VIEWS (Stripe / Linear Style) ── */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-0 mb-4 shrink-0">
+            <div className="flex items-center justify-between border-b border-slate-200/80 pb-0 mb-3 shrink-0">
                 {/* Main Tabs (Stripe style underline tabs) */}
                 <div className="flex items-center gap-6">
                     <button
@@ -1439,17 +1976,34 @@ ${container.innerHTML}
                         <ArrowUpRight size={16} className={mainTab === 'PAYABLES' ? 'text-amber-600' : 'text-slate-400'} />
                         <span>Contas a Pagar</span>
                     </button>
-                </div>
 
-                {/* Sub-View Switcher for Receivables (Right aligned clean pill group) */}
-                {mainTab === 'RECEIVABLES' && (
-                    <div className="flex items-center gap-1.5 pb-2 sm:pb-2">
+                    <button
+                        onClick={() => setMainTab('CASH_FLOW')}
+                        className={`flex items-center gap-2 pb-3 pt-1 text-sm font-semibold border-b-2 transition-all relative ${
+                            mainTab === 'CASH_FLOW'
+                                ? 'border-indigo-600 text-indigo-700'
+                                : 'border-transparent text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        <Wallet size={16} className={mainTab === 'CASH_FLOW' ? 'text-indigo-600' : 'text-slate-400'} />
+                        <span>Giro de Caixa</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* Sub-View Switcher for Receivables (Sub-abas conectadas por guia visual à aba principal) */}
+            {mainTab === 'RECEIVABLES' && (
+                <div className="flex items-center gap-1.5 mb-3 shrink-0 pl-3">
+                    {/* Linha/Haste de conexão visual "└" amarrando a aba principal às sub-abas */}
+                    <div className="w-3.5 h-4 border-l-2 border-b-2 border-[#1c2d4f]/50 rounded-bl-md -mt-2 shrink-0" />
+
+                    <div className="inline-flex p-1 bg-slate-200/60 rounded-lg border border-slate-200/80 shadow-inner">
                         <button
                             onClick={() => setReceivablesView('items')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                            className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-md transition-all ${
                                 receivablesView === 'items'
                                     ? 'bg-[#1c2d4f] text-white shadow-xs'
-                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/50'
                             }`}
                         >
                             <FileText size={13} className={receivablesView === 'items' ? 'text-white' : 'text-slate-400'} />
@@ -1458,22 +2012,28 @@ ${container.innerHTML}
 
                         <button
                             onClick={() => setReceivablesView('invoices')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                            className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-md transition-all ${
                                 receivablesView === 'invoices'
                                     ? 'bg-[#1c2d4f] text-white shadow-xs'
-                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/50'
                             }`}
                         >
                             <Receipt size={13} className={receivablesView === 'invoices' ? 'text-white' : 'text-slate-400'} />
                             <span>Faturas Geradas</span>
                         </button>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
 
             {mainTab === 'PAYABLES' && (
                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-8">
                     <AccountsPayableTab tenantId={tenant?.id || ''} />
+                </div>
+            )}
+
+            {mainTab === 'CASH_FLOW' && (
+                <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-8">
+                    <CashFlowTab tenantId={tenant?.id || ''} receivables={allItems} />
                 </div>
             )}
 
@@ -1678,7 +2238,7 @@ ${container.innerHTML}
                             >
                                 <option value="ALL">Todos</option>
                                 <option value="PENDING">Pendente</option>
-                                <option value="PAID">Faturado</option>
+                                <option value="PAID">Liquidada</option>
                             </select>
                         </div>
 
@@ -1706,7 +2266,21 @@ ${container.innerHTML}
 
                 {/* Collapsible Filters - Faturas */}
                 {showFilters && receivablesView === 'invoices' && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200 shadow-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200 shadow-sm">
+                        {/* Tipo de Data */}
+                        <div className="sm:col-span-1 lg:col-span-1 flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">Filtrar Data Por</label>
+                            <select 
+                                value={invDateFilterType}
+                                onChange={e => { setInvDateFilterType(e.target.value as any); setCurrentInvoicePage(1); }}
+                                className="w-full bg-white border border-slate-200 text-xs font-semibold uppercase text-slate-700 outline-none cursor-pointer px-3 py-2 rounded-lg h-9 shadow-sm"
+                            >
+                                <option value="createdAt">Data Emissão</option>
+                                <option value="paidAt">Data Pagamento</option>
+                                <option value="dueDate">Data Vencimento</option>
+                            </select>
+                        </div>
+
                         {/* Data Inicial (De) */}
                         <div className="sm:col-span-1 lg:col-span-1 flex flex-col gap-1">
                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">De (Início)</label>
@@ -1753,6 +2327,7 @@ ${container.innerHTML}
                         <div className="sm:col-span-2 lg:col-span-1 flex flex-col justify-end gap-1">
                             <button
                                 onClick={() => {
+                                    setInvDateFilterType('createdAt');
                                     const date = new Date();
                                     setInvStartDate(new Date(date.getFullYear(), date.getMonth(), 1).toISOString().split('T')[0]);
                                     setInvEndDate(new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split('T')[0]);
@@ -1771,20 +2346,20 @@ ${container.innerHTML}
 
                 {/* Stats Cards */}
                 {receivablesView === 'items' && (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                     {[
-                        { label: 'Total Recebido', value: formatCurrency(stats.totalFaturado), icon: <DollarSign size={16} />, color: 'from-emerald-500 to-emerald-600', textMain: 'text-white' },
-                        { label: 'A Receber', value: formatCurrency(stats.totalPendente), icon: <Clock size={16} />, color: 'from-amber-500 to-amber-600', textMain: 'text-white' },
-                        { label: 'Ticket Médio', value: formatCurrency(filteredItems.length > 0 ? (stats.totalFaturado + stats.totalPendente) / filteredItems.length : 0), icon: <TrendingUp size={16} />, color: 'from-[#1c2d4f] to-[#2a457a]', textMain: 'text-white' },
-                        { label: 'Top Faturador', value: stats.topTech[0]?.toString() || '—', icon: <UserCheck size={16} />, color: 'from-slate-700 to-slate-900', textMain: 'text-white', truncate: true },
+                        { label: 'Total Recebido', value: formatCurrency(stats.totalFaturado), icon: <DollarSign size={14} />, color: 'from-emerald-500 to-emerald-600', textMain: 'text-white' },
+                        { label: 'A Receber', value: formatCurrency(stats.totalPendente), icon: <Clock size={14} />, color: 'from-amber-500 to-amber-600', textMain: 'text-white' },
+                        { label: 'Ticket Médio', value: formatCurrency(filteredItems.length > 0 ? (stats.totalFaturado + stats.totalPendente) / filteredItems.length : 0), icon: <TrendingUp size={14} />, color: 'from-[#1c2d4f] to-[#2a457a]', textMain: 'text-white' },
+                        { label: 'Top Faturador', value: stats.topTech[0]?.toString() || '—', icon: <UserCheck size={14} />, color: 'from-slate-700 to-slate-900', textMain: 'text-white', truncate: true },
                     ].map((stat, i) => (
-                        <div key={i} className={`bg-gradient-to-br ${stat.color} rounded-xl px-3.5 py-2.5 shadow-md flex items-center gap-3`}>
-                            <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center text-white shrink-0">
+                        <div key={i} className={`bg-gradient-to-br ${stat.color} rounded-lg px-3 py-1.5 shadow-sm flex items-center gap-2.5`}>
+                            <div className="w-7 h-7 rounded-md bg-white/15 flex items-center justify-center text-white shrink-0">
                                 {stat.icon}
                             </div>
                             <div className="min-w-0">
-                                <p className="text-[9px] font-semibold text-white/70 uppercase tracking-widest leading-none mb-1">{stat.label}</p>
-                                <p className={`text-[13px] font-semibold ${stat.textMain} leading-none ${stat.truncate ? 'truncate' : ''}`}>{stat.value}</p>
+                                <p className="text-[8.5px] font-semibold text-white/70 uppercase tracking-wider leading-none mb-0.5">{stat.label}</p>
+                                <p className={`text-[12.5px] font-bold ${stat.textMain} leading-none ${stat.truncate ? 'truncate' : ''}`}>{stat.value}</p>
                             </div>
                         </div>
                     ))}
@@ -1815,14 +2390,11 @@ ${container.innerHTML}
                                 <th className="px-2 py-2.5 cursor-pointer group select-none hover:bg-slate-200/50 transition-colors whitespace-nowrap" onClick={() => requestSort('displayId')}>
                                     <div className="flex items-center gap-1">Protocolo {getSortIcon('displayId')}</div>
                                 </th>
+                                <th className="px-2 py-2.5 cursor-pointer group select-none hover:bg-slate-200/50 transition-colors whitespace-nowrap">
+                                    <div className="flex items-center gap-1">Cód. FAT</div>
+                                </th>
                                 <th className="px-2 py-2.5 cursor-pointer group select-none hover:bg-slate-200/50 transition-colors" onClick={() => requestSort('customerName')}>
                                     <div className="flex items-center gap-1">Cliente {getSortIcon('customerName')}</div>
-                                </th>
-                                <th className="px-2 py-2.5 cursor-pointer group select-none hover:bg-slate-200/50 transition-colors" onClick={() => requestSort('title')}>
-                                    <div className="flex items-center gap-1">Descrição {getSortIcon('title')}</div>
-                                </th>
-                                <th className="px-2 py-2.5 cursor-pointer group select-none hover:bg-slate-200/50 transition-colors" onClick={() => requestSort('technician')}>
-                                    <div className="flex items-center gap-1">Técnico {getSortIcon('technician')}</div>
                                 </th>
                                 <th className="px-2 py-2.5 cursor-pointer group select-none hover:bg-slate-200/50 transition-colors whitespace-nowrap" onClick={() => requestSort('createdAt')}>
                                     <div className="flex items-center gap-1">Data Criação {getSortIcon('createdAt')}</div>
@@ -1847,7 +2419,7 @@ ${container.innerHTML}
                         <tbody key={currentPage} className="divide-y divide-slate-100 animate-fade-in duration-200">
                             {isRefreshing || isPageChanging ? (
                                 <tr>
-                                    <td colSpan={11} className="py-16 text-center">
+                                    <td colSpan={10} className="py-16 text-center">
                                         <div className="flex flex-col items-center gap-3">
                                             <Loader2 size={28} className="animate-spin text-primary-400" />
                                             <p className="text-xs font-medium text-slate-400">Carregando dados financeiros...</p>
@@ -1856,7 +2428,7 @@ ${container.innerHTML}
                                 </tr>
                             ) : paginatedItems.length === 0 ? (
                                 <tr>
-                                    <td colSpan={11} className="py-16 text-center">
+                                    <td colSpan={10} className="py-16 text-center">
                                         <DollarSign size={32} className="text-slate-200 mx-auto mb-3" />
                                         <p className="text-xs font-semibold text-slate-300 uppercase tracking-widest">Nenhum lançamento encontrado</p>
                                     </td>
@@ -1878,20 +2450,42 @@ ${container.innerHTML}
                                         <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border w-fit block ${item.type === 'QUOTE' ? 'bg-[#1c2d4f]/10 text-[#1c2d4f] border-[#1c2d4f]/20' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
                                             {getDocLabel(item)}
                                         </span>
-                                        {isFaturado && faturaDoc && (
-                                            <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 block w-fit mt-1">
-                                                FAT: {faturaDoc}
-                                            </span>
+                                    </td>
+                                    <td className="px-2 py-2 whitespace-nowrap">
+                                        {isFaturado && faturaDoc ? (
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200 block w-fit">
+                                                    {faturaDoc}
+                                                </span>
+                                                {(() => {
+                                                    const fatura = invoices.find(inv => invoiceItems.some(ii => ii.reference_id === item.id && ii.invoice_id === inv.id));
+                                                    if (fatura) {
+                                                        const invoiceNumber = fatura.invoice_number;
+                                                        const gatewayId = fatura.gateway_payment_id || fatura.payment_gateway_id;
+                                                        if (invoiceNumber) {
+                                                            return (
+                                                                <span className="text-[9px] text-slate-500 font-medium font-mono" title="Número da Fatura (Asaas)">
+                                                                    Nº {invoiceNumber}
+                                                                </span>
+                                                            );
+                                                        } else if (gatewayId) {
+                                                            const displayGatewayId = gatewayId.startsWith('pay_') ? gatewayId.replace('pay_', '') : gatewayId;
+                                                            return (
+                                                                <span className="text-[9px] text-slate-400 font-medium font-mono truncate max-w-[100px] block" title={`ID Gateway: ${gatewayId}`}>
+                                                                    ID: {displayGatewayId}
+                                                                </span>
+                                                            );
+                                                        }
+                                                    }
+                                                    return null;
+                                                })()}
+                                            </div>
+                                        ) : (
+                                            <span className="text-[10px] text-slate-400">-</span>
                                         )}
                                     </td>
                                     <td className="px-2 py-2">
                                         <p className="text-xs font-bold text-slate-800 truncate max-w-[120px] lg:max-w-[140px] 2xl:max-w-[200px]" title={item.customerName}>{item.customerName}</p>
-                                    </td>
-                                    <td className="px-2 py-2">
-                                        <p className="text-xs text-slate-600 truncate max-w-[130px] lg:max-w-[150px] 2xl:max-w-[220px]" title={item.title}>{item.title}</p>
-                                    </td>
-                                    <td className="px-2 py-2">
-                                        <span className="text-[11px] text-slate-600 truncate max-w-[90px] block capitalize" title={item.technician}>{item.technician?.toLowerCase() || '—'}</span>
                                     </td>
                                     <td className="px-2 py-2 whitespace-nowrap">
                                         <div className="flex flex-col">
@@ -1912,7 +2506,7 @@ ${container.innerHTML}
                                             {item.paidAt ? (
                                                 <>
                                                     <span className="text-[11px] font-medium text-emerald-600">{new Date(item.paidAt).toLocaleDateString('pt-BR')}</span>
-                                                    <span className="text-[9px] text-emerald-500">Faturado</span>
+                                                    <span className="text-[9px] text-emerald-500">Liquidada</span>
                                                 </>
                                             ) : (
                                                 <span className="text-[11px] text-slate-300">—</span>
@@ -1945,7 +2539,7 @@ ${container.innerHTML}
                                     <td className="px-2 py-2 text-center whitespace-nowrap">
                                         <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${item.status === 'PAID' || (item.original as any)?.billing_status === 'PAID' || (item.original as any)?.gateway_status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
                                             <span className={`w-1.5 h-1.5 rounded-full ${item.status === 'PAID' || (item.original as any)?.billing_status === 'PAID' || (item.original as any)?.gateway_status === 'approved' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
-                                            {item.status === 'PAID' || (item.original as any)?.billing_status === 'PAID' || (item.original as any)?.gateway_status === 'approved' ? 'Faturado' : 'Pendente'}
+                                            {item.status === 'PAID' || (item.original as any)?.billing_status === 'PAID' || (item.original as any)?.gateway_status === 'approved' ? 'Liquidada' : 'Pendente'}
                                         </div>
                                     </td>
                                     <td className="px-2 py-2 text-center whitespace-nowrap" onClick={e => e.stopPropagation()}>
@@ -1955,33 +2549,60 @@ ${container.innerHTML}
                                                 onClick={async (e) => {
                                                     e.stopPropagation();
                                                     if (checkingInvoiceId === item.id) return;
-                                                    const rawMpId = (item.original as any)?.gateway_payment_id || (item.original as any)?.gatewayPaymentId || invoices.find(inv => invoiceItems.some(ii => ii.reference_id === item.id && ii.invoice_id === inv.id))?.gateway_payment_id;
                                                     setCheckingInvoiceId(item.id);
                                                     try {
-                                                        const res = await PaymentService.checkPaymentStatus({
-                                                            itemType: item.type,
-                                                            itemId: item.id,
-                                                            gatewayPaymentId: rawMpId
-                                                        });
+                                                        const linkedInvoice = invoices.find(inv => invoiceItems.some(ii => ii.reference_id === item.id && ii.invoice_id === inv.id));
+                                                        
+                                                        if (!linkedInvoice) {
+                                                            showAlert(`O.S./Orçamento #${getDocLabel(item)} não possui nenhuma Fatura (FAT) vinculada.`, 'warning');
+                                                            return;
+                                                        }
+
+                                                        const fatIsPaid = linkedInvoice.status === 'PAID' || linkedInvoice.gateway_status === 'approved';
+                                                        const newBillingStatus = fatIsPaid ? 'PAID' : 'PENDING';
+                                                        const paidAtVal = fatIsPaid ? (linkedInvoice.paid_at || linkedInvoice.updated_at || new Date().toISOString()) : null;
+
+                                                        // Atualiza no banco de dados Supabase
+                                                        if (item.type === 'ORDER') {
+                                                            await supabase
+                                                                .from('orders')
+                                                                .update({ 
+                                                                    billing_status: newBillingStatus,
+                                                                    paid_at: paidAtVal
+                                                                })
+                                                                .eq('id', item.id);
+                                                        } else if (item.type === 'QUOTE') {
+                                                            await supabase
+                                                                .from('quotes')
+                                                                .update({ 
+                                                                    billing_status: newBillingStatus,
+                                                                    status: fatIsPaid ? 'APPROVED' : (item.original as any)?.status || 'PENDING',
+                                                                    paid_at: paidAtVal
+                                                                })
+                                                                .eq('id', item.id);
+                                                        }
+
                                                         if (onRefresh) await onRefresh();
                                                         await loadInvoices();
-                                                        if (res.isPaid) {
-                                                            showAlert(`O.S./Orçamento #${getDocLabel(item)} consta como PAGO no Mercado Pago.`, 'success');
+
+                                                        if (fatIsPaid) {
+                                                            showAlert(`Status do lançamento #${getDocLabel(item)} sincronizado com a Fatura ${linkedInvoice.display_id}: LIQUIDADO.`, 'success');
                                                         } else {
-                                                            showAlert(`O.S./Orçamento #${getDocLabel(item)} consta como ${res.status === 'pending' ? 'Pendente' : (res.status || 'pendente')} no Mercado Pago.`, 'info');
+                                                            showAlert(`Status do lançamento #${getDocLabel(item)} sincronizado com a Fatura ${linkedInvoice.display_id}: PENDENTE.`, 'info');
                                                         }
                                                     } catch (err: any) {
-                                                        showAlert(`Erro ao consultar Mercado Pago: ${err.message}`, 'error');
+                                                        showAlert(`Erro ao sincronizar status com a Fatura: ${err.message}`, 'error');
                                                     } finally {
                                                         setCheckingInvoiceId(null);
                                                     }
                                                 }}
                                                 disabled={checkingInvoiceId === item.id}
                                                 className="p-1 text-sky-600 hover:text-sky-800 hover:bg-sky-50 rounded transition-colors disabled:opacity-50"
-                                                title="Checar Status no Mercado Pago"
+                                                title="Sincronizar status com a Fatura (FAT) vinculada"
                                             >
                                                 {checkingInvoiceId === item.id ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                                             </button>
+
 
                                             <button
                                                 type="button"
@@ -2071,7 +2692,7 @@ ${container.innerHTML}
                                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded w-max ${item.type === 'QUOTE' ? 'bg-[#1c2d4f]/10 text-[#1c2d4f]' : 'bg-slate-100 text-slate-600'}`}>
                                             {getDocLabel(item)}
                                         </span>
-                                        {isFaturado && faturaDoc && (
+                                        {isFaturado && faturaDoc && (item.status === 'PAID' || item.gateway_status === 'approved') && (
                                             <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
                                                 FAT: {faturaDoc}
                                             </span>
@@ -2096,7 +2717,7 @@ ${container.innerHTML}
                                 <span className="text-[10px] text-slate-500 truncate max-w-[150px]">{item.title}</span>
                                 <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wide ${item.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
                                     <span className={`w-1.5 h-1.5 rounded-full ${item.status === 'PAID' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
-                                    {item.status === 'PAID' ? 'Faturado' : 'Pendente'}
+                                    {item.status === 'PAID' ? 'Liquidada' : 'Pendente'}
                                 </div>
                             </div>
                         </div>
@@ -2134,6 +2755,7 @@ ${container.innerHTML}
                                 <tr>
                                     <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Fatura</th>
                                     <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Cliente</th>
+                                    <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap text-center">Forma de Pagamento</th>
                                     <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Data Emissão</th>
                                     <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Data Pagamento</th>
                                     <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right whitespace-nowrap">Valor Total</th>
@@ -2144,7 +2766,7 @@ ${container.innerHTML}
                             <tbody className="divide-y divide-slate-100">
                                 {paginatedInvoices.length === 0 ? (
                                     <tr>
-                                        <td colSpan={7} className="py-12 text-center text-slate-500 text-sm">
+                                        <td colSpan={8} className="py-12 text-center text-slate-500 text-sm">
                                             {invoices.length === 0 ? 'Nenhuma fatura gerada até o momento.' : 'Nenhuma fatura encontrada com os filtros atuais.'}
                                         </td>
                                     </tr>
@@ -2157,18 +2779,25 @@ ${container.innerHTML}
                                         >
                                             <td className="py-3 px-4">
                                                 <div className="flex flex-col gap-0.5">
-                                                    <div className="flex items-center gap-2">
-                                                        <FileText size={16} className="text-[#009EE3] shrink-0" />
-                                                        <span className="font-semibold text-slate-800 text-xs whitespace-nowrap">{inv.display_id}</span>
+                                                    <div className="flex items-center gap-2 relative">
+                                                        {spinningInvoiceId === inv.id ? (
+                                                            <Loader2 size={16} className="text-[#009EE3] shrink-0 animate-spin" />
+                                                        ) : (
+                                                            <FileText size={16} className="text-[#009EE3] shrink-0" />
+                                                        )}
+                                                        <span className="font-semibold text-slate-800 text-xs whitespace-nowrap">
+                                                            {inv.display_id}
+                                                        </span>
                                                     </div>
-                                                    {(() => {
-                                                        const rawMpId = inv.gateway_payment_id || inv.payment_gateway_id;
-                                                        return rawMpId ? (
-                                                            <span className="text-[10px] text-[#009EE3] font-mono font-bold pl-6 break-all whitespace-normal max-w-[250px]">
-                                                                MP ID: #{rawMpId}
-                                                            </span>
-                                                        ) : null;
-                                                    })()}
+                                                    {inv.invoice_number ? (
+                                                        <span className="text-[10px] text-slate-500 font-mono font-medium ml-6">
+                                                            Nº {inv.invoice_number}
+                                                        </span>
+                                                    ) : (inv.gateway_payment_id || inv.payment_gateway_id) ? (
+                                                        <span className="text-[9px] text-slate-400 font-mono font-medium ml-6 truncate max-w-[120px] inline-block" title={`ID Gateway: ${inv.gateway_payment_id || inv.payment_gateway_id}`}>
+                                                            ID: {(inv.gateway_payment_id || inv.payment_gateway_id).startsWith('pay_') ? (inv.gateway_payment_id || inv.payment_gateway_id).replace('pay_', '') : (inv.gateway_payment_id || inv.payment_gateway_id)}
+                                                        </span>
+                                                    ) : null}
                                                 </div>
                                             </td>
                                             <td className="py-3 px-4">
@@ -2176,6 +2805,16 @@ ${container.innerHTML}
                                                     <span className="text-xs font-semibold text-slate-700">{inv.customer_name}</span>
                                                     <span className="text-[10px] text-slate-400 font-mono">{inv.customer_document}</span>
                                                 </div>
+                                            </td>
+                                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                                                {(() => {
+                                                    const pMethod = getInvoicePaymentMethodLabel(inv);
+                                                    return (
+                                                        <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] border ${pMethod.badge}`}>
+                                                            {pMethod.label}
+                                                        </span>
+                                                    );
+                                                })()}
                                             </td>
                                             <td className="py-3 px-4 text-xs text-slate-600 whitespace-nowrap">
                                                 {new Date(inv.created_at).toLocaleDateString('pt-BR')}
@@ -2191,7 +2830,7 @@ ${container.innerHTML}
                                             <td className="py-3 px-4 text-center whitespace-nowrap">
                                                 <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${inv.status === 'PAID' || inv.gateway_status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
                                                     <span className={`w-1.5 h-1.5 rounded-full ${inv.status === 'PAID' || inv.gateway_status === 'approved' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
-                                                    {inv.status === 'PAID' || inv.gateway_status === 'approved' ? 'Faturado' : 'Pendente'}
+                                                    {inv.status === 'PAID' || inv.gateway_status === 'approved' ? 'Liquidada' : 'Pendente'}
                                                 </div>
                                             </td>
                                             <td className="py-3 px-4 text-center whitespace-nowrap">
@@ -2201,50 +2840,152 @@ ${container.innerHTML}
                                                             e.stopPropagation();
                                                             if (checkingInvoiceId === inv.id) return;
                                                             const rawMpId = inv.gateway_payment_id || inv.payment_gateway_id;
+                                                            
                                                             setCheckingInvoiceId(inv.id);
                                                             try {
-                                                                const res = await PaymentService.checkPaymentStatus({
-                                                                    itemType: 'INVOICE',
-                                                                    itemId: inv.id,
-                                                                    gatewayPaymentId: rawMpId
-                                                                });
+                                                                const res = await PaymentService.syncInstallment(rawMpId, undefined, inv.id, 'INVOICE');
+                                                                
+                                                                // Atualização otimista na tela (Faturas)
+                                                                if (res.success && res.newStatus) {
+                                                                    setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: res.newStatus, gateway_status: res.newStatus === 'PAID' ? 'approved' : 'pending' } : i));
+                                                                }
+                                                                
                                                                 await loadInvoices();
-                                                                if (res.isPaid) {
-                                                                    showAlert(`A Fatura ${inv.display_id} consta como PAGA no Mercado Pago.`, 'success');
+                                                                if (!res.success) {
+                                                                    showAlert(res.message || 'Erro ao sincronizar fatura no banco.', 'error');
+                                                                } else if (res.newStatus === 'PAID') {
+                                                                    showAlert(`A Fatura ${inv.display_id} consta como PAGA / LIQUIDADA no Asaas.`, 'success');
                                                                 } else {
-                                                                    showAlert(`A Fatura ${inv.display_id} consta como ${res.status === 'pending' ? 'Pendente' : (res.status || 'pendente')} no Mercado Pago.`, 'info');
+                                                                    const statusPT = translateStatusToPT(res.newStatus || 'PENDING');
+                                                                    showAlert(`A Fatura ${inv.display_id} consta como ${statusPT.toUpperCase()} no Asaas.`, 'info');
                                                                 }
                                                             } catch (err: any) {
-                                                                showAlert(`Erro ao consultar Mercado Pago: ${err.message}`, 'error');
+                                                                showAlert(`Erro ao consultar Asaas: ${err.message}`, 'error');
                                                             } finally {
                                                                 setCheckingInvoiceId(null);
                                                             }
                                                         }}
                                                         disabled={checkingInvoiceId === inv.id}
                                                         className="p-1 text-sky-600 hover:text-sky-800 hover:bg-sky-50 rounded transition-colors disabled:opacity-50"
-                                                        title="Consultar e atualizar status no Mercado Pago"
+                                                        title="Consultar e atualizar status no Asaas"
                                                     >
                                                         {checkingInvoiceId === inv.id ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                                                     </button>
+                                                    {/* NFS-e Button — only shows when invoice has at least one payment */}
+                                                    {(inv.status === 'PAID' || inv.status === 'PARTIALLY_PAID' || inv.gateway_status === 'approved') && (() => {
+                                                        const nfse = nfseDataMap[inv.id];
+                                                        const isEmitting = emittingNfseId === inv.id;
+                                                        const isAuthorized = nfse?.status === 'AUTHORIZED';
+                                                        const isPending = nfse && (nfse.status === 'SCHEDULED' || nfse.status === 'SYNCHRONIZED');
+                                                        const hasError = nfse?.status === 'ERROR';
+
+                                                        return (
+                                                            <button
+                                                                onClick={async (e) => {
+                                                                    e.stopPropagation();
+                                                                    if (isEmitting) return;
+
+                                                                    if (isAuthorized) {
+                                                                        // Open NFS-e detail modal
+                                                                        setNfseDetailModal({ isOpen: true, invoiceId: inv.id, data: { ...nfse, invoiceDisplayId: inv.display_id, customerName: inv.customer_name } });
+                                                                        return;
+                                                                    }
+
+                                                                    if (isPending) {
+                                                                        // Check status
+                                                                        setEmittingNfseId(inv.id);
+                                                                        try {
+                                                                            const res = await PaymentService.checkNfseStatus(inv.id, nfse?.asaas_nfse_id);
+                                                                            if (res.success && res.nfse) {
+                                                                                setNfseDataMap(prev => ({ ...prev, [inv.id]: { status: res.nfse.status, pdfUrl: res.nfse.pdfUrl, xmlUrl: res.nfse.xmlUrl, number: res.nfse.number, asaas_nfse_id: res.nfse.id } }));
+                                                                                if (res.nfse.status === 'AUTHORIZED') {
+                                                                                    showAlert(`✅ NFS-e #${res.nfse.number || ''} autorizada com sucesso! PDF e XML disponíveis.`, 'success');
+                                                                                } else {
+                                                                                    const statusMapPt: Record<string, string> = {
+                                                                                        'SCHEDULED': 'AGENDADA',
+                                                                                        'SYNCHRONIZED': 'ENVIADA À PREFEITURA',
+                                                                                        'AUTHORIZED': 'AUTORIZADA',
+                                                                                        'PROCESSING_CANCELLATION': 'PROCESSANDO CANCELAMENTO',
+                                                                                        'CANCELED': 'CANCELADA',
+                                                                                        'CANCELLATION_DENIED': 'CANCELAMENTO NEGADO',
+                                                                                        'ERROR': 'ERRO'
+                                                                                    };
+                                                                                    const statusStr = statusMapPt[res.nfse.status] || res.nfse.status;
+                                                                                    showAlert(`Status da NFS-e: ${statusStr}. Aguarde a autorização pela prefeitura.`, 'info');
+                                                                                }
+                                                                            } else {
+                                                                                showAlert(res.message || 'Erro ao verificar status', 'error');
+                                                                            }
+                                                                        } catch (err: any) {
+                                                                            showAlert(`Erro: ${err.message}`, 'error');
+                                                                        } finally {
+                                                                            setEmittingNfseId(null);
+                                                                        }
+                                                                        return;
+                                                                    }
+
+                                                                    // Emit new NFS-e
+                                                                    setEmittingNfseId(inv.id);
+                                                                    try {
+                                                                        const res = await PaymentService.createNfse(inv.id);
+                                                                        if (res.success) {
+                                                                            let msg = res.message || 'NFS-e agendada com sucesso!';
+                                                                            msg = msg.replace('SCHEDULED', 'AGENDADA')
+                                                                                     .replace('SYNCHRONIZED', 'ENVIADA À PREFEITURA')
+                                                                                     .replace('AUTHORIZED', 'AUTORIZADA')
+                                                                                     .replace('ERROR', 'ERRO');
+                                                                            showAlert(msg, 'success');
+                                                                            if (res.nfse) {
+                                                                                setNfseDataMap(prev => ({ ...prev, [inv.id]: { status: res.nfse.status || 'SCHEDULED', pdfUrl: res.nfse.pdfUrl, xmlUrl: res.nfse.xmlUrl, number: res.nfse.number, asaas_nfse_id: res.nfse.id } }));
+                                                                            }
+                                                                            await loadInvoices();
+                                                                        } else {
+                                                                            showAlert(res.message || 'Erro ao emitir NFS-e', 'error');
+                                                                        }
+                                                                    } catch (err: any) {
+                                                                        showAlert(`Erro: ${err.message}`, 'error');
+                                                                    } finally {
+                                                                        setEmittingNfseId(null);
+                                                                    }
+                                                                }}
+                                                                disabled={isEmitting}
+                                                                className={`p-1 rounded transition-all disabled:opacity-50 ${
+                                                                    isAuthorized 
+                                                                        ? 'text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50' 
+                                                                        : isPending 
+                                                                            ? 'text-amber-500 hover:text-amber-700 hover:bg-amber-50' 
+                                                                            : hasError
+                                                                                ? 'text-red-500 hover:text-red-700 hover:bg-red-50'
+                                                                                : 'text-violet-500 hover:text-violet-700 hover:bg-violet-50'
+                                                                }`}
+                                                                title={
+                                                                    isAuthorized 
+                                                                        ? `NFS-e #${nfse?.number || ''} — Clique para ver PDF/XML` 
+                                                                        : isPending 
+                                                                            ? 'NFS-e aguardando autorização — Clique para verificar status' 
+                                                                            : hasError
+                                                                                ? `Erro na emissão: ${nfse?.error_message || 'Erro desconhecido'} — Clique para tentar novamente`
+                                                                                : 'Emitir NFS-e (Nota Fiscal de Serviço)'
+                                                                }
+                                                            >
+                                                                {isEmitting ? (
+                                                                    <Loader2 size={14} className="animate-spin" />
+                                                                ) : (
+                                                                    <div className="relative">
+                                                                        <Receipt size={14} />
+                                                                        {isPending && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />}
+                                                                        {isAuthorized && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-500 rounded-full" />}
+                                                                    </div>
+                                                                )}
+                                                            </button>
+                                                        );
+                                                    })()}
                                                     <button
                                                         onClick={() => handleOpenInvoiceDetail(inv)}
                                                         className="p-1 text-slate-400 hover:text-primary-700 hover:bg-primary-50 rounded transition-colors"
-                                                        title="Ver Detalhes da Fatura"
+                                                        title="Ver Fatura"
                                                     >
                                                         <Eye size={14} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            flushSync(() => {
-                                                                setPrintItem({ ...inv, type: 'INVOICE' });
-                                                                setIsPrintModalOpen(true);
-                                                            });
-                                                            setTimeout(() => executePrint(false), 100);
-                                                        }}
-                                                        className="p-1 text-slate-400 hover:text-primary-700 hover:bg-primary-50 rounded transition-colors"
-                                                        title="Imprimir Recibo PDF"
-                                                    >
-                                                        <Printer size={14} />
                                                     </button>
                                                 </div>
                                             </td>
@@ -2255,11 +2996,13 @@ ${container.innerHTML}
                         </table>
                     </div>
                     
-                    {totalInvoicePages > 1 && (
+                    {totalInvoicePages > 0 && (
                         <div className="p-4 border-t border-slate-100 bg-white">
                             <Pagination
                                 currentPage={currentInvoicePage}
                                 totalPages={totalInvoicePages}
+                                totalItems={filteredInvoices.length}
+                                itemsPerPage={ITEMS_PER_PAGE}
                                 onPageChange={(page) => {
                                     setIsPageChanging(true);
                                     setCurrentInvoicePage(page);
@@ -2298,7 +3041,7 @@ ${container.innerHTML}
                     onClick={() => setIsSidebarOpen(false)}
                 >
                     <div
-                        className="bg-white rounded-none lg:rounded-xl w-full max-w-6xl h-full lg:h-auto lg:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200"
+                        className="bg-white rounded-none lg:rounded-xl w-full max-w-[96vw] lg:max-w-6xl h-full lg:h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200 animate-scale-up font-poppins"
                         onClick={e => e.stopPropagation()}
                     >
                         {/* HEADER — igual ao da OS */}
@@ -2313,7 +3056,7 @@ ${container.innerHTML}
                                             {selectedItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'} #{getDocLabel(selectedItem)}
                                         </h2>
                                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-widest border ${selectedItem.status === 'PAID' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-amber-50 text-amber-600 border-amber-200'}`}>
-                                            {selectedItem.status === 'PAID' ? 'Faturado' : 'Pendente'}
+                                            {selectedItem.status === 'PAID' ? 'Liquidada' : 'Pendente'}
                                         </span>
                                     </div>
                                     <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-0.5 truncate">
@@ -2339,23 +3082,7 @@ ${container.innerHTML}
                                 >
                                     <Printer size={14} /> <span className="hidden sm:inline">Imprimir</span>
                                 </button>
-                                {selectedItem.status !== 'PAID' && (
-                                    <>
-                                        <button
-                                            onClick={() => {
-                                                if (can('financial', 'invoice')) {
-                                                    setSelectedIds([selectedItem.id]);
-                                                    setIsInvoiceModalOpen(true);
-                                                } else {
-                                                    showAlert("Acesso Negado: Você não tem permissão para faturar.", 'warning');
-                                                }
-                                            }}
-                                            className={`h-9 px-2 sm:px-4 gap-1.5 rounded-lg text-xs font-medium transition-all flex items-center shadow-md ${can('financial', 'invoice') ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20' : 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-50'}`}
-                                        >
-                                            <DollarSign size={14} /> <span className="hidden md:inline">Faturar</span>
-                                        </button>
-                                    </>
-                                )}
+
                                 <div className="h-6 w-px bg-slate-200 mx-0.5 sm:mx-2" />
                                 <button onClick={() => setIsSidebarOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
                                     <X size={20} />
@@ -2413,67 +3140,63 @@ ${container.innerHTML}
                             </div>
 
                             {/* CONTEÚDO DA ABA */}
-                            <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+                            <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/80 custom-scrollbar">
 
                                 {detailTab === 'overview' && (
                                     <div className="space-y-4">
-                                        {/* Hero Card de Discriminação Financeira (Stripe Style) */}
-                                        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-950 text-white rounded-2xl p-5 shadow-xl border border-slate-700/60 relative overflow-hidden space-y-4">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-sky-400">
-                                                    <DollarSign size={16} /> Resumo Executivo & Conciliação
+                                        {/* Valores da Fatura (Enterprise Style) */}
+                                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden font-poppins">
+                                            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-lg bg-slate-200/50 flex items-center justify-center text-slate-600">
+                                                        <DollarSign size={16} />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-sm font-semibold text-slate-800">Valores e Conciliação</h3>
+                                                        <p className="text-[11px] text-slate-500 font-medium mt-0.5">Detalhamento financeiro da fatura</p>
+                                                    </div>
                                                 </div>
-                                                <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                                                <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
                                                     selectedItem.status === 'PAID' 
-                                                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40' 
-                                                        : 'bg-amber-500/20 text-amber-300 border-amber-400/40'
+                                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200' 
+                                                        : 'bg-amber-50 text-amber-600 border-amber-200'
                                                 }`}>
-                                                    {selectedItem.status === 'PAID' ? '🟢 LIQUIDADO E CONCILIADO' : '🟡 AGUARDANDO PAGAMENTO'}
+                                                    {selectedItem.status === 'PAID' ? 'Liquidado e Conciliado' : 'Aguardando Pagamento'}
                                                 </span>
                                             </div>
 
-                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                                                <div className="bg-white/5 backdrop-blur-md p-3.5 rounded-xl border border-white/10">
-                                                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-widest">Subtotal Bruto</span>
-                                                    <span className="text-base font-bold text-slate-300 line-through">
+                                            <div className="p-5 flex flex-col gap-4">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3 border-b border-slate-100/60">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Subtotal Bruto</span>
+                                                    <span className="text-sm font-semibold text-slate-400 line-through text-right">
                                                         {formatCurrency((selectedItem as any).grossValue || (selectedItem.value + (selectedItem.billingDiscount || 0)))}
                                                     </span>
                                                 </div>
-                                                <div className="bg-rose-500/10 backdrop-blur-md p-3.5 rounded-xl border border-rose-400/20 text-rose-300">
-                                                    <span className="text-rose-300/80 block text-[10px] uppercase font-bold tracking-widest">Desconto Concedido</span>
-                                                    <span className="text-base font-bold text-rose-400">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3 border-b border-slate-100/60">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Desconto Concedido</span>
+                                                    <span className="text-sm font-semibold text-rose-500 text-right">
                                                         - {formatCurrency((selectedItem as any).discountAmount || selectedItem.billingDiscount || 0)} {selectedItem.billingDiscountType === 'percent' ? `(${selectedItem.billingDiscount}%)` : ''}
                                                     </span>
                                                 </div>
-                                                <div className="bg-emerald-500/15 backdrop-blur-md p-3.5 rounded-xl border border-emerald-400/30 text-emerald-300">
-                                                    <span className="text-emerald-300/80 block text-[10px] uppercase font-bold tracking-widest">Valor Líquido Real (Caixa)</span>
-                                                    <span className="text-xl font-black text-emerald-400">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pt-1">
+                                                    <span className="text-[11px] font-bold text-slate-600 uppercase tracking-widest">Valor Líquido (Total a Pagar)</span>
+                                                    <span className="text-xl font-bold text-emerald-600 text-right">
                                                         {formatCurrency((selectedItem as any).netValue || selectedItem.value)}
                                                     </span>
                                                 </div>
                                             </div>
-                                            <p className="text-[10px] text-slate-400 italic pt-1 border-t border-white/10">
-                                                * O valor líquido de {formatCurrency(selectedItem.value)} é a entrada exata conciliada no Fluxo de Caixa da empresa.
-                                            </p>
                                         </div>
 
                                         {/* Card de Cobrança Mercado Pago Salva / Ativa no Drawer */}
                                         {selectedItem.status !== 'PAID' && (selectedItem.original?.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl || selectedItem.original?.gateway_pix_code || (selectedItem.original as any)?.gatewayPixCode) && (
-                                            <div className="bg-sky-50/80 border border-sky-200 rounded-2xl p-4 space-y-3 shadow-sm font-poppins animate-fade-in">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-2 text-xs font-bold text-[#009EE3]">
-                                                        <CreditCard size={16} /> Cobrança Mercado Pago Ativa (Salva)
+                                            <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 shadow-sm font-poppins mt-4">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className="flex items-center gap-2 text-sm font-semibold text-[#009EE3]">
+                                                        <CreditCard size={16} /> Cobrança Ativa Pronta para Reenvio
                                                     </div>
-                                                    <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-2.5 py-0.5 rounded-full border border-sky-200">
-                                                        Pronta para Reenvio
-                                                    </span>
                                                 </div>
 
-                                                <p className="text-[11px] text-slate-600 leading-relaxed">
-                                                    Esta cobrança foi gerada recentemente e está <strong>salva no sistema</strong>. Se o cliente solicitar o reenvio, utilize os botões abaixo sem necessidade de gerar uma nova cobrança:
-                                                </p>
-
-                                                <div className="flex flex-wrap items-center gap-2 pt-1">
+                                                <div className="flex flex-wrap items-center gap-2">
                                                     {selectedItem.original?.gateway_pix_code && (
                                                         <button
                                                             type="button"
@@ -2481,7 +3204,7 @@ ${container.innerHTML}
                                                                 navigator.clipboard.writeText(selectedItem.original.gateway_pix_code || (selectedItem.original as any)?.gatewayPixCode);
                                                                 alert('Código Pix Copia e Cola copiado para a área de transferência!');
                                                             }}
-                                                            className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+                                                            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold transition-all flex items-center gap-2 shadow-sm"
                                                         >
                                                             📋 Copiar Pix
                                                         </button>
@@ -2497,9 +3220,9 @@ ${container.innerHTML}
                                                                     : (selectedItem.original?.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl);
                                                                 window.open(checkoutUrl, '_blank');
                                                             }}
-                                                            className="px-3 py-1.5 bg-[#009EE3] hover:bg-[#0089c7] text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+                                                            className="px-4 py-2 bg-[#009EE3] hover:bg-[#0089c7] text-white rounded-lg text-xs font-semibold transition-all flex items-center gap-2 shadow-sm"
                                                         >
-                                                            <Share2 size={13} /> 🔗 Abrir Link / Boleto
+                                                            <Share2 size={14} /> Abrir Link / Boleto
                                                         </button>
                                                     )}
 
@@ -2509,7 +3232,8 @@ ${container.innerHTML}
                                                             const fullCust = customers.find(c => c.id === selectedItem.original?.customerId || c.id === selectedItem.original?.customer_id);
                                                             const customerDoc = (selectedItem as any).customerDocument || fullCust?.document || (fullCust as any)?.cpf || (fullCust as any)?.cnpj || selectedItem.original?.customer_document || selectedItem.original?.customerDocument;
                                                             const customerEmail = selectedItem.original?.customerEmail || (selectedItem.original as any)?.customer_email || fullCust?.email;
-                                                            setMpModalItem({
+                                                            const rawMethod = (selectedItem as any)?.paymentMethod || (selectedItem as any)?.payment_method || (selectedItem.original as any)?.gateway_payment_method || (selectedItem.original as any)?.payment_method || (selectedItem.original as any)?.gatewayPaymentMethod || (selectedItem.original as any)?.paymentMethod;
+                                                            setAsaasModalItem({
                                                                 type: selectedItem.type,
                                                                 id: selectedItem.id,
                                                                 displayId: selectedItem.displayId || getDocLabel(selectedItem),
@@ -2522,58 +3246,37 @@ ${container.innerHTML}
                                                                 gatewayTicketUrl: (selectedItem.original as any)?.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl,
                                                                 gatewayStatus: (selectedItem.original as any)?.gateway_status || (selectedItem.original as any)?.gatewayStatus,
                                                                 gatewayPaymentId: (selectedItem.original as any)?.gateway_payment_id || (selectedItem.original as any)?.gatewayPaymentId,
+                                                                gatewayPaymentMethod: rawMethod,
                                                                 billingStatus: selectedItem.status
                                                             });
-                                                            setIsMpModalOpen(true);
+                                                            setIsAsaasModalOpen(true);
                                                         }}
-                                                        className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+                                                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold transition-all flex items-center gap-2 shadow-sm"
                                                     >
-                                                        <RefreshCw size={13} /> Checar Pagamento MP
-                                                    </button>
-
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            const companyName = tenant?.company_name || tenant?.name || 'NEXUS';
-                                                            const isOrderOrQuote = ['ORDER', 'QUOTE', 'INVOICE'].includes(selectedItem.type);
-                                                            const checkoutUrl = isOrderOrQuote 
-                                                                ? `${window.location.origin}/#/checkout/${selectedItem.type.toLowerCase()}/${selectedItem.original?.id || selectedItem.id}`
-                                                                : (selectedItem.original?.gateway_ticket_url || (selectedItem.original as any)?.gatewayTicketUrl);
-
-                                                            const rawPhone = selectedItem.customerPhone || (selectedItem.original as any)?.customerPhone || (selectedItem.original as any)?.customer_phone || (selectedItem.original as any)?.phone || '';
-                                                            const cleanPhone = String(rawPhone).replace(/\D/g, '');
-                                                            const phoneParam = cleanPhone.length >= 10 ? (cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`) : '';
-                                                            const formattedAmount = getItemNetValue(selectedItem).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-                                                            const text = encodeURIComponent(
-                                                                `🏢 *${companyName.toUpperCase()}*\n` +
-                                                                `📌 *Faturamento Oficial • ${selectedItem.type === 'ORDER' ? 'O.S.' : (selectedItem.type === 'INVOICE' ? 'Fatura' : 'Orçamento')} #${getDocLabel(selectedItem)}*\n\n` +
-                                                                `Olá, *${selectedItem.customerName}*!\n\n` +
-                                                                `Segue o link oficial para pagamento no valor de *R$ ${formattedAmount}*:\n\n` +
-                                                                ((selectedItem.original?.gateway_pix_code || (selectedItem.original as any)?.gatewayPixCode) ? `⚡ *PIX Copia e Cola:*\n\`${selectedItem.original.gateway_pix_code || (selectedItem.original as any)?.gatewayPixCode}\`\n\n` : '') +
-                                                                (checkoutUrl ? `🔗 *Link do Checkout Seguro:*\n${checkoutUrl}\n\n` : '') +
-                                                                `🔒 _Pagamento processado com segurança por ${companyName}_\n` +
-                                                                `Qualquer dúvida, nossa equipe está à disposição!`
-                                                            );
-                                                            const waUrl = phoneParam ? `https://wa.me/${phoneParam}?text=${text}` : `https://wa.me/?text=${text}`;
-                                                            window.open(waUrl, '_blank');
-                                                        }}
-                                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
-                                                    >
-                                                        📲 Reenviar WhatsApp
+                                                        <RefreshCw size={14} /> Checar Pagamento
                                                     </button>
                                                 </div>
                                             </div>
                                         )}
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {/* Cliente */}
-                                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-                                                <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-3">
-                                                    <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><Users size={13} /></div>
-                                                    <h3 className="text-xs font-semibold text-slate-800 tracking-wide">Dados do Cliente</h3>
+                                        {/* Dados do Cliente (Enterprise Style) */}
+                                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden font-poppins mt-4">
+                                            <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50">
+                                                <div className="w-8 h-8 rounded-lg bg-slate-200/50 flex items-center justify-center text-slate-600">
+                                                    <Users size={16} />
                                                 </div>
-                                                <p className="text-sm font-medium text-slate-800">{selectedItem.customerName}</p>
+                                                <div>
+                                                    <h3 className="text-sm font-semibold text-slate-800">Dados do Cliente</h3>
+                                                    <p className="text-[11px] text-slate-500 font-medium mt-0.5">Informações de contato e faturamento</p>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="p-5 flex flex-col gap-4">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3 border-b border-slate-100/60">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nome / Razão Social</span>
+                                                    <span className="text-sm font-bold text-slate-800 text-right">{selectedItem.customerName}</span>
+                                                </div>
+
                                                 {(() => {
                                                     const fullCust = customers.find(c => c.name?.toLowerCase().trim() === selectedItem.customerName?.toLowerCase().trim());
                                                     let address = selectedItem.customerAddress;
@@ -2584,138 +3287,96 @@ ${container.innerHTML}
                                                     }
                                                     return (
                                                         <>
-                                                            {address && address.length > 5 && (
-                                                                <div className="flex items-start gap-1.5 mt-2">
-                                                                    <MapPin size={11} className="text-slate-400 mt-0.5 shrink-0" />
-                                                                    <p className="text-[11px] text-slate-500 font-medium">{address}</p>
-                                                                </div>
-                                                            )}
-                                                            {fullCust && (
-                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-50">
-                                                                    {(fullCust.phone || fullCust.whatsapp) && (
-                                                                        <div>
-                                                                            <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest">Telefone / Whats</p>
-                                                                            <p className="text-[11px] font-medium text-slate-700">{fullCust.whatsapp || fullCust.phone}</p>
-                                                                        </div>
-                                                                    )}
-                                                                    {fullCust.email && (
-                                                                        <div>
-                                                                            <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest">{t.common.email}</p>
-                                                                            <p className="text-[11px] font-medium text-slate-700 truncate" title={fullCust.email}>{fullCust.email}</p>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            )}
+                                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3 border-b border-slate-100/60">
+                                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Endereço de Cobrança</span>
+                                                                <span className="text-sm font-medium text-slate-700 text-right">{address || 'Não informado'}</span>
+                                                            </div>
+                                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3 border-b border-slate-100/60">
+                                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Telefone / WhatsApp</span>
+                                                                <span className="text-sm font-medium text-slate-700 text-right">{fullCust?.whatsapp || fullCust?.phone || 'Não informado'}</span>
+                                                            </div>
+                                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">E-mail Principal</span>
+                                                                <span className="text-sm font-medium text-slate-700 text-right">{fullCust?.email || 'Não informado'}</span>
+                                                            </div>
                                                         </>
                                                     );
                                                 })()}
                                             </div>
-
-                                            {/* Técnico + Descrição */}
-                                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-                                                <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-3">
-                                                    <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><Info size={13} /></div>
-                                                    <h3 className="text-xs font-semibold text-slate-800 tracking-wide">Contexto e Detalhes</h3>
-                                                </div>
-                                                <div className="flex items-center gap-3 mb-4 p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                                                    <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center shrink-0">
-                                                        <UserCheck size={14} className="text-slate-500" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest">Usuário / Responsável</p>
-                                                        <p className="text-xs font-medium text-slate-700">{selectedItem.technician || '—'}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="bg-slate-50/50 rounded-lg p-3 border border-slate-100 space-y-3">
-                                                    <div>
-                                                        <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest mb-0.5">Referência Original</p>
-                                                        <p className="text-xs font-medium text-slate-700">
-                                                            {selectedItem.type === 'QUOTE' 
-                                                                ? ((selectedItem.original?.status === 'APROVADO' || selectedItem.original?.approvedAt) ? 'Orçamento Aprovado' : 'Orçamento Emitido') 
-                                                                : 'Ordem de Serviço Concluída'}
-                                                        </p>
-                                                    </div>
-                                                    <div className="h-px bg-slate-200" />
-                                                    <div>
-                                                        <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest mb-1">Descrição</p>
-                                                        {selectedItem.description ? <p className="text-xs text-slate-600 font-medium leading-relaxed">{selectedItem.description}</p> : <p className="text-xs text-slate-400 italic">Nenhuma descrição informada.</p>}
-                                                    </div>
-                                                </div>
-                                            </div>
                                         </div>
 
-                                        {/* Linha do Tempo do Ciclo de Vida da Cobrança */}
-                                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
-                                            <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                                                <div className="w-7 h-7 rounded-lg bg-sky-50 flex items-center justify-center border border-sky-200 text-[#009EE3]">
-                                                    <Clock size={14} />
+                                        {/* Contexto e Detalhes (Enterprise Style) */}
+                                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden font-poppins mt-4">
+                                            <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50">
+                                                <div className="w-8 h-8 rounded-lg bg-slate-200/50 flex items-center justify-center text-slate-600">
+                                                    <Info size={16} />
                                                 </div>
-                                                <h3 className="text-xs font-bold text-slate-800 tracking-wide uppercase">Jornada da Transação (Timeline)</h3>
+                                                <div>
+                                                    <h3 className="text-sm font-semibold text-slate-800">Contexto e Detalhes</h3>
+                                                    <p className="text-[11px] text-slate-500 font-medium mt-0.5">Origem e descrição da cobrança</p>
+                                                </div>
                                             </div>
-
-                                            <div className="space-y-3 text-xs pt-1">
+                                            <div className="p-5 flex flex-col gap-4">
                                                 {(() => {
-                                                    const isQuote = selectedItem.type === 'QUOTE';
-                                                    const orig = selectedItem.original || {};
-
-                                                    let stepTitle = '';
-                                                    let stepDate = '';
-
-                                                    if (isQuote) {
-                                                        const isApproved = orig.status === 'APROVADO' || orig.approvedAt || orig.approved_at;
-                                                        stepTitle = isApproved ? 'Orçamento Aprovado pelo Cliente' : 'Orçamento Emitido';
-                                                        const rawDate = orig.approvedAt || orig.approved_at || orig.updatedAt || orig.updated_at || selectedItem.date || selectedItem.createdAt;
-                                                        stepDate = rawDate ? new Date(rawDate).toLocaleString('pt-BR') : '—';
-                                                    } else {
-                                                        const isFinished = orig.status === 'COMPLETED' || orig.finishedAt || orig.finished_at || orig.completedAt || orig.completed_at || orig.endDate || orig.end_date;
-                                                        stepTitle = isFinished ? 'Ordem de Serviço Concluída & Finalizada' : 'Ordem de Serviço Criada';
-                                                        const rawDate = orig.finishedAt || orig.finished_at || orig.completedAt || orig.completed_at || orig.endDate || orig.end_date || orig.updatedAt || orig.updated_at || selectedItem.date || selectedItem.createdAt;
-                                                        stepDate = rawDate ? new Date(rawDate).toLocaleString('pt-BR') : '—';
+                                                    const linkedInvoice = invoices.find(inv => invoiceItems.some(ii => ii.reference_id === selectedItem.id && ii.invoice_id === inv.id));
+                                                    if (linkedInvoice) {
+                                                        return (
+                                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3 border-b border-slate-100/60">
+                                                                <span className="text-[10px] font-bold text-sky-700 uppercase tracking-widest">Faturado Por (Operador)</span>
+                                                                <span className="text-sm font-bold text-sky-900 text-right">{getBilledUserName(linkedInvoice)}</span>
+                                                            </div>
+                                                        );
                                                     }
-
                                                     return (
-                                                        <div className="flex items-start gap-3">
-                                                            <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
-                                                                ✓
-                                                            </div>
-                                                            <div>
-                                                                <p className="font-bold text-slate-800">{stepTitle}</p>
-                                                                <p className="text-[10px] text-slate-400">{stepDate}</p>
-                                                            </div>
+                                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3 border-b border-slate-100/60">
+                                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Responsável (Emissor/Técnico)</span>
+                                                            <span className="text-sm font-bold text-slate-800 text-right">{resolveUserOrTechName(selectedItem.original?.createdBy || selectedItem.original?.assignedTo || selectedItem.original?.authorId, selectedItem.technician)}</span>
                                                         </div>
                                                     );
                                                 })()}
-
-                                                <div className="flex items-start gap-3">
-                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 ${
-                                                        (selectedItem.original?.gateway_payment_id || selectedItem.original?.gatewayPaymentId) ? 'bg-sky-100 text-[#009EE3]' : 'bg-slate-100 text-slate-400'
-                                                    }`}>
-                                                        {(selectedItem.original?.gateway_payment_id || selectedItem.original?.gatewayPaymentId) ? '✓' : '•'}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-bold text-slate-800">
-                                                            {(selectedItem.original?.gateway_payment_id || selectedItem.original?.gatewayPaymentId) ? `Cobrança Criada no Mercado Pago (ID #${selectedItem.original.gateway_payment_id || selectedItem.original.gatewayPaymentId})` : 'Aguardando Geração de Link / Pix'}
-                                                        </p>
-                                                        <p className="text-[10px] text-slate-400">
-                                                            {(selectedItem.original?.gateway_payment_id || selectedItem.original?.gatewayPaymentId) ? 'Cobrança válida por 1 hora' : 'Selecione "Gerar Pix/Cartão" acima'}
-                                                        </p>
-                                                    </div>
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3 border-b border-slate-100/60">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Referência Original</span>
+                                                    <span className="text-sm font-bold text-slate-800 text-right">
+                                                        {selectedItem.type === 'QUOTE' 
+                                                            ? ((selectedItem.original?.status === 'APROVADO' || selectedItem.original?.approvedAt) ? `Orçamento Aprovado #${getDocLabel(selectedItem)}` : `Orçamento Emitido #${getDocLabel(selectedItem)}`) 
+                                                            : `Ordem de Serviço Concluída #${getDocLabel(selectedItem)}`}
+                                                    </span>
+                                                </div>
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3 border-b border-slate-100/60">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Descrição do Lançamento</span>
+                                                    <span className="text-sm font-bold text-slate-800 text-right">{selectedItem.title || 'Sem descrição cadastrada'}</span>
                                                 </div>
 
-                                                <div className="flex items-start gap-3">
-                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 ${
-                                                        selectedItem.status === 'PAID' ? 'bg-emerald-500 text-white' : 'bg-amber-100 text-amber-600'
-                                                    }`}>
-                                                        {selectedItem.status === 'PAID' ? '✓' : '⏳'}
+                                                {selectedItem.original?.items && selectedItem.original.items.length > 0 && (
+                                                    <div className="flex flex-col gap-2 pb-3 border-b border-slate-100/60">
+                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Itens / Serviços Realizados</span>
+                                                        <div className="flex flex-col gap-2 mt-1">
+                                                            {selectedItem.original.items.map((it: any, idx: number) => (
+                                                                <div key={idx} className="flex justify-between items-center text-sm font-medium bg-white border border-slate-200/60 shadow-sm p-3 rounded-lg">
+                                                                    <span className="text-slate-700">{it.quantity}x {it.description || it.name}</span>
+                                                                    <span className="text-slate-900 font-bold">{formatCurrency(it.total || (it.quantity * (it.unitPrice || it.price)))}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <p className="font-bold text-slate-800">
-                                                            {selectedItem.status === 'PAID' ? 'Pagamento Aprovado & Conciliado no Caixa' : 'Aguardando Liquidação Bancária'}
-                                                        </p>
-                                                        <p className="text-[10px] text-slate-400">
-                                                            {selectedItem.paidAt ? new Date(selectedItem.paidAt).toLocaleString('pt-BR') : 'Status: Pendente no Gateway'}
-                                                        </p>
-                                                    </div>
+                                                )}
+
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Descrição Adicional</span>
+                                                    <span className="text-sm font-medium text-slate-700 bg-white p-3 rounded-lg border border-slate-200 mt-2 min-h-[60px] shadow-sm whitespace-pre-wrap">
+                                                        {(() => {
+                                                            const desc = selectedItem.description || 
+                                                                (selectedItem.original as any)?.description || 
+                                                                (selectedItem.original as any)?.problem_description || 
+                                                                (selectedItem.original as any)?.problemDescription || 
+                                                                (selectedItem.original as any)?.notes || 
+                                                                (selectedItem.original as any)?.observations || 
+                                                                (selectedItem.original?.formData as any)?.description || 
+                                                                (selectedItem.original?.formData as any)?.notes || 
+                                                                (selectedItem.original?.formData as any)?.observations;
+                                                            return desc && String(desc).trim() !== '' ? desc : 'Nenhuma descrição informada.';
+                                                        })()}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
@@ -2724,166 +3385,141 @@ ${container.innerHTML}
 
                                 {detailTab === 'audit' && (
                                     <div className="space-y-4">
-                                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-4">
-                                            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200">
-                                                        <ShieldCheck size={18} />
+                                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden font-poppins">
+                                            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                                                        <ShieldCheck size={16} />
                                                     </div>
                                                     <div>
-                                                        <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Auditoria de Pagamento</h3>
-                                                        <p className="text-[10px] text-slate-400">Dados rastreáveis do gateway em tempo real</p>
+                                                        <h3 className="text-sm font-semibold text-slate-800">Auditoria de Pagamento</h3>
+                                                        <p className="text-[11px] text-slate-500 font-medium mt-0.5">Dados rastreáveis do gateway</p>
                                                     </div>
                                                 </div>
-
-                                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                                <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
                                                     selectedItem.status === 'PAID' || selectedItem.gatewayStatus === 'approved'
-                                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                                        : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                        : 'bg-amber-50 text-amber-700 border-amber-200'
                                                 }`}>
-                                                    {selectedItem.status === 'PAID' || selectedItem.gatewayStatus === 'approved' ? '🟢 Liquidado' : '🟡 Pendente'}
+                                                    {selectedItem.status === 'PAID' || selectedItem.gatewayStatus === 'approved' ? 'Liquidado' : 'Pendente'}
                                                 </span>
                                             </div>
 
-                                            <div className="space-y-3">
-                                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Gateway Payment ID (Mercado Pago)</span>
-                                                    <code className="text-xs font-mono font-bold text-slate-800 break-all">{selectedItem.gatewayPaymentId || 'Sem transação gerada'}</code>
+                                            <div className="p-5 flex flex-col gap-4">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3 border-b border-slate-100/60">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Gateway Payment ID</span>
+                                                    <code className="text-xs font-mono font-bold text-slate-800 bg-slate-50 px-2 py-1 rounded border border-slate-200 text-right break-all">{selectedItem.gatewayPaymentId || 'Sem transação gerada'}</code>
                                                 </div>
-
-                                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                                    <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
-                                                        <span className="text-[10px] text-slate-400 font-semibold block uppercase">Método</span>
-                                                        <span className="font-bold text-slate-800">
-                                                            {(() => {
-                                                                const raw = (selectedItem as any).original?.payment_method || selectedItem.original?.paymentMethod || (selectedItem as any).paymentMethod;
-                                                                if (!raw) return '—';
-                                                                const str = String(raw).toLowerCase();
-                                                                if (str.includes('pix')) return 'Pix';
-                                                                if (str.includes('boleto') || str.includes('ticket') || str.includes('bolbradesco')) return 'Boleto';
-                                                                if (str.includes('cart') || str.includes('card') || str.includes('credit') || str.includes('visa') || str.includes('master') || str.includes('elo') || str.includes('amex')) {
-                                                                    return 'Cartão de Crédito';
-                                                                }
-                                                                if (str.includes('dinheiro') || str.includes('cash')) return 'Dinheiro';
-                                                                return raw;
-                                                            })()}
-                                                        </span>
-                                                    </div>
-                                                    <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
-                                                        <span className="text-[10px] text-slate-400 font-semibold block uppercase">Faturamento</span>
-                                                        <span className="font-bold text-slate-800">{selectedItem.paidAt ? new Date(selectedItem.paidAt).toLocaleDateString('pt-BR') : 'Pendente'}</span>
-                                                    </div>
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3 border-b border-slate-100/60">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Método de Pagamento</span>
+                                                    <span className="text-sm font-bold text-slate-800 text-right">
+                                                        {(() => {
+                                                            const raw = (selectedItem as any).original?.payment_method || selectedItem.original?.paymentMethod || (selectedItem as any).paymentMethod;
+                                                            if (!raw) return '—';
+                                                            const str = String(raw).toLowerCase();
+                                                            if (str.includes('pix')) return 'Pix';
+                                                            if (str.includes('boleto') || str.includes('ticket') || str.includes('bolbradesco')) return 'Boleto';
+                                                            if (str.includes('cart') || str.includes('card') || str.includes('credit') || str.includes('visa') || str.includes('master') || str.includes('elo') || str.includes('amex')) {
+                                                                return 'Cartão de Crédito';
+                                                            }
+                                                            if (str.includes('dinheiro') || str.includes('cash')) return 'Dinheiro';
+                                                            return raw;
+                                                        })()}
+                                                    </span>
                                                 </div>
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-4 border-b border-slate-100/60">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Data de Liquidação</span>
+                                                    <span className="text-sm font-bold text-slate-800 text-right">
+                                                        {selectedItem.paidAt ? new Date(selectedItem.paidAt).toLocaleDateString('pt-BR') : 'Pendente'}
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    onClick={() => {
+                                                        setAuditModalItem({
+                                                            type: selectedItem.type,
+                                                            id: selectedItem.id,
+                                                            displayId: getDocLabel(selectedItem),
+                                                            title: selectedItem.title,
+                                                            amount: (selectedItem as any).netValue ?? selectedItem.value ?? getItemNetValue(selectedItem),
+                                                            grossValue: (selectedItem as any).grossValue ?? (selectedItem.value + (selectedItem.billingDiscount || 0)),
+                                                            discountAmount: (selectedItem as any).discountAmount ?? selectedItem.billingDiscount ?? 0,
+                                                            netValue: (selectedItem as any).netValue ?? selectedItem.value,
+                                                            billingDiscount: selectedItem.billingDiscount,
+                                                            billingDiscountType: selectedItem.billingDiscountType,
+                                                            customerName: selectedItem.customerName,
+                                                            customerDocument: selectedItem.customerDocument,
+                                                            paymentMethod: selectedItem.paymentMethod || (selectedItem as any).payment_method || selectedItem.original?.payment_method || selectedItem.original?.paymentMethod || (selectedItem as any).gatewayPaymentMethod || selectedItem.original?.gateway_payment_method || (selectedItem.gatewayPaymentId || selectedItem.original?.gateway_payment_id ? 'credit_card' : null),
+                                                            installments: (selectedItem as any).installments || (selectedItem as any).mpInstallments || (selectedItem.original as any)?.installments || (selectedItem.original as any)?.mpInstallments || (selectedItem.original as any)?.form_data?.mpInstallments || (selectedItem.original as any)?.form_data?.installments || (selectedItem.original as any)?.approval_metadata?.mpInstallments || (selectedItem.original as any)?.approval_metadata?.installments || null,
+                                                            gatewayProvider: selectedItem.gatewayProvider || selectedItem.original?.gateway_provider || selectedItem.original?.gatewayProvider,
+                                                            gatewayPaymentId: selectedItem.original?.gateway_payment_id || selectedItem.original?.gatewayPaymentId || selectedItem.gatewayPaymentId,
+                                                            gatewayStatus: selectedItem.original?.gateway_status || selectedItem.original?.gatewayStatus || selectedItem.gatewayStatus,
+                                                            paidAt: selectedItem.paidAt || selectedItem.original?.paid_at || selectedItem.original?.paidAt,
+                                                            billingStatus: selectedItem.status,
+                                                            createdAt: selectedItem.createdAt,
+                                                            original: selectedItem.original
+                                                        });
+                                                        setIsAuditModalOpen(true);
+                                                    }}
+                                                    className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-2 shadow-sm mt-1"
+                                                >
+                                                    <Printer size={15} /> Abrir Comprovante de Auditoria Completo
+                                                </button>
                                             </div>
-
-                                            <button
-                                                onClick={() => {
-                                                    setAuditModalItem({
-                                                        type: selectedItem.type,
-                                                        id: selectedItem.id,
-                                                        displayId: getDocLabel(selectedItem),
-                                                        title: selectedItem.title,
-                                                        amount: (selectedItem as any).netValue ?? selectedItem.value ?? getItemNetValue(selectedItem),
-                                                        grossValue: (selectedItem as any).grossValue ?? (selectedItem.value + (selectedItem.billingDiscount || 0)),
-                                                        discountAmount: (selectedItem as any).discountAmount ?? selectedItem.billingDiscount ?? 0,
-                                                        netValue: (selectedItem as any).netValue ?? selectedItem.value,
-                                                        billingDiscount: selectedItem.billingDiscount,
-                                                        billingDiscountType: selectedItem.billingDiscountType,
-                                                        customerName: selectedItem.customerName,
-                                                        customerDocument: selectedItem.customerDocument,
-                                                        paymentMethod: selectedItem.paymentMethod || (selectedItem as any).payment_method || selectedItem.original?.payment_method || selectedItem.original?.paymentMethod || (selectedItem as any).gatewayPaymentMethod || selectedItem.original?.gateway_payment_method || (selectedItem.gatewayPaymentId || selectedItem.original?.gateway_payment_id ? 'credit_card' : null),
-                                                        installments: (selectedItem as any).installments || (selectedItem as any).mpInstallments || (selectedItem.original as any)?.installments || (selectedItem.original as any)?.mpInstallments || (selectedItem.original as any)?.form_data?.mpInstallments || (selectedItem.original as any)?.form_data?.installments || (selectedItem.original as any)?.approval_metadata?.mpInstallments || (selectedItem.original as any)?.approval_metadata?.installments || null,
-                                                        gatewayProvider: selectedItem.gatewayProvider || selectedItem.original?.gateway_provider || selectedItem.original?.gatewayProvider,
-                                                        gatewayPaymentId: selectedItem.original?.gateway_payment_id || selectedItem.original?.gatewayPaymentId || selectedItem.gatewayPaymentId,
-                                                        gatewayStatus: selectedItem.original?.gateway_status || selectedItem.original?.gatewayStatus || selectedItem.gatewayStatus,
-                                                        paidAt: selectedItem.paidAt || selectedItem.original?.paid_at || selectedItem.original?.paidAt,
-                                                        billingStatus: selectedItem.status,
-                                                        createdAt: selectedItem.createdAt,
-                                                        original: selectedItem.original
-                                                    });
-                                                    setIsAuditModalOpen(true);
-                                                }}
-                                                className="w-full py-3 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
-                                            >
-                                                <Printer size={15} /> Abrir Comprovante de Auditoria Completo
-                                            </button>
                                         </div>
                                     </div>
                                 )}
 
                                 {detailTab === 'financial' && (
                                     <div className="space-y-4">
-                                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-                                            {selectedItem.discountAmount > 0 ? (
-                                                <>
-                                                    <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mb-1">Valor Bruto</p>
-                                                    <p className="text-xl font-medium tracking-tight text-slate-400 line-through mb-2">
-                                                        {formatCurrency(selectedItem.grossValue)}
-                                                    </p>
-                                                    
-                                                    <div className="flex justify-between items-center mb-2">
-                                                        <p className="text-[10px] font-semibold text-rose-500 uppercase tracking-widest">Desconto Aplicado</p>
-                                                        <p className="text-xs font-medium text-rose-500">
-                                                            {selectedItem.billingDiscountType === 'percent' && selectedItem.billingDiscount > 0
-                                                                ? `- ${selectedItem.billingDiscount}%`
-                                                                : `- ${formatCurrency(selectedItem.discountAmount)}`}
-                                                        </p>
-                                                    </div>
-
-                                                    <div className="border-t border-slate-100 pt-2 pb-2">
-                                                        <p className="text-[10px] font-medium text-emerald-600 uppercase tracking-widest mb-1">Valor Líquido</p>
-                                                        <p className="text-2xl font-semibold tracking-tight text-emerald-600">
-                                                            {formatCurrency(selectedItem.netValue)}
-                                                        </p>
-                                                    </div>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mb-1">Valor Total</p>
-                                                    <p className="text-2xl font-semibold tracking-tight text-slate-900 border-b border-slate-100 pb-2 mb-2">
-                                                        {formatCurrency(selectedItem.netValue || selectedItem.value)}
-                                                    </p>
-                                                </>
-                                            )}
-                                            <div className="grid grid-cols-2 gap-2 mt-3">
-                                                <div className="flex items-start gap-2">
-                                                    <div className="w-6 h-6 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center shrink-0"><Calendar size={12} className="text-slate-400" /></div>
-                                                    <div>
-                                                        <p className="text-[8px] font-medium text-slate-400 uppercase tracking-widest leading-none">Emissão / Início</p>
-                                                        <p className="text-[10px] font-medium text-slate-600 mt-1">{new Date(selectedItem.createdAt || selectedItem.date).toLocaleDateString('pt-BR')}</p>
-                                                    </div>
+                                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden font-poppins">
+                                            <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50">
+                                                <div className="w-8 h-8 rounded-lg bg-slate-200/50 flex items-center justify-center text-slate-600">
+                                                    <DollarSign size={16} />
                                                 </div>
-                                                {selectedItem.paidAt && (
-                                                <div className="flex items-start gap-2">
-                                                    <div className="w-6 h-6 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-center shrink-0"><Check size={12} className="text-emerald-500" /></div>
-                                                    <div>
-                                                        <p className="text-[8px] font-medium text-emerald-500 uppercase tracking-widest leading-none">Recebimento</p>
-                                                        <p className="text-[10px] font-medium text-emerald-700 mt-1">{new Date(selectedItem.paidAt).toLocaleDateString('pt-BR')}</p>
-                                                    </div>
+                                                <div>
+                                                    <h3 className="text-sm font-semibold text-slate-800">Financeiro & Faturamento</h3>
+                                                    <p className="text-[11px] text-slate-500 font-medium mt-0.5">Informações de emissão e prazos</p>
                                                 </div>
-                                                )}
                                             </div>
 
-                                            {/* ── Edição de Vencimento (somente para pendentes) ── */}
-                                            <div className="mt-3 pt-3 border-t border-slate-100">
-                                                <div className="flex items-start gap-2">
-                                                    <div className={`w-6 h-6 ${selectedItem.status !== 'PAID' ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'} border rounded-lg flex items-center justify-center shrink-0`}>
-                                                        <Clock size={12} className={selectedItem.status !== 'PAID' ? 'text-rose-500' : 'text-slate-400'} />
+                                            <div className="p-5 flex flex-col gap-4">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3 border-b border-slate-100/60">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Valor Total</span>
+                                                    <span className="text-sm font-bold text-slate-800 text-right">
+                                                        {formatCurrency(selectedItem.netValue || selectedItem.value)}
+                                                    </span>
+                                                </div>
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3 border-b border-slate-100/60">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Data de Emissão</span>
+                                                    <span className="text-sm font-bold text-slate-800 text-right">
+                                                        {new Date(selectedItem.createdAt || selectedItem.date).toLocaleDateString('pt-BR')}
+                                                    </span>
+                                                </div>
+                                                {selectedItem.paidAt && (
+                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3 border-b border-slate-100/60">
+                                                        <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Data de Recebimento</span>
+                                                        <span className="text-sm font-bold text-emerald-600 text-right">
+                                                            {new Date(selectedItem.paidAt).toLocaleDateString('pt-BR')}
+                                                        </span>
                                                     </div>
-                                                    <div className="flex-1">
-                                                        <p className={`text-[8px] font-medium uppercase tracking-widest leading-none mb-1 ${selectedItem.status !== 'PAID' ? 'text-rose-500' : 'text-slate-400'}`}>Vencimento</p>
+                                                )}
+
+                                                {/* Edição de Vencimento */}
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3 border-b border-slate-100/60">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Vencimento</span>
+                                                    <div className="flex justify-end">
                                                         {selectedItem.status !== 'PAID' ? (
                                                             <div className="flex items-center gap-2">
-                                                                    <input
-                                                                        type="date"
-                                                                        disabled={!can('financial', 'update')}
-                                                                        value={editingDueDate || (() => {
+                                                                <input
+                                                                    type="date"
+                                                                    disabled={!can('financial', 'update')}
+                                                                    value={editingDueDate || (() => {
                                                                         const raw = selectedItem.dueDate || selectedItem.date;
                                                                         if (!raw) return '';
                                                                         try { return new Date(raw).toISOString().split('T')[0]; } catch { return ''; }
                                                                     })()}
                                                                     onChange={(e) => setEditingDueDate(e.target.value)}
-                                                                    className="bg-white border border-rose-200 rounded-lg px-2 py-1.5 text-[11px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-rose-200 transition-all cursor-pointer shadow-sm hover:border-rose-300"
+                                                                    className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-slate-400 transition-all cursor-pointer shadow-sm"
                                                                 />
                                                                 {editingDueDate && (
                                                                     <button
@@ -2930,119 +3566,125 @@ ${container.innerHTML}
                                                                                 setIsProcessing(false);
                                                                             }
                                                                         }}
-                                                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-lg text-[10px] font-medium uppercase transition-all shadow-md shadow-[#1c2d4f]/20 active:scale-95 whitespace-nowrap disabled:opacity-50"
+                                                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-50"
                                                                     >
-                                                                        {isProcessing ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
-                                                                        Salvar
+                                                                        {isProcessing ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Salvar
                                                                     </button>
                                                                 )}
                                                             </div>
                                                         ) : (
-                                                            <p className="text-[10px] font-medium text-slate-600">{new Date(selectedItem.dueDate || selectedItem.date).toLocaleDateString('pt-BR')}</p>
+                                                            <span className="text-sm font-semibold text-slate-800">
+                                                                {new Date(selectedItem.dueDate || selectedItem.date).toLocaleDateString('pt-BR')}
+                                                            </span>
                                                         )}
                                                     </div>
                                                 </div>
-                                            </div>
-                                            
-                                            {selectedItem.original?.billingNotes && (
-                                                <div className="mt-4 bg-slate-50/50 border border-slate-100 rounded-lg p-3">
-                                                    <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest mb-1">Observações Fiscais/Faturamento</p>
-                                                    <p className="text-xs text-slate-700 font-medium leading-relaxed">{selectedItem.original.billingNotes}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                        {selectedItem.status === 'PAID' ? (
-                                            <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-5">
-                                                <div className="flex items-center gap-3 mb-4">
-                                                    <div className="w-8 h-8 bg-emerald-500 rounded-xl flex items-center justify-center"><Check size={16} className="text-white" /></div>
-                                                    <p className="text-[11px] font-semibold text-emerald-800 uppercase tracking-widest">Baixa Realizada</p>
-                                                </div>
-                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                                    <div className="bg-white rounded-xl p-3 border border-emerald-100">
-                                                        <p className="text-[9px] font-semibold text-emerald-500 uppercase mb-1">Forma de Pagamento</p>
-                                                        <p className="text-xs font-semibold text-emerald-900 uppercase">
-                                                            {selectedItem.original?.paymentMethod || '—'}
-                                                            {renderInstallmentsDetails(selectedItem)}
-                                                        </p>
-                                                    </div>
-                                                    <div className="bg-white rounded-xl p-3 border border-emerald-100">
-                                                        <p className="text-[9px] font-semibold text-emerald-500 uppercase mb-1">Desconto</p>
-                                                        <p className="text-xs font-semibold text-emerald-900 uppercase">
-                                                            {(() => {
-                                                                const disc = Number(selectedItem.original?.discount) || 0;
-                                                                const subtotal = selectedItem.original?.items?.reduce((a: number, i: any) => a + (Number(i.total) || 0), 0) || selectedItem.value;
-                                                                const infer = subtotal > selectedItem.original?.totalValue ? subtotal - selectedItem.original?.totalValue : 0;
-                                                                const finalDisc = disc > 0 ? disc : infer;
-                                                                const type = disc > 0 ? (selectedItem.original?.discountType || 'fixed') : 'fixed';
-                                                                if (finalDisc > 0) return type === 'percent' ? `${finalDisc}%` : formatCurrency(finalDisc);
-                                                                return 'Sem desconto';
-                                                            })()}
-                                                        </p>
-                                                    </div>
-                                                    <div className="bg-white rounded-xl p-3 border border-emerald-100">
-                                                        <p className="text-[9px] font-semibold text-emerald-500 uppercase mb-1">Data da Baixa</p>
-                                                        <p className="text-xs font-semibold text-emerald-900">{selectedItem.original?.paidAt ? new Date(selectedItem.original.paidAt).toLocaleDateString('pt-BR') : '—'}</p>
-                                                    </div>
-                                                </div>
                                                 {selectedItem.original?.billingNotes && (
-                                                    <div className="mt-4 pt-4 border-t border-emerald-100/50 space-y-4">
-                                                        <div>
-                                                            <p className="text-[9px] font-semibold text-emerald-500 uppercase mb-1">Observações do Faturamento</p>
-                                                            <p className="text-xs font-medium text-emerald-800 whitespace-pre-wrap">{selectedItem.original.billingNotes}</p>
-                                                        </div>
+                                                    <div className="flex flex-col gap-1 mt-2">
+                                                        <span className="text-sm text-slate-500 font-medium">Observações Fiscais</span>
+                                                        <span className="text-sm font-medium text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-100 whitespace-pre-wrap">
+                                                            {selectedItem.original.billingNotes}
+                                                        </span>
                                                     </div>
                                                 )}
                                             </div>
-                                        ) : (
-                                            <div className="bg-amber-50 border border-amber-100 rounded-xl p-5 text-center space-y-3">
-                                                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
-                                                    <Clock size={20} className="text-amber-500" />
+                                        </div>
+                                        {selectedItem.status === 'PAID' ? (
+                                                <div className="bg-emerald-50/50 border border-emerald-100/50 rounded-xl p-4 mt-4">
+                                                    <div className="flex items-center gap-3 mb-3">
+                                                        <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center border border-emerald-200"><Check size={16} className="text-emerald-600" /></div>
+                                                        <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest">Baixa Realizada</p>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                        <div className="bg-white rounded-lg p-3 border border-emerald-100/50">
+                                                            <p className="text-[9px] font-semibold text-emerald-500 uppercase mb-1">Forma de Pagamento</p>
+                                                            <p className="text-xs font-bold text-emerald-800 uppercase">
+                                                                {selectedItem.original?.paymentMethod || '—'}
+                                                                {renderInstallmentsDetails(selectedItem)}
+                                                            </p>
+                                                        </div>
+                                                        <div className="bg-white rounded-lg p-3 border border-emerald-100/50">
+                                                            <p className="text-[9px] font-semibold text-emerald-500 uppercase mb-1">Desconto</p>
+                                                            <p className="text-xs font-bold text-emerald-800 uppercase">
+                                                                {(() => {
+                                                                    const disc = Number(selectedItem.original?.discount) || 0;
+                                                                    const subtotal = selectedItem.original?.items?.reduce((a: number, i: any) => a + (Number(i.total) || 0), 0) || selectedItem.value;
+                                                                    const infer = subtotal > selectedItem.original?.totalValue ? subtotal - selectedItem.original?.totalValue : 0;
+                                                                    const finalDisc = disc > 0 ? disc : infer;
+                                                                    const type = disc > 0 ? (selectedItem.original?.discountType || 'fixed') : 'fixed';
+                                                                    if (finalDisc > 0) return type === 'percent' ? `${finalDisc}%` : formatCurrency(finalDisc);
+                                                                    return 'Sem desconto';
+                                                                })()}
+                                                            </p>
+                                                        </div>
+                                                        <div className="bg-white rounded-lg p-3 border border-emerald-100/50">
+                                                            <p className="text-[9px] font-semibold text-emerald-500 uppercase mb-1">Data da Baixa</p>
+                                                            <p className="text-xs font-bold text-emerald-800">{selectedItem.original?.paidAt ? new Date(selectedItem.original.paidAt).toLocaleDateString('pt-BR') : '—'}</p>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <p className="text-sm font-medium text-amber-800">Aguardando Faturamento</p>
-                                                <p className="text-xs text-amber-600">Valor de {formatCurrency(selectedItem.value)} ainda não liquidado.</p>
-                                                <button
-                                                    onClick={() => { setSelectedIds([selectedItem.id]); setIsInvoiceModalOpen(true); }}
-                                                    className="mx-auto px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium text-sm shadow-md transition-all flex items-center gap-2"
-                                                >
-                                                    <DollarSign size={16} /> Confirmar Lançamento Financeiro
-                                                </button>
-                                            </div>
-                                        )}
+                                            ) : (
+                                                <div className="bg-amber-50/50 border border-amber-100/50 rounded-xl p-5 text-center mt-4">
+                                                    <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                                        <Clock size={18} className="text-amber-600" />
+                                                    </div>
+                                                    <p className="text-sm font-semibold text-amber-800 mb-1">Aguardando Faturamento</p>
+                                                    <p className="text-[11px] text-amber-600 font-medium mb-4">Valor de {formatCurrency(selectedItem.value)} ainda não liquidado no sistema.</p>
+                                                    <button
+                                                        onClick={() => { 
+                                                            setSelectedIds([selectedItem.id]); 
+                                                            setBillingDiscount(0);
+                                                            setBillingDiscountType('fixed');
+                                                            setBillingShipping(0);
+                                                            setBillingOtherAdditions(0);
+                                                            setIsInvoiceModalOpen(true); 
+                                                        }}
+                                                        className="mx-auto px-6 py-2.5 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-lg font-bold text-[11px] uppercase tracking-wider transition-all flex items-center gap-2 shadow-sm"
+                                                    >
+                                                        <DollarSign size={14} /> Confirmar Lançamento Financeiro
+                                                    </button>
+                                                </div>
+                                            )}
                                     </div>
                                 )}
 
                                 {detailTab === 'linked' && (
                                     <div className="space-y-4">
                                         {selectedItem.type === 'ORDER' ? (
-                                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-                                                <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-3">
-                                                    <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><Layer size={13} /></div>
-                                                    <h3 className="text-xs font-semibold text-slate-800 tracking-wide">Orçamentos Vinculados</h3>
+                                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden font-poppins">
+                                                <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50">
+                                                    <div className="w-8 h-8 rounded-lg bg-slate-200/50 flex items-center justify-center text-slate-600">
+                                                        <Layer size={16} />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-sm font-semibold text-slate-800">Orçamentos Vinculados</h3>
+                                                        <p className="text-[11px] text-slate-500 font-medium mt-0.5">Histórico de propostas aprovadas</p>
+                                                    </div>
                                                 </div>
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div className="p-5 flex flex-col gap-3">
                                                     {selectedItem.original?.linkedQuotes?.map((qId: string) => {
                                                         const q = quotes.find(quote => quote.id === qId);
                                                         return q ? (
-                                                            <div key={qId} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex justify-between items-center">
+                                                            <div key={qId} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex justify-between items-center shadow-sm">
                                                                 <div>
-                                                                    <span className="text-[9px] font-semibold text-slate-500 uppercase">{q.displayId || 'ORC-' + qId.slice(0, 8).toUpperCase()}</span>
-                                                                    <p className="text-xs font-medium text-slate-800 mt-0.5 truncate max-w-[150px]">{q.title}</p>
+                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{q.displayId || 'ORC-' + qId.slice(0, 8).toUpperCase()}</span>
+                                                                    <p className="text-sm font-medium text-slate-800 mt-0.5 truncate max-w-[200px]">{q.title}</p>
                                                                 </div>
                                                                 <span className="text-sm font-semibold text-slate-900">{formatCurrency(q.totalValue)}</span>
                                                             </div>
                                                         ) : null;
                                                     })}
                                                     {(!selectedItem.original?.linkedQuotes || selectedItem.original.linkedQuotes.length === 0) && (
-                                                        <div className="col-span-full py-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                                                            <p className="text-[10px] text-slate-400 font-medium uppercase">Nenhum orçamento vinculado</p>
+                                                        <div className="py-8 text-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                                                            <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Nenhum orçamento vinculado</p>
                                                         </div>
                                                     )}
                                                     {availableQuotesForClient.length > 0 && selectedItem.status !== 'PAID' && (
-                                                        <div className="col-span-full pt-3 border-t border-slate-100 mt-2">
-                                                            <p className="text-[9px] font-semibold text-slate-400 uppercase mb-2">Disponíveis para vincular:</p>
+                                                        <div className="pt-4 border-t border-slate-100/60 mt-2">
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Disponíveis para vincular</p>
                                                             <div className="flex flex-wrap gap-2">
                                                                 {availableQuotesForClient.map(q => (
-                                                                    <button key={q.id} onClick={() => handleLinkQuote(q.id)} disabled={isProcessing} className="px-3 py-2 bg-white border border-slate-200 rounded-xl flex items-center gap-2 hover:border-slate-300 hover:bg-slate-50 transition-all text-[10px] font-medium text-slate-700 uppercase shadow-sm">
+                                                                    <button key={q.id} onClick={() => handleLinkQuote(q.id)} disabled={isProcessing} className="px-3 py-2 bg-white border border-slate-200 rounded-xl flex items-center gap-2 hover:border-slate-300 hover:bg-slate-50 transition-all text-[11px] font-semibold text-slate-700 shadow-sm active:scale-95">
                                                                         {q.displayId || 'ORC-' + q.id.slice(0, 8).toUpperCase()} — {formatCurrency(q.totalValue)}
                                                                         <Plus size={12} className="text-slate-400" />
                                                                     </button>
@@ -3053,23 +3695,32 @@ ${container.innerHTML}
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
-                                                <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
-                                                    <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><FileText size={13} /></div>
-                                                    <h3 className="text-xs font-semibold text-slate-800 tracking-wide">Detalhes do Orçamento</h3>
-                                                </div>
-                                                {selectedItem.original?.items?.map((item: any, i: number) => (
-                                                    <div key={i} className="flex justify-between items-center py-2 border-b border-slate-50 last:border-0">
-                                                        <div>
-                                                            <p className="text-xs font-medium text-slate-800">{item.description}</p>
-                                                            <p className="text-[10px] text-slate-400">{item.quantity} × {formatCurrency(item.unitPrice)}</p>
-                                                        </div>
-                                                        <span className="text-sm font-semibold text-slate-900">{formatCurrency(item.total)}</span>
+                                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden font-poppins">
+                                                <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50">
+                                                    <div className="w-8 h-8 rounded-lg bg-slate-200/50 flex items-center justify-center text-slate-600">
+                                                        <FileText size={16} />
                                                     </div>
-                                                ))}
-                                                {(!selectedItem.original?.items || selectedItem.original.items.length === 0) && (
-                                                    <p className="text-xs text-slate-400 text-center py-4">Nenhum item encontrado.</p>
-                                                )}
+                                                    <div>
+                                                        <h3 className="text-sm font-semibold text-slate-800">Itens do Orçamento</h3>
+                                                        <p className="text-[11px] text-slate-500 font-medium mt-0.5">Serviços e produtos detalhados</p>
+                                                    </div>
+                                                </div>
+                                                <div className="p-5 flex flex-col">
+                                                    {selectedItem.original?.items?.map((item: any, i: number) => (
+                                                        <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3 border-b border-slate-100/60 last:border-0">
+                                                            <div>
+                                                                <p className="text-sm font-medium text-slate-800">{item.description}</p>
+                                                                <p className="text-xs text-slate-500">{item.quantity} × {formatCurrency(item.unitPrice)}</p>
+                                                            </div>
+                                                            <span className="text-sm font-semibold text-slate-900 text-right">{formatCurrency(item.total)}</span>
+                                                        </div>
+                                                    ))}
+                                                    {(!selectedItem.original?.items || selectedItem.original.items.length === 0) && (
+                                                        <div className="py-8 text-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200 mt-2">
+                                                            <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Nenhum item encontrado.</p>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -3181,7 +3832,7 @@ ${container.innerHTML}
                                         </span>
                                     </div>
                                     <p className="text-xs text-slate-500 font-medium mt-1">
-                                        {selectedIds.length === 1 ? '1 Documento selecionado' : `${selectedIds.length} Documentos selecionados`} • Cliente: {selectedIds.length === 1 ? selectedItem?.customerName : filteredItems.find(i => i.id === selectedIds[0])?.customerName}
+                                        {selectedIds.length === 1 ? '1 Documento selecionado' : `${selectedIds.length} Documentos selecionados`} • Cliente: {selectedIds.length === 1 ? selectedItem?.customerName : allItems.find(i => i.id === selectedIds[0])?.customerName}
                                     </p>
                                 </div>
                             </div>
@@ -3234,33 +3885,32 @@ ${container.innerHTML}
                                     </div>
                                 </div>
 
-                                {/* ROW 2: Pagamento e Desconto */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* ROW 2: Pagamento e Ajustes (Fila em Linhas) */}
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                     {/* Forma de Pagamento */}
                                     <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all flex flex-col">
                                         <h3 className="text-sm font-medium text-slate-800 mb-4 flex items-center gap-2">
                                             <CreditCard size={16} className="text-slate-400"/> Forma de Pagamento
                                         </h3>
-                                        <div className="grid grid-cols-3 gap-3">
-                                            {paymentMethods.map(method => (
-                                                <button
-                                                    key={method.id}
-                                                    onClick={() => setPaymentMethod(method.id)}
-                                                    className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all shadow-sm ${paymentMethod === method.id
-                                                        ? 'bg-slate-800 border-slate-800 text-slate-200'
-                                                        : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'}`}
-                                                >
-                                                    <div className="mb-1.5 opacity-80">{method.icon}</div>
-                                                    <span className="text-[10px] font-medium uppercase tracking-wider text-center">{method.label}</span>
-                                                </button>
-                                            ))}
+                                        <div className="w-full relative">
+                                            <select
+                                                value={paymentMethod}
+                                                onChange={e => setPaymentMethod(e.target.value)}
+                                                className="w-full px-4 py-3 text-sm font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition-all appearance-none cursor-pointer"
+                                            >
+                                                <option value="" disabled>Selecione a forma de pagamento</option>
+                                                {paymentMethods.map(method => (
+                                                    <option key={method.id} value={method.id}>{method.label}</option>
+                                                ))}
+                                            </select>
+                                            <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                                         </div>
 
                                         {/* Parcelas */}
                                         {paymentMethod === 'Cartão Crédito' && (
                                             <div className="mt-5 pt-5 border-t border-slate-100 animate-in fade-in">
                                                 <h4 className="text-[10px] font-semibold tracking-widest uppercase text-slate-400 mb-3">Opções de Parcelamento</h4>
-                                                <div className="grid grid-cols-6 gap-2 mb-3">
+                                                <div className="grid grid-cols-6 md:grid-cols-12 gap-2 mb-3">
                                                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
                                                         <button
                                                             key={n}
@@ -3291,9 +3941,9 @@ ${container.innerHTML}
                                                         <span className="text-[9px] font-medium text-slate-400 uppercase tracking-widest leading-none mb-1">Valor da Parcela</span>
                                                         <span className="text-sm font-semibold text-slate-800">
                                                             {(() => {
-                                                                const base = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal;
+                                                                const base = selectedTotal;
                                                                 const dv = billingDiscountType === 'percent' ? (base * billingDiscount / 100) : billingDiscount;
-                                                                const finalAmount = Math.max(0, base - dv);
+                                                                const finalAmount = Math.max(0, base - dv + billingShipping + billingOtherAdditions);
                                                                 return `${installments}x de ${formatCurrency(finalAmount / (installments || 1))}`;
                                                             })()}
                                                         </span>
@@ -3302,32 +3952,88 @@ ${container.innerHTML}
                                             </div>
                                         )}
 
-                                        {/* Vencimento Boleto */}
+                                        {/* Vencimento e Parcelamento Boleto */}
                                         {paymentMethod === 'Boleto' && (
-                                            <div className="mt-5 pt-5 border-t border-slate-100 animate-in fade-in">
-                                                <h4 className="text-[10px] font-semibold tracking-widest uppercase text-slate-400 mb-3">Vencimento do Boleto</h4>
-                                                <div className="p-3 bg-slate-50 rounded-lg flex flex-col md:flex-row items-center justify-between gap-3 border border-slate-100">
-                                                    <div className="flex items-center gap-2 w-full">
-                                                        <Calendar size={16} className="text-slate-400 shrink-0" />
-                                                        <input
-                                                            type="date"
-                                                            value={boletoDueDate || (selectedItem?.dueDate ? selectedItem.dueDate.split('T')[0] : new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])}
-                                                            onChange={e => setBoletoDueDate(e.target.value)}
-                                                            className="flex-1 px-3 py-2 text-sm font-semibold text-slate-800 bg-white border border-slate-200 rounded-md outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition-all"
-                                                        />
+                                            <div className="mt-5 pt-5 border-t border-slate-100 animate-in fade-in space-y-4">
+                                                <div>
+                                                    <h4 className="text-[10px] font-semibold tracking-widest uppercase text-slate-400 mb-2">Opções de Parcelamento</h4>
+                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                        <div>
+                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Nº de Parcelas (Boletos)</label>
+                                                            <input 
+                                                                type="number" 
+                                                                min={1} 
+                                                                max={12} 
+                                                                value={installmentCount} 
+                                                                onChange={e => setInstallmentCount(Number(e.target.value))} 
+                                                                className="w-full px-3 py-2 text-sm font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#009EE3]/20 focus:border-[#009EE3] transition-all"
+                                                            />
+                                                        </div>
+                                                        {installmentCount > 1 ? (
+                                                            <div>
+                                                                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Intervalo (Dias)</label>
+                                                                <select 
+                                                                    value={installmentInterval} 
+                                                                    onChange={e => setInstallmentInterval(Number(e.target.value))}
+                                                                    className="w-full px-3 py-2 text-sm font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#009EE3]/20 focus:border-[#009EE3] transition-all appearance-none"
+                                                                >
+                                                                    <option value={15}>A cada 15 dias</option>
+                                                                    <option value={30}>A cada 30 dias</option>
+                                                                    <option value={60}>A cada 60 dias</option>
+                                                                </select>
+                                                            </div>
+                                                        ) : <div className="hidden md:block"></div>}
+                                                        <div>
+                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                                                                {installmentCount > 1 ? 'Vencimento da 1ª Parcela' : 'Vencimento do Boleto'}
+                                                            </label>
+                                                            <input
+                                                                type="date"
+                                                                value={boletoDueDate || (selectedItem?.dueDate ? selectedItem.dueDate.split('T')[0] : new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])}
+                                                                onChange={e => setBoletoDueDate(e.target.value)}
+                                                                className="w-full px-3 py-2 text-sm font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#009EE3]/20 focus:border-[#009EE3] transition-all"
+                                                            />
+                                                        </div>
                                                     </div>
+                                                    
+                                                    {installmentCount > 1 && (
+                                                        <div className="mt-3 p-3 bg-sky-50 border border-sky-100 rounded-lg text-xs text-sky-800 flex items-center gap-2">
+                                                            <Calculator size={14} className="shrink-0" />
+                                                            <span>
+                                                                Serão gerados <strong>{installmentCount} boletos</strong> de 
+                                                                <strong> {formatCurrency(
+                                                                    Math.max(0, (selectedTotal) - (billingDiscountType === 'percent' ? ((selectedTotal) * billingDiscount / 100) : billingDiscount)) / installmentCount
+                                                                )}</strong> cada.
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Informação do PIX (Sempre à vista) */}
+                                        {paymentMethod === 'Pix' && (
+                                            <div className="mt-5 pt-5 border-t border-slate-100 animate-in fade-in">
+                                                <div className="p-3.5 bg-emerald-50/80 border border-emerald-200/60 rounded-xl text-xs text-emerald-900 flex items-center justify-between shadow-xs">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <Smartphone size={16} className="text-emerald-600 shrink-0" />
+                                                        <span className="font-medium">
+                                                            Pagamento <strong>à vista via PIX</strong> (QR Code e Copia e Cola gerados instantaneamente).
+                                                        </span>
+                                                    </div>
+                                                    <span className="px-2.5 py-1 bg-emerald-600 text-white text-[10px] font-bold rounded-lg uppercase tracking-wider shrink-0 shadow-xs">À Vista (1x)</span>
                                                 </div>
                                             </div>
                                         )}
                                     </div>
 
                                     {/* Ajustes Financeiros */}
-                                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all flex flex-col h-full">
+                                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all flex flex-col">
                                         <h3 className="text-sm font-medium text-slate-800 mb-4 flex items-center gap-2">
                                             <Tag size={16} className="text-slate-400"/> Ajustes Financeiros
                                         </h3>
                                         {can('financial', 'discounts') ? (
-                                            <div className="space-y-3 pt-3 border-t border-slate-100 flex-1 flex flex-col justify-center">
+                                            <div className="flex flex-col gap-3 pt-3 border-t border-slate-100 flex-1 justify-center">
                                                 {/* Desconto */}
                                                 <div className="flex gap-2 w-full">
                                                     <div className="flex rounded-lg overflow-hidden border border-slate-200 shrink-0">
@@ -3379,10 +4085,10 @@ ${container.innerHTML}
                                     <div className="space-y-4">
                                         <div className="flex justify-between items-center text-sm">
                                             <span className="text-slate-500 font-medium tracking-wide">Subtotal</span>
-                                            <span className="font-semibold text-slate-700">{formatCurrency(selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal)}</span>
+                                            <span className="font-semibold text-slate-700">{formatCurrency(selectedTotal)}</span>
                                         </div>
                                         {(() => {
-                                            const base = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal;
+                                            const base = selectedTotal;
                                             const dv = billingDiscountType === 'percent' ? (base * billingDiscount / 100) : billingDiscount;
                                             return (
                                                 <>
@@ -3409,7 +4115,7 @@ ${container.innerHTML}
                                         })()}
                                         <div className="pt-4 mt-4 border-t border-slate-100 flex justify-between items-end">
                                             <span className="text-xs font-semibold text-slate-800 uppercase tracking-widest">Total a Receber</span>
-                                            <span className="text-xl font-bold text-emerald-600 tracking-tight">{formatCurrency(Math.max(0, (() => { const base = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal; const dv = billingDiscountType === 'percent' ? (base * billingDiscount / 100) : billingDiscount; return base - dv + billingShipping + billingOtherAdditions; })()))}</span>
+                                            <span className="text-xl font-bold text-emerald-600 tracking-tight">{formatCurrency(Math.max(0, (() => { const base = selectedTotal; const dv = billingDiscountType === 'percent' ? (base * billingDiscount / 100) : billingDiscount; return base - dv + billingShipping + billingOtherAdditions; })()))}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -3506,7 +4212,7 @@ ${container.innerHTML}
                             </div>
                         </div>
 
-                        {/* ─── Conteúdo do Recibo FORMAL SAAS (imprimível) — BASEADO NA O.S E ORÇAMENTO ─── */}
+                        {/* ─── Conteúdo do Recibo FORMAL SAAS (imprimível) ─── */}
                         <div id="print-container" className="w-full">
                             {printItem.type === 'INVOICE' ? (
                                 <div id="printable-receipt" ref={printRef} className="print:w-full w-[210mm] mx-auto">
@@ -3515,6 +4221,7 @@ ${container.innerHTML}
                                         invoiceItems={invoiceItems} 
                                         rawItems={[...orders, ...quotes]} 
                                         customers={customers}
+                                        installments={invoiceInstallmentsList}
                                         tenantInfo={{
                                             name: tenant?.company_name || tenant?.trading_name || tenant?.name || 'Sua Empresa',
                                             document: tenant?.cnpj || tenant?.document,
@@ -3832,20 +4539,7 @@ ${container.innerHTML}
                 document.body
             )}
 
-            {/* Modal de Cobrança Mercado Pago (Pix / Cartão) */}
-            {isMpModalOpen && mpModalItem && (
-                <MercadoPagoPaymentModal
-                    isOpen={isMpModalOpen}
-                    onClose={() => {
-                        setIsMpModalOpen(false);
-                        setMpModalItem(null);
-                    }}
-                    item={mpModalItem}
-                    onSuccess={() => {
-                        onRefresh();
-                    }}
-                />
-            )}
+            {/* Modal de Cobrança Asaas (Em breve) */}
 
             {/* Modal de Auditoria da Transação / Gateway */}
             {isAuditModalOpen && auditModalItem && (
@@ -3862,93 +4556,342 @@ ${container.innerHTML}
             {/* Modal de Detalhes da Fatura Gerada */}
             {isInvoiceDetailModalOpen && selectedInvoice && createPortal(
                 <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in" onClick={() => setIsInvoiceDetailModalOpen(false)}>
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden border border-slate-200 flex flex-col" onClick={e => e.stopPropagation()}>
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[92vh] overflow-hidden border border-slate-200 flex flex-col" onClick={e => e.stopPropagation()}>
                         
                         {/* Modal Header */}
-                        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-2xl bg-[#009EE3]/20 flex items-center justify-center border border-[#009EE3]/30">
-                                    <FileText size={20} className="text-[#009EE3]" />
-                                </div>
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <h2 className="text-base font-bold text-white tracking-tight">
-                                            Fatura Consolidada {selectedInvoice.display_id}
-                                        </h2>
-                                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
-                                            selectedInvoice.status === 'PAID' 
-                                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
-                                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse'
-                                        }`}>
-                                            {selectedInvoice.status === 'PAID' ? 'Liquidado / Pago' : 'Pendente de Pagamento'}
-                                        </span>
+                        <div className="bg-white border-b border-slate-200 px-6 pt-5 pb-0 flex flex-col shrink-0 shadow-xs">
+                            <div className="flex items-center justify-between w-full">
+                                <div className="flex items-center gap-3.5">
+                                    <div className="w-11 h-11 rounded-2xl bg-[#009EE3]/10 flex items-center justify-center border border-[#009EE3]/20 text-[#009EE3] shadow-xs shrink-0">
+                                        <FileText size={22} className="text-[#009EE3]" />
                                     </div>
-                                    <p className="text-[11px] text-slate-400 mt-0.5">
-                                        Emitida em {new Date(selectedInvoice.created_at).toLocaleString('pt-BR')}
-                                    </p>
-                                </div>
-                            </div>
-                            <button 
-                                onClick={() => setIsInvoiceDetailModalOpen(false)} 
-                                className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-all"
-                            >
-                                <X size={18} />
-                            </button>
-                        </div>
-
-                        {/* Modal Body */}
-                        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6 bg-slate-50/50">
-                            
-                            {/* Grid 1: Informações Gerais do Cliente e Pagamento */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2">
-                                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block">Dados do Cliente</span>
-                                    <p className="text-sm font-bold text-slate-800">{selectedInvoice.customer_name}</p>
-                                    <p className="text-xs text-slate-500 font-mono">CPF / CNPJ: {selectedInvoice.customer_document || 'Não informado'}</p>
-                                </div>
-
-                                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2">
-                                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block">Forma & Gateway de Pagamento</span>
-                                    <div className="flex flex-col gap-1.5">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-sm font-bold text-slate-800">
-                                                {(() => {
-                                                    const raw = selectedInvoice.payment_method || 'Mercado Pago';
-                                                    const s = String(raw).toLowerCase();
-                                                    if (s.includes('credit_card') || s.includes('cart') || s.includes('card')) return 'Cartão de Crédito';
-                                                    if (s.includes('pix')) return 'Pix';
-                                                    if (s.includes('ticket') || s.includes('boleto')) return 'Boleto';
-                                                    if (s.includes('cash') || s.includes('dinheiro')) return 'Dinheiro';
-                                                    return raw;
-                                                })()}
+                                    <div>
+                                        <div className="flex items-center gap-2.5">
+                                            <h2 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight">
+                                                Fatura Consolidada {selectedInvoice.display_id}
+                                            </h2>
+                                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                                                selectedInvoice.status === 'PAID' 
+                                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 font-bold' 
+                                                    : 'bg-amber-50 text-amber-700 border border-amber-200/80 font-bold animate-pulse'
+                                            }`}>
+                                                {selectedInvoice.status === 'PAID' ? 'Liquidado / Pago' : 'Pendente de Pagamento'}
                                             </span>
-                                            {selectedInvoice.status === 'PAID' ? (
-                                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                                                    ✓ Pago
-                                                </span>
-                                            ) : (
-                                                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                                                    • Pendente
-                                                </span>
-                                            )}
                                         </div>
-
                                         {(() => {
-                                            const rawMpId = selectedInvoice.gateway_payment_id || selectedInvoice.payment_gateway_id;
-                                            return rawMpId ? (
-                                                <div className="flex items-center justify-between bg-slate-50 p-2 rounded-xl border border-slate-200 text-xs font-mono">
-                                                    <span className="text-slate-500 font-bold">ID Mercado Pago:</span>
-                                                    <span className="font-extrabold text-[#009EE3] select-all">#{rawMpId}</span>
+                                            const paidAtRaw = selectedInvoice.paid_at || (invoiceInstallmentsList.find(i => i.paid_at)?.paid_at) || (selectedInvoice.status === 'PAID' ? selectedInvoice.updated_at : null);
+                                            const paidAtFormatted = paidAtRaw ? formatAsaasDateTime(paidAtRaw) : null;
+                                            const billedUser = getBilledUserName(selectedInvoice);
+
+                                            return (
+                                                <div className="flex flex-wrap items-center gap-x-3 text-xs text-slate-500 mt-1">
+                                                    <span>
+                                                        <strong className="text-slate-700 font-semibold">Emitida em:</strong> {selectedInvoice.created_at ? new Date(selectedInvoice.created_at).toLocaleString('pt-BR') : 'Data N/I'}
+                                                    </span>
+                                                    <span className="border-l border-slate-200 pl-3">
+                                                        <strong className="text-sky-800 font-semibold">Faturado por:</strong> <span className="font-bold text-sky-900">{billedUser}</span>
+                                                    </span>
+                                                    {(selectedInvoice.status === 'PAID' || paidAtFormatted) && (
+                                                        <span className="text-emerald-700 font-semibold border-l border-slate-200 pl-3">
+                                                            <strong className="text-emerald-800 font-bold">Liquidada em:</strong> {paidAtFormatted || 'Data confirmada'}
+                                                        </span>
+                                                    )}
                                                 </div>
-                                            ) : (
-                                                <p className="text-[11px] text-slate-400 italic">
-                                                    Nenhum ID de Transação Mercado Pago associado ainda.
-                                                </p>
                                             );
                                         })()}
                                     </div>
                                 </div>
+                                <button 
+                                    onClick={() => setIsInvoiceDetailModalOpen(false)} 
+                                    className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all"
+                                >
+                                    <X size={18} />
+                                </button>
                             </div>
+
+                            {/* TABS DO MODAL DE FATURA */}
+                            <div className="flex items-center gap-6 mt-4 w-full border-t border-slate-100 pt-3">
+                                <button
+                                    onClick={() => setInvoiceDetailTab('GERAL')}
+                                    className={`pb-3 text-sm font-bold transition-all flex items-center gap-2.5 border-b-2 group ${
+                                        invoiceDetailTab === 'GERAL' 
+                                            ? 'border-[#009EE3] text-[#009EE3]' 
+                                            : 'border-transparent text-slate-500 hover:text-slate-800'
+                                    }`}
+                                >
+                                    <div className={`p-1.5 rounded-lg transition-colors ${
+                                        invoiceDetailTab === 'GERAL' 
+                                            ? 'bg-[#009EE3]/15 text-[#009EE3]' 
+                                            : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-700'
+                                    }`}>
+                                        <FileText size={17} />
+                                    </div>
+                                    <span>Geral</span>
+                                </button>
+
+                                {(() => {
+                                    const methodStr = String(selectedInvoice.payment_method || '').toLowerCase();
+                                    const isBoletoOrCard = methodStr.includes('boleto') || methodStr.includes('ticket') || methodStr.includes('cart') || methodStr.includes('card') || methodStr.includes('credit');
+                                    const hasInsts = invoiceInstallmentsList.length > 0 || (selectedInvoice.notes && (selectedInvoice.notes.includes('installments') || selectedInvoice.notes.includes('hasInstallments')));
+                                    return isBoletoOrCard || hasInsts;
+                                })() && (
+                                    <button
+                                        onClick={() => setInvoiceDetailTab('PARCELAS')}
+                                        className={`pb-3 text-sm font-bold transition-all flex items-center gap-2.5 border-b-2 group ${
+                                            invoiceDetailTab === 'PARCELAS' 
+                                                ? 'border-[#009EE3] text-[#009EE3]' 
+                                                : 'border-transparent text-slate-500 hover:text-slate-800'
+                                        }`}
+                                    >
+                                        <div className={`p-1.5 rounded-lg transition-colors ${
+                                            invoiceDetailTab === 'PARCELAS' 
+                                                ? 'bg-[#009EE3]/15 text-[#009EE3]' 
+                                                : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-700'
+                                        }`}>
+                                            <Layers size={17} />
+                                        </div>
+                                        <span>Parcelamento & Status das Parcelas</span>
+                                        {invoiceInstallmentsList.length > 0 && (
+                                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                                                invoiceDetailTab === 'PARCELAS'
+                                                    ? 'bg-[#009EE3]/15 text-[#009EE3] border-[#009EE3]/30'
+                                                    : 'bg-slate-100 text-slate-600 border-slate-200'
+                                            }`}>
+                                                {invoiceInstallmentsList.filter(i => i.status === 'PAID').length}/{invoiceInstallmentsList.length} Pagas
+                                            </span>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+
+                        {/* Modal Body */}
+                        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6 bg-slate-50/50">
+                            
+                            {invoiceDetailTab === 'GERAL' && (
+                                <>
+                                    {/* Grid 1: Informações Gerais do Cliente, Gateway e Cronograma de Datas */}
+                                    {(() => {
+                                        const cust = customers.find(c => c.id === selectedInvoice.customer_id);
+                                        const phone = selectedInvoice.customer_phone || (selectedInvoice as any).customerPhone || cust?.phone || cust?.mobile_phone;
+                                        const email = selectedInvoice.customer_email || (selectedInvoice as any).customerEmail || cust?.email;
+                                        const addressParts = [
+                                            selectedInvoice.customer_address || (selectedInvoice as any).customerAddress || cust?.address,
+                                            cust?.address_number ? `Nº ${cust.address_number}` : null,
+                                            cust?.complement,
+                                            cust?.neighborhood,
+                                            cust?.city && cust?.state ? `${cust.city}/${cust.state}` : (cust?.city || cust?.state),
+                                            cust?.zip_code ? `CEP: ${cust.zip_code}` : null
+                                        ].filter(Boolean);
+                                        const fullAddress = addressParts.length > 0 ? addressParts.join(', ') : 'Endereço não cadastrado';
+
+                                        const paidAtRaw = selectedInvoice.paid_at || (invoiceInstallmentsList.find(i => i.paid_at)?.paid_at) || (selectedInvoice.status === 'PAID' ? selectedInvoice.updated_at : null);
+                                        const paidAtFormatted = paidAtRaw ? formatAsaasDateTime(paidAtRaw) : null;
+
+                                        return (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {/* Card Dados do Cliente Completo */}
+                                                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
+                                                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Dados do Cliente</span>
+                                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded font-mono">
+                                                            CPF/CNPJ: {selectedInvoice.customer_document || cust?.cpf_cnpj || cust?.cnpj || cust?.cpf || 'Não informado'}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-sm font-extrabold text-slate-800">{selectedInvoice.customer_name}</p>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600">
+                                                        <p className="flex items-center gap-1.5">
+                                                            <span className="font-semibold text-slate-400">📞 Tel:</span> 
+                                                            <span className="font-mono">{phone || 'Não informado'}</span>
+                                                        </p>
+                                                        <p className="flex items-center gap-1.5 truncate">
+                                                            <span className="font-semibold text-slate-400">✉️ Email:</span> 
+                                                            <span className="truncate">{email || 'Não informado'}</span>
+                                                        </p>
+                                                    </div>
+                                                    <div className="text-xs text-slate-600 border-t border-slate-100 pt-2 flex items-start gap-1.5">
+                                                        <span className="font-semibold text-slate-400 shrink-0">📍 Endereço:</span> 
+                                                        <span className="leading-relaxed">{fullAddress}</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Card Forma & Gateway de Pagamento */}
+                                                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2 flex flex-col justify-between">
+                                                    <div>
+                                                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block mb-2">Forma & Gateway de Pagamento</span>
+                                                        <div className="flex flex-col gap-1.5">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-sm font-bold text-slate-800">
+                                                                    {(() => {
+                                                                    const raw = selectedInvoice.payment_method || 'Asaas';
+                                                                    const s = String(raw).toLowerCase();
+                                                                    let method = raw;
+                                                                    if (s.includes('credit_card') || s.includes('cart') || s.includes('card')) method = 'Cartão de Crédito';
+                                                                    else if (s.includes('pix')) method = 'Pix';
+                                                                    else if (s.includes('ticket') || s.includes('boleto')) method = 'Boleto';
+                                                                    else if (s.includes('cash') || s.includes('dinheiro')) method = 'Dinheiro';
+                                                                    
+                                                                    const match = raw.match(/(\d+)x/i);
+                                                                    const rawCount = match ? parseInt(match[1]) : 0;
+                                                                    
+                                                                    const maxInst = invoiceInstallmentsList?.length > 0 ? invoiceInstallmentsList[0].total_installments : 0;
+                                                                    const count = maxInst || invoiceInstallmentsList?.length || rawCount || 1;
+                                                                    
+                                                                    if (count > 1 && method !== 'Pix' && method !== 'Dinheiro') {
+                                                                        return `${method} (${count}x)`;
+                                                                    }
+                                                                    return method;
+                                                                    })()}
+                                                                </span>
+                                                                {selectedInvoice.status === 'PAID' ? (
+                                                                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                                                        ✓ Pago / Liquidado
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                                                                        • Pendente
+                                                                    </span>
+                                                                )}
+                                                            </div>
+
+                                                            {(() => {
+                                                                const rawAsaasId = selectedInvoice.gateway_payment_id || selectedInvoice.payment_gateway_id;
+                                                                const friendlyInvoiceNum = selectedInvoice.invoice_number || selectedInvoice.asaas_invoice_number || (selectedInvoice.notes ? (selectedInvoice.notes.match(/fatura[^\d]*(\d+)/i)?.[1]) : null);
+
+                                                                return (
+                                                                    <div className="space-y-1.5 pt-1">
+                                                                        {friendlyInvoiceNum && (
+                                                                            <div className="flex items-center justify-between bg-slate-50 p-2 rounded-xl border border-slate-200 text-xs font-mono">
+                                                                                <span className="text-slate-600 font-bold">Nº Fatura Asaas:</span>
+                                                                                <span className="font-extrabold text-slate-900 select-all">{friendlyInvoiceNum}</span>
+                                                                            </div>
+                                                                        )}
+                                                                        {rawAsaasId ? (
+                                                                            <div className="flex items-center justify-between bg-slate-50 p-2 rounded-xl border border-slate-200 text-xs font-mono">
+                                                                                <span className="text-slate-600 font-bold">ID Transação ASAAS:</span>
+                                                                                <span className="font-extrabold text-[#009EE3] select-all">#{rawAsaasId}</span>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <p className="text-[11px] text-slate-400 italic">
+                                                                                Nenhum ID de Transação ASAAS associado ainda.
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Card Cronograma de Datas (Emissão, Vencimento/Faturamento, Pagamento) */}
+                                                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2.5 md:col-span-2">
+                                                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block">Cronograma & Datas da Cobrança</span>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                                                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Data da Emissão</span>
+                                                            <span className="font-bold text-slate-800 font-mono mt-1 block">
+                                                                {selectedInvoice.created_at ? new Date(selectedInvoice.created_at).toLocaleString('pt-BR') : 'Não informada'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Data do Faturamento / Vencimento</span>
+                                                            <span className="font-bold text-slate-800 font-mono mt-1 block">
+                                                                {selectedInvoice.due_date ? new Date(selectedInvoice.due_date + 'T12:00:00').toLocaleDateString('pt-BR') : 'A Combinar'}
+                                                            </span>
+                                                        </div>
+                                                        <div className={`p-3 rounded-xl border ${selectedInvoice.status === 'PAID' || paidAtFormatted ? 'bg-emerald-50/80 border-emerald-200' : 'bg-slate-50 border-slate-200/80'}`}>
+                                                            <span className={`text-[10px] font-bold uppercase tracking-wider block ${selectedInvoice.status === 'PAID' || paidAtFormatted ? 'text-emerald-700' : 'text-slate-400'}`}>Data de Pagamento / Liquidação</span>
+                                                            <span className={`font-extrabold font-mono mt-1 block ${selectedInvoice.status === 'PAID' || paidAtFormatted ? 'text-emerald-700' : 'text-slate-400'}`}>
+                                                                {paidAtFormatted || 'Aguardando Pagamento'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+
+                            {/* Card de Cobrança Gerada (Pix/Boleto/Checkout) no Detalhe da Fatura */}
+                            {selectedInvoice.status !== 'PAID' && (selectedInvoice.gateway_ticket_url || selectedInvoice.ticket_url || selectedInvoice.gateway_pix_code || selectedInvoice.pix_code || selectedInvoice.gateway_payment_id || selectedInvoice.payment_gateway_id) && (
+                                <div className="bg-sky-50/90 border border-sky-200 rounded-2xl p-4 space-y-3 shadow-xs font-poppins animate-fade-in">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2 text-xs font-bold text-[#009EE3]">
+                                            <CreditCard size={16} /> Cobrança Emitida (Pronta para Reenvio)
+                                        </div>
+                                        <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-2.5 py-0.5 rounded-full border border-sky-200 uppercase tracking-wider">
+                                            Link Ativo
+                                        </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                                        Esta fatura já possui dados de cobrança gerados. Para reenviar ao cliente sem refaturar, utilize os botões abaixo:
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                                        {(selectedInvoice.gateway_pix_code || selectedInvoice.pix_code) && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(selectedInvoice.gateway_pix_code || selectedInvoice.pix_code);
+                                                    showAlert('Código Pix Copia e Cola copiado com sucesso!', 'success');
+                                                }}
+                                                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer"
+                                            >
+                                                📋 Copiar Pix
+                                            </button>
+                                        )}
+
+                                        {(selectedInvoice.gateway_ticket_url || selectedInvoice.ticket_url) && (
+                                            <button
+                                                type="button"
+                                                onClick={() => window.open(selectedInvoice.gateway_ticket_url || selectedInvoice.ticket_url, '_blank')}
+                                                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer"
+                                            >
+                                                📄 Abrir Boleto PDF
+                                            </button>
+                                        )}
+
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const checkoutUrl = `${window.location.origin}/#/checkout/invoice/${selectedInvoice.id}`;
+                                                window.open(checkoutUrl, '_blank');
+                                            }}
+                                            className="px-3 py-1.5 bg-[#009EE3] hover:bg-[#0089c7] text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer"
+                                        >
+                                            <Share2 size={13} /> 🔗 Abrir Checkout
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const companyName = tenant?.company_name || tenant?.name || 'NEXUS';
+                                                const checkoutUrl = `${window.location.origin}/#/checkout/invoice/${selectedInvoice.id}`;
+                                                const rawPhone = selectedInvoice.customer_phone || (selectedInvoice as any).customerPhone || '';
+                                                const cleanPhone = String(rawPhone).replace(/\D/g, '');
+                                                const phoneParam = cleanPhone.length >= 10 ? (cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`) : '';
+                                                const finalVal = selectedInvoice.total_amount - (selectedInvoice.discount_amount || 0) + (selectedInvoice.shipping_amount || 0) + (selectedInvoice.other_additions_amount || 0);
+                                                const formattedAmount = finalVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                                const pixCode = selectedInvoice.gateway_pix_code || selectedInvoice.pix_code;
+
+                                                const text = encodeURIComponent(
+                                                    `🏢 *${companyName.toUpperCase()}*\n` +
+                                                    `📌 *Faturamento Oficial • Fatura #${selectedInvoice.display_id}*\n\n` +
+                                                    `Olá, *${selectedInvoice.customer_name}*!\n\n` +
+                                                    `Segue o link oficial para pagamento no valor de *R$ ${formattedAmount}*:\n\n` +
+                                                    (pixCode ? `⚡ *PIX Copia e Cola:*\n\`${pixCode}\`\n\n` : '') +
+                                                    `🔗 *Link do Checkout Seguro:*\n${checkoutUrl}\n\n` +
+                                                    `Qualquer dúvida, estamos à inteira disposição!`
+                                                );
+                                                const waUrl = phoneParam ? `https://wa.me/${phoneParam}?text=${text}` : `https://wa.me/?text=${text}`;
+                                                window.open(waUrl, '_blank');
+                                            }}
+                                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer"
+                                        >
+                                            📲 Reenviar WhatsApp
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Grid 2: Itens Agrupados na Fatura */}
                             <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
@@ -4095,9 +5038,324 @@ ${container.innerHTML}
                                             )}
                                         </span>
                                     </div>
+                                    </div>
                                 </div>
-                            </div>
+                                </>
+                            )}
+                            
+                            {/* ABA DE PARCELAS E STATUS */}
+                            {invoiceDetailTab === 'PARCELAS' && (() => {
+                                const selectedInvoiceLiquid = Math.max(
+                                    0,
+                                    Number(selectedInvoice.total_amount || 0) -
+                                    Number(selectedInvoice.discount_amount || 0) +
+                                    Number(selectedInvoice.shipping_amount || 0) +
+                                    Number(selectedInvoice.other_additions_amount || 0)
+                                );
+                                return (
+                                <div className="space-y-6">
+                                    {invoiceInstallmentsList.length === 0 ? (
+                                        (selectedInvoice.notes && selectedInvoice.notes.includes('hasInstallments')) ? (
+                                            <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center animate-in fade-in">
+                                                <Loader2 size={32} className="text-[#009EE3] animate-spin mb-4" />
+                                                <h3 className="text-sm font-bold text-slate-800 mb-2">Processando Parcelas no Asaas</h3>
+                                                <p className="text-[12px] text-slate-500 max-w-sm mb-6">
+                                                    O gateway está gerando as cobranças. Isso leva apenas alguns segundos.
+                                                </p>
+                                                <button 
+                                                    onClick={() => loadInvoiceInstallments(selectedInvoice.id)}
+                                                    className="h-9 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition-all flex items-center justify-center gap-2 text-xs"
+                                                >
+                                                    <RefreshCw size={14} /> Atualizar Lista
+                                                </button>
+                                            </div>
+                                        ) : (
+                                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                                            <div className="flex items-center gap-3 mb-4">
+                                                <div className="w-10 h-10 rounded-full bg-[#009EE3]/10 flex items-center justify-center text-[#009EE3]">
+                                                    <Calculator size={20} />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-sm font-bold text-slate-800">Gerar Parcelamento Manual</h3>
+                                                    <p className="text-[11px] text-slate-500">
+                                                        Você pode dividir o valor total de {formatCurrency(selectedInvoiceLiquid)} em boletos ou cobranças.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-4 mt-6">
+                                                <div className="flex-1">
+                                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Nº de Parcelas</label>
+                                                    <input 
+                                                        type="number" 
+                                                        min={1} 
+                                                        max={12} 
+                                                        value={installmentCount} 
+                                                        onChange={e => setInstallmentCount(Number(e.target.value))} 
+                                                        className="w-full border border-slate-300 rounded-lg h-10 px-3 text-sm"
+                                                    />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Intervalo (Dias)</label>
+                                                    <select 
+                                                        value={installmentInterval} 
+                                                        onChange={e => setInstallmentInterval(Number(e.target.value))}
+                                                        className="w-full border border-slate-300 rounded-lg h-10 px-3 text-sm bg-white"
+                                                    >
+                                                        <option value={15}>15 dias</option>
+                                                        <option value={30}>30 dias</option>
+                                                        <option value={60}>60 dias</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div className="mt-4">
+                                                <label className="block text-xs font-semibold text-slate-600 mb-1">Vencimento da 1ª Parcela</label>
+                                                <input
+                                                    type="date"
+                                                    value={boletoDueDate || new Date().toISOString().split('T')[0]}
+                                                    onChange={e => setBoletoDueDate(e.target.value)}
+                                                    className="w-full border border-slate-300 rounded-lg h-10 px-3 text-sm bg-white"
+                                                />
+                                            </div>
+                                            <div className="mt-6">
+                                                <button 
+                                                    onClick={handleGenerateInstallments}
+                                                    disabled={generatingInstallments || selectedInvoiceLiquid / installmentCount < 4}
+                                                    className="w-full h-11 bg-[#009EE3] hover:bg-[#009EE3]/90 text-white font-bold rounded-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                                >
+                                                    {generatingInstallments ? <Loader2 size={16} className="animate-spin" /> : <Plus size={18} />}
+                                                    Gerar Boletos no Asaas
+                                                </button>
+                                                {selectedInvoiceLiquid / installmentCount < 4 && (
+                                                    <p className="text-[11px] text-red-500 mt-2 text-center">
+                                                        O valor de cada parcela deve ser maior que R$ 4,00.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                        )
+                                    ) : (
+                                        <div className="space-y-4 animate-in fade-in">
+                                            {/* Banner Resumo de Parcelas & Sincronização de Adiantamentos */}
+                                            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-5 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-md">
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <Layers size={18} className="text-[#009EE3]" />
+                                                        <h3 className="text-sm font-bold text-white">Status do Parcelamento / Carnê</h3>
+                                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-white/10 text-slate-300">
+                                                            {invoiceInstallmentsList.filter(i => i.status === 'PAID' || i.status === 'RECEIVED' || i.status === 'CONFIRMED' || i.status === 'ANTICIPATED').length} de {invoiceInstallmentsList.length} Liquidada(s)
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs text-slate-300">
+                                                        Valor Pago: <strong className="text-emerald-400">{formatCurrency(invoiceInstallmentsList.filter(i => i.status === 'PAID' || i.status === 'RECEIVED' || i.status === 'CONFIRMED' || i.status === 'ANTICIPATED').reduce((acc, i) => acc + (Number(i.amount) || 0), 0))}</strong> de <strong>{formatCurrency(selectedInvoiceLiquid)}</strong>
+                                                    </p>
+                                                </div>
 
+                                                <button
+                                                    disabled={isSyncingAllInstallments}
+                                                    onClick={async () => {
+                                                        setIsSyncingAllInstallments(true);
+                                                        let successMessage = '';
+                                                        let errorMessage = '';
+                                                        try {
+                                                            const tid = tenant?.id || tenantIdStr || '';
+                                                            const gatewayId = selectedInvoice.gateway_payment_id || selectedInvoice.payment_gateway_id || selectedInvoice.id;
+                                                            
+                                                            // 1. Sincronizar Fatura Principal
+                                                            const res = await PaymentService.syncInstallment(gatewayId, tid, selectedInvoice.id, 'INVOICE');
+
+                                                            // 2. Sincronizar individualmente cada parcela existente na lista
+                                                            if (invoiceInstallmentsList && invoiceInstallmentsList.length > 0) {
+                                                                await Promise.all(
+                                                                    invoiceInstallmentsList.map(inst => {
+                                                                        const instGwId = inst.gateway_payment_id || inst.payment_gateway_id;
+                                                                        if (instGwId) {
+                                                                            return PaymentService.syncInstallment(instGwId, tid, selectedInvoice.id, 'INVOICE');
+                                                                        }
+                                                                        return Promise.resolve(null);
+                                                                    })
+                                                                );
+                                                            }
+
+                                                            const statusPT = translateStatusToPT(res.newStatus || 'PENDING');
+                                                            await loadInvoiceInstallments(selectedInvoice.id);
+                                                            await loadInvoices();
+                                                            successMessage = `Todas as ${invoiceInstallmentsList.length || 1} parcelas foram sincronizadas! Status: ${statusPT}`;
+                                                        } catch (err: any) {
+                                                            errorMessage = err?.message || 'Erro ao sincronizar parcelas';
+                                                        } finally {
+                                                            setIsSyncingAllInstallments(false);
+                                                        }
+
+                                                        if (successMessage) {
+                                                            showAlert(successMessage, 'success');
+                                                        } else if (errorMessage) {
+                                                            showAlert(errorMessage, 'error');
+                                                        }
+                                                    }}
+                                                    className="h-10 px-4 bg-[#009EE3] hover:bg-[#009EE3]/90 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 shrink-0 cursor-pointer disabled:opacity-60"
+                                                >
+                                                    {isSyncingAllInstallments ? (
+                                                        <Loader2 size={15} className="animate-spin" />
+                                                    ) : (
+                                                        <RefreshCw size={15} />
+                                                    )}
+                                                    {isSyncingAllInstallments ? 'Verificando Asaas...' : 'Sincronizar Todas as Parcelas'}
+                                                </button>
+                                            </div>
+
+                                            {/* Tabela de Parcelas */}
+                                            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+                                                <div className="flex justify-between items-center bg-slate-50 border-b border-slate-200 px-5 py-3.5">
+                                                    <div className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                                        <span>Lista de Parcelas Geradas</span>
+                                                        <span className="px-2 py-0.5 bg-slate-200 text-slate-700 text-[10px] rounded-full font-bold">
+                                                            {invoiceInstallmentsList.length} {invoiceInstallmentsList.length === 1 ? 'parcela' : 'parcelas'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-left border-collapse">
+                                                        <thead>
+                                                            <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
+                                                                <th className="px-4 py-3">Parcela</th>
+                                                                <th className="px-4 py-3">Método</th>
+                                                                <th className="px-4 py-3">Vencimento</th>
+                                                                <th className="px-4 py-3">Pago em</th>
+                                                                <th className="px-4 py-3">Valor</th>
+                                                                <th className="px-4 py-3">Status</th>
+                                                                <th className="px-4 py-3 text-right">Ações</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {invoiceInstallmentsList.map((inst) => {
+                                                                const isPaid = inst.status === 'PAID' || inst.status === 'RECEIVED' || inst.status === 'CONFIRMED' || inst.status === 'ANTICIPATED';
+                                                                const isOverdue = inst.status === 'OVERDUE';
+                                                                const isCanceled = inst.status === 'CANCELED' || inst.status === 'REFUNDED' || inst.status === 'DELETED';
+                                                                const isPending = !isPaid && !isOverdue && !isCanceled;
+
+                                                                return (
+                                                                    <tr key={inst.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/80 transition-colors">
+                                                                        <td className="px-4 py-4 text-xs font-bold text-slate-800 whitespace-nowrap">
+                                                                            Parcela {inst.installment_number} de {inst.total_installments}
+                                                                        </td>
+                                                                        <td className="px-4 py-4 text-xs text-slate-600 font-medium">
+                                                                            {(() => {
+                                                                                const m = String(inst.payment_method || selectedInvoice.payment_method || '').toLowerCase();
+                                                                                if (m.includes('credit_card') || m.includes('cart') || m.includes('card')) return 'Cartão de Crédito';
+                                                                                if (m.includes('pix')) return 'PIX';
+                                                                                return 'Boleto Bancário';
+                                                                            })()}
+                                                                        </td>
+                                                                        <td className="px-4 py-4 text-xs text-slate-600 font-mono whitespace-nowrap">
+                                                                            {new Date(inst.due_date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                                                                        </td>
+                                                                        <td className="px-4 py-4 text-xs whitespace-nowrap font-mono">
+                                                                            {isPaid ? (
+                                                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                                                                                    <Calendar size={12} className="text-emerald-600 shrink-0" />
+                                                                                    {formatAsaasDateTime(inst.paid_at || inst.payment_date || (isPaid ? inst.updated_at : null)) || 'Data confirmada'}
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="text-slate-400 font-normal">—</span>
+                                                                            )}
+                                                                        </td>
+                                                                        <td className="px-4 py-4 text-sm font-bold text-slate-900 whitespace-nowrap">
+                                                                            {formatCurrency(inst.amount)}
+                                                                        </td>
+                                                                        <td className="px-4 py-4 whitespace-nowrap">
+                                                                            {isPaid && (
+                                                                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-xs">
+                                                                                    <CheckCircle2 size={13} className="text-emerald-600 shrink-0" /> Pago / Liquidado
+                                                                                </span>
+                                                                            )}
+                                                                            {isOverdue && (
+                                                                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300 shadow-xs">
+                                                                                    <AlertTriangle size={13} className="text-rose-600 shrink-0" /> Vencido
+                                                                                </span>
+                                                                            )}
+                                                                            {isPending && (
+                                                                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 shadow-xs">
+                                                                                    <Clock size={13} className="text-amber-600 shrink-0" /> Pendente
+                                                                                </span>
+                                                                            )}
+                                                                            {isCanceled && (
+                                                                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold bg-slate-100 text-slate-600 border border-slate-300 shadow-xs">
+                                                                                    <XCircle size={13} className="text-slate-500 shrink-0" /> Cancelado
+                                                                                </span>
+                                                                            )}
+                                                                        </td>
+                                                                        <td className="px-4 py-4 text-right whitespace-nowrap">
+                                                                            <div className="flex justify-end gap-1.5 items-center">
+                                                                                {/* Botão 1: Atualizar / Sincronizar */}
+                                                                                <button 
+                                                                                    disabled={syncingInstallmentId === inst.id}
+                                                                                    className="p-1.5 text-slate-500 hover:text-[#009EE3] hover:bg-[#009EE3]/10 rounded-lg transition-colors cursor-pointer disabled:opacity-50" 
+                                                                                    title="Atualizar / Sincronizar parcela com Asaas"
+                                                                                    onClick={async () => {
+                                                                                        setSyncingInstallmentId(inst.id);
+                                                                                        let successMessage = '';
+                                                                                        let errorMessage = '';
+                                                                                        try {
+                                                                                            const res = await PaymentService.syncInstallment(inst.gateway_payment_id || inst.payment_gateway_id, tenantIdStr, selectedInvoice?.id, 'INVOICE');
+                                                                                            if (res.success) {
+                                                                                                const statusPT = translateStatusToPT(res.newStatus || inst.status);
+                                                                                                if (selectedInvoice?.id) await loadInvoiceInstallments(selectedInvoice.id);
+                                                                                                await loadInvoices();
+                                                                                                successMessage = `Status da Parcela ${inst.installment_number}: ${statusPT}`;
+                                                                                            } else {
+                                                                                                errorMessage = res.message || 'Erro ao sincronizar parcela';
+                                                                                            }
+                                                                                        } catch (err: any) {
+                                                                                            errorMessage = err?.message || 'Erro ao sincronizar parcela';
+                                                                                        } finally {
+                                                                                            setSyncingInstallmentId(null);
+                                                                                        }
+
+                                                                                        if (successMessage) {
+                                                                                            showAlert(successMessage, 'success');
+                                                                                        } else if (errorMessage) {
+                                                                                            showAlert(errorMessage, 'error');
+                                                                                        }
+                                                                                    }}
+                                                                                >
+                                                                                    {syncingInstallmentId === inst.id ? (
+                                                                                        <Loader2 size={15} className="animate-spin text-[#009EE3]" />
+                                                                                    ) : (
+                                                                                        <RefreshCw size={15} />
+                                                                                    )}
+                                                                                </button>
+
+                                                                                {/* Botão 2: Visualizar */}
+                                                                                {(() => {
+                                                                                    const viewUrl = inst.gateway_ticket_url || selectedInvoice?.gateway_ticket_url || selectedInvoice?.ticket_url;
+                                                                                    return (
+                                                                                        <button 
+                                                                                            disabled={!viewUrl}
+                                                                                            className="p-1.5 text-[#009EE3] hover:bg-[#009EE3]/10 rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed" 
+                                                                                            title={viewUrl ? "Visualizar Boleto / Fatura no Asaas" : "Link de pagamento não disponível"}
+                                                                                            onClick={() => {
+                                                                                                if (viewUrl) window.open(viewUrl, '_blank');
+                                                                                            }}
+                                                                                        >
+                                                                                            <Eye size={15} />
+                                                                                        </button>
+                                                                                    );
+                                                                                })()}
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                );
+                            })()}
                         </div>
 
                         {/* Modal Footer (Ações) */}
@@ -4136,31 +5394,50 @@ ${container.innerHTML}
                             </div>
 
                             <div className="flex items-center gap-2.5">
-                                {/* Botão Abrir / Refaturar Mercado Pago */}
+                                {/* Botão Abrir Mercado Pago */}
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        const finalVal = selectedInvoice.total_amount - (selectedInvoice.discount_amount || 0) + (selectedInvoice.shipping_amount || 0) + (selectedInvoice.other_additions_amount || 0);
-                                        setMpModalItem({
-                                            type: 'ORDER',
-                                            id: selectedInvoice.id,
-                                            displayId: selectedInvoice.display_id,
-                                            title: `Fatura ${selectedInvoice.display_id}`,
-                                            value: finalVal,
-                                            customerName: selectedInvoice.customer_name,
-                                            customerDocument: selectedInvoice.customer_document,
-                                            gatewayPaymentId: selectedInvoice.payment_gateway_id,
-                                            gatewayStatus: selectedInvoice.status || 'pending',
-                                            billingStatus: selectedInvoice.status || 'PENDING'
-                                        });
-                                        setIsInvoiceDetailModalOpen(false);
-                                        setIsMpModalOpen(true);
+                                        const asaasUrl = 
+                                            selectedInvoice.gateway_ticket_url || 
+                                            selectedInvoice.ticket_url || 
+                                            selectedInvoice.gateway_invoice_url || 
+                                            selectedInvoice.invoice_url || 
+                                            (invoiceInstallmentsList && invoiceInstallmentsList.find(i => i.gateway_ticket_url)?.gateway_ticket_url);
+
+                                        if (asaasUrl) {
+                                            window.open(asaasUrl, '_blank');
+                                        } else {
+                                            const checkoutUrl = `${window.location.origin}/#/checkout/invoice/${selectedInvoice.id}`;
+                                            window.open(checkoutUrl, '_blank');
+                                        }
                                     }}
-                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm"
+                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm cursor-pointer"
                                 >
-                                    <CreditCard size={15} /> 
-                                    {selectedInvoice.status === 'PAID' ? 'Ver Cobrança Mercado Pago' : 'Gerar / Refaturar Mercado Pago'}
+                                    <ExternalLink size={15} /> 
+                                    Ver Cobrança Asaas
                                 </button>
+
+                                {/* Botão Refaturar */}
+                                {selectedInvoice.status !== 'PAID' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (can('financial', 'invoice')) {
+                                                const itemsInInv = invoiceItems.filter(ii => ii.invoice_id === selectedInvoice.id);
+                                                const ids = itemsInInv.map(ii => ii.reference_id);
+                                                setSelectedIds(ids);
+                                                setIsInvoiceDetailModalOpen(false);
+                                                setIsInvoiceModalOpen(true);
+                                            } else {
+                                                showAlert("Acesso Negado: Você não tem permissão para faturar.", 'warning');
+                                            }
+                                        }}
+                                        className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm"
+                                    >
+                                        <DollarSign size={15} /> Refaturar
+                                    </button>
+                                )}
 
                                 {/* Botão Imprimir Fatura PDF */}
                                 <button
@@ -4226,6 +5503,169 @@ ${container.innerHTML}
                                 {isProcessing ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : null}
                                 Confirmar Cancelamento
                             </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* NFS-e Detail Modal */}
+            {nfseDetailModal.isOpen && nfseDetailModal.data && createPortal(
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4" onClick={() => setNfseDetailModal({ isOpen: false, invoiceId: null, data: null })}>
+                    <div
+                        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-slide-in-right"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="bg-slate-800 px-6 py-5 text-white">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/10">
+                                        <Receipt size={20} className="text-white" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold">NFS-e</h3>
+                                        <p className="text-xs text-slate-300">Fatura {nfseDetailModal.data.invoiceDisplayId || ''}</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setNfseDetailModal({ isOpen: false, invoiceId: null, data: null })}
+                                    className="w-8 h-8 bg-white/10 hover:bg-white/20 rounded-lg flex items-center justify-center transition-colors border border-transparent hover:border-white/20"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-6 space-y-4">
+                            {/* Status Badge */}
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium text-slate-600">Status</span>
+                                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                                    nfseDetailModal.data.status === 'AUTHORIZED' 
+                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                                        : nfseDetailModal.data.status === 'ERROR' 
+                                            ? 'bg-red-50 text-red-700 border border-red-200'
+                                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                }`}>
+                                    <span className={`w-2 h-2 rounded-full ${
+                                        nfseDetailModal.data.status === 'AUTHORIZED' 
+                                            ? 'bg-emerald-500' 
+                                            : nfseDetailModal.data.status === 'ERROR' 
+                                                ? 'bg-red-500' 
+                                                : 'bg-amber-500 animate-pulse'
+                                    }`} />
+                                    {nfseDetailModal.data.status === 'AUTHORIZED' ? 'Autorizada' 
+                                        : nfseDetailModal.data.status === 'SCHEDULED' ? 'Agendada'
+                                        : nfseDetailModal.data.status === 'SYNCHRONIZED' ? 'Enviada à Prefeitura'
+                                        : nfseDetailModal.data.status === 'ERROR' ? 'Erro'
+                                        : nfseDetailModal.data.status || 'Desconhecido'}
+                                </span>
+                            </div>
+
+                            {/* NFS-e Number */}
+                            {nfseDetailModal.data.number && (
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm font-medium text-slate-600">Número da NF</span>
+                                    <span className="text-sm font-bold text-slate-800">#{nfseDetailModal.data.number}</span>
+                                </div>
+                            )}
+
+                            {/* Customer */}
+                            {nfseDetailModal.data.customerName && (
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm font-medium text-slate-600">Cliente</span>
+                                    <span className="text-sm text-slate-700 truncate max-w-[200px]">{nfseDetailModal.data.customerName}</span>
+                                </div>
+                            )}
+
+                            {/* Error Message */}
+                            {nfseDetailModal.data.status === 'ERROR' && nfseDetailModal.data.error_message && (
+                                <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
+                                    <p className="text-xs text-red-700 font-medium">
+                                        <AlertTriangle size={12} className="inline mr-1" />
+                                        {nfseDetailModal.data.error_message}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* PDF/XML Download Buttons */}
+                            {nfseDetailModal.data.status === 'AUTHORIZED' && (
+                                <div className="space-y-2 pt-2">
+                                    {nfseDetailModal.data.pdfUrl && (
+                                        <a
+                                            href={nfseDetailModal.data.pdfUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 hover:bg-slate-900 text-white font-bold text-sm rounded-xl transition-all shadow-lg shadow-slate-200/50 hover:shadow-slate-300/50"
+                                        >
+                                            <FileText size={16} />
+                                            Abrir PDF da NFS-e
+                                            <ExternalLink size={12} />
+                                        </a>
+                                    )}
+
+                                    {nfseDetailModal.data.xmlUrl && (
+                                        <a
+                                            href={nfseDetailModal.data.xmlUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-all border border-slate-200"
+                                        >
+                                            <Download size={16} />
+                                            Baixar XML da NFS-e
+                                            <ExternalLink size={12} />
+                                        </a>
+                                    )}
+
+                                    {!nfseDetailModal.data.pdfUrl && !nfseDetailModal.data.xmlUrl && (
+                                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                                            <p className="text-xs text-amber-700 font-medium text-center">
+                                                NFS-e autorizada mas PDF/XML ainda não disponíveis. Tente verificar o status novamente.
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Verify Status Button (for non-authorized) */}
+                            {nfseDetailModal.data.status !== 'AUTHORIZED' && (
+                                <button
+                                    onClick={async () => {
+                                        if (!nfseDetailModal.invoiceId) return;
+                                        setEmittingNfseId(nfseDetailModal.invoiceId);
+                                        try {
+                                            const res = await PaymentService.checkNfseStatus(nfseDetailModal.invoiceId, nfseDetailModal.data?.asaas_nfse_id);
+                                            if (res.success && res.nfse) {
+                                                const updated = { status: res.nfse.status, pdfUrl: res.nfse.pdfUrl, xmlUrl: res.nfse.xmlUrl, number: res.nfse.number, asaas_nfse_id: res.nfse.id };
+                                                setNfseDataMap(prev => ({ ...prev, [nfseDetailModal.invoiceId!]: updated }));
+                                                setNfseDetailModal(prev => ({ ...prev, data: { ...prev.data, ...updated } }));
+                                                if (res.nfse.status === 'AUTHORIZED') {
+                                                    showAlert(`✅ NFS-e #${res.nfse.number || ''} autorizada com sucesso!`, 'success');
+                                                } else {
+                                                    showAlert(`Status atualizado: ${res.nfse.status}`, 'info');
+                                                }
+                                            } else {
+                                                showAlert(res.message || 'Erro ao verificar', 'error');
+                                            }
+                                        } catch (err: any) {
+                                            showAlert(`Erro: ${err.message}`, 'error');
+                                        } finally {
+                                            setEmittingNfseId(null);
+                                        }
+                                    }}
+                                    disabled={emittingNfseId === nfseDetailModal.invoiceId}
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-sky-500 to-blue-500 hover:from-sky-600 hover:to-blue-600 text-white font-bold text-sm rounded-xl transition-all shadow-lg shadow-sky-200 disabled:opacity-50"
+                                >
+                                    {emittingNfseId === nfseDetailModal.invoiceId ? (
+                                        <Loader2 size={16} className="animate-spin" />
+                                    ) : (
+                                        <RefreshCw size={16} />
+                                    )}
+                                    Verificar Status na Prefeitura
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>,
