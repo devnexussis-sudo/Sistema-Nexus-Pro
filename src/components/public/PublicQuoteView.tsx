@@ -5,7 +5,7 @@ import {
     User, FileText, AlertCircle, Share2, Printer, Download,
     ArrowRight, Lock, Signature as SignatureIcon, Send,
     Calendar, ShieldCheck, DollarSign, XCircle, Mail, Phone,
-    X, Loader2, Globe
+    X, Loader2, Globe, CreditCard
 } from 'lucide-react';
 import { DataService } from '../../services/dataService';
 import { NexusBranding } from '../ui/NexusBranding';
@@ -510,13 +510,14 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
             </div>
 
             {/* Object/Description */}
-            {quote.description && (
+            {(quote.title || quote.description) && (
                 <div className="border border-slate-300 rounded-xl overflow-hidden mb-3 break-inside-avoid">
                     <div className="bg-slate-100 px-4 py-2 border-b border-slate-300">
                         <h3 className="font-bold text-xs uppercase tracking-widest text-slate-700">Objeto e Escopo Técnico</h3>
                     </div>
-                    <div className="p-4 bg-white text-sm text-slate-800 font-medium whitespace-pre-wrap leading-relaxed italic">
-                        {quote.description}
+                    <div className="p-4 bg-white text-sm text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">
+                        {quote.title && <div className="font-bold uppercase mb-2">{quote.title}</div>}
+                        {quote.description && <div className="italic">{quote.description}</div>}
                     </div>
                 </div>
             )}
@@ -603,6 +604,23 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                                     ))}
                                 </tbody>
                             </table>
+
+                            {/* ── CONDIÇÕES DE PAGAMENTO (PRINT) ── */}
+                            {(quote.paymentMethod || quote.paymentNotes) && (
+                                <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(0,0,0,0.1)', backgroundColor: '#f8fafc' }}>
+                                    <div style={{ fontSize: '9px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>Condições de Pagamento</div>
+                                    {quote.paymentMethod && (
+                                        <div style={{ fontSize: '10px', fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', marginBottom: '2px' }}>
+                                            Forma: {quote.paymentMethod.replace('_', ' ')} {quote.installments > 1 ? `(${quote.installments}x)` : ''}
+                                        </div>
+                                    )}
+                                    {quote.paymentNotes && (
+                                        <div style={{ fontSize: '9px', fontWeight: 400, color: '#475569', whiteSpace: 'pre-wrap' }}>
+                                            {quote.paymentNotes}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             {/* ── TOTAL FOOTER (always visible inside desktop/print) ── */}
                             <div className="flex flex-col md:flex-row print:flex-row bg-[#1c2d4f] text-white">
@@ -900,10 +918,13 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                                     label="Data de Elaboração"
                                     value={new Date(quote.createdAt).toLocaleDateString()}
                                 />
-                                {quote.description && (
-                                    <div className="col-span-2 pt-3 border-t border-slate-200">
-                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Objeto / Escopo Técnico</p>
-                                        <p className="text-sm text-slate-600 font-medium italic">{quote.description}</p>
+                                {(quote.title || quote.description) && (
+                                    <div className="col-span-2 pt-4 border-t border-slate-200 mt-2">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Objeto / Escopo Técnico</p>
+                                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                            {quote.title && <p className="text-sm font-bold text-slate-800 uppercase mb-2">{quote.title}</p>}
+                                            {quote.description && <p className="text-sm text-slate-600 font-medium italic whitespace-pre-wrap leading-relaxed">{quote.description}</p>}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -916,25 +937,72 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                             <SectionHeader icon={<DollarSign size={15} />} title="Composição de Preços e Serviços" color="text-emerald-600" />
                         </div>
 
-                        <div className="px-8 sm:px-10 pb-10 space-y-4">
-                            {quote.items.map((item: any, i: number) => (
-                                <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50/50 border border-slate-100 rounded-xl group hover:border-slate-300 transition-all gap-4 sm:gap-0">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center text-xs font-bold text-slate-400 italic  shrink-0">
-                                            {String(i + 1).padStart(2, '0')}
+                        <div className="px-8 sm:px-10 pb-10 overflow-x-auto custom-scrollbar">
+                            <div className="min-w-[600px] border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+                                <table className="w-full text-left table-auto">
+                                    <thead className="bg-slate-100/80 border-b border-slate-200">
+                                        <tr className="text-[10px] sm:text-xs font-bold text-slate-500 tracking-widest uppercase">
+                                            <th className="px-4 py-3 w-16 text-center border-r border-slate-200/50">#</th>
+                                            <th className="px-4 py-3 w-32 border-r border-slate-200/50">Código</th>
+                                            <th className="px-4 py-3 border-r border-slate-200/50">Descrição / Item</th>
+                                            <th className="px-4 py-3 w-20 text-center border-r border-slate-200/50">Qtd</th>
+                                            <th className="px-4 py-3 w-32 text-right border-r border-slate-200/50">V. Unit.</th>
+                                            <th className="px-4 py-3 w-32 text-right">Subtotal</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {quote.items.map((item: any, i: number) => (
+                                            <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
+                                                <td className="px-4 py-3 text-center border-r border-slate-100/50">
+                                                    <span className="w-6 h-6 inline-flex items-center justify-center bg-white border border-slate-200 rounded-md text-[10px] font-bold text-slate-400 italic">
+                                                        {String(i + 1).padStart(2, '0')}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3 text-xs font-bold text-[#3e5b99] tracking-wider uppercase font-mono border-r border-slate-100/50">
+                                                    {item.stockCode || item.stock_code || <span className="text-slate-300 font-normal">—</span>}
+                                                </td>
+                                                <td className="px-4 py-3 text-xs sm:text-sm font-bold text-slate-800 uppercase leading-snug border-r border-slate-100/50">
+                                                    {item.description || item.title}
+                                                </td>
+                                                <td className="px-4 py-3 text-xs font-bold text-slate-600 text-center border-r border-slate-100/50">
+                                                    {item.quantity}
+                                                </td>
+                                                <td className="px-4 py-3 text-xs font-bold text-slate-600 text-right whitespace-nowrap border-r border-slate-100/50">
+                                                    R$ {(item.unitPrice || item.unit_price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                </td>
+                                                <td className="px-4 py-3 text-sm font-black text-[#1c2d4f] text-right tracking-tighter whitespace-nowrap">
+                                                    R$ {(item.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* ── CONDIÇÕES DE PAGAMENTO (WEB) ── */}
+                        {(quote.paymentMethod || quote.paymentNotes) && (
+                            <div className="px-8 sm:px-10 pb-8">
+                                <div className="bg-indigo-50/50 border border-indigo-100/50 rounded-2xl p-6 flex flex-col sm:flex-row gap-6 justify-between items-start">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] font-bold text-indigo-800/60 uppercase tracking-widest flex items-center gap-2">
+                                            <CreditCard size={12} /> Condições de Pagamento
+                                        </p>
+                                        <div className="flex flex-col gap-1 mt-2">
+                                            {quote.paymentMethod && (
+                                                <p className="text-sm font-bold text-indigo-900 uppercase">
+                                                    Forma: {quote.paymentMethod.replace('_', ' ')}
+                                                    {quote.installments > 1 && <span className="ml-2 text-indigo-600/80">({quote.installments}x)</span>}
+                                                </p>
+                                            )}
+                                            {quote.paymentNotes && (
+                                                <p className="text-xs font-medium text-slate-600 max-w-md mt-1 whitespace-pre-wrap">{quote.paymentNotes}</p>
+                                            )}
                                         </div>
-                                        <div>
-                                            <p className="text-xs font-bold text-slate-800 uppercase leading-none">{item.description}</p>
-                                            <p className="text-xs font-bold text-slate-400 uppercase mt-1">Qtde: {item.quantity} un • Valor Unit: R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right pl-12 sm:pl-0 border-t sm:border-0 border-slate-100 pt-3 sm:pt-0">
-                                        <p className="text-xs font-bold text-slate-400 uppercase sm:hidden mb-0.5">Subtotal</p>
-                                        <p className="text-sm font-bold text-slate-900 tracking-tighter">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                     </div>
                                 </div>
-                            ))}
-                        </div>
+                            </div>
+                        )}
 
                         <div className="bg-emerald-50/50 p-8 sm:p-10 border-t border-emerald-100/50 flex flex-col sm:flex-row items-center justify-between gap-6">
                             <div className="flex items-center gap-4 order-2 sm:order-1">

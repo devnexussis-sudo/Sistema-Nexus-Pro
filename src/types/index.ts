@@ -639,6 +639,7 @@ export interface Quote {
   tenantId?: string;   // Multi-tenancy
   customerId?: string;
   createdBy?: string;
+  createdByName?: string;
   customerName: string;
   customerAddress: string;
   title: string;
@@ -665,6 +666,8 @@ export interface Quote {
   // Financeiro
   billingStatus?: 'PENDING' | 'BILLED' | 'PAID';
   paymentMethod?: string;
+  installments?: number;
+  paymentNotes?: string;
   paidAt?: string;
   billingNotes?: string;
   receiptUrl?: string;

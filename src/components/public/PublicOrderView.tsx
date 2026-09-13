@@ -2652,33 +2652,41 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 overflow-hidden">
               <div className="p-6 sm:p-8">
                 <SectionHeader icon={<Package size={15} />} title="Peças e Materiais Aplicados" />
-                <div className="rounded-xl border border-slate-100 overflow-hidden">
-                  <div className="overflow-x-auto w-full"><table className="w-full text-left">
-                    <thead>
-                      <tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-widest border-b border-slate-200">
-                        <th className="px-5 py-3">Descrição</th>
-                        <th className="px-5 py-3 text-center w-20">Qtd</th>
-                        {showPrices && <th className="px-5 py-3 text-right w-28">Unitário</th>}
-                        {showPrices && <th className="px-5 py-3 text-right w-28">Total</th>}
+                <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                  <div className="overflow-x-auto w-full custom-scrollbar"><table className="w-full text-left table-auto">
+                    <thead className="bg-slate-100/80 border-b border-slate-200">
+                      <tr className="text-[10px] sm:text-xs font-bold text-slate-500 tracking-widest uppercase">
+                        <th className="px-4 py-3 w-16 text-center border-r border-slate-200/50">#</th>
+                        <th className="px-4 py-3 w-32 border-r border-slate-200/50">Código</th>
+                        <th className="px-4 py-3 border-r border-slate-200/50">Descrição / Item</th>
+                        <th className="px-4 py-3 w-20 text-center border-r border-slate-200/50">Qtd</th>
+                        {showPrices && <th className="px-4 py-3 w-32 text-right border-r border-slate-200/50">V. Unit.</th>}
+                        {showPrices && <th className="px-4 py-3 w-32 text-right">Subtotal</th>}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-50">
+                    <tbody className="divide-y divide-slate-100">
                       {enrichedItems.map((item, i) => (
-                        <tr key={item.id || i} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-5 py-3.5">
-                            <span className="text-xs text-slate-800 uppercase">
-                              <span className="text-[#1c2d4f] mr-1">{item.quantity || 1}x</span> {item.description}
+                        <tr key={item.id || i} className="hover:bg-slate-50/50 transition-colors group">
+                          <td className="px-4 py-3 text-center border-r border-slate-100/50">
+                            <span className="w-6 h-6 inline-flex items-center justify-center bg-white border border-slate-200 rounded-md text-[10px] font-bold text-slate-400 italic">
+                                {String(i + 1).padStart(2, '0')}
                             </span>
+                          </td>
+                          <td className="px-4 py-3 text-xs font-bold text-[#3e5b99] tracking-wider uppercase font-mono border-r border-slate-100/50">
+                              {item.stockCode || item.stock_code || <span className="text-slate-300 font-normal">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-xs sm:text-sm font-bold text-slate-800 uppercase leading-snug border-r border-slate-100/50">
+                            {item.description || item.title}
                             {item.equipmentName && (
-                              <div className="flex items-center gap-1 text-xs text-slate-400 uppercase mt-1">
+                              <div className="flex items-center gap-1 text-[10px] text-slate-400 uppercase mt-1">
                                 <Box size={10} className="text-slate-300" /> {item.equipmentName}
                               </div>
                             )}
-                            {item.fromStock && <span className="text-xs text-emerald-600 uppercase mt-1 block">✦ Estoque Técnico</span>}
+                            {item.fromStock && <span className="text-[10px] text-emerald-600 uppercase mt-1 block font-bold">✦ Estoque Técnico</span>}
                           </td>
-                          <td className="px-5 py-3.5 text-center text-xs text-slate-500 ">{item.quantity}</td>
-                          {showPrices && <td className="px-5 py-3.5 text-right text-xs  text-slate-500">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
-                          {showPrices && <td className="px-5 py-3.5 text-right text-xs text-slate-900 ">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                          <td className="px-4 py-3 text-center text-xs font-bold text-slate-600 border-r border-slate-100/50">{item.quantity}</td>
+                          {showPrices && <td className="px-4 py-3 text-right text-xs font-bold text-slate-600 whitespace-nowrap border-r border-slate-100/50">R$ {(item.unitPrice || item.unit_price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                          {showPrices && <td className="px-4 py-3 text-right text-sm font-black text-[#1c2d4f] whitespace-nowrap tracking-tighter">R$ {(item.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
                         </tr>
                       ))}
                     </tbody>

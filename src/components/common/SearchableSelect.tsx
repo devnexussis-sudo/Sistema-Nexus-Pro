@@ -13,6 +13,7 @@ interface SearchableSelectProps {
   placeholder?: string;
   searchPlaceholder?: string;
   noOptionsText?: string;
+  requireSearchToOpen?: boolean;
 }
 
 export const SearchableSelect: React.FC<SearchableSelectProps> = ({
@@ -21,7 +22,8 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   onChange,
   placeholder = "Selecione...",
   searchPlaceholder = "Pesquisar...",
-  noOptionsText = "Nenhum resultado"
+  noOptionsText = "Nenhum resultado",
+  requireSearchToOpen = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -70,13 +72,15 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
             />
           </div>
           <div className="max-h-48 sm:max-h-56 overflow-y-auto custom-scrollbar p-1">
-            <div 
-              onClick={() => { onChange(''); setIsOpen(false); }}
-              className="px-2.5 py-1.5 text-xs text-slate-500 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
-            >
-              Nenhum / Limpar
-            </div>
-            {filteredOptions.map(o => (
+            {(!requireSearchToOpen || search.length > 0) && (
+              <div 
+                onClick={() => { onChange(''); setIsOpen(false); }}
+                className="px-2.5 py-1.5 text-xs text-slate-500 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
+              >
+                Nenhum / Limpar
+              </div>
+            )}
+            {(!requireSearchToOpen || search.length > 0) && filteredOptions.map(o => (
               <div 
                 key={o.id} 
                 onClick={() => { onChange(o.id); setIsOpen(false); }}
@@ -89,7 +93,12 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                 {o.name}
               </div>
             ))}
-            {filteredOptions.length === 0 && search.length > 0 && (
+            {requireSearchToOpen && search.length === 0 && (
+              <div className="px-3 py-4 text-center text-xs text-slate-400">
+                Digite para buscar...
+              </div>
+            )}
+            {search.length > 0 && filteredOptions.length === 0 && (
               <div className="px-3 py-3 text-center text-xs text-slate-400">
                 {noOptionsText}
               </div>

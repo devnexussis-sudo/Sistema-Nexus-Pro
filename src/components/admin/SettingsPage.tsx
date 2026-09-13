@@ -1486,6 +1486,7 @@ export const SettingsPage: React.FC = () => {
                             if (connected) {
                               setWppConnected(true);
                               setWppTestStatus('ok');
+                              setLastDisconnectReason(''); // Remove failure message from UI
                               
                               const newLog: WhatsAppConnectionLog = {
                                 id: Date.now().toString(),

@@ -41,7 +41,7 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, label }) => 
 
     // 🎨 Premium Rendering Settings
     ctx.strokeStyle = '#0f172a'; // Slate-900 for professional look
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 1.5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.imageSmoothingEnabled = true;
@@ -78,9 +78,9 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, label }) => 
     const velocity = timeDelta > 0 ? distance / timeDelta : 0;
 
     // Faster strokes = thinner lines (natural pen behavior)
-    const baseWidth = 2.5;
-    const minWidth = 1.5;
-    const maxWidth = 3.5;
+    const baseWidth = 1.5;
+    const minWidth = 0.5;
+    const maxWidth = 2.5;
 
     const width = baseWidth - (velocity * 0.5);
     return Math.max(minWidth, Math.min(maxWidth, width));
@@ -133,7 +133,7 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, label }) => 
 
     // Draw initial point
     ctx.beginPath();
-    ctx.arc(point.x, point.y, 1.5, 0, Math.PI * 2);
+    ctx.arc(point.x, point.y, 0.75, 0, Math.PI * 2);
     ctx.fill();
   };
 

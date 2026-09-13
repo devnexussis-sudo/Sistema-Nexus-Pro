@@ -85,18 +85,18 @@ serve(async (req: Request) => {
       let convId = existingConv?.id;
 
       if (existingConv) {
-        let history = existingConv.history || [];
         if (initial_message && initial_message.trim()) {
-          history = [
-            ...history,
-            {
+          await supabaseAdmin.from("whatsapp_messages").insert({
+              conversation_id: existingConv.id,
+              tenant_id: targetTenantId,
               role: "agent",
               content: initial_message.trim().substring(0, 2000),
-              timestamp: new Date().toISOString(),
+              type: "text",
+              is_from_me: true,
               agent_id: user.id,
               agent_name: agentName,
-            },
-          ];
+              created_at: new Date().toISOString()
+          });
         }
 
         await supabaseAdmin
@@ -105,21 +105,13 @@ serve(async (req: Request) => {
             state: "HUMAN_ACTIVE",
             assigned_agent_id: user.id,
             customer_id: customer_id || existingConv.customer_id,
-            history: history.slice(-100),
+            history: [...(existingConv.history || []), { role: "agent", content: initial_message.trim().substring(0, 2000), timestamp: new Date().toISOString() }],
             last_message_at: new Date().toISOString(),
           })
           .eq("id", existingConv.id);
 
         convId = existingConv.id;
       } else {
-        const initialHistory = initial_message && initial_message.trim() ? [{
-          role: "agent",
-          content: initial_message.trim().substring(0, 2000),
-          timestamp: new Date().toISOString(),
-          agent_id: user.id,
-          agent_name: agentName,
-        }] : [];
-
         const { data: created, error: createErr } = await supabaseAdmin
           .from("whatsapp_conversations")
           .insert([{
@@ -128,14 +120,28 @@ serve(async (req: Request) => {
             customer_id: customer_id || null,
             assigned_agent_id: user.id,
             state: "HUMAN_ACTIVE",
-            history: initialHistory,
             last_message_at: new Date().toISOString(),
+            history: initial_message && initial_message.trim() ? [{ role: "agent", content: initial_message.trim().substring(0, 2000), timestamp: new Date().toISOString() }] : [],
           }])
           .select("id")
           .single();
 
         if (createErr) throw new Error(createErr.message);
         convId = created?.id;
+        
+        if (initial_message && initial_message.trim() && convId) {
+            await supabaseAdmin.from("whatsapp_messages").insert({
+              conversation_id: convId,
+              tenant_id: targetTenantId,
+              role: "agent",
+              content: initial_message.trim().substring(0, 2000),
+              type: "text",
+              is_from_me: true,
+              agent_id: user.id,
+              agent_name: agentName,
+              created_at: new Date().toISOString()
+            });
+        }
       }
 
       // Se houver mensagem inicial, disparar via UAIZAP / Z-API
@@ -145,7 +151,7 @@ serve(async (req: Request) => {
           .select("whatsapp_settings")
           .eq("id", targetTenantId)
           .single();
-        const settings = (tenant?.whatsapp_settings || {}) as Record<string, string>;
+        const settings = (tenant?.whatsapp_settings || {}) as Record<string, any>;
         await sendWhatsAppMessage(settings, phone_number, initial_message.trim());
       }
 
@@ -170,7 +176,7 @@ serve(async (req: Request) => {
       .eq("id", conv.tenant_id)
       .single();
 
-    const settings = tenant?.whatsapp_settings as Record<string, string>;
+    const settings = tenant?.whatsapp_settings as Record<string, any>;
 
     // ── Ação: assumir conversa
     if (action === "takeover") {
@@ -183,17 +189,24 @@ serve(async (req: Request) => {
       const agentName = agentData?.name || "nossa equipe";
       const takeoverMsg = `✅ *${agentName}* da equipe assumiu o atendimento. Como posso ajudar?`;
 
-      const updatedHistory = [
-        ...(conv.history || []),
-        { role: "agent", content: takeoverMsg, timestamp: new Date().toISOString(), agent_id: user.id, agent_name: agentName },
-      ];
+      await supabaseAdmin.from("whatsapp_messages").insert({
+        conversation_id: conversation_id,
+        tenant_id: conv.tenant_id,
+        role: "agent",
+        content: takeoverMsg,
+        type: "text",
+        is_from_me: true,
+        agent_id: user.id,
+        agent_name: agentName,
+        created_at: new Date().toISOString()
+      });
 
       await supabaseAdmin
         .from("whatsapp_conversations")
         .update({
           state: "HUMAN_ACTIVE",
           assigned_agent_id: user.id,
-          history: updatedHistory,
+          history: [...(conv.history || []), { role: "agent", content: takeoverMsg, timestamp: new Date().toISOString() }],
           last_message_at: new Date().toISOString(),
         })
         .eq("id", conversation_id);
@@ -209,17 +222,22 @@ serve(async (req: Request) => {
     if (action === "return_to_bot") {
       const returnMsg = `🤖 O atendimento foi retornado ao assistente virtual. Como posso ajudar?`;
 
-      const updatedHistory = [
-        ...(conv.history || []),
-        { role: "bot", content: returnMsg, timestamp: new Date().toISOString() },
-      ];
+      await supabaseAdmin.from("whatsapp_messages").insert({
+        conversation_id: conversation_id,
+        tenant_id: conv.tenant_id,
+        role: "bot",
+        content: returnMsg,
+        type: "text",
+        is_from_me: true,
+        created_at: new Date().toISOString()
+      });
 
       await supabaseAdmin
         .from("whatsapp_conversations")
         .update({
           state: "CUSTOMER_FOUND",
           assigned_agent_id: null,
-          history: updatedHistory.slice(-100),
+          history: [...(conv.history || []), { role: "bot", content: returnMsg, timestamp: new Date().toISOString() }],
           last_message_at: new Date().toISOString(),
         })
         .eq("id", conversation_id);
@@ -242,16 +260,23 @@ serve(async (req: Request) => {
       const targetName = targetAgent?.name || "outro agente";
       const transferMsg = `🔃 O atendimento foi transferido para *${targetName}*. Aguarde um momento.`;
 
-      const updatedHistory = [
-        ...(conv.history || []),
-        { role: "agent", content: transferMsg, timestamp: new Date().toISOString(), agent_id: user.id, agent_name: extra?.agent_name || "Agente" },
-      ];
+      await supabaseAdmin.from("whatsapp_messages").insert({
+        conversation_id: conversation_id,
+        tenant_id: conv.tenant_id,
+        role: "agent",
+        content: transferMsg,
+        type: "text",
+        is_from_me: true,
+        agent_id: user.id,
+        agent_name: extra?.agent_name || "Agente",
+        created_at: new Date().toISOString()
+      });
 
       await supabaseAdmin
         .from("whatsapp_conversations")
         .update({
           assigned_agent_id: extra.target_user_id,
-          history: updatedHistory.slice(-100),
+          history: [...(conv.history || []), { role: "agent", content: transferMsg, timestamp: new Date().toISOString() }],
           last_message_at: new Date().toISOString(),
         })
         .eq("id", conversation_id);
@@ -265,11 +290,13 @@ serve(async (req: Request) => {
 
     // ── Ação: reiniciar bot
     if (action === "reset_bot") {
+      const resetMsg = `🤖 Bot reiniciado.`;
       await supabaseAdmin
         .from("whatsapp_conversations")
         .update({
           state: "GREETING",
           assigned_agent_id: null,
+          history: [...(conv.history || []), { role: "agent", content: resetMsg, timestamp: new Date().toISOString() }],
           last_message_at: new Date().toISOString(),
         })
         .eq("id", conversation_id);
@@ -283,17 +310,23 @@ serve(async (req: Request) => {
     if (action === "close_conversation") {
       const closeMsg = `Atendimento encerrado por um de nossos agentes. Agradecemos o contato! 👋`;
 
-      const updatedHistory = [
-        ...(conv.history || []),
-        { role: "agent", content: closeMsg, timestamp: new Date().toISOString(), agent_id: user.id, agent_name: extra?.agent_name || "Agente" },
-      ];
+      await supabaseAdmin.from("whatsapp_messages").insert({
+        conversation_id: conversation_id,
+        tenant_id: conv.tenant_id,
+        role: "agent",
+        content: closeMsg,
+        type: "text",
+        is_from_me: true,
+        agent_id: user.id,
+        agent_name: extra?.agent_name || "Agente",
+        created_at: new Date().toISOString()
+      });
 
       await supabaseAdmin
         .from("whatsapp_conversations")
         .update({
           state: "GREETING",
           assigned_agent_id: null,
-          history: updatedHistory,
           last_message_at: new Date().toISOString(),
         })
         .eq("id", conversation_id);
@@ -307,25 +340,25 @@ serve(async (req: Request) => {
 
     // ── Ação: enviar mensagem do agente
     if (action === "send" && message) {
-      // Salvar no histórico
-      // --- ANTI-BLOAT: Impedir mensagens maiores que 2000 caracteres (ex: base64) ---
       const safeText = message.substring(0, 2000);
 
-      let updatedHistory = [
-        ...(conv.history || []),
-        { role: "agent", content: safeText, timestamp: new Date().toISOString(), agent_id: user.id, agent_name: extra?.agent_name || "Agente" },
-      ];
-
-      // --- ANTI-BLOAT: Janela deslizante de 100 mensagens ---
-      if (updatedHistory.length > 100) {
-        updatedHistory = updatedHistory.slice(-100);
-      }
+      await supabaseAdmin.from("whatsapp_messages").insert({
+        conversation_id: conversation_id,
+        tenant_id: conv.tenant_id,
+        role: "agent",
+        content: safeText,
+        type: "text",
+        is_from_me: true,
+        agent_id: user.id,
+        agent_name: extra?.agent_name || "Agente",
+        created_at: new Date().toISOString()
+      });
 
       await supabaseAdmin
         .from("whatsapp_conversations")
-        .update({
-          history: updatedHistory,
-          last_message_at: new Date().toISOString(),
+        .update({ 
+            history: [...(conv.history || []), { role: "agent", content: safeText, timestamp: new Date().toISOString() }],
+            last_message_at: new Date().toISOString() 
         })
         .eq("id", conversation_id);
 
@@ -337,25 +370,64 @@ serve(async (req: Request) => {
       });
     }
 
-    // ── Ação: enviar figurinha do agente
-    if (action === "send_sticker" && message) {
-      // O 'message' conterá a URL ou base64 da figurinha, mas salvaremos no histórico como um aviso amigável
-      const safeText = "[✨ Figurinha Enviada]";
+    // ── Ação: enviar mídia do agente (imagem ou documento)
+    if (action === "send_media" && message) {
+      const { media_type, original_name } = extra;
+      const type = media_type || "image";
+      
+      const safeText = `MEDIA_URL:${type}:${message}`;
 
-      let updatedHistory = [
-        ...(conv.history || []),
-        { role: "agent", content: safeText, timestamp: new Date().toISOString(), agent_id: user.id, agent_name: extra?.agent_name || "Agente" },
-      ];
-
-      if (updatedHistory.length > 100) {
-        updatedHistory = updatedHistory.slice(-100);
-      }
+      await supabaseAdmin.from("whatsapp_messages").insert({
+        conversation_id: conversation_id,
+        tenant_id: conv.tenant_id,
+        role: "agent",
+        content: safeText,
+        type: type,
+        media_url: message, // public R2 url
+        is_from_me: true,
+        agent_id: user.id,
+        agent_name: extra?.agent_name || "Agente",
+        created_at: new Date().toISOString()
+      });
 
       await supabaseAdmin
         .from("whatsapp_conversations")
-        .update({
-          history: updatedHistory,
-          last_message_at: new Date().toISOString(),
+        .update({ 
+            history: [...(conv.history || []), { role: "agent", content: safeText, timestamp: new Date().toISOString() }],
+            last_message_at: new Date().toISOString() 
+        })
+        .eq("id", conversation_id);
+
+      // Enviar media via UAZAPI / Z-API
+      await sendWhatsAppMedia(settings, conv.phone_number, message, type, original_name);
+
+      return new Response(JSON.stringify({ ok: true, action: "send_media" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Ação: enviar figurinha do agente
+    if (action === "send_sticker" && message) {
+      const safeText = "[✨ Figurinha Enviada]";
+
+      await supabaseAdmin.from("whatsapp_messages").insert({
+        conversation_id: conversation_id,
+        tenant_id: conv.tenant_id,
+        role: "agent",
+        content: safeText,
+        type: "sticker",
+        media_url: message, // sticker url
+        is_from_me: true,
+        agent_id: user.id,
+        agent_name: extra?.agent_name || "Agente",
+        created_at: new Date().toISOString()
+      });
+
+      await supabaseAdmin
+        .from("whatsapp_conversations")
+        .update({ 
+            history: [...(conv.history || []), { role: "agent", content: safeText, timestamp: new Date().toISOString() }],
+            last_message_at: new Date().toISOString() 
         })
         .eq("id", conversation_id);
 
@@ -378,7 +450,7 @@ serve(async (req: Request) => {
 });
 
 async function sendWhatsAppMessage(
-  settings: Record<string, string>,
+  settings: Record<string, any>,
   phone: string,
   text: string
 ): Promise<void> {
@@ -386,9 +458,9 @@ async function sendWhatsAppMessage(
   if (settings.uazapi_url && settings.uazapi_token) {
     let baseUrl = settings.uazapi_url.trim();
     if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+    const token = settings.uazapi_token.trim();
 
-    // --- ANTI-BAN: Calcular delay humano para o atendente ---
-    const baseDelay = 1000; // 1s base para o atendente
+    const baseDelay = 1000;
     const charDelay = Math.min(text.length * (Math.floor(Math.random() * 15) + 20), 3000);
     const calculatedDelay = baseDelay + charDelay;
 
@@ -397,16 +469,18 @@ async function sendWhatsAppMessage(
     const payload = { 
       number: phone, 
       text: text,
-      readchat: true,      // Simula visualização da mensagem recebida
-      delay: calculatedDelay // Simula o digitando...
+      readchat: true,      // Marca conversa como lida no WhatsApp
+      readmessages: true,  // Marca mensagens recebidas como lidas
+      delay: calculatedDelay // Simula digitação humana
     };
 
     const res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "apikey": settings.uazapi_token.trim(),
-        "token": settings.uazapi_token.trim()
+        "Client-Token": token,
+        "token": token,
+        "apikey": token
       },
       body: JSON.stringify(payload),
     });
@@ -441,8 +515,86 @@ async function sendWhatsAppMessage(
   }
 }
 
+async function sendWhatsAppMedia(
+  settings: Record<string, any>,
+  phone: string,
+  mediaUrl: string,
+  mediaType: string,
+  originalName?: string
+): Promise<void> {
+  // 1. Tentar UAZAPI primeiro
+  if (settings.uazapi_url && settings.uazapi_token) {
+    let baseUrl = settings.uazapi_url.trim();
+    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+    const token = settings.uazapi_token.trim();
+
+    const isDoc = mediaType === 'document';
+    const url = `${baseUrl}/send/media`;
+
+    // Conforme Especificação OpenAPI UAZAPI:
+    // POST /send/media requer: { "number": "...", "type": "image|document", "file": "URL" }
+    const payload: Record<string, any> = { 
+      number: phone,
+      type: isDoc ? 'document' : 'image',
+      file: mediaUrl,
+      readchat: true,
+      readmessages: true,
+      delay: 1500
+    };
+
+    if (isDoc) {
+      payload.docName = originalName || 'documento.pdf';
+    }
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Client-Token": token,
+        "token": token,
+        "apikey": token
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("[Admin Send] ❌ Falha UAZAPI (Media):", res.status, errText);
+    }
+    return;
+  }
+
+  // 2. Fallback Z-API
+  const { zapi_instance_id, zapi_instance_token, zapi_client_token } = settings;
+  if (!zapi_instance_id || !zapi_instance_token) return;
+
+  const isDoc = mediaType === 'document';
+  const url = `https://api.z-api.io/instances/${zapi_instance_id}/token/${zapi_instance_token}/send-${isDoc ? 'document' : 'image'}`;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (zapi_client_token) headers["Client-Token"] = zapi_client_token;
+
+  const payload: Record<string, any> = { phone: phone };
+  if (isDoc) {
+    payload.document = mediaUrl;
+    payload.fileName = originalName || 'documento.pdf';
+  } else {
+    payload.image = mediaUrl;
+  }
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error(`[Admin Send] ❌ Falha Z-API (${mediaType}):`, res.status, errText);
+  }
+}
+
 async function sendWhatsAppSticker(
-  settings: Record<string, string>,
+  settings: Record<string, any>,
   phone: string,
   stickerUrlOrBase64: string
 ): Promise<void> {
@@ -450,20 +602,25 @@ async function sendWhatsAppSticker(
   if (settings.uazapi_url && settings.uazapi_token) {
     let baseUrl = settings.uazapi_url.trim();
     if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+    const token = settings.uazapi_token.trim();
 
-    const url = `${baseUrl}/send/sticker`;
+    const url = `${baseUrl}/send/media`;
 
     const payload = { 
       number: phone, 
-      sticker: stickerUrlOrBase64
+      type: "sticker",
+      file: stickerUrlOrBase64,
+      readchat: true,
+      readmessages: true
     };
 
     const res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "apikey": settings.uazapi_token.trim(),
-        "token": settings.uazapi_token.trim()
+        "Client-Token": token,
+        "token": token,
+        "apikey": token
       },
       body: JSON.stringify(payload),
     });

@@ -34,6 +34,7 @@ export const QuoteService = {
             tenantId: data.tenant_id,
             customerId: data.customer_id,
             createdBy: data.created_by,
+            createdByName: data.created_by_name,
             customerName: data.customer_name,
             customerAddress: data.customer_address,
             customerDocument: data.customer_document,
@@ -56,6 +57,8 @@ export const QuoteService = {
             updatedAt: data.updated_at,
             billingStatus: data.billing_status || 'PENDING',
             paymentMethod: data.payment_method,
+            installments: data.installments || (data.form_data as any)?.mpInstallments || (data.form_data as any)?.installments || (data.approval_metadata as any)?.mpInstallments || (data.approval_metadata as any)?.installments || (data.form_data as any)?.max_installments || (data.approval_metadata as any)?.max_installments,
+            paymentNotes: data.payment_notes,
             paidAt: data.paid_at,
             billingNotes: data.billing_notes,
             receiptUrl: data.approval_metadata?._receiptUrl,
@@ -70,7 +73,6 @@ export const QuoteService = {
             form_data: data.form_data,
             approvalMetadata: data.approval_metadata,
             approval_metadata: data.approval_metadata,
-            installments: (data.form_data as any)?.mpInstallments || (data.form_data as any)?.installments || (data.approval_metadata as any)?.mpInstallments || (data.approval_metadata as any)?.installments || (data.form_data as any)?.max_installments || (data.approval_metadata as any)?.max_installments
         };
     },
 
@@ -140,6 +142,7 @@ export const QuoteService = {
                 tenant_id: tid,
                 customer_id: quote.customerId,
                 created_by: quote.createdBy,
+                created_by_name: quote.createdByName,
                 customer_name: quote.customerName,
                 customer_address: quote.customerAddress,
                 title: quote.title,
@@ -150,6 +153,9 @@ export const QuoteService = {
                 notes: quote.notes,
                 valid_until: quote.validUntil,
                 linked_order_id: quote.linkedOrderId,
+                payment_method: quote.paymentMethod,
+                installments: quote.installments,
+                payment_notes: quote.paymentNotes,
                 discount: quote.discount || 0,
                 discount_type: quote.discountType || 'fixed',
                 // Campos de aprovação e faturamento (usados pelo auto-billing PMOC)
@@ -188,6 +194,8 @@ export const QuoteService = {
                 linked_order_id: quote.linkedOrderId,
                 billing_status: quote.billingStatus,
                 payment_method: quote.paymentMethod,
+                installments: quote.installments,
+                payment_notes: quote.paymentNotes,
                 paid_at: quote.paidAt,
                 billing_notes: quote.billingNotes,
                 approval_metadata: { ...(quote.approvalMetadata || {}), _receiptUrl: quote.receiptUrl },

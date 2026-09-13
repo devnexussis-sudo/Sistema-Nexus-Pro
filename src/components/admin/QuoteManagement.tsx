@@ -3,7 +3,9 @@ import {
     Briefcase,
     Calculator,
     Calendar,
+    ChevronDown,
     Clock,
+    CreditCard,
     Download,
     Edit3,
     Eye,
@@ -37,6 +39,22 @@ import { useI18n } from '../../i18n';
 import { Customer, OrderPriority, OrderStatus, Quote, QuoteItem, ServiceOrder, StockItem } from '../../types';
 import { NexusBranding } from '../ui/NexusBranding';
 import { Pagination } from '../ui/Pagination';
+
+const getQuoteStatusStyle = (s: string) => {
+    switch (s) {
+        case 'ABERTO':
+            return { bg: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500 animate-pulse' };
+        case 'APROVADO':
+            return { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' };
+        case 'CONVERTIDO':
+        case 'FATURADO':
+            return { bg: 'bg-sky-50 text-sky-700 border-sky-200', dot: 'bg-sky-500' };
+        case 'REJEITADO':
+            return { bg: 'bg-slate-100 text-slate-700 border-slate-300', dot: 'bg-slate-400' };
+        default:
+            return { bg: 'bg-slate-100 text-slate-700 border-slate-300', dot: 'bg-slate-400' };
+    }
+};
 
 interface QuoteManagementProps {
     quotes: Quote[];
@@ -129,9 +147,18 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const [linkedOrderId, setLinkedOrderId] = useState('');
     const [discount, setDiscount] = useState(0); // valor de desconto
     const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed'); // tipo de desconto
+    const [paymentMethod, setPaymentMethod] = useState('');
+    const [installments, setInstallments] = useState(1);
+    const [paymentNotes, setPaymentNotes] = useState('');
+    const [isPaymentMethodOpen, setIsPaymentMethodOpen] = useState(false);
+    const [isInstallmentsOpen, setIsInstallmentsOpen] = useState(false);
 
     const [clientSearch, setClientSearch] = useState('');
     const [isClientListOpen, setIsClientListOpen] = useState(false);
+    
+    const [linkedOrderSearch, setLinkedOrderSearch] = useState('');
+    const [isLinkedOrderOpen, setIsLinkedOrderOpen] = useState(false);
+
     const [isStockListOpen, setIsStockListOpen] = useState<{ [key: number]: boolean }>({});
 
     const filteredClients = useMemo(() => {
@@ -179,6 +206,15 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
         return orders.filter(o => o.customerName?.trim().toLowerCase() === normalizedName);
     }, [orders, customerName]);
 
+    const filteredCustomerOrders = useMemo(() => {
+        if (!linkedOrderSearch) return customerOrders;
+        const term = linkedOrderSearch.toLowerCase();
+        return customerOrders.filter(o => 
+            (o.displayId || o.id).toLowerCase().includes(term) || 
+            (o.title || '').toLowerCase().includes(term)
+        );
+    }, [customerOrders, linkedOrderSearch]);
+
     const handleAddItem = () => {
         const newItem: QuoteItem = {
             id: Math.random().toString(36).substr(2, 9),
@@ -218,12 +254,55 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
     const handleSaveQuote = async () => {
         if (loading) return;
+
+        if (!customerName) {
+            showAlert('Por favor, selecione ou informe o cliente.', 'error');
+            return;
+        }
+
+        if (!title.trim()) {
+            showAlert('Por favor, informe o título da proposta.', 'error');
+            return;
+        }
+
+        if (!description.trim()) {
+            showAlert('Por favor, informe o detalhamento / escopo técnico da proposta.', 'error');
+            return;
+        }
+
+        if (!validUntil) {
+            showAlert('Por favor, informe a data de validade do orçamento.', 'error');
+            return;
+        }
+
+        const today = new Date();
+        const yy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        const todayStr = `${yy}-${mm}-${dd}`;
+
+        if (validUntil < todayStr) {
+            showAlert('A data de validade não pode ser anterior à data atual.', 'error');
+            return;
+        }
+
+        if (items.length === 0) {
+            showAlert('O orçamento deve conter pelo menos um item.', 'error');
+            return;
+        }
+
+        if (!paymentMethod) {
+            showAlert('Por favor, selecione a forma de pagamento.', 'error');
+            return;
+        }
+
         try {
             setLoading(true);
             const customer = customers.find(c => c.name === customerName);
             const payload = {
                 customerId: customer?.id || undefined,
                 createdBy: auth.user?.id || undefined,
+                createdByName: auth.user?.name || auth.user?.email || 'Usuário do Sistema',
                 customerName,
                 customerAddress: customer?.address || '',
                 customerDocument: customer?.document || '00000000000000',
@@ -236,6 +315,9 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                 notes,
                 validUntil,
                 linkedOrderId,
+                paymentMethod: paymentMethod || undefined,
+                installments: installments || undefined,
+                paymentNotes: paymentNotes || undefined,
                 status: selectedQuote?.status || 'ABERTO'
             };
 
@@ -258,14 +340,19 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const resetForm = () => {
         setSelectedQuote(null);
         setCustomerName('');
+        setClientSearch('');
         setTitle('');
         setDescription('');
         setItems([]);
         setNotes('');
         setValidUntil('');
         setLinkedOrderId('');
+        setLinkedOrderSearch('');
         setDiscount(0);
         setDiscountType('fixed');
+        setPaymentMethod('');
+        setInstallments(1);
+        setPaymentNotes('');
         setLoading(false);
         setActiveModalTab('gerais');
     };
@@ -279,8 +366,23 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
         setNotes(quote.notes || '');
         setValidUntil(quote.validUntil ? quote.validUntil.split('T')[0] : '');
         setLinkedOrderId(quote.linkedOrderId || '');
+        
+        if (quote.linkedOrderId) {
+            const foundOrder = orders.find(o => o.id === quote.linkedOrderId || o.displayId === quote.linkedOrderId);
+            if (foundOrder) {
+                setLinkedOrderSearch(foundOrder.displayId || foundOrder.id);
+            } else {
+                setLinkedOrderSearch(quote.linkedOrderId);
+            }
+        } else {
+            setLinkedOrderSearch('');
+        }
+
         setDiscount(quote.discount || 0);
         setDiscountType(quote.discountType || 'fixed');
+        setPaymentMethod(quote.paymentMethod || '');
+        setInstallments(quote.installments || 1);
+        setPaymentNotes(quote.paymentNotes || '');
         setIsModalOpen(true);
         setActiveModalTab('gerais');
     };
@@ -619,8 +721,9 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     />
                                 </th>
                                 <th className="px-4 py-3 text-center">Orçamento ID</th>
-                                <th className="px-4 py-3 text-center">Criado em</th>
+                                <th className="px-4 py-3 text-left">Título</th>
                                 <th className="px-4 py-3 text-center">Cliente</th>
+                                <th className="px-4 py-3 text-center">Criado em</th>
                                 <th className="px-4 py-3 text-center">Validade</th>
                                 <th className="px-4 py-3 text-center">Valor Total</th>
                                 <th className="px-4 py-3 text-center">Vínculo O.S.</th>
@@ -631,7 +734,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         <tbody>
                             {quotesLoading ? (
                                 <tr>
-                                    <td colSpan={9} className="py-16 text-center">
+                                    <td colSpan={10} className="py-16 text-center">
                                         <div className="flex flex-col items-center gap-3 text-slate-400">
                                             <Loader2 size={28} className="animate-spin text-primary-400" />
                                             <p className="text-[10px] font-semibold uppercase tracking-widest">Carregando orçamentos...</p>
@@ -657,16 +760,18 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                             <span className="text-[13px] font-medium text-primary-600 tracking-tighter truncate" title={quote.id}>
                                                 {getQuoteDisplayId(quote)}
                                             </span>
-                                            <span className="text-[12px] text-slate-500 truncate">{quote.title}</span>
                                         </div>
                                     </td>
+                                    <td className="px-4 py-1.5">
+                                        <span className="text-[12px] text-slate-700 truncate block max-w-[150px]" title={quote.title}>{quote.title}</span>
+                                    </td>
+                                    <td className="px-4 py-1.5 text-[12px] text-center text-slate-700 truncate max-w-[150px]">{quote.customerName}</td>
                                     <td className="px-4 py-1.5">
                                         <div className="flex justify-center items-center gap-1.5 whitespace-nowrap">
                                             <Clock size={12} className="text-slate-400" />
                                             <span className="text-[12px] text-slate-600">{new Date(quote.createdAt).toLocaleDateString()}</span>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-1.5 text-[12px] text-center text-slate-700 truncate max-w-[150px]">{quote.customerName}</td>
                                     <td className="px-4 py-1.5">
                                         <div className="flex justify-center items-center gap-1.5 whitespace-nowrap">
                                             <Calendar size={12} className="text-slate-400" />
@@ -692,13 +797,10 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     <td className="px-4 py-1.5 text-center whitespace-nowrap">
                                         {(() => {
                                             const displayStatus = (quote.billingStatus === 'PAID' || quote.status === 'FATURADO') ? 'FATURADO' : quote.status;
+                                            const style = getQuoteStatusStyle(displayStatus);
                                             return (
-                                                <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-medium ${displayStatus === 'ABERTO' ? 'bg-primary-50 text-primary-600 border border-primary-100' :
-                                                    displayStatus === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                                                        (displayStatus === 'CONVERTIDO' || displayStatus === 'FATURADO') ? 'bg-slate-900 text-emerald-400 border border-slate-700' :
-                                                            'bg-rose-50 text-rose-500 border border-rose-100'
-                                                    }`}>
-                                                    <span className={`w-1 h-1 rounded-full animate-pulse ${displayStatus === 'ABERTO' ? 'bg-primary-600' : displayStatus === 'APROVADO' ? 'bg-emerald-600' : (displayStatus === 'CONVERTIDO' || displayStatus === 'FATURADO') ? 'bg-emerald-400' : 'bg-rose-500'}`} />
+                                                <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-medium border ${style.bg}`}>
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
                                                     {displayStatus}
                                                 </div>
                                             );
@@ -777,13 +879,10 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     <span className="text-[10px] text-slate-500 truncate max-w-[150px]">{quote.title}</span>
                                     {(() => {
                                         const displayStatus = (quote.billingStatus === 'PAID' || quote.status === 'FATURADO') ? 'FATURADO' : quote.status;
+                                        const style = getQuoteStatusStyle(displayStatus);
                                         return (
-                                            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-medium ${displayStatus === 'ABERTO' ? 'bg-primary-50 text-primary-600 border border-primary-100' :
-                                                displayStatus === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                                                    (displayStatus === 'CONVERTIDO' || displayStatus === 'FATURADO') ? 'bg-slate-900 text-emerald-400 border border-slate-700' :
-                                                        'bg-rose-50 text-rose-500 border border-rose-100'
-                                                }`}>
-                                                <span className={`w-1 h-1 rounded-full animate-pulse ${displayStatus === 'ABERTO' ? 'bg-primary-600' : displayStatus === 'APROVADO' ? 'bg-emerald-600' : (displayStatus === 'CONVERTIDO' || displayStatus === 'FATURADO') ? 'bg-emerald-400' : 'bg-rose-500'}`} />
+                                            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-medium border ${style.bg}`}>
+                                                <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
                                                 {displayStatus}
                                             </div>
                                         );
@@ -817,7 +916,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
             {/* Modal Editor de Orçamento */}
             {isModalOpen && createPortal(
                 <div className="fixed inset-0 z-[1200] flex items-end md:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 md:p-8 overflow-hidden animate-in fade-in duration-300">
-                    <div className="bg-white md:rounded-2xl w-full max-w-6xl h-full md:h-[92vh] shadow-2xl md:border border-slate-200 overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-300">
+                    <div className="bg-white md:rounded-2xl w-full max-w-[1400px] h-full md:h-[92vh] shadow-2xl md:border border-slate-200 overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-300">
                         <div className="px-4 sm:px-8 py-3.5 sm:py-5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
                             <div className="flex items-center gap-4">
                                 <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center text-[#1c2d4f] border border-slate-200">
@@ -879,19 +978,19 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                             </div>
 
                             {/* CONTENT AREA */}
-                            <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-50/50 custom-scrollbar flex flex-col">
+                            <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-slate-50/50 custom-scrollbar flex flex-col">
                                 {activeModalTab === 'gerais' && (
-                                    <div className="max-w-4xl space-y-4">
-                                        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                                            <h3 className="text-sm font-medium text-slate-900 border-l-4 border-[#1c2d4f] pl-3 uppercase">dados básicos</h3>
+                                    <div className="w-full max-w-[1200px] mx-auto space-y-2">
+                                        <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
+                                            <h3 className="text-sm font-medium text-slate-900 border-l-4 border-[#1c2d4f] pl-3 uppercase leading-none">dados básicos</h3>
 
-                                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                                                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-center">
+                                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
+                                                <div className="p-2 bg-slate-50 rounded-lg border border-slate-100 flex flex-col justify-center">
                                                     <label className="text-[10px] font-medium text-slate-400 uppercase block mb-1">Identificador</label>
                                                     <p className="text-base font-bold text-[#1c2d4f] tracking-tight">{previewId}</p>
                                                 </div>
 
-                                                <div className="space-y-1.5 relative lg:col-span-2">
+                                                <div className="space-y-1 relative lg:col-span-2">
                                                     <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">selecionar cliente</label>
                                                     <div className="relative">
                                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
@@ -905,7 +1004,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                                 if (!e.target.value) setCustomerName('');
                                                             }}
                                                             onFocus={() => setIsClientListOpen(true)}
-                                                            className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-10 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all"
+                                                            className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-10 py-1.5 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all"
                                                         />
                                                         {customerName && !isClientListOpen && (
                                                             <button onClick={() => { setCustomerName(''); setClientSearch(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500">
@@ -913,7 +1012,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                             </button>
                                                         )}
                                                     </div>
-                                                    {isClientListOpen && (
+                                                    {isClientListOpen && clientSearch.trim().length > 0 && (
                                                         <div className="absolute z-[1300] top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar animate-scale-up">
                                                             {filteredClients.length > 0 ? (
                                                                 filteredClients.map(c => (
@@ -938,18 +1037,28 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 </div>
                                             </div>
 
-                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                                <div className="space-y-1.5 lg:col-span-2">
+                                            {!selectedQuote && (
+                                                <div className="space-y-1 lg:col-span-2 mt-2">
+                                                    <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">responsável pela criação</label>
+                                                    <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-1.5 text-xs font-semibold text-slate-500 cursor-not-allowed flex items-center gap-2">
+                                                        <User size={14} className="text-slate-400" />
+                                                        {auth.user?.name || auth.user?.email || 'Usuário do Sistema'}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 mt-2">
+                                                <div className="space-y-1 lg:col-span-2">
                                                     <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">título da proposta</label>
                                                     <input
                                                         type="text"
                                                         value={title}
                                                         onChange={(e) => setTitle(e.target.value)}
                                                         placeholder="Ex: Manutenção Preventiva de Geradores..."
-                                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all"
+                                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-1.5 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all"
                                                     />
                                                 </div>
-                                                <div className="space-y-1.5">
+                                                <div className="space-y-1">
                                                     <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">validade</label>
                                                     <div className="relative">
                                                         <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
@@ -957,27 +1066,61 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                             type="date"
                                                             value={validUntil}
                                                             onChange={(e) => setValidUntil(e.target.value)}
-                                                            className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all"
+                                                            min={(() => {
+                                                                const today = new Date();
+                                                                const yy = today.getFullYear();
+                                                                const mm = String(today.getMonth() + 1).padStart(2, '0');
+                                                                const dd = String(today.getDate()).padStart(2, '0');
+                                                                return `${yy}-${mm}-${dd}`;
+                                                            })()}
+                                                            className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all"
                                                         />
                                                     </div>
                                                 </div>
-                                                <div className="space-y-1.5">
+                                                <div className="space-y-1 relative">
                                                     <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">vincular O.S.</label>
                                                     <div className="relative">
                                                         <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                                                        <select
-                                                            value={linkedOrderId}
-                                                            onChange={(e) => setLinkedOrderId(e.target.value)}
-                                                            className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all appearance-none cursor-pointer"
-                                                        >
-                                                            <option value="">Nenhum Vínculo</option>
-                                                            {customerOrders.map(o => (
-                                                                <option key={o.id} value={o.displayId || o.id}>
-                                                                    {o.displayId || o.id.slice(0, 8)} — {o.title}
-                                                                </option>
-                                                            ))}
-                                                        </select>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Buscar O.S. vinculada..."
+                                                            value={isLinkedOrderOpen ? linkedOrderSearch : (linkedOrderSearch || 'Nenhum Vínculo')}
+                                                            onChange={e => {
+                                                                setLinkedOrderSearch(e.target.value);
+                                                                setIsLinkedOrderOpen(true);
+                                                                if (!e.target.value) setLinkedOrderId('');
+                                                            }}
+                                                            onFocus={() => setIsLinkedOrderOpen(true)}
+                                                            className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-10 py-1.5 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all"
+                                                        />
+                                                        {linkedOrderId && !isLinkedOrderOpen && (
+                                                            <button onClick={() => { setLinkedOrderId(''); setLinkedOrderSearch(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500">
+                                                                <X size={14} />
+                                                            </button>
+                                                        )}
                                                     </div>
+                                                    {isLinkedOrderOpen && linkedOrderSearch.trim().length > 0 && (
+                                                        <div className="absolute z-[1300] top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar animate-scale-up">
+                                                            {filteredCustomerOrders.length > 0 ? (
+                                                                filteredCustomerOrders.map(o => (
+                                                                    <button
+                                                                        key={o.id}
+                                                                        onClick={() => {
+                                                                            setLinkedOrderId(o.displayId || o.id);
+                                                                            setLinkedOrderSearch(o.displayId || o.id);
+                                                                            setIsLinkedOrderOpen(false);
+                                                                        }}
+                                                                        className="w-full text-left px-4 py-2 hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors group"
+                                                                    >
+                                                                        <p className="text-xs font-medium text-slate-800 group-hover:text-[#1c2d4f]">{o.displayId || o.id.slice(0, 8)}</p>
+                                                                        <p className="text-[10px] text-slate-400 font-medium truncate">{o.title}</p>
+                                                                    </button>
+                                                                ))
+                                                            ) : (
+                                                                <div className="p-4 text-center text-xs font-medium text-slate-400">Nenhuma O.S. localizada</div>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -986,11 +1129,11 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                             const c = customers.find(cust => cust.name === customerName);
                                             if (!c) return null;
                                             return (
-                                                <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                                                    <h3 className="text-sm font-medium text-slate-900 border-l-4 border-emerald-500 pl-3 uppercase flex items-center gap-2">
+                                                <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
+                                                    <h3 className="text-sm font-medium text-slate-900 border-l-4 border-emerald-500 pl-3 uppercase flex items-center gap-2 leading-none">
                                                         <User size={16} className="text-emerald-500" /> Informações do Cliente
                                                     </h3>
-                                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                                                         <div className="space-y-1"><label className="text-[9px] font-medium text-slate-400 uppercase">CPF / CNPJ</label><p className="text-xs font-semibold text-slate-700 truncate">{c.document || '—'}</p></div>
                                                         <div className="space-y-1"><label className="text-[9px] font-medium text-slate-400 uppercase">{t.common.email}</label><p className="text-xs font-semibold text-slate-700 truncate">{c.email || '—'}</p></div>
                                                         <div className="space-y-1"><label className="text-[9px] font-medium text-slate-400 uppercase">{t.common.phone}</label><p className="text-xs font-semibold text-slate-700 truncate">{c.phone || '—'}</p></div>
@@ -1000,17 +1143,121 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 </div>
                                             );
                                         })()}
-                                        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-                                            <h3 className="text-sm font-medium text-slate-900 border-l-4 border-amber-500 pl-3 uppercase">detalhamento</h3>
-                                            <div className="space-y-1.5">
+                                        <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
+                                            <h3 className="text-sm font-medium text-slate-900 border-l-4 border-amber-500 pl-3 uppercase leading-none">detalhamento</h3>
+                                            <div className="space-y-1">
                                                 <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">escopo técnico</label>
                                                 <textarea
                                                     value={description}
                                                     onChange={(e) => setDescription(e.target.value)}
                                                     rows={2}
                                                     placeholder="Descreva detalhadamente o serviço..."
-                                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all resize-none custom-scrollbar"
+                                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-1.5 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all resize-none custom-scrollbar"
                                                 />
+                                            </div>
+                                        </div>
+                                        <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
+                                            <h3 className="text-sm font-medium text-slate-900 border-l-4 border-indigo-500 pl-3 uppercase leading-none">condições de pagamento</h3>
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">forma de pagamento</label>
+                                                    <div className="relative">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setIsPaymentMethodOpen(!isPaymentMethodOpen);
+                                                                setIsInstallmentsOpen(false);
+                                                            }}
+                                                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-1.5 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all flex justify-between items-center"
+                                                        >
+                                                            <span>
+                                                                {paymentMethod === 'PIX' && 'PIX'}
+                                                                {paymentMethod === 'BOLETO' && 'Boleto Bancário'}
+                                                                {paymentMethod === 'CARTAO_CREDITO' && 'Cartão de Crédito'}
+                                                                {paymentMethod === 'CARTAO_DEBITO' && 'Cartão de Débito'}
+                                                                {paymentMethod === 'DINHEIRO' && 'Dinheiro'}
+                                                                {paymentMethod === 'TRANSFERENCIA' && 'Transferência Bancária'}
+                                                                {!paymentMethod && 'Selecione...'}
+                                                            </span>
+                                                            <ChevronDown size={14} className="text-slate-400" />
+                                                        </button>
+                                                        {isPaymentMethodOpen && (
+                                                            <>
+                                                                <div className="fixed inset-0 z-[1299]" onClick={() => setIsPaymentMethodOpen(false)}></div>
+                                                                <div className="absolute z-[1300] bottom-full mb-1 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar animate-scale-up py-1">
+                                                                    {[
+                                                                        { id: 'PIX', name: 'PIX' },
+                                                                        { id: 'BOLETO', name: 'Boleto Bancário' },
+                                                                        { id: 'CARTAO_CREDITO', name: 'Cartão de Crédito' },
+                                                                        { id: 'CARTAO_DEBITO', name: 'Cartão de Débito' },
+                                                                        { id: 'DINHEIRO', name: 'Dinheiro' },
+                                                                        { id: 'TRANSFERENCIA', name: 'Transferência Bancária' },
+                                                                    ].map(opt => (
+                                                                        <button
+                                                                            key={opt.id}
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setPaymentMethod(opt.id);
+                                                                                setIsPaymentMethodOpen(false);
+                                                                            }}
+                                                                            className={`w-full text-left px-4 py-2 hover:bg-slate-50 transition-colors text-xs font-medium ${paymentMethod === opt.id ? 'text-[#1c2d4f] bg-slate-50' : 'text-slate-700'}`}
+                                                                        >
+                                                                            {opt.name}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {(paymentMethod === 'CARTAO_CREDITO' || paymentMethod === 'BOLETO') && (
+                                                    <div className="space-y-1 animate-scale-up">
+                                                        <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">parcelamento</label>
+                                                        <div className="relative">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setIsInstallmentsOpen(!isInstallmentsOpen);
+                                                                    setIsPaymentMethodOpen(false);
+                                                                }}
+                                                                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-1.5 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all flex justify-between items-center"
+                                                            >
+                                                                <span>{installments === 1 ? 'À vista (1x)' : `${installments}x`}</span>
+                                                                <ChevronDown size={14} className="text-slate-400" />
+                                                            </button>
+                                                            {isInstallmentsOpen && (
+                                                                <>
+                                                                    <div className="fixed inset-0 z-[1299]" onClick={() => setIsInstallmentsOpen(false)}></div>
+                                                                    <div className="absolute z-[1300] bottom-full mb-1 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar animate-scale-up py-1">
+                                                                        {[1,2,3,4,5,6,7,8,9,10,11,12].map(n => (
+                                                                            <button
+                                                                                key={n}
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    setInstallments(n);
+                                                                                    setIsInstallmentsOpen(false);
+                                                                                }}
+                                                                                className={`w-full text-left px-4 py-2 hover:bg-slate-50 transition-colors text-xs font-medium ${installments === n ? 'text-[#1c2d4f] bg-slate-50' : 'text-slate-700'}`}
+                                                                            >
+                                                                                {n === 1 ? 'À vista (1x)' : `${n}x`}
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <div className="space-y-1 lg:col-span-2">
+                                                    <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">observações financeiras</label>
+                                                    <textarea
+                                                        value={paymentNotes}
+                                                        onChange={(e) => setPaymentNotes(e.target.value)}
+                                                        rows={2}
+                                                        placeholder="Ex: 50% de entrada, 50% na conclusão..."
+                                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-1.5 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all resize-none custom-scrollbar"
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1026,25 +1273,25 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 <Plus size={16} /> Adicionar Item
                                             </button>
                                         </div>
-                                        <div className="flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-50/50 custom-scrollbar space-y-3">
+                                        <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-slate-50/50 custom-scrollbar space-y-2">
                                             
                                             {/* 🖥️ DESKTOP TABLE VIEW */}
                                             <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-visible">
                                                 <table className="w-full text-left table-auto overflow-visible">
                                                     <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-md border-b border-slate-200 z-10 shadow-xs font-poppins">
                                                         <tr className="text-[11px] font-semibold text-slate-600 tracking-wider uppercase">
-                                                            <th className="px-2.5 py-3.5 w-24 sm:w-28 text-left">Código</th>
-                                                            <th className="px-3 py-3.5 text-left">Descrição / Item</th>
-                                                            <th className="px-2 py-3.5 w-16 text-center">Qtd</th>
-                                                            <th className="px-2 py-3.5 w-24 text-left">Unitário</th>
-                                                            <th className="px-3 py-3.5 w-28 text-right">Subtotal</th>
-                                                            <th className="px-2 py-3.5 w-10 text-center"></th>
+                                                            <th className="px-2.5 py-2 w-24 sm:w-28 text-left">Código</th>
+                                                            <th className="px-3 py-2 text-left">Descrição / Item</th>
+                                                            <th className="px-2 py-2 w-16 text-center">Qtd</th>
+                                                            <th className="px-2 py-2 w-24 text-left">Unitário</th>
+                                                            <th className="px-3 py-2 w-28 text-right">Subtotal</th>
+                                                            <th className="px-2 py-2 w-10 text-center"></th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-slate-100 overflow-visible">
                                                         {items.map((item, index) => (
                                                             <tr key={item.id} className={`hover:bg-slate-50/50 group transition-all ${isStockListOpen[index] ? 'z-[1400] relative bg-slate-50/80 shadow-sm' : 'z-auto'}`}>
-                                                                <td className="px-2.5 py-3 w-24 sm:w-28 align-top">
+                                                                <td className="px-2.5 py-2 w-24 sm:w-28 align-top">
                                                                     <input
                                                                         placeholder="Código"
                                                                         value={item.stockCode || ''}
@@ -1298,7 +1545,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
             {/* MODAL DE VISUALIZAÇÃO */}
             {isViewModalOpen && viewQuote && createPortal(
                 <div className="fixed inset-0 z-[1200] flex items-end md:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 md:p-6 overflow-hidden animate-in fade-in">
-                    <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-6xl h-[95vh] md:h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+                    <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[1400px] h-[95vh] md:h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
 
                         {/* HEADER */}
                         <div className="px-4 sm:px-6 py-3.5 sm:py-5 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-stretch sm:items-center shrink-0 bg-white gap-3">
@@ -1310,13 +1557,15 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     <div>
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <h2 className="text-sm sm:text-base font-semibold text-slate-900 font-poppins">Orçamento #{getQuoteDisplayId(viewQuote)}</h2>
-                                            <div className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-medium uppercase tracking-wider ${viewQuote.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                                                viewQuote.status === 'REJEITADO' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
-                                                    viewQuote.status === 'CONVERTIDO' ? 'bg-slate-900 text-emerald-400 border border-slate-700' :
-                                                        'bg-primary-50 text-primary-600 border border-primary-100'
-                                                }`}>
-                                                {viewQuote.status}
-                                            </div>
+                                            {(() => {
+                                                const style = getQuoteStatusStyle(viewQuote.status);
+                                                return (
+                                                    <div className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-medium uppercase tracking-wider border flex items-center gap-1.5 ${style.bg}`}>
+                                                        <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+                                                        {viewQuote.status}
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                         <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 truncate max-w-[240px] sm:max-w-md">
                                             {viewQuote.customerName} • {viewQuote.customerAddress || 'Endereço não informado'}
@@ -1463,6 +1712,34 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         </div>
                                     </div>
 
+                                    {/* Payment Card */}
+                                    {(viewQuote.paymentMethod || viewQuote.paymentNotes) && (
+                                        <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm">
+                                            <h3 className="text-xs sm:text-sm font-medium text-slate-900 mb-4 sm:mb-6 flex items-center gap-2">
+                                                <CreditCard size={18} className="text-slate-400" /> Condições de Pagamento
+                                            </h3>
+                                            <div className="space-y-4">
+                                                {viewQuote.paymentMethod && (
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] sm:text-[11px] font-medium text-slate-400 block">Forma e Parcelamento</label>
+                                                        <div className="text-xs sm:text-sm font-semibold text-slate-900 uppercase">
+                                                            {viewQuote.paymentMethod.replace('_', ' ')}
+                                                            {viewQuote.installments && viewQuote.installments > 1 ? ` (${viewQuote.installments}x)` : ''}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {viewQuote.paymentNotes && (
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] sm:text-[11px] font-medium text-slate-400 block">Observações Financeiras</label>
+                                                        <div className="p-3 sm:p-4 bg-indigo-50/50 rounded-xl border border-indigo-100/50 text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-wrap min-h-[50px] font-medium">
+                                                            {viewQuote.paymentNotes}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Items Table Card */}
                                     <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm">
                                         <div className="flex items-center justify-between mb-4 sm:mb-6">
@@ -1577,6 +1854,22 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     </div>
                                                 </div>
                                             )}
+                                        </div>
+                                    </div>
+
+                                    {/* Criador Card */}
+                                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-lg shadow-slate-200/50">
+                                        <h3 className="text-xs font-medium text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2">
+                                            <User size={16} className="text-slate-400" /> Responsável
+                                        </h3>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-slate-50 border border-slate-100 rounded-lg flex items-center justify-center shrink-0">
+                                                <User size={18} className="text-slate-400" />
+                                            </div>
+                                            <div>
+                                                <div className="text-xs font-semibold text-slate-400">Criado por</div>
+                                                <div className="text-sm font-medium text-slate-900">{viewQuote.createdByName || 'Usuário do Sistema'}</div>
+                                            </div>
                                         </div>
                                     </div>
 

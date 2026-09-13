@@ -96,10 +96,12 @@ export const RegionModal: React.FC<RegionModalProps> = ({ region, onClose, onSav
     );
   };
 
-  const filteredTechs = technicians.filter(t => 
-    t.name.toLowerCase().includes(techSearch.toLowerCase()) || 
-    t.email.toLowerCase().includes(techSearch.toLowerCase())
-  );
+  const filteredTechs = technicians.filter(t => {
+    const matchesSearch = t.name.toLowerCase().includes(techSearch.toLowerCase()) || t.email.toLowerCase().includes(techSearch.toLowerCase());
+    const isSelected = selectedTechIds.includes(t.id);
+    if (techSearch.trim() === '') return isSelected;
+    return matchesSearch;
+  });
 
   const handleDeleteClick = () => {
     if (!region || !onDelete) return;
@@ -221,7 +223,9 @@ export const RegionModal: React.FC<RegionModalProps> = ({ region, onClose, onSav
                 ) : filteredTechs.length === 0 ? (
                   <div className="flex-1 flex flex-col items-center justify-center p-4 text-center">
                     <UserIcon size={24} className="text-slate-300 mb-2" />
-                    <p className="text-xs text-slate-500 font-medium">Nenhum técnico encontrado.</p>
+                    <p className="text-xs text-slate-500 font-medium">
+                      {techSearch.trim() === '' ? 'Comece a digitar para buscar um técnico...' : 'Nenhum técnico encontrado.'}
+                    </p>
                   </div>
                 ) : (
                   <div className="overflow-y-auto p-2 space-y-1 custom-scrollbar">

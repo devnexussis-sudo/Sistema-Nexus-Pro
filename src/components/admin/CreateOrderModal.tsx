@@ -5,7 +5,7 @@ import { useI18n } from '../../i18n';
 import { useDialog } from '../../contexts/DialogContext';
 import {
   UserPlus, Info, ChevronLeft, AtSign, Building2, Edit3, Laptop, UserMinus, Plus, Box,
-  DollarSign, Trash2, Eye, EyeOff, Package, ShoppingCart, ChevronRight, Save, X, Search, CheckCircle2, Hash, RefreshCw, Clock, FileText, Link2, Unlink, ChevronDown, MapPin
+  DollarSign, Trash2, Eye, EyeOff, Package, ShoppingCart, ChevronRight, Save, X, Search, CheckCircle2, Hash, RefreshCw, Clock, FileText, Link2, Unlink, ChevronDown, MapPin, AlertCircle
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
@@ -22,6 +22,20 @@ import { useTenant } from '../../hooks/nexusHooks';
 import { supabase } from '../../lib/supabase';
 import { getTodayLocalDate } from '../../utils/dateUtils';
 
+const PriorityBadge = ({ priority }: { priority: OrderPriority }) => {
+  switch (priority) {
+    case OrderPriority.LOW:
+      return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">Baixa</span>;
+    case OrderPriority.MEDIUM:
+      return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-200">Média</span>;
+    case OrderPriority.HIGH:
+      return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-200">Alta</span>;
+    case OrderPriority.CRITICAL:
+      return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white shadow-sm shadow-red-600/30 border border-red-600"><AlertCircle size={10} /> Crítica</span>;
+    default:
+      return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">{priority}</span>;
+  }
+};
 const checkWarrantyStatus = (manufactureDate?: string, warrantyMonths?: number) => {
   if (!manufactureDate || !warrantyMonths) return null;
   const mDate = new Date(manufactureDate);
@@ -553,8 +567,10 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   }, [allowedTechIds, isGeofencingEnabled, initialData, technicians]);
 
   const filteredTechs = React.useMemo(() => {
+    const q = techSearch.toLowerCase().trim();
+    
     const filtered = technicians.filter(t => {
-      const q = techSearch.toLowerCase();
+      if (!q) return formData.assignedTo === t.id;
       return t.name.toLowerCase().includes(q) || (t.email || '').toLowerCase().includes(q);
     });
 
@@ -786,42 +802,64 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   <label className="text-[10px] font-bold text-slate-400   px-1 flex items-center gap-2">
                     <Box size={12} /> Ativos Vinculados
                   </label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {equipments.filter(e => e.customerId === selectedClientId).map(eq => (
-                      <div
-                        key={eq.id}
-                        onClick={() => !isReadOnly && handleEquipmentToggle(eq.id)}
-                        className={`flex items-center gap-4 p-5 rounded-xl border transition-all cursor-pointer group ${selectedEquipIds.includes(eq.id)
-                          ? 'border-[#1c2d4f] bg-[#1c2d4f05] ring-1 ring-[#1c2d4f]'
-                          : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md'
-                          } ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${selectedEquipIds.includes(eq.id) ? 'bg-[#1c2d4f] text-white' : 'bg-slate-50 text-slate-400 group-hover:bg-slate-100'
-                          }`}>
-                          <Box size={18} />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-xs font-bold text-slate-800">{eq.model}</p>
-                          <p className="text-[10px] text-slate-400 font-medium mt-0.5 mb-1">#{eq.serialNumber}</p>
-                          {eq.manufactureDate && eq.warrantyMonths && (
-                            <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded border ${checkWarrantyStatus(eq.manufactureDate, eq.warrantyMonths) ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-rose-50 text-rose-600 border-rose-200'}`}>
-                              {checkWarrantyStatus(eq.manufactureDate, eq.warrantyMonths) ? 'Em Garantia' : 'Fora de Garantia'}
-                            </span>
-                          )}
-                        </div>
-                        {selectedEquipIds.includes(eq.id) && (
-                          <div className="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-sm">
-                            <CheckCircle2 size={12} />
-                          </div>
+                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                          <th className="px-4 py-3 w-12 text-center">Sel.</th>
+                          <th className="px-4 py-3">Modelo do Equipamento</th>
+                          <th className="px-4 py-3">Nº de Série</th>
+                          <th className="px-4 py-3 text-center">Status (Garantia)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {equipments.filter(e => e.customerId === selectedClientId).map(eq => {
+                          const isSelected = selectedEquipIds.includes(eq.id);
+                          return (
+                            <tr
+                              key={eq.id}
+                              onClick={() => !isReadOnly && handleEquipmentToggle(eq.id)}
+                              className={`transition-colors cursor-pointer group ${isSelected
+                                ? 'bg-indigo-50/40 hover:bg-indigo-50/60'
+                                : 'hover:bg-slate-50/70'
+                                } ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                              <td className="px-4 py-3.5 text-center shrink-0">
+                                <input
+                                  type="checkbox"
+                                  className="w-4 h-4 rounded border-slate-300 text-[#1c2d4f] focus:ring-[#1c2d4f] cursor-pointer"
+                                  checked={isSelected}
+                                  readOnly
+                                />
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <p className="text-xs font-bold text-slate-800">{eq.model}</p>
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <p className="text-xs font-mono text-slate-500 font-medium">#{eq.serialNumber}</p>
+                              </td>
+                              <td className="px-4 py-3.5 text-center">
+                                {eq.manufactureDate && eq.warrantyMonths ? (
+                                  <span className={`inline-flex items-center justify-center px-2 py-1 rounded-md text-[9px] font-bold border ${checkWarrantyStatus(eq.manufactureDate, eq.warrantyMonths) ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                                    {checkWarrantyStatus(eq.manufactureDate, eq.warrantyMonths) ? 'Em Garantia' : 'Fora de Garantia'}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 font-medium bg-slate-50 px-2 py-1 rounded-md">N/D</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {equipments.filter(e => e.customerId === selectedClientId).length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="py-12 text-center bg-slate-50/30">
+                              <Box size={32} className="mx-auto text-slate-300 mb-3" />
+                              <p className="text-xs font-semibold text-slate-500">Nenhum ativo registrado para esta unidade</p>
+                            </td>
+                          </tr>
                         )}
-                      </div>
-                    ))}
-                    {equipments.filter(e => e.customerId === selectedClientId).length === 0 && (
-                      <div className="col-span-full py-12 text-center bg-white rounded-xl border border-dashed border-slate-200">
-                        <Box size={32} className="mx-auto text-slate-200 mb-3" />
-                        <p className="text-xs font-semibold text-slate-400">Nenhum ativo registrado para esta unidade</p>
-                      </div>
-                    )}
+                      </tbody>
+                    </table>
                   </div>
                   {openOrderWarning && (
                     <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2 animate-in fade-in slide-in-from-top-1">
@@ -839,106 +877,103 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
           {step === 2 && (
             <div className="animate-fade-in space-y-8 max-w-4xl mx-auto">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {/* CONFIGURAÇÃO DA AGENDA */}
-                <div className="md:col-span-2 space-y-8">
-                  <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 space-y-6">
-                    <h3 className="text-sm font-bold text-slate-900 border-l-4 border-[#1c2d4f] pl-3">programação e prioridade</h3>
+              {/* CONFIGURAÇÃO DA AGENDA */}
+              <div className="space-y-8">
+                <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 space-y-6">
+                  <h3 className="text-sm font-bold text-slate-900 border-l-4 border-[#1c2d4f] pl-3">programação e prioridade</h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-slate-400   ml-1">data agendada</label>
-                        <Input
-                          type="date"
-                          required
-                          min={getLocalDate()}
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                    <div className="space-y-2 md:col-span-3">
+                      <label className="text-[10px] font-bold text-slate-400 ml-1">data agendada</label>
+                      <Input
+                        type="date"
+                        required
+                        min={getLocalDate()}
+                        disabled={isReadOnly}
+                        className="rounded-xl border-slate-200 font-medium text-sm py-3 disabled:opacity-50 w-full"
+                        value={formData.scheduledDate}
+                        onChange={e => setFormData({ ...formData, scheduledDate: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2 md:col-span-3">
+                      <label className="text-[10px] font-bold text-slate-400 ml-1">horário previsto</label>
+                      <Input
+                        type="time"
+                        disabled={isReadOnly}
+                        className="rounded-xl border-slate-200 font-medium text-sm py-3 disabled:opacity-50 w-full"
+                        value={formData.scheduledTime}
+                        onChange={e => setFormData({ ...formData, scheduledTime: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2 relative md:col-span-4">
+                      <label className="text-[10px] font-bold text-slate-400 ml-1">modalidade</label>
+                      <div className="relative">
+                        <button
+                          type="button"
                           disabled={isReadOnly}
-                          className="rounded-xl border-slate-200 font-medium text-sm py-3 disabled:opacity-50"
-                          value={formData.scheduledDate}
-                          onChange={e => setFormData({ ...formData, scheduledDate: e.target.value })}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-slate-400   ml-1">horário previsto</label>
-                        <Input
-                          type="time"
-                          disabled={isReadOnly}
-                          className="rounded-xl border-slate-200 font-medium text-sm py-3 disabled:opacity-50"
-                          value={formData.scheduledTime}
-                          onChange={e => setFormData({ ...formData, scheduledTime: e.target.value })}
-                        />
+                          onClick={() => !isReadOnly && setIsOperationTypeOpen(!isOperationTypeOpen)}
+                          onBlur={() => setTimeout(() => setIsOperationTypeOpen(false), 200)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-left text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all flex justify-between items-center disabled:opacity-50"
+                        >
+                          <span className="truncate">{formData.operationType || 'Selecione...'}</span>
+                          <ChevronDown size={16} className={`shrink-0 text-slate-400 transition-transform ${isOperationTypeOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {isOperationTypeOpen && (
+                          <div className="absolute z-[170] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2">
+                            {serviceTypes.filter(type => type.active !== false && type.is_active !== false).map(type => (
+                              <button
+                                key={type.id || type.name}
+                                type="button"
+                                onClick={() => {
+                                  setFormData({ ...formData, operationType: type.name });
+                                  setIsOperationTypeOpen(false);
+                                }}
+                                className="w-full text-left px-4 py-3 hover:bg-slate-50 text-xs font-bold text-slate-700 hover:text-[#1c2d4f] border-b border-slate-100 last:border-0 transition-colors"
+                              >
+                                {type.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                      <div className="space-y-2 relative">
-                        <label className="text-[10px] font-bold text-slate-400 ml-1">modalidade</label>
-                        <div className="relative">
-                          <button
-                            type="button"
-                            disabled={isReadOnly}
-                            onClick={() => !isReadOnly && setIsOperationTypeOpen(!isOperationTypeOpen)}
-                            onBlur={() => setTimeout(() => setIsOperationTypeOpen(false), 200)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-left text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all flex justify-between items-center disabled:opacity-50"
-                          >
-                            <span>{formData.operationType || 'Selecione...'}</span>
-                            <ChevronDown size={16} className={`text-slate-400 transition-transform ${isOperationTypeOpen ? 'rotate-180' : ''}`} />
-                          </button>
-                          {isOperationTypeOpen && (
-                            <div className="absolute z-[170] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2">
-                              {serviceTypes.filter(type => type.active !== false && type.is_active !== false).map(type => (
-                                <button
-                                  key={type.id || type.name}
-                                  type="button"
-                                  onClick={() => {
-                                    setFormData({ ...formData, operationType: type.name });
-                                    setIsOperationTypeOpen(false);
-                                  }}
-                                  className="w-full text-left px-4 py-3 hover:bg-slate-50 text-xs font-bold text-slate-700 hover:text-[#1c2d4f] border-b border-slate-100 last:border-0 transition-colors"
-                                >
-                                  {type.name}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                    <div className="space-y-2 relative md:col-span-2">
+                      <label className="text-[10px] font-bold text-slate-400 ml-1">nível de prioridade</label>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          disabled={isReadOnly}
+                          onClick={() => !isReadOnly && setIsPriorityOpen(!isPriorityOpen)}
+                          onBlur={() => setTimeout(() => setIsPriorityOpen(false), 200)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-left text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all flex justify-between items-center disabled:opacity-50 h-[42px]"
+                        >
+                          <span className="truncate flex items-center">
+                            <PriorityBadge priority={formData.priority as OrderPriority} />
+                          </span>
+                          <ChevronDown size={16} className={`shrink-0 text-slate-400 transition-transform ${isPriorityOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {isPriorityOpen && (
+                          <div className="absolute z-[170] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2">
+                            {Object.values(OrderPriority).map(p => (
+                              <button
+                                key={p}
+                                type="button"
+                                onClick={() => {
+                                  setFormData({ ...formData, priority: p as OrderPriority });
+                                  setIsPriorityOpen(false);
+                                }}
+                                className="w-full text-left px-4 py-3 hover:bg-slate-50 text-xs font-bold text-slate-700 hover:text-[#1c2d4f] border-b border-slate-100 last:border-0 transition-colors flex items-center"
+                              >
+                                <PriorityBadge priority={p as OrderPriority} />
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <div className="space-y-2 relative">
-                        <label className="text-[10px] font-bold text-slate-400 ml-1">nível de prioridade</label>
-                        <div className="relative">
-                          <button
-                            type="button"
-                            disabled={isReadOnly}
-                            onClick={() => !isReadOnly && setIsPriorityOpen(!isPriorityOpen)}
-                            onBlur={() => setTimeout(() => setIsPriorityOpen(false), 200)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-left text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all flex justify-between items-center disabled:opacity-50"
-                          >
-                            <span>{formData.priority === OrderPriority.LOW ? 'Baixo' : formData.priority === OrderPriority.MEDIUM ? 'Média' : formData.priority === OrderPriority.HIGH ? 'Alta' : 'Urgente'}</span>
-                            <ChevronDown size={16} className={`text-slate-400 transition-transform ${isPriorityOpen ? 'rotate-180' : ''}`} />
-                          </button>
-                          {isPriorityOpen && (
-                            <div className="absolute z-[170] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2">
-                              {Object.values(OrderPriority).map(p => (
-                                <button
-                                  key={p}
-                                  type="button"
-                                  onClick={() => {
-                                    setFormData({ ...formData, priority: p as OrderPriority });
-                                    setIsPriorityOpen(false);
-                                  }}
-                                  className="w-full text-left px-4 py-3 hover:bg-slate-50 text-xs font-bold text-slate-700 hover:text-[#1c2d4f] border-b border-slate-100 last:border-0 transition-colors"
-                                >
-                                  {p === OrderPriority.LOW ? 'Baixo' : p === OrderPriority.MEDIUM ? 'Média' : p === OrderPriority.HIGH ? 'Alta' : 'Urgente'}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
                     </div>
                   </div>
                 </div>
+              </div>
 
                 {/* ALOCAÇÃO DE TÉCNICO */}
                 <div className="space-y-6">
@@ -1055,10 +1090,21 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                           </button>
                         );
                       })}
+                      
+                      {!techSearch.trim() && !formData.assignedTo && (
+                         <div className="p-4 text-center">
+                            <p className="text-xs text-slate-400 font-medium">Comece a digitar para buscar um técnico...</p>
+                         </div>
+                      )}
+                      
+                      {techSearch.trim() && filteredTechs.length === 0 && (
+                         <div className="p-4 text-center">
+                            <p className="text-xs text-slate-400 font-medium">Nenhum técnico encontrado.</p>
+                         </div>
+                      )}
                     </div>
                   </div>
                 </div>
-              </div>
             </div>
           )}
 

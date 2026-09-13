@@ -2,9 +2,23 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw, X, BellRing, Bell, Volume2, ArrowRight, ArrowLeft, Sticker, FileVideo, Mic, FileText, Download, AlertCircle, Plus, Search, Loader2, CheckCircle2, ExternalLink } from 'lucide-react';
+import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw, X, BellRing, Bell, Volume2, ArrowRight, ArrowLeft, ChevronLeft, ChevronRight, Sticker, FileVideo, Paperclip, Mic, FileText, Download, AlertCircle, Plus, Search, Loader2, CheckCircle2, ExternalLink, Images } from 'lucide-react';
 import { Customer } from '../../types';
 import { getCurrentTenantId } from '../../lib/tenantContext';
+
+function parseMessageMedia(content: string) {
+  if (!content || !content.startsWith('MEDIA_URL:')) return null;
+  const withoutPrefix = content.replace('MEDIA_URL:', '');
+  const colonIdx = withoutPrefix.indexOf(':');
+  if (colonIdx === -1) return null;
+  const mediaType = withoutPrefix.substring(0, colonIdx);
+  const rest = withoutPrefix.substring(colonIdx + 1);
+  const pipeIdx = rest.lastIndexOf('|');
+  const mediaUrl = pipeIdx >= 0 ? rest.substring(0, pipeIdx) : rest;
+  const rawCaption = pipeIdx >= 0 ? rest.substring(pipeIdx + 1) : '';
+  const caption = (rawCaption && rawCaption !== 'Imagem' && !rawCaption.includes('INSTRUCAO:')) ? rawCaption : '';
+  return { mediaType, mediaUrl, caption };
+}
 
 interface Message {
   role: 'bot' | 'user' | 'agent';
@@ -60,6 +74,39 @@ function timeAgo(iso: string) {
   if (diff < 3600) return `${Math.floor(diff / 60)}min`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
   return `${Math.floor(diff / 86400)}d`;
+}
+
+function formatLastMessagePreview(rawContent: string): string {
+  if (!rawContent) return '';
+  const text = String(rawContent).trim();
+
+  if (text.startsWith('MEDIA_URL:')) {
+    const withoutPrefix = text.replace('MEDIA_URL:', '');
+    const colonIdx = withoutPrefix.indexOf(':');
+    const mediaType = colonIdx >= 0 ? withoutPrefix.substring(0, colonIdx) : 'image';
+    const rest = colonIdx >= 0 ? withoutPrefix.substring(colonIdx + 1) : withoutPrefix;
+    const pipeIdx = rest.indexOf('|');
+    const caption = pipeIdx >= 0 ? rest.substring(pipeIdx + 1).trim() : '';
+
+    let label = '📷 Imagem';
+    if (mediaType === 'document') label = '📄 Documento';
+    else if (mediaType === 'video') label = '📹 Vídeo';
+    else if (mediaType === 'audio' || mediaType === 'ptt') label = '🎤 Áudio';
+    else if (mediaType === 'sticker') label = '✨ Figurinha';
+
+    if (caption && caption !== 'Imagem' && caption !== 'Documento') {
+      return `${label}: ${caption}`;
+    }
+    return label;
+  }
+
+  if (text.includes('[📸 Imagem Recebida]')) return '📷 Imagem';
+  if (text.includes('[📄 Documento Recebido]')) return '📄 Documento';
+  if (text.includes('[📹 Vídeo Recebido]')) return '📹 Vídeo';
+  if (text.includes('[🎤 Áudio') || text.includes('[🎤 PTT')) return '🎤 Áudio';
+  if (text.includes('[✨ Figurinha')) return '✨ Figurinha';
+
+  return text;
 }
 
 // ─── Notificações ────────────────────────────────────────────────────────────
@@ -190,6 +237,8 @@ export const WhatsAppInbox: React.FC = () => {
   const [showStickers, setShowStickers] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
   const conversationsRef = useRef<Conversation[]>([]);
   const selectedIdRef = useRef<string | null>(null);
   const isOptimisticPending = useRef(false);
@@ -207,6 +256,26 @@ export const WhatsAppInbox: React.FC = () => {
   const [initialMessage, setInitialMessage] = useState('');
   const [startingChat, setStartingChat] = useState(false);
   const [newChatError, setNewChatError] = useState<string | null>(null);
+
+  // ── State do Viewer de Imagens (Carrossel / Lightbox) ──
+  const [viewerImages, setViewerImages] = useState<{ url: string; caption?: string }[]>([]);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+
+  // Atalhos de teclado para o Carrossel Viewer de Imagens (Seta Esquerda, Seta Direita, ESC)
+  useEffect(() => {
+    if (viewerIndex === null) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setViewerIndex(null);
+      } else if (e.key === 'ArrowLeft') {
+        setViewerIndex(prev => (prev !== null && prev > 0 ? prev - 1 : viewerImages.length - 1));
+      } else if (e.key === 'ArrowRight') {
+        setViewerIndex(prev => (prev !== null && prev < viewerImages.length - 1 ? prev + 1 : 0));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [viewerIndex, viewerImages.length]);
 
   const fetchCustomersList = async () => {
     setLoadingCustomers(true);
@@ -604,7 +673,7 @@ export const WhatsAppInbox: React.FC = () => {
               setToast('⚠️ Uma conversa foi transferida para você!');
             } else {
               const previewMsg = newMsgs.find(m => m.role === 'user')?.content || 'Cliente solicitou atendimento.';
-              const preview = String(previewMsg).substring(0, 60);
+              const preview = formatLastMessagePreview(previewMsg).substring(0, 60);
               sendBrowserNotification('💬 Duno WhatsApp', `${updated.phone_number}: ${preview}`);
               setToast(justAskedForHuman ? '⚠️ Cliente pediu atendimento humano!' : '💬 Nova mensagem do cliente!');
               setTimeout(() => setToast(null), 5000);
@@ -768,6 +837,147 @@ export const WhatsAppInbox: React.FC = () => {
       fetchConversations(true); 
       setTimeout(() => actionInitiatedConvId.current = null, 2000);
     }, 500);
+  };
+
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selected || !currentUserId) return;
+    
+    if (file.size > 50 * 1024 * 1024) {
+      alert("O arquivo não pode ter mais de 50 MB.");
+      return;
+    }
+
+    setUploadingMedia(true);
+    let finalBlob: Blob = file;
+    let finalExt = file.name.split('.').pop() || 'pdf';
+    let isImage = file.type.startsWith('image/');
+
+    try {
+      if (isImage) {
+        finalBlob = await new Promise<Blob>((resolve, reject) => {
+          const img = new Image();
+          const objUrl = URL.createObjectURL(file);
+          img.onload = async () => {
+            URL.revokeObjectURL(objUrl);
+            const MAX_BYTES = 200 * 1024; // 200 KB limit
+            let maxDim = 1200;
+            let quality = 0.75;
+            let bestBlob: Blob | null = null;
+
+            for (let attempt = 0; attempt < 6; attempt++) {
+              let width = img.width;
+              let height = img.height;
+
+              if (width > maxDim || height > maxDim) {
+                const ratio = Math.min(maxDim / width, maxDim / height);
+                width = Math.round(width * ratio);
+                height = Math.round(height * ratio);
+              }
+
+              const canvas = document.createElement('canvas');
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) return reject('No canvas context');
+
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
+              ctx.fillStyle = '#FFFFFF';
+              ctx.fillRect(0, 0, width, height);
+              ctx.drawImage(img, 0, 0, width, height);
+
+              const blob = await new Promise<Blob | null>((res) => {
+                canvas.toBlob(res, 'image/webp', quality);
+              });
+
+              if (blob) {
+                bestBlob = blob;
+                if (blob.size <= MAX_BYTES) {
+                  console.log(`[Admin Upload] Imagem comprimida com sucesso: ${(blob.size / 1024).toFixed(1)}KB`);
+                  return resolve(blob);
+                }
+              }
+
+              maxDim = Math.round(maxDim * 0.8);
+              quality = Math.max(0.25, quality - 0.15);
+            }
+
+            if (bestBlob) resolve(bestBlob);
+            else reject('Canvas toBlob failed');
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(objUrl);
+            reject('Image load failed');
+          };
+          img.src = objUrl;
+        });
+        finalExt = 'webp';
+      }
+
+      const pathStr = `whatsapp/${selected.tenant_id}/${selected.phone_number}/${isImage ? 'imagens' : 'documentos'}/${new Date().toISOString().split('T')[0].replace(/-/g, '_')}/${crypto.randomUUID()}.${finalExt}`;
+
+      const { data: signData, error: signError } = await supabase.functions.invoke('r2-operations', {
+        body: {
+          action: 'upload',
+          path: pathStr,
+          bucketType: 'nexus-files',
+          contentType: isImage ? 'image/webp' : file.type
+        }
+      });
+
+      if (signError || !signData?.signedUrl) throw new Error(signError?.message || 'Falha ao gerar URL de upload');
+
+      const uploadRes = await fetch(signData.signedUrl, {
+        method: 'PUT',
+        body: finalBlob,
+        headers: { 'Content-Type': isImage ? 'image/webp' : file.type }
+      });
+
+      if (!uploadRes.ok) throw new Error('Falha no upload para R2');
+
+      const { data: sendData, error: sendErr } = await supabase.functions.invoke('whatsapp-admin-send', {
+        body: {
+          conversation_id: selected.id,
+          action: 'send_media',
+          message: signData.publicUrl,
+          media_type: isImage ? 'image' : 'document',
+          original_name: file.name,
+          agent_name: currentUserName
+        }
+      });
+
+      if (sendErr) throw sendErr;
+
+      const safeText = `MEDIA_URL:${isImage ? 'image' : 'document'}:${signData.publicUrl}`;
+      const optimisticMsg = {
+        role: "agent",
+        content: safeText,
+        type: isImage ? 'image' : 'document',
+        media_url: signData.publicUrl,
+        is_from_me: true,
+        agent_id: currentUserId,
+        agent_name: currentUserName,
+        timestamp: new Date().toISOString()
+      };
+      
+      setConversations(prev => prev.map(c => {
+        if (c.id === selected.id) {
+          const updatedHistory = [...(Array.isArray(c.history) ? c.history : []), optimisticMsg];
+          if (updatedHistory.length > 30) updatedHistory.slice(-30);
+          return { ...c, history: updatedHistory, last_message_at: new Date().toISOString() };
+        }
+        return c;
+      }));
+
+    } catch (e: any) {
+      console.error(e);
+      alert('Erro ao enviar arquivo: ' + e.message);
+    } finally {
+      setUploadingMedia(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const handleSend = () => {
@@ -1105,7 +1315,7 @@ export const WhatsAppInbox: React.FC = () => {
                     {lastMsg && (
                       <p className={`text-xs truncate w-full ${isUnread ? 'text-emerald-600 font-semibold' : 'text-slate-500'}`}>
                         {isUnread && <span className="mr-1 text-[8px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full animate-pulse">NOVA</span>}
-                        {lastMsg.role === 'bot' ? '🤖' : lastMsg.role === 'agent' ? '👤' : '💬'} {String(lastMsg.content || '').substring(0, 50)}
+                        {lastMsg.role === 'bot' ? '🤖' : lastMsg.role === 'agent' ? '👤' : '💬'} {formatLastMessagePreview(lastMsg.content).substring(0, 60)}
                       </p>
                     )}
                   </div>
@@ -1225,136 +1435,363 @@ export const WhatsAppInbox: React.FC = () => {
                 <p className="text-xs mt-2">Nenhuma mensagem ainda</p>
               </div>
             )}
-            {(selected.history || []).map((msg, i) => {
-              const isFromMe = msg.role === 'agent' || msg.role === 'bot';
-              return (
-                <div
-                  key={i}
-                  className={`flex gap-2 items-end ${isFromMe ? 'justify-end' : 'justify-start'}`}
-                >
-                  {/* Avatar esquerda — apenas cliente */}
-                  {!isFromMe && (
-                    <div className="w-7 h-7 rounded-full bg-slate-300 flex items-center justify-center flex-shrink-0 shadow-sm flex-shrink-0">
-                      <User size={14} className="text-slate-600" />
-                    </div>
-                  )}
+            {(() => {
+              const history = selected.history || [];
+              if (!history || history.length === 0) return null;
 
-                  {/* Balão */}
-                  <div className={`max-w-[72%] px-3.5 py-2.5 text-xs leading-relaxed shadow-sm ${
-                    msg.role === 'agent'
-                      ? 'bg-emerald-800 text-white rounded-2xl rounded-br-sm'
-                      : msg.role === 'bot'
-                      ? 'bg-violet-700 text-white rounded-2xl rounded-bl-sm'
-                      : 'bg-blue-800 text-white rounded-2xl rounded-bl-sm'
-                  }`}>
-                    {/* Nome — apenas para o remetente correto */}
-                    {msg.role === 'user' && (
-                      <p className="text-[10px] font-semibold text-blue-200 mb-1 tracking-wide">
-                        {formatPhone(selected.phone_number)}
-                      </p>
-                    )}
-                    {msg.role === 'agent' && (
-                      <p className="text-[10px] font-semibold text-emerald-200 mb-1 tracking-wide uppercase">
-                        👤 {msg.agent_name || (msg.agent_id ? teamMembers.find(m => m.id === msg.agent_id)?.name : null) || selected.users?.name || currentUserName}
-                      </p>
-                    )}
-                    {msg.role === 'bot' && (
-                      <p className="text-[10px] font-semibold text-emerald-200 mb-1 tracking-wide uppercase">
-                        🤖 Assistente Virtual
-                      </p>
-                    )}
+              const openViewerAtUrl = (mediaUrl: string) => {
+                const allImages: { url: string; caption?: string }[] = [];
+                history.forEach(m => {
+                  const parsed = parseMessageMedia(m.content || '');
+                  if (parsed && (parsed.mediaType === 'image' || parsed.mediaType === 'sticker') && parsed.mediaUrl) {
+                    allImages.push({ url: parsed.mediaUrl, caption: parsed.caption || undefined });
+                  }
+                });
+                const clickedIdx = allImages.findIndex(img => img.url === mediaUrl);
+                setViewerImages(allImages.length > 0 ? allImages : [{ url: mediaUrl }]);
+                setViewerIndex(clickedIdx >= 0 ? clickedIdx : 0);
+              };
 
-                    {(() => {
-                      const content = msg.content || '';
-                      if (content.startsWith('MEDIA_URL:')) {
-                        const withoutPrefix = content.replace('MEDIA_URL:', '');
-                        const colonIdx = withoutPrefix.indexOf(':');
-                        const mediaType = withoutPrefix.substring(0, colonIdx);
-                        const rest = withoutPrefix.substring(colonIdx + 1);
-                        const pipeIdx = rest.lastIndexOf('|');
-                        const mediaUrl = pipeIdx >= 0 ? rest.substring(0, pipeIdx) : rest;
-                        const caption = pipeIdx >= 0 ? rest.substring(pipeIdx + 1) : '';
-                        const isLight = isFromMe;
-                        const textColor = isLight ? 'text-white/60' : 'text-slate-400';
+              type GroupedItem =
+                | { type: 'single'; message: Message; originalIndex: number }
+                | {
+                    type: 'image_group';
+                    role: string;
+                    agent_id?: string;
+                    agent_name?: string;
+                    timestamp: string;
+                    items: { mediaUrl: string; caption: string; msg: Message; originalIndex: number }[];
+                  };
 
-                        if ((mediaType === 'image' || mediaType === 'sticker') && mediaUrl) {
-                          return (
-                            <div className="space-y-1">
-                              <img
-                                src={mediaUrl}
-                                alt={caption || 'Imagem'}
-                                className="max-w-[220px] rounded-xl object-cover cursor-pointer hover:opacity-90 transition-opacity border border-white/10"
-                                onClick={() => window.open(mediaUrl, '_blank')}
-                                onError={(e) => {
-                                  const el = e.target as HTMLImageElement;
-                                  el.style.display = 'none';
-                                  const parent = el.parentElement;
-                                  if (parent && !parent.querySelector('.img-fallback')) {
-                                    const fb = document.createElement('div');
-                                    fb.className = 'img-fallback flex items-center gap-2 text-[11px] opacity-70 py-1';
-                                    fb.innerHTML = '📸 Imagem (visualização indisponível)';
-                                    parent.appendChild(fb);
-                                  }
-                                }}
-                              />
-                              {caption && <p className={`text-[10px] italic ${textColor}`}>{caption}</p>}
-                            </div>
-                          );
-                        }
-                        if (mediaType === 'audio' && mediaUrl) {
-                          return (
-                            <div className="flex items-center gap-2 py-1">
-                              <Mic size={16} className={isLight ? 'text-white/70' : 'text-indigo-400'} />
-                              <audio controls src={mediaUrl} className="h-8" style={{ width: '180px' }} />
-                            </div>
-                          );
-                        }
-                        if (mediaType === 'video' && mediaUrl) {
-                          return (
-                            <div className="space-y-1">
-                              <video src={mediaUrl} controls className="max-w-[220px] rounded-xl" style={{ maxHeight: '160px' }} />
-                              {caption && <p className={`text-[10px] italic ${textColor}`}>{caption}</p>}
-                            </div>
-                          );
-                        }
-                        if (mediaType === 'document') {
-                          const fileName = caption || mediaUrl.split('/').pop() || 'Documento';
-                          return (
-                            <a href={mediaUrl || '#'} target="_blank" rel="noopener noreferrer"
-                               className={`flex items-center gap-2 p-2 rounded-lg hover:opacity-80 transition-opacity ${isLight ? 'bg-white/10' : 'bg-slate-100'}`}>
-                              <FileText size={16} className={isLight ? 'text-white' : 'text-indigo-500'} />
-                              <span className={`text-[11px] font-medium truncate max-w-[150px] ${isLight ? 'text-white' : 'text-slate-700'}`}>{fileName}</span>
-                              {mediaUrl && <Download size={12} className={isLight ? 'text-white/70' : 'text-slate-400'} />}
-                            </a>
-                          );
-                        }
-                        const mediaLabel: Record<string, string> = {
-                          image: '📸 Imagem', video: '📹 Vídeo', audio: '🎤 Áudio',
-                          document: '📄 Documento', sticker: '✨ Figurinha'
-                        };
-                        return (
-                          <p className="text-[11px] opacity-80 italic">
-                            {mediaLabel[mediaType] || '📎 Mídia'} recebida (pré-visualização não disponível)
-                          </p>
-                        );
+              const groupedList: GroupedItem[] = [];
+              let currentGroup: {
+                role: string;
+                agent_id?: string;
+                agent_name?: string;
+                timestamp: string;
+                items: { mediaUrl: string; caption: string; msg: Message; originalIndex: number }[];
+              } | null = null;
+
+              history.forEach((msg, idx) => {
+                const parsed = parseMessageMedia(msg.content || '');
+                const isImage = parsed && (parsed.mediaType === 'image' || parsed.mediaType === 'sticker') && parsed.mediaUrl;
+
+                if (isImage) {
+                  if (
+                    currentGroup &&
+                    currentGroup.role === msg.role &&
+                    currentGroup.agent_id === msg.agent_id
+                  ) {
+                    currentGroup.items.push({
+                      mediaUrl: parsed.mediaUrl,
+                      caption: parsed.caption,
+                      msg,
+                      originalIndex: idx
+                    });
+                    currentGroup.timestamp = msg.timestamp;
+                  } else {
+                    if (currentGroup) {
+                      if (currentGroup.items.length === 1) {
+                        groupedList.push({
+                          type: 'single',
+                          message: currentGroup.items[0].msg,
+                          originalIndex: currentGroup.items[0].originalIndex
+                        });
+                      } else {
+                        groupedList.push({ type: 'image_group', ...currentGroup });
                       }
-                      return <p className="whitespace-pre-wrap">{content}</p>;
-                    })()}
+                    }
+                    currentGroup = {
+                      role: msg.role,
+                      agent_id: msg.agent_id,
+                      agent_name: msg.agent_name,
+                      timestamp: msg.timestamp,
+                      items: [{ mediaUrl: parsed.mediaUrl, caption: parsed.caption, msg, originalIndex: idx }]
+                    };
+                  }
+                } else {
+                  if (currentGroup) {
+                    if (currentGroup.items.length === 1) {
+                      groupedList.push({
+                        type: 'single',
+                        message: currentGroup.items[0].msg,
+                        originalIndex: currentGroup.items[0].originalIndex
+                      });
+                    } else {
+                      groupedList.push({ type: 'image_group', ...currentGroup });
+                    }
+                    currentGroup = null;
+                  }
+                  groupedList.push({ type: 'single', message: msg, originalIndex: idx });
+                }
+              });
 
-                    <p className={`text-[9px] mt-1 ${isFromMe ? 'text-white/50 text-right' : 'text-slate-400'}`}>
-                      {new Date(msg.timestamp).toLocaleDateString('pt-BR')} às {new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
+              if (currentGroup) {
+                if (currentGroup.items.length === 1) {
+                  groupedList.push({
+                    type: 'single',
+                    message: currentGroup.items[0].msg,
+                    originalIndex: currentGroup.items[0].originalIndex
+                  });
+                } else {
+                  groupedList.push({ type: 'image_group', ...currentGroup });
+                }
+              }
 
-                  {/* Avatar do Agente/Bot (direita) */}
-                  {isFromMe && (
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${msg.role === 'bot' ? 'bg-emerald-100' : 'bg-indigo-100'}`}>
-                      {msg.role === 'bot' ? <Bot size={14} className="text-emerald-600" /> : <User size={14} className="text-indigo-600" />}
+              return groupedList.map((item, gIdx) => {
+                if (item.type === 'single') {
+                  const msg = item.message;
+                  const isFromMe = msg.role === 'agent' || msg.role === 'bot';
+                  return (
+                    <div key={`single-${item.originalIndex}`} className={`flex gap-2 items-end ${isFromMe ? 'justify-end' : 'justify-start'}`}>
+                      {!isFromMe && (
+                        <div className="w-7 h-7 rounded-full bg-slate-300 flex items-center justify-center flex-shrink-0 shadow-sm">
+                          <User size={14} className="text-slate-600" />
+                        </div>
+                      )}
+
+                      <div className={`max-w-[72%] px-3.5 py-2.5 text-xs leading-relaxed shadow-sm ${
+                        msg.role === 'agent'
+                          ? 'bg-emerald-800 text-white rounded-2xl rounded-br-sm'
+                          : msg.role === 'bot'
+                          ? 'bg-violet-700 text-white rounded-2xl rounded-bl-sm'
+                          : 'bg-blue-800 text-white rounded-2xl rounded-bl-sm'
+                      }`}>
+                        {msg.role === 'user' && (
+                          <p className="text-[10px] font-semibold text-blue-200 mb-1 tracking-wide">
+                            {formatPhone(selected.phone_number)}
+                          </p>
+                        )}
+                        {msg.role === 'agent' && (
+                          <p className="text-[10px] font-semibold text-emerald-200 mb-1 tracking-wide uppercase">
+                            👤 {msg.agent_name || (msg.agent_id ? teamMembers.find(m => m.id === msg.agent_id)?.name : null) || selected.users?.name || currentUserName}
+                          </p>
+                        )}
+                        {msg.role === 'bot' && (
+                          <p className="text-[10px] font-semibold text-emerald-200 mb-1 tracking-wide uppercase">
+                            🤖 Assistente Virtual
+                          </p>
+                        )}
+
+                        {(() => {
+                          const content = msg.content || '';
+                          const parsed = parseMessageMedia(content);
+                          if (parsed) {
+                            const { mediaType, mediaUrl, caption } = parsed;
+                            const isLight = isFromMe;
+                            const textColor = isLight ? 'text-white/60' : 'text-slate-400';
+
+                            if ((mediaType === 'image' || mediaType === 'sticker') && mediaUrl) {
+                              return (
+                                <div className="space-y-1">
+                                  <img
+                                    src={mediaUrl}
+                                    alt={caption || 'Imagem'}
+                                    className="max-w-[220px] rounded-xl object-cover cursor-pointer hover:opacity-90 transition-opacity border border-white/10"
+                                    onClick={() => openViewerAtUrl(mediaUrl)}
+                                    onError={(e) => {
+                                      const el = e.target as HTMLImageElement;
+                                      el.style.display = 'none';
+                                      const parent = el.parentElement;
+                                      if (parent && !parent.querySelector('.img-fallback')) {
+                                        const fb = document.createElement('div');
+                                        fb.className = 'img-fallback flex items-center gap-2 text-[11px] opacity-70 py-1';
+                                        fb.innerHTML = '📸 Imagem (visualização indisponível)';
+                                        parent.appendChild(fb);
+                                      }
+                                    }}
+                                  />
+                                  {caption && <p className={`text-[10px] italic ${textColor}`}>{caption}</p>}
+                                </div>
+                              );
+                            }
+                            if (mediaType === 'audio' && mediaUrl) {
+                              return (
+                                <div className="flex items-center gap-2 py-1">
+                                  <Mic size={16} className={isLight ? 'text-white/70' : 'text-indigo-400'} />
+                                  <audio controls src={mediaUrl} className="h-8" style={{ width: '180px' }} />
+                                </div>
+                              );
+                            }
+                            if (mediaType === 'video' && mediaUrl) {
+                              return (
+                                <div className="space-y-1">
+                                  <video src={mediaUrl} controls className="max-w-[220px] rounded-xl" style={{ maxHeight: '160px' }} />
+                                  {caption && <p className={`text-[10px] italic ${textColor}`}>{caption}</p>}
+                                </div>
+                              );
+                            }
+                            if (mediaType === 'document') {
+                              const fileName = caption || mediaUrl.split('/').pop() || 'Documento';
+                              return (
+                                <a href={mediaUrl || '#'} target="_blank" rel="noopener noreferrer"
+                                   className={`flex items-center gap-2 p-2 rounded-lg hover:opacity-80 transition-opacity ${isLight ? 'bg-white/10' : 'bg-slate-100'}`}>
+                                  <FileText size={16} className={isLight ? 'text-white' : 'text-indigo-500'} />
+                                  <span className={`text-[11px] font-medium truncate max-w-[150px] ${isLight ? 'text-white' : 'text-slate-700'}`}>{fileName}</span>
+                                  {mediaUrl && <Download size={12} className={isLight ? 'text-white/70' : 'text-slate-400'} />}
+                                </a>
+                              );
+                            }
+                            const mediaLabel: Record<string, string> = {
+                              image: '📸 Imagem', video: '📹 Vídeo', audio: '🎤 Áudio',
+                              document: '📄 Documento', sticker: '✨ Figurinha'
+                            };
+                            return (
+                              <p className="text-[11px] opacity-80 italic">
+                                {mediaLabel[mediaType] || '📎 Mídia'} recebida (pré-visualização não disponível)
+                              </p>
+                            );
+                          }
+                          return <p className="whitespace-pre-wrap">{content}</p>;
+                        })()}
+
+                        <p className={`text-[9px] mt-1 ${isFromMe ? 'text-white/50 text-right' : 'text-slate-400'}`}>
+                          {new Date(msg.timestamp).toLocaleDateString('pt-BR')} às {new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+
+                      {isFromMe && (
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${msg.role === 'bot' ? 'bg-emerald-100' : 'bg-indigo-100'}`}>
+                          {msg.role === 'bot' ? <Bot size={14} className="text-emerald-600" /> : <User size={14} className="text-indigo-600" />}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                  );
+                }
+
+                // IMAGE GROUP CARD (2+ IMAGES)
+                const isFromMe = item.role === 'agent' || item.role === 'bot';
+                const totalImages = item.items.length;
+
+                return (
+                  <div key={`group-${gIdx}`} className={`flex gap-2 items-end ${isFromMe ? 'justify-end' : 'justify-start'}`}>
+                    {!isFromMe && (
+                      <div className="w-7 h-7 rounded-full bg-slate-300 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <User size={14} className="text-slate-600" />
+                      </div>
+                    )}
+
+                    <div className={`max-w-[280px] p-2 text-xs leading-relaxed shadow-md ${
+                      item.role === 'agent'
+                        ? 'bg-emerald-800 text-white rounded-2xl rounded-br-sm'
+                        : item.role === 'bot'
+                        ? 'bg-violet-700 text-white rounded-2xl rounded-bl-sm'
+                        : 'bg-blue-800 text-white rounded-2xl rounded-bl-sm'
+                    }`}>
+                      {item.role === 'user' && (
+                        <p className="text-[10px] font-semibold text-blue-200 mb-1.5 px-1 tracking-wide">
+                          {formatPhone(selected.phone_number)}
+                        </p>
+                      )}
+                      {item.role === 'agent' && (
+                        <p className="text-[10px] font-semibold text-emerald-200 mb-1.5 px-1 tracking-wide uppercase">
+                          👤 {item.agent_name || (item.agent_id ? teamMembers.find(m => m.id === item.agent_id)?.name : null) || selected.users?.name || currentUserName}
+                        </p>
+                      )}
+                      {item.role === 'bot' && (
+                        <p className="text-[10px] font-semibold text-emerald-200 mb-1.5 px-1 tracking-wide uppercase">
+                          🤖 Assistente Virtual
+                        </p>
+                      )}
+
+                      {/* GRID OF IMAGES */}
+                      {totalImages === 2 && (
+                        <div className="grid grid-cols-2 gap-1 rounded-xl overflow-hidden cursor-pointer bg-black/10">
+                          {item.items.slice(0, 2).map((imgObj, idx) => (
+                            <div key={idx} className="relative aspect-square overflow-hidden bg-black/20" onClick={() => openViewerAtUrl(imgObj.mediaUrl)}>
+                              <img
+                                src={imgObj.mediaUrl}
+                                alt={imgObj.caption || `Foto ${idx + 1}`}
+                                className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+                                onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {totalImages === 3 && (
+                        <div className="grid grid-cols-2 gap-1 rounded-xl overflow-hidden cursor-pointer bg-black/10 h-52">
+                          <div className="relative h-full overflow-hidden bg-black/20" onClick={() => openViewerAtUrl(item.items[0].mediaUrl)}>
+                            <img
+                              src={item.items[0].mediaUrl}
+                              alt={item.items[0].caption || 'Foto 1'}
+                              className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+                              onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                            />
+                          </div>
+                          <div className="grid grid-rows-2 gap-1 h-full">
+                            {item.items.slice(1, 3).map((imgObj, idx) => (
+                              <div key={idx} className="relative h-full overflow-hidden bg-black/20" onClick={() => openViewerAtUrl(imgObj.mediaUrl)}>
+                                <img
+                                  src={imgObj.mediaUrl}
+                                  alt={imgObj.caption || `Foto ${idx + 2}`}
+                                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+                                  onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {totalImages >= 4 && (
+                        <div className="grid grid-cols-2 gap-1 rounded-xl overflow-hidden cursor-pointer bg-black/10">
+                          {item.items.slice(0, 4).map((imgObj, idx) => {
+                            const isFourth = idx === 3 && totalImages > 4;
+                            const extraCount = totalImages - 3;
+                            return (
+                              <div key={idx} className="relative aspect-square overflow-hidden bg-black/20" onClick={() => openViewerAtUrl(imgObj.mediaUrl)}>
+                                <img
+                                  src={imgObj.mediaUrl}
+                                  alt={imgObj.caption || `Foto ${idx + 1}`}
+                                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+                                  onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                                />
+                                {isFourth && (
+                                  <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center text-white font-bold transition-all hover:bg-black/50">
+                                    <span className="text-xl">+ {extraCount}</span>
+                                    <span className="text-[9px] font-normal uppercase tracking-wider text-white/80">ver todas</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* CAPTIONS (if any) */}
+                      {item.items.some(it => !!it.caption) && (
+                        <div className="mt-2 pt-1.5 border-t border-white/10 space-y-1 px-1">
+                          {item.items.map((it, idx) => it.caption ? (
+                            <p key={idx} className="text-[11px] leading-tight opacity-90">
+                              <span className="opacity-60 text-[10px] mr-1">📷 {idx + 1}:</span>
+                              {it.caption}
+                            </p>
+                          ) : null)}
+                        </div>
+                      )}
+
+                      {/* FOOTER */}
+                      <div className="flex items-center justify-between mt-1.5 pt-1 text-[9px] opacity-70 px-1 border-t border-white/5">
+                        <span className="flex items-center gap-1 font-medium">
+                          <Images size={11} /> {totalImages} fotos
+                        </span>
+                        <span>
+                          {new Date(item.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    </div>
+
+                    {isFromMe && (
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${item.role === 'bot' ? 'bg-emerald-100' : 'bg-indigo-100'}`}>
+                        {item.role === 'bot' ? <Bot size={14} className="text-emerald-600" /> : <User size={14} className="text-indigo-600" />}
+                      </div>
+                    )}
+                  </div>
+                );
+              });
+            })()}
             <div ref={chatEndRef} />
           </div>
 
@@ -1390,6 +1827,21 @@ export const WhatsAppInbox: React.FC = () => {
               )}
 
               <div className={`flex items-end gap-3 rounded-3xl pr-2 pl-2 py-2 transition-all shadow-inner border ${selected.assigned_agent_id === currentUserId ? 'bg-slate-50 border-slate-200 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-400' : 'bg-slate-100 border-slate-200 opacity-70 cursor-not-allowed'}`}>
+                <input 
+                  type="file" 
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                  accept="image/*,application/pdf,.doc,.docx"
+                  className="hidden" 
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={selected.assigned_agent_id !== currentUserId || uploadingMedia}
+                  className={`w-10 h-10 mb-0.5 flex items-center justify-center rounded-full transition-colors shrink-0 text-[#54656f] hover:bg-black/5 ${uploadingMedia ? 'opacity-50 cursor-wait' : ''}`}
+                  title="Anexar Arquivo"
+                >
+                  {uploadingMedia ? <Loader2 size={22} className="animate-spin" /> : <Paperclip size={22} />}
+                </button>
                 <button
                   onClick={() => setShowStickers(!showStickers)}
                   disabled={selected.assigned_agent_id !== currentUserId}
@@ -1420,7 +1872,7 @@ export const WhatsAppInbox: React.FC = () => {
                 />
                 <button
                   onClick={handleSend}
-                  disabled={sendingAction !== null || !message.trim() || selected.assigned_agent_id !== currentUserId}
+                  disabled={sendingAction !== null || uploadingMedia || !message.trim() || selected.assigned_agent_id !== currentUserId}
                   className="w-10 h-10 mb-0.5 flex items-center justify-center bg-emerald-500 text-white rounded-full hover:bg-emerald-600 disabled:opacity-50 transition-all shrink-0 shadow-md hover:shadow-lg active:scale-95 disabled:hover:bg-emerald-500 disabled:hover:shadow-md disabled:active:scale-100"
                   title="Enviar (Enter)"
                 >
@@ -1814,6 +2266,124 @@ export const WhatsAppInbox: React.FC = () => {
           to   { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
       `}</style>
+
+      {/* ── Modal de Visualização de Imagens (Carrossel Lightbox) ── */}
+      {viewerIndex !== null && viewerImages[viewerIndex] && createPortal(
+        <div 
+          className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-md flex flex-col justify-between select-none animate-fadeIn"
+          onClick={() => setViewerIndex(null)}
+        >
+          {/* Header do Viewer */}
+          <div 
+            className="w-full flex items-center justify-between p-4 bg-gradient-to-b from-black/80 to-transparent z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-white/80 text-xs font-medium bg-white/10 px-3.5 py-1.5 rounded-full border border-white/10 shadow-sm">
+                {viewerIndex + 1} de {viewerImages.length}
+              </span>
+              {viewerImages[viewerIndex].caption && (
+                <p className="text-white text-sm truncate max-w-md italic opacity-90">
+                  {viewerImages[viewerIndex].caption}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <a
+                href={viewerImages[viewerIndex].url}
+                target="_blank"
+                rel="noopener noreferrer"
+                download
+                className="p-2.5 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer"
+                title="Baixar imagem"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Download size={20} />
+              </a>
+              <button
+                onClick={() => setViewerIndex(null)}
+                className="p-2.5 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer"
+                title="Fechar (Esc)"
+              >
+                <X size={24} />
+              </button>
+            </div>
+          </div>
+
+          {/* Área Central da Imagem e Navegação */}
+          <div className="flex-1 relative flex items-center justify-center p-4 min-h-0 w-full">
+            {/* Botão Anterior */}
+            {viewerImages.length > 1 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setViewerIndex(prev => (prev !== null && prev > 0 ? prev - 1 : viewerImages.length - 1));
+                }}
+                className="absolute left-4 z-20 p-3 text-white/70 hover:text-white bg-black/40 hover:bg-black/80 rounded-full border border-white/10 backdrop-blur-sm transition-all transform hover:scale-105 cursor-pointer shadow-lg"
+                title="Anterior (Seta Esquerda)"
+              >
+                <ChevronLeft size={28} />
+              </button>
+            )}
+
+            {/* Imagem Principal */}
+            <div 
+              className="relative max-w-full max-h-full flex items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={viewerImages[viewerIndex].url}
+                alt={viewerImages[viewerIndex].caption || 'Imagem'}
+                className="max-h-[78vh] max-w-[90vw] object-contain rounded-lg shadow-2xl transition-all duration-200"
+              />
+            </div>
+
+            {/* Botão Próximo */}
+            {viewerImages.length > 1 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setViewerIndex(prev => (prev !== null && prev < viewerImages.length - 1 ? prev + 1 : 0));
+                }}
+                className="absolute right-4 z-20 p-3 text-white/70 hover:text-white bg-black/40 hover:bg-black/80 rounded-full border border-white/10 backdrop-blur-sm transition-all transform hover:scale-105 cursor-pointer shadow-lg"
+                title="Próximo (Seta Direita)"
+              >
+                <ChevronRight size={28} />
+              </button>
+            )}
+          </div>
+
+          {/* Barra de Miniaturas no Rodapé */}
+          <div 
+            className="w-full p-4 bg-gradient-to-t from-black/80 to-transparent flex flex-col items-center gap-3 z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {viewerImages.length > 1 && (
+              <div className="flex items-center gap-2.5 overflow-x-auto max-w-full py-1.5 px-4 scrollbar-none">
+                {viewerImages.map((img, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setViewerIndex(idx)}
+                    className={`relative rounded-lg overflow-hidden flex-shrink-0 transition-all cursor-pointer ${
+                      idx === viewerIndex 
+                        ? 'ring-2 ring-emerald-400 scale-105 opacity-100 shadow-md' 
+                        : 'opacity-40 hover:opacity-80'
+                    }`}
+                  >
+                    <img
+                      src={img.url}
+                      alt=""
+                      className="w-12 h-12 object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

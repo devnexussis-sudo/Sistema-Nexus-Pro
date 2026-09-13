@@ -151,10 +151,19 @@ const MapFlyToCenter: React.FC<{ center: { lat: number; lng: number } | null }> 
 /**
  * Inner component to programmatically pan/zoom the map to specific regions' bounds.
  */
-const MapBoundsFitter: React.FC<{ regions: Region[] }> = ({ regions }) => {
+const MapBoundsFitter: React.FC<{ regions: Region[], fitTrigger?: string }> = ({ regions, fitTrigger }) => {
   const map = useMap();
+  const hasFitted = React.useRef(false);
+  const lastTrigger = React.useRef(fitTrigger);
+
   React.useEffect(() => {
+    if (fitTrigger !== lastTrigger.current) {
+      hasFitted.current = false;
+      lastTrigger.current = fitTrigger;
+    }
+
     if (!regions || regions.length === 0) return;
+    if (hasFitted.current) return;
 
     try {
       const features = regions
@@ -172,6 +181,7 @@ const MapBoundsFitter: React.FC<{ regions: Region[] }> = ({ regions }) => {
       );
 
       map.flyToBounds(leafletBounds, { padding: [50, 50], maxZoom: 14, duration: 1.0 });
+      hasFitted.current = true;
     } catch (e) {
       console.warn('Could not calculate bounds for flying', e);
     }
@@ -412,6 +422,7 @@ export const RegionManagement: React.FC = () => {
                 value={techFilter}
                 onChange={setTechFilter}
                 placeholder="Filtrar por Técnico"
+                requireSearchToOpen={true}
               />
             </div>
 
@@ -471,7 +482,7 @@ export const RegionManagement: React.FC = () => {
 
         <MapContainer center={[-23.55052, -46.63331]} zoom={12} style={{ height: '100%', width: '100%' }}>
           <MapFlyToCenter center={mapCenter} />
-          <MapBoundsFitter regions={filteredRegions} />
+          <MapBoundsFitter regions={filteredRegions} fitTrigger={techFilter} />
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
           <FeatureGroup>

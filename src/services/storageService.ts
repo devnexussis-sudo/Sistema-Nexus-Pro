@@ -1,4 +1,3 @@
-
 import { supabase, publicSupabase } from '../lib/supabase';
 
 import { getCurrentTenantId } from '../lib/tenantContext';
@@ -71,19 +70,111 @@ export const StorageService = {
     },
 
     /**
+     * 🧠 Resolve os paths técnicos para o novo padrão amigável da empresa
+     */
+    _resolveHumanPath: async (originalPath: string, providedTenantId?: string): Promise<{ finalPath: string, resolvedTenantId: string }> => {
+        let cleanPath = originalPath.toString().replace(/^\/+/, '').replace(/\/+$/, '');
+        let finalHumanPath = cleanPath;
+        let tenantIdToUse = providedTenantId;
+        
+        try {
+            if (cleanPath.startsWith('orders/')) {
+                const parts = cleanPath.split('/');
+                const orderId = parts[1];
+                const subfolder = parts[2];
+                
+                const { data } = await publicSupabase.from('service_orders').select('code, tenant_id').eq('id', orderId).single();
+                if (data) {
+                    if (!tenantIdToUse) tenantIdToUse = data.tenant_id;
+                    const code = data.code || orderId.substring(0, 8);
+                    
+                    let subHuman = 'Arquivos';
+                    if (subfolder === 'evidence') subHuman = 'Evidencias';
+                    else if (subfolder === 'internal_notes') subHuman = 'Observacoes';
+                    else if (subfolder === 'signatures') subHuman = 'Assinaturas';
+                    else if (subfolder) subHuman = subfolder;
+                    
+                    finalHumanPath = `Ordem de Servico/${code}/${subHuman}`;
+                }
+            } 
+            else if (cleanPath.startsWith('quotes/')) {
+                const parts = cleanPath.split('/');
+                const quoteId = parts[1];
+                const subfolder = parts[2];
+                
+                const { data } = await publicSupabase.from('service_quotes').select('code, tenant_id').eq('id', quoteId).single();
+                if (data) {
+                    if (!tenantIdToUse) tenantIdToUse = data.tenant_id;
+                    const code = data.code || quoteId.substring(0, 8);
+                    
+                    let subHuman = 'Arquivos';
+                    if (subfolder === 'signatures') subHuman = 'Assinaturas';
+                    else if (subfolder === 'rejections') subHuman = 'Rejeicoes';
+                    else if (subfolder) subHuman = subfolder;
+                    
+                    finalHumanPath = `Orcamentos/${code}/${subHuman}`;
+                }
+            } 
+            else if (cleanPath.startsWith('avatars/users/')) {
+                const parts = cleanPath.split('/');
+                const userId = parts[2];
+                if (userId) {
+                    const { data } = await publicSupabase.from('users').select('name').eq('id', userId).single();
+                    const userName = data?.name ? data.name.trim().replace(/[^a-zA-Z0-9]/g, '_') : userId;
+                    finalHumanPath = `Avatares/Usuarios/${userName}`;
+                }
+            } 
+            else if (cleanPath.startsWith('tenants/')) {
+                const parts = cleanPath.split('/');
+                if (parts[1] && parts[1] !== 'new') {
+                    if (!tenantIdToUse) tenantIdToUse = parts[1];
+                }
+                finalHumanPath = `Configuracoes_Empresa/Logos`;
+            }
+
+            if (!tenantIdToUse) tenantIdToUse = 'anon';
+
+            // Buscar o nome fantasia do tenant
+            let tenantNameStr = 'Empresa';
+            if (tenantIdToUse !== 'anon') {
+                 const { data: tData } = await publicSupabase.from('tenants').select('trade_name').eq('id', tenantIdToUse).single();
+                 if (tData?.trade_name) {
+                     tenantNameStr = tData.trade_name.trim().replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+                 }
+            }
+
+            const rootFolder = `${tenantNameStr}_${tenantIdToUse}`;
+            
+            return {
+                finalPath: `${rootFolder}/${finalHumanPath}`.replace(/\/+/g, '/'),
+                resolvedTenantId: tenantIdToUse
+            };
+
+        } catch (e) {
+            console.error('[StorageService] ⚠️ Falha ao resolver HumanPath:', e);
+            const fallbackRoot = tenantIdToUse ? `Empresa_${tenantIdToUse}` : 'Anonymous';
+            return {
+                finalPath: `${fallbackRoot}/${cleanPath}`.replace(/\/+/g, '/'),
+                resolvedTenantId: tenantIdToUse || 'anon'
+            };
+        }
+    },
+
+    /**
      * 🛡️ NASA-Grade Storage Engine (Internal Version 5 - RESILIENT)
      */
     _uploadCore: async (blobOrFile: Blob | File, path: string, retryCount = 2, signal?: AbortSignal, options?: { contentType?: string, extension?: string }): Promise<string> => {
-        const tenantId = getCurrentTenantId();
-        if (!tenantId) {
+        const authTenantId = getCurrentTenantId();
+        if (!authTenantId) {
             console.error("[Storage] ❌ ERRO: TenantID não encontrado. Abortando upload.");
             throw new Error("AUTH_TENANT_MISSING");
         }
 
-        const cleanPath = path.toString().replace(/^\/+/, '').replace(/\/+$/, '');
+        const resolved = await StorageService._resolveHumanPath(path, authTenantId);
+
         const ext = options?.extension || 'webp';
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
-        const fullPath = `${tenantId}/${cleanPath}/${fileName}`.replace(/\/+/g, '/');
+        const fullPath = `${resolved.finalPath}/${fileName}`.replace(/\/+/g, '/');
         const contentType = options?.contentType || 'image/webp';
 
         console.log(`[Storage/R2] 📤 Uploading ${fullPath} (${(blobOrFile.size / 1024).toFixed(0)}KB)...`);
@@ -142,10 +233,10 @@ export const StorageService = {
      * 🛡️ BigTech Public Dropzone Engine (Anonymous Isolated Uploads)
      */
     _uploadDropzoneCore: async (blobOrFile: Blob | File, path: string, retryCount = 2, signal?: AbortSignal): Promise<string> => {
-        const cleanPath = path.toString().replace(/^\/+/, '').replace(/\/+$/, '');
+        const resolved = await StorageService._resolveHumanPath(path);
+        
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.webp`;
-        // Não usa tenantId, salva diretamente na subpasta do dropzone
-        const fullPath = `${cleanPath}/${fileName}`.replace(/\/+/g, '/');
+        const fullPath = `${resolved.finalPath}/${fileName}`.replace(/\/+/g, '/');
         const contentType = 'image/webp';
 
         console.log(`[Storage/Dropzone-R2] 📤 Uploading ${fullPath} (${(blobOrFile.size / 1024).toFixed(0)}KB)...`);
@@ -197,7 +288,7 @@ export const StorageService = {
      * 🎯 AGGRESSIVE INTELLIGENT COMPRESSOR (V5 - MEMORY SAFE)
      */
     processAndCompress: async (file: File, signal?: AbortSignal): Promise<Blob> => {
-        const TARGET_SIZE = 240 * 1024;
+        const TARGET_SIZE = 200 * 1024; // Limit strictly set to 200 KB
         const fileName = (file.name || '').toLowerCase();
         const fileType = (file.type || '').toLowerCase();
 
@@ -210,10 +301,7 @@ export const StorageService = {
             try {
                 let heic2any = (window as any).heic2any;
                 if (!heic2any) {
-                    // Dynamic injection fallback logic would go here if needed again
-                    // For now assuming heic2any is loaded or we fail gracefully
                     console.warn("heic2any library not found for HEIC conversion");
-                    // return file; // Fallback
                 }
 
                 if (heic2any) {
@@ -241,7 +329,13 @@ export const StorageService = {
             const loadTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('IMG_LOAD_TIMEOUT')), 15000));
             await Promise.race([loadPromise, loadTimeout]);
 
-            const strategies = [{ w: 1024, q: 0.7 }, { w: 800, q: 0.6 }, { w: 640, q: 0.5 }];
+            const strategies = [
+                { w: 1200, q: 0.75 },
+                { w: 1024, q: 0.65 },
+                { w: 800, q: 0.55 },
+                { w: 640, q: 0.45 },
+                { w: 500, q: 0.35 }
+            ];
 
             for (const s of strategies) {
                 if (signal?.aborted) throw new Error('AbortError');
