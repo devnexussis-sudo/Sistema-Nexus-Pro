@@ -57,7 +57,28 @@ export const FormService = {
         return tenantId;
     },
 
+    // 🛡️ Garante que a sessão do Supabase está ativa e renovada
+    _ensureFreshSession: async (): Promise<boolean> => {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                const refresh = await supabase.auth.refreshSession();
+                return !!refresh.data?.session;
+            }
+            if (session.expires_at && (session.expires_at * 1000 - Date.now() < 60000)) {
+                console.log('[FormService] 🔄 Sessão prestes a expirar. Renovando token...');
+                const refresh = await supabase.auth.refreshSession();
+                return !!refresh.data?.session;
+            }
+            return true;
+        } catch (e) {
+            console.warn('[FormService] Erro ao verificar/renovar sessão:', e);
+            return false;
+        }
+    },
+
     getServiceTypes: async (signal?: AbortSignal): Promise<any[]> => {
+        await FormService._ensureFreshSession();
         const tenantId = await FormService._resolveTenantId();
         if (isCloudEnabled) {
             if (!tenantId) return [];
@@ -74,11 +95,26 @@ export const FormService = {
                     query = query.abortSignal(signal);
                 }
 
-                const { data, error } = await query;
+                let { data, error } = await query;
 
                 if (error) {
-                    console.error('[FormService] Erro ao buscar service_types:', error);
-                    return [];
+                    console.warn('[FormService] Erro em service_types, tentando refresh de sessão:', error.message);
+                    await supabase.auth.refreshSession();
+                    let retryQuery = supabase
+                        .from('service_types')
+                        .select('*')
+                        .eq('tenant_id', tenantId)
+                        .order('name')
+                        .limit(100);
+                    if (signal) retryQuery = retryQuery.abortSignal(signal);
+                    const retryResult = await retryQuery;
+                    data = retryResult.data;
+                    error = retryResult.error;
+                }
+
+                if (error) {
+                    console.error('[FormService] ❌ Erro ao buscar service_types:', error);
+                    throw new Error(`Erro ao buscar tipos de atendimento: ${error.message}`);
                 }
 
                 let types = (data || []).map(t => ({
@@ -87,20 +123,17 @@ export const FormService = {
                     active: t.active ?? t.is_active ?? true
                 }));
 
-                if (types.length === 0) {
-                    console.warn('[FormService] ⚠️ Nenhum tipo de serviço encontrado.');
-                }
-
                 return types;
             } catch (e) {
                 console.error('[FormService] Erro crítico ao buscar service_types:', e);
-                return [];
+                throw e;
             }
         }
         return [];
     },
 
     getFormTemplates: async (signal?: AbortSignal): Promise<FormTemplate[]> => {
+        await FormService._ensureFreshSession();
         const tenantId = await FormService._resolveTenantId();
         if (isCloudEnabled) {
             if (!tenantId) return [];
@@ -135,6 +168,19 @@ export const FormService = {
                     result = await fallbackQuery;
                 }
 
+                // Se result.error persistir, tenta refresh de sessão e retry
+                if (result.error && !result.error.message.includes('created_at')) {
+                    console.warn('[FormService] Erro em form_templates, tentando refresh de sessão:', result.error.message);
+                    await supabase.auth.refreshSession();
+                    let retryQuery = supabase
+                        .from('form_templates')
+                        .select('*')
+                        .eq('tenant_id', tenantId)
+                        .limit(100);
+                    if (signal) retryQuery = retryQuery.abortSignal(signal);
+                    result = await retryQuery;
+                }
+
                 const { data, error } = result;
 
                 if (error) {
@@ -143,7 +189,7 @@ export const FormService = {
                         code: error.code,
                         tenantId: tenantId
                     });
-                    return [];
+                    throw new Error(`Falha ao buscar modelos de formulário: ${error.message}`);
                 }
 
                 const templates = (data || []).map(f => {
@@ -165,8 +211,8 @@ export const FormService = {
 
                 return templates;
             } catch (e) {
-                console.warn('[FormService] Erro ao buscar form_templates:', e);
-                return [];
+                console.error('[FormService] Erro ao buscar form_templates:', e);
+                throw e;
             }
         }
         return [];
@@ -325,6 +371,7 @@ export const FormService = {
 
     getActivationRules: async (signal?: AbortSignal): Promise<any[]> => {
         if (isCloudEnabled) {
+            await FormService._ensureFreshSession();
             const tenantId = await FormService._resolveTenantId();
             if (!tenantId) return [];
 
@@ -358,11 +405,23 @@ export const FormService = {
                     result = await fallbackQuery;
                 }
 
+                if (result.error && !result.error.message.includes('created_at')) {
+                    console.warn('[FormService] Erro em activation_rules, tentando refresh de sessão:', result.error.message);
+                    await supabase.auth.refreshSession();
+                    let retryQuery = supabase
+                        .from('activation_rules')
+                        .select('*')
+                        .eq('tenant_id', tenantId)
+                        .limit(100);
+                    if (signal) retryQuery = retryQuery.abortSignal(signal);
+                    result = await retryQuery;
+                }
+
                 const { data, error } = result;
 
                 if (error) {
-                    console.warn('[FormService] activation_rules não encontrado:', error.message);
-                    return [];
+                    console.warn('[FormService] activation_rules erro:', error.message);
+                    throw new Error(`Erro ao buscar regras de ativação: ${error.message}`);
                 }
 
                 return (data || []).map(r => ({
@@ -374,8 +433,8 @@ export const FormService = {
                     equipmentFamily: (r.conditions as any)?.equipment_family || 'Todos'
                 }));
             } catch (e) {
-                console.warn('[FormService] Erro ao buscar activation_rules:', e);
-                return [];
+                console.error('[FormService] Erro ao buscar activation_rules:', e);
+                throw e;
             }
         }
         return [];

@@ -51,23 +51,26 @@ export const FormManagement: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 12;
 
-  const [tenantReady, setTenantReady] = useState(false);
+  const [tenantReady, setTenantReady] = useState(() => !!DataService.getCurrentTenantId());
 
   const {
     data: serviceTypesRaw = [],
     isLoading: typesLoading,
+    isError: typesError,
     refetch: refetchTypes
   } = useServiceTypes(tenantReady);
 
   const {
     data: formsRaw = [],
     isLoading: formsLoading,
+    isError: formsError,
     refetch: refetchForms
   } = useForms(tenantReady);
 
   const {
     data: rulesRaw = [],
     isLoading: rulesLoading,
+    isError: rulesError,
     refetch: refetchRules
   } = useActivationRules(tenantReady);
 
@@ -133,9 +136,18 @@ export const FormManagement: React.FC = () => {
   }, [rulesRaw]);
 
   const loading = typesLoading || formsLoading || rulesLoading;
+  const isError = formsError || typesError || rulesError;
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleManualRefresh = useCallback(async () => {
-    await Promise.all([refetchTypes(), refetchForms(), refetchRules()]);
+    setIsRefreshing(true);
+    try {
+      await Promise.all([refetchTypes(), refetchForms(), refetchRules()]);
+    } catch (e) {
+      console.warn('[FormManagement] Erro ao atualizar:', e);
+    } finally {
+      setIsRefreshing(false);
+    }
   }, [refetchTypes, refetchForms, refetchRules]);
 
   const [editingType, setEditingType] = useState<Partial<ServiceType> | null>(null);
@@ -422,6 +434,16 @@ export const FormManagement: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
+            <button
+              onClick={handleManualRefresh}
+              disabled={isRefreshing || loading}
+              className="flex items-center gap-1.5 px-3 h-10 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition-all text-[11px] font-bold shadow-sm disabled:opacity-50"
+              title="Atualizar formulários"
+            >
+              <RefreshCw size={14} className={isRefreshing || loading ? "animate-spin text-[#1c2d4f]" : "text-slate-500"} />
+              <span className="hidden sm:inline">Atualizar</span>
+            </button>
+
             {activeTab === 'templates' && (
               <button
                 onClick={() => setShowFilters(!showFilters)}
@@ -482,8 +504,26 @@ export const FormManagement: React.FC = () => {
 
       <div className="bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
         <div className="overflow-auto flex-1 p-6 custom-scrollbar">
-          {/* Só mostra spinner se estiver carregando E não tiver dados ainda */}
-          {(loading && forms.length === 0 && serviceTypes.length === 0) ? (
+          {/* Se houver erro de rede/sessão e não houver dados em memória */}
+          {isError && forms.length === 0 && serviceTypes.length === 0 && rules.length === 0 ? (
+            <div className="py-20 flex flex-col items-center justify-center gap-4 text-center px-4">
+              <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center border border-amber-200 shadow-sm">
+                <RefreshCw size={24} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">Sessão Expirada ou Erro de Conexão</h3>
+                <p className="text-xs text-slate-500 max-w-md mt-1">Não foi possível sincronizar os formulários com o servidor. Clique abaixo para tentar novamente.</p>
+              </div>
+              <button
+                onClick={handleManualRefresh}
+                disabled={isRefreshing}
+                className="mt-2 h-10 px-5 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2"
+              >
+                <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
+                {isRefreshing ? 'Sincronizando...' : 'Tentar Novamente'}
+              </button>
+            </div>
+          ) : (loading && forms.length === 0 && serviceTypes.length === 0) ? (
             <div className="py-20 flex flex-col items-center justify-center gap-4 text-slate-400">
               <Loader2 size={48} className="animate-spin text-primary-500" />
               <div className="text-center">
