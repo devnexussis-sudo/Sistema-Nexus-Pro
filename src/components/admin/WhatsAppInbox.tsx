@@ -1279,6 +1279,7 @@ export const WhatsAppInbox: React.FC = () => {
               <p className="text-xs mt-2">Nenhuma conversa</p>
             </div>
           )}
+          {(() => {
             let receipts: Record<string, string> = {};
             try {
               const receiptsStr = localStorage.getItem('wa_read_receipts');
@@ -1349,6 +1350,7 @@ export const WhatsAppInbox: React.FC = () => {
                 </button>
               );
             });
+          })()}
         </div>
       </div>
 
