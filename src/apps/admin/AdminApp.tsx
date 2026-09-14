@@ -486,9 +486,9 @@ export const AdminApp: React.FC<AdminAppProps> = ({
 
                 <Route path="/ai" element={<AIAgent />} />
                 <Route path="/docs" element={<DocsPage />} />
-                <Route path="/whatsapp" element={<PermissionGuard requiredMenu="settings"><WhatsAppInbox /></PermissionGuard>} />
-                <Route path="/solicitacoes" element={<PermissionGuard requiredMenu="settings"><SolicitacoesPage /></PermissionGuard>} />
-                <Route path="/integrations" element={<PermissionGuard requiredMenu="settings"><IntegrationsPage /></PermissionGuard>} />
+                <Route path="/whatsapp" element={<PermissionGuard requiredMenu="whatsapp"><WhatsAppInbox /></PermissionGuard>} />
+                <Route path="/solicitacoes" element={<PermissionGuard requiredMenu="solicitacoes"><SolicitacoesPage /></PermissionGuard>} />
+                <Route path="/integrations" element={<PermissionGuard requiredMenu="integrations"><IntegrationsPage /></PermissionGuard>} />
 
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/admin" replace />} />

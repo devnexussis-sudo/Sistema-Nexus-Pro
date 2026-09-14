@@ -15,7 +15,7 @@ import SessionStorage from '../lib/sessionStorage';
 import { UserPermissions } from '../types';
 
 export type MenuKey = keyof NonNullable<UserPermissions['menuAccess']>;
-export type ModuleKey = 'orders' | 'customers' | 'equipments' | 'technicians' | 'quotes' | 'contracts' | 'stock' | 'forms';
+export type ModuleKey = 'orders' | 'customers' | 'equipments' | 'technicians' | 'quotes' | 'contracts' | 'stock' | 'forms' | 'whatsapp' | 'solicitacoes' | 'regions' | 'integrations';
 export type CrudAction = 'create' | 'read' | 'update' | 'delete' | 'invoice' | 'discounts';
 
 const checkImpersonating = (): boolean => {
@@ -40,6 +40,8 @@ const MENU_ACCESS_DEFAULTS: NonNullable<UserPermissions['menuAccess']> = {
   settings: false,
   whatsapp: false,
   solicitacoes: false,
+  regions: false,
+  integrations: false,
 };
 
 // Garante que menuAccess tenha todos os campos — retrocompatibilidade

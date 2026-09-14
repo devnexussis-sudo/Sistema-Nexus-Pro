@@ -27,6 +27,14 @@ export interface UserPermissions {
   stock: { create: boolean; read: boolean; update: boolean; delete: boolean };
   // Processos e Formulários
   forms: { create: boolean; read: boolean; update: boolean; delete: boolean };
+  // Atendimento WhatsApp (IA)
+  whatsapp?: { create: boolean; read: boolean; update: boolean; delete: boolean };
+  // Central de Solicitações
+  solicitacoes?: { create: boolean; read: boolean; update: boolean; delete: boolean };
+  // Gestão de Regiões
+  regions?: { create: boolean; read: boolean; update: boolean; delete: boolean };
+  // Integrações, APIs e Webhooks
+  integrations?: { create: boolean; read: boolean; update: boolean; delete: boolean };
   // Configurações e Sistema
   settings: boolean;
   // Configurações por aba (granular)
@@ -60,6 +68,8 @@ export interface UserPermissions {
     settings: boolean;
     whatsapp: boolean;
     solicitacoes: boolean;
+    regions: boolean;
+    integrations: boolean;
   };
 }
 
@@ -72,6 +82,10 @@ export const DEFAULT_PERMISSIONS: UserPermissions = {
   contracts: { create: true, read: true, update: true, delete: false },
   stock: { create: true, read: true, update: true, delete: false },
   forms: { create: true, read: true, update: true, delete: false },
+  whatsapp: { create: true, read: true, update: true, delete: false },
+  solicitacoes: { create: true, read: true, update: true, delete: false },
+  regions: { create: true, read: true, update: true, delete: false },
+  integrations: { create: true, read: true, update: true, delete: false },
   settings: false,
   settingsTabs: {
     company: false,
@@ -100,6 +114,8 @@ export const DEFAULT_PERMISSIONS: UserPermissions = {
     settings: false,
     whatsapp: false,
     solicitacoes: false,
+    regions: false,
+    integrations: false,
   }
 };
 
@@ -112,6 +128,10 @@ export const ADMIN_PERMISSIONS: UserPermissions = {
   contracts: { create: true, read: true, update: true, delete: true },
   stock: { create: true, read: true, update: true, delete: true },
   forms: { create: true, read: true, update: true, delete: true },
+  whatsapp: { create: true, read: true, update: true, delete: true },
+  solicitacoes: { create: true, read: true, update: true, delete: true },
+  regions: { create: true, read: true, update: true, delete: true },
+  integrations: { create: true, read: true, update: true, delete: true },
   settings: true,
   settingsTabs: {
     company: true,
@@ -140,6 +160,8 @@ export const ADMIN_PERMISSIONS: UserPermissions = {
     settings: true,
     whatsapp: true,
     solicitacoes: true,
+    regions: true,
+    integrations: true,
   }
 };
 

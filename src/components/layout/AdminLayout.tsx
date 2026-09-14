@@ -347,8 +347,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         { path: '/admin', id: 'dashboard', label: t.nav.dashboard, icon: LayoutDashboard, visible: menuVisible('dashboard'), enabled: isModuleEnabled('dashboard') },
         { path: '/admin/ai', id: 'ai', label: 'Duno IA', icon: Bot, visible: menuVisible('settings'), enabled: isModuleEnabled('ai') },
         { path: '/admin/docs', id: 'docs', label: 'Docs / FAQ', icon: BookOpen, visible: true, enabled: isModuleEnabled('docs') },
-        { path: '/admin/whatsapp', id: 'whatsapp', label: 'WhatsApp Inbox', icon: MessageCircle, visible: isAdmin, enabled: isModuleEnabled('ai'), badge: whatsappWaitingCount },
-        { path: '/admin/solicitacoes', id: 'solicitacoes', label: 'Solicitações', icon: ClipboardCheck, visible: isAdmin, enabled: isModuleEnabled('ai'), badge: solicitacoesCount },
+        { path: '/admin/whatsapp', id: 'whatsapp', label: 'WhatsApp Inbox', icon: MessageCircle, visible: menuVisible('whatsapp'), enabled: isModuleEnabled('ai'), badge: whatsappWaitingCount },
+        { path: '/admin/solicitacoes', id: 'solicitacoes', label: 'Solicitações', icon: ClipboardCheck, visible: menuVisible('solicitacoes'), enabled: isModuleEnabled('ai'), badge: solicitacoesCount },
         { path: '/admin/orders', id: 'orders', label: t.nav.orders, icon: ClipboardList, visible: menuVisible('orders'), enabled: isModuleEnabled('orders') },
         { path: '/admin/calendar', id: 'calendar', label: t.nav.calendar, icon: Calendar, visible: menuVisible('calendar'), enabled: isModuleEnabled('calendar') },
         { path: '/admin/map', id: 'map', label: t.nav.map, icon: Navigation, visible: menuVisible('map'), enabled: isModuleEnabled('map') },
@@ -363,7 +363,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         { path: '/admin/regions', id: 'regions', label: 'Gestão de Regiões', icon: MapPin, visible: menuVisible('regions'), enabled: isModuleEnabled('regions') },
         { path: '/admin/users', id: 'users', label: t.nav.users, icon: ShieldAlert, visible: menuVisible('users'), enabled: isModuleEnabled('users') },
         { path: '/admin/settings', id: 'settings', label: t.nav.settings, icon: Settings, visible: menuVisible('settings'), enabled: isModuleEnabled('settings') },
-        { path: '/admin/integrations', id: 'integrations', label: 'Integrações', icon: Code2, visible: menuVisible('settings'), enabled: isModuleEnabled('integrations') },
+        { path: '/admin/integrations', id: 'integrations', label: 'Integrações', icon: Code2, visible: menuVisible('integrations'), enabled: isModuleEnabled('integrations') },
     ];
 
     const activeItem = menuItems.find(item =>

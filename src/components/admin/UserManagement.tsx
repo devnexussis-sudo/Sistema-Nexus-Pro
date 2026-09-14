@@ -99,7 +99,7 @@ const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, onSave, title
     { id: 'calendar', isMenuOnly: true, label: 'Agenda de Serviços', icon: Calendar, menuKey: 'calendar' },
     { id: 'map', isMenuOnly: true, label: 'Visão de Campo (Mapa)', icon: Navigation, menuKey: 'map' },
     
-    // ── Módulos Operacionais (Menu + CRUD) ──
+    // ── Módulos Operacionais (Menu + CRUD Granular) ──
     { id: 'orders', label: 'Ordens de Serviço (O.S.)', icon: ClipboardList, menuKey: 'orders' },
     { id: 'customers', label: 'Cadastro de Clientes', icon: Building2, menuKey: 'customers' },
     { id: 'equipments', label: 'Inventário de Ativos', icon: Box, menuKey: 'equipments' },
@@ -108,15 +108,15 @@ const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, onSave, title
     { id: 'contracts', label: 'Contratos e PMOC', icon: CalendarClock, menuKey: 'contracts' },
     { id: 'stock', label: 'Estoque de Peças', icon: Package, menuKey: 'stock' },
     { id: 'forms', label: 'Processos e Checklists', icon: Workflow, menuKey: 'forms' },
+    { id: 'whatsapp', label: 'Atendimento WhatsApp (IA)', icon: MessageCircle, menuKey: 'whatsapp' },
+    { id: 'solicitacoes', label: 'Central de Solicitações', icon: ShieldCheck, menuKey: 'solicitacoes' },
+    { id: 'regions', label: 'Gestão de Regiões', icon: Navigation, menuKey: 'regions' },
+    { id: 'integrations', label: 'Integrações, APIs e Webhooks', icon: Settings, menuKey: 'integrations' },
 
     // ── Menus Administrativos (Menu; Ações em Cards Separados) ──
     { id: 'financial', isMenuOnly: true, label: 'Módulo Financeiro', icon: Building2, menuKey: 'financial', extraInfo: 'Permissões abaixo' },
     { id: 'users', isMenuOnly: true, label: 'Usuários e Grupos', icon: ShieldAlert, menuKey: 'users', extraInfo: 'Permissões abaixo' },
     { id: 'settings', isMenuOnly: true, label: 'Configurações Globais', icon: Settings, menuKey: 'settings', extraInfo: 'Abas configuradas abaixo' },
-    
-    // ── Novos Módulos ──
-    { id: 'whatsapp', isMenuOnly: true, label: 'Atendimento WhatsApp (IA)', icon: MessageCircle, menuKey: 'whatsapp' },
-    { id: 'solicitacoes', isMenuOnly: true, label: 'Central de Solicitações', icon: ShieldCheck, menuKey: 'solicitacoes' },
   ];
 
   return (
