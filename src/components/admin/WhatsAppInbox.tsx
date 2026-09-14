@@ -1279,50 +1279,76 @@ export const WhatsAppInbox: React.FC = () => {
               <p className="text-xs mt-2">Nenhuma conversa</p>
             </div>
           )}
-          {filtered.map(conv => {
-            const stateInfo = STATE_LABELS[conv.state] || STATE_LABELS['GREETING'];
-            const history = conv.history || [];
-            const lastMsg = history[history.length - 1];
-            const customerName = conv.customers?.name;
-            const isSelected = selectedId === conv.id;
-            const unreadCount = history.length - (readIndex[conv.id] || 0);
-            const isUnread = !isSelected && unreadCount > 0 && lastMsg?.role === 'user';
-            
-            return (
-              <button
-                key={conv.id}
-                onClick={() => {
-                  setSelectedId(conv.id);
-                  setReadIndex(prev => ({ ...prev, [conv.id]: history.length }));
-                }}
-                className={`w-full text-left p-3 border-b border-gray-50 hover:bg-gray-50 transition-all ${
-                  isSelected ? 'bg-emerald-50 border-l-2 border-l-emerald-400' : isUnread ? 'bg-emerald-50/30' : ''
-                }`}
-              >
-                <div className="flex items-start gap-2">
-                  <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${stateInfo.dot}`} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-1">
-                      <p className={`text-xs font-bold truncate ${isUnread ? 'text-emerald-700' : 'text-gray-800'}`}>
-                        {customerName || formatPhone(conv.phone_number)}
+            let receipts: Record<string, string> = {};
+            try {
+              const receiptsStr = localStorage.getItem('wa_read_receipts');
+              if (receiptsStr) receipts = JSON.parse(receiptsStr);
+            } catch (e) {}
+
+            return filtered.map(conv => {
+              const stateInfo = STATE_LABELS[conv.state] || STATE_LABELS['GREETING'];
+              const history = conv.history || [];
+              const lastMsg = history[history.length - 1];
+              const customerName = conv.customers?.name;
+              const isSelected = selectedId === conv.id;
+
+              let isUnread = false;
+              if (!isSelected && lastMsg && lastMsg.role === 'user') {
+                const readAtStr = receipts[conv.id];
+                if (!readAtStr) {
+                  isUnread = true;
+                } else {
+                  const msgTime = new Date(lastMsg.timestamp).getTime();
+                  const readTime = new Date(readAtStr).getTime();
+                  if (msgTime > readTime + 1000) {
+                    isUnread = true;
+                  }
+                }
+              }
+
+              return (
+                <button
+                  key={conv.id}
+                  onClick={() => {
+                    setSelectedId(conv.id);
+                    try {
+                      const curReceiptsStr = localStorage.getItem('wa_read_receipts');
+                      let curReceipts = curReceiptsStr ? JSON.parse(curReceiptsStr) : {};
+                      const lastTime = lastMsg?.timestamp || new Date().toISOString();
+                      curReceipts[conv.id] = new Date(new Date(lastTime).getTime() + 1000).toISOString();
+                      localStorage.setItem('wa_read_receipts', JSON.stringify(curReceipts));
+                      window.dispatchEvent(new Event('wa_read_receipts_changed'));
+                      window.dispatchEvent(new Event('whatsapp_state_changed'));
+                    } catch (e) {}
+                  }}
+                  className={`w-full text-left p-3 border-b border-gray-50 hover:bg-gray-50 transition-all ${
+                    isSelected ? 'bg-emerald-50 border-l-2 border-l-emerald-400' : isUnread ? 'bg-emerald-50/30' : ''
+                  }`}
+                >
+                  <div className="flex items-start gap-2">
+                    <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${stateInfo.dot}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <p className={`text-xs font-bold truncate ${isUnread ? 'text-emerald-700' : 'text-gray-800'}`}>
+                          {customerName || formatPhone(conv.phone_number)}
+                        </p>
+                        <span className="text-[9px] text-gray-400 flex-shrink-0">{timeAgo(conv.last_message_at)}</span>
+                      </div>
+                      {!customerName && <p className="text-[10px] text-gray-400">{formatPhone(conv.phone_number)}</p>}
+                      <p className={`text-[10px] font-medium ${stateInfo.color}`}>
+                        {conv.state === 'HUMAN_ACTIVE' && conv.users?.name ? `👤 Em atendimento pelo: ${conv.users.name.split(' ')[0]}` : conv.state === 'RESOLVED' && conv.users?.name ? `✅ Finalizado por: ${conv.users.name.split(' ')[0]}` : stateInfo.label}
                       </p>
-                      <span className="text-[9px] text-gray-400 flex-shrink-0">{timeAgo(conv.last_message_at)}</span>
+                      {lastMsg && (
+                        <p className={`text-xs truncate w-full ${isUnread ? 'text-emerald-600 font-semibold' : 'text-slate-500'}`}>
+                          {isUnread && <span className="mr-1 text-[8px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full animate-pulse">NOVA</span>}
+                          {lastMsg.role === 'bot' ? '🤖' : lastMsg.role === 'agent' ? '👤' : '💬'} {formatLastMessagePreview(lastMsg.content).substring(0, 60)}
+                        </p>
+                      )}
                     </div>
-                    {!customerName && <p className="text-[10px] text-gray-400">{formatPhone(conv.phone_number)}</p>}
-                    <p className={`text-[10px] font-medium ${stateInfo.color}`}>
-                      {conv.state === 'HUMAN_ACTIVE' && conv.users?.name ? `👤 Em atendimento pelo: ${conv.users.name.split(' ')[0]}` : conv.state === 'RESOLVED' && conv.users?.name ? `✅ Finalizado por: ${conv.users.name.split(' ')[0]}` : stateInfo.label}
-                    </p>
-                    {lastMsg && (
-                      <p className={`text-xs truncate w-full ${isUnread ? 'text-emerald-600 font-semibold' : 'text-slate-500'}`}>
-                        {isUnread && <span className="mr-1 text-[8px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full animate-pulse">NOVA</span>}
-                        {lastMsg.role === 'bot' ? '🤖' : lastMsg.role === 'agent' ? '👤' : '💬'} {formatLastMessagePreview(lastMsg.content).substring(0, 60)}
-                      </p>
-                    )}
                   </div>
-                </div>
-              </button>
-            );
-          })}
+                </button>
+              );
+            });
         </div>
       </div>
 
