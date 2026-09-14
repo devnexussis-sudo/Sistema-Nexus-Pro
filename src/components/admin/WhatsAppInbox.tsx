@@ -1605,19 +1605,22 @@ export const WhatsAppInbox: React.FC = () => {
                                 </div>
                               );
                             }
-                            if (mediaType === 'audio' && mediaUrl) {
+                            if ((mediaType === 'audio' || mediaType === 'ptt') && mediaUrl) {
                               return (
-                                <div className="flex items-center gap-2 py-1">
-                                  <Mic size={16} className={isLight ? 'text-white/70' : 'text-indigo-400'} />
-                                  <audio controls src={mediaUrl} className="h-8" style={{ width: '180px' }} />
+                                <div className="flex flex-col gap-1 py-1 min-w-[210px]">
+                                  <div className="flex items-center gap-1.5 text-[11px] font-semibold opacity-90">
+                                    <Mic size={14} className={isLight ? 'text-white' : 'text-indigo-500'} />
+                                    <span>Mensagem de Voz</span>
+                                  </div>
+                                  <audio controls src={mediaUrl} className="h-9 w-full rounded-lg outline-none" preload="metadata" />
                                 </div>
                               );
                             }
-                            if (mediaType === 'video' && mediaUrl) {
+                            if (mediaType === 'video') {
                               return (
-                                <div className="space-y-1">
-                                  <video src={mediaUrl} controls className="max-w-[220px] rounded-xl" style={{ maxHeight: '160px' }} />
-                                  {caption && <p className={`text-[10px] italic ${textColor}`}>{caption}</p>}
+                                <div className="flex items-center gap-2 p-2 rounded-lg bg-black/10">
+                                  <FileVideo size={16} className={isLight ? 'text-amber-300' : 'text-amber-500'} />
+                                  <span className="text-[11px] italic">Vídeo recebido (envio de vídeos desativado)</span>
                                 </div>
                               );
                             }

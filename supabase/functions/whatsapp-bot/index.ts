@@ -1,7 +1,7 @@
 // -------------------------------------------------------------------
 // whatsapp-bot - Webhook Receiver (UAZAPI / Evolution / Z-API)
 // Recebe eventos da UAZAPI/Z-API e orquestra o fluxo do bot de IA
-// Suporte a lotes concorrentes (ex: 12 fotos de uma vez) com append atomico
+// Suporte a lotes concorrentes, audios de voz (max 2MB) e bloqueio de videos
 // -------------------------------------------------------------------
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -155,7 +155,7 @@ function extractMediaUrl(payload: any): { type: string; url: string; thumbnail?:
   const stickerMsg = msgData.stickerMessage;
 
   const zapiImageUrl = (typeof payload.image === 'object' && payload.image?.imageUrl) || payload.imageUrl || payload.message?.imageUrl || payload.url || payload.fileURL || payload.mediaUrl || payload.message?.url || payload.message?.content?.URL || '';
-  const zapiAudioUrl = (typeof payload.audio === 'object' && payload.audio?.audioUrl) || payload.audioUrl || payload.message?.audioUrl;
+  const zapiAudioUrl = (typeof payload.audio === 'object' && payload.audio?.audioUrl) || payload.audioUrl || payload.message?.audioUrl || payload.url || payload.fileURL || payload.mediaUrl || '';
   const zapiVideoUrl = (typeof payload.video === 'object' && payload.video?.videoUrl) || payload.videoUrl || payload.message?.videoUrl;
   const zapiDocUrl   = (typeof payload.document === 'object' && payload.document?.documentUrl) || payload.documentUrl || payload.message?.documentUrl;
   const zapiCaption  = (typeof payload.image === 'object' && payload.image?.caption) || (typeof payload.video === 'object' && payload.video?.caption) || payload.caption || payload.message?.content?.caption || '';
@@ -534,12 +534,17 @@ serve(async (req: Request) => {
       let cdnUrl = mediaInfo?.url || '';
       const extractedThumbnailCap = mediaInfo?.thumbnail || '';
       const caption = text && text !== extractedThumbnailCap && text !== 'Imagem' ? text : (extractedThumbnailCap && extractedThumbnailCap !== 'Imagem' ? extractedThumbnailCap : '');
-      const mediaWarning = "INSTRUCAO PARA A IA: Informe ao cliente gentilmente que voce ainda nao consegue receber ou ler videos/audios, e peca para ele digitar o que precisa em texto.";
-      
-      let fileBuffer: Uint8Array | null = null;
-      let fileExt = (hasImage || isUazapiImage) ? 'webp' : 'pdf';
 
-      if (hasImage || isUazapiImage || hasDoc || isUazapiDoc) {
+      let fileBuffer: Uint8Array | null = null;
+      let fileExt = (hasImage || isUazapiImage) ? 'webp' : (hasAudio || isUazapiAudio) ? 'ogg' : 'pdf';
+      let audioExceededSize = false;
+
+      // 🚫 BLOQUEAR VIDEOS COMPLETAMENTE: nao baixa e nao salva no R2
+      if (hasVideo || isUazapiVideo) {
+        console.log("[WPP Bot] 🚫 Video bloqueado (envio de videos desativado)");
+        text = `[Video Recebido] (INSTRUCAO PARA A IA: Informe ao cliente gentilmente que o envio de videos esta desativado no momento e peca para ele enviar mensagem de voz ou texto.)`;
+      } 
+      else if (hasImage || isUazapiImage || hasDoc || isUazapiDoc || hasAudio || isUazapiAudio) {
           let b64 = payload.data?.message?.base64 || payload.data?.base64 || payload.message?.base64 || payload.base64 || payload.message?.content?.base64 || payload.data?.message?.content?.base64 || '';
 
           if (!b64 && messageId && settings.uazapi_url && settings.uazapi_token) {
@@ -580,7 +585,19 @@ serve(async (req: Request) => {
               }
           }
 
-          if (fileBuffer) {
+          // 🎙️ AUDIOS: Limite maximo de 2 MB
+          if (hasAudio || isUazapiAudio) {
+              const MAX_AUDIO_BYTES = 2 * 1024 * 1024; // 2 MB strict limit
+              if (fileBuffer && fileBuffer.length > MAX_AUDIO_BYTES) {
+                  console.warn(`[WPP Bot] ⚠️ Audio excedeu 2MB (${(fileBuffer.length / (1024*1024)).toFixed(2)}MB). Upload cancelado.`);
+                  audioExceededSize = true;
+                  fileBuffer = null;
+              } else {
+                  fileExt = mimeStr.includes('mpeg') || mimeStr.includes('mp3') ? 'mp3' : (mimeStr.includes('mp4') || mimeStr.includes('m4a') ? 'm4a' : 'ogg');
+              }
+          }
+
+          if (fileBuffer && !audioExceededSize) {
               if (hasImage || isUazapiImage) {
                   try {
                       const MAX_BYTES = 200 * 1024;
@@ -606,7 +623,7 @@ serve(async (req: Request) => {
                       fileExt = 'webp';
                       console.log(`[WPP Bot] Imagem recebida comprimida para R2: ${(fileBuffer.length / 1024).toFixed(1)}KB`);
                   } catch(e) { console.error("[WPP Bot] Erro conversao WebP", e); }
-              } else {
+              } else if (hasDoc || isUazapiDoc) {
                   const docMsg = msgData.documentMessage || msgData.documentWithCaptionMessage?.message?.documentMessage;
                   const fileName = docMsg?.fileName || docMsg?.title || payload.document?.fileName || 'document.pdf';
                   fileExt = fileName.split('.').pop() || 'pdf';
@@ -626,17 +643,21 @@ serve(async (req: Request) => {
                       
                       const d = new Date();
                       const dateFolder = `${d.getFullYear()}_${String(d.getMonth()+1).padStart(2,'0')}_${String(d.getDate()).padStart(2,'0')}`;
-                      const folderName = (hasImage || isUazapiImage) ? 'imagens' : 'documentos';
+                      const folderName = (hasImage || isUazapiImage) ? 'imagens' : (hasAudio || isUazapiAudio) ? 'audios' : 'documentos';
                       const fileName = crypto.randomUUID() + '.' + fileExt;
                       
                       const r2Path = `whatsapp/${tenant.id}/${phone}/${folderName}/${dateFolder}/${fileName}`;
                       
+                      let contentType = 'application/octet-stream';
+                      if (hasImage || isUazapiImage) contentType = 'image/webp';
+                      else if (hasAudio || isUazapiAudio) contentType = mimeStr || 'audio/ogg';
+
                       try {
                           await S3.send(new PutObjectCommand({
                               Bucket: 'nexus-files',
                               Key: r2Path,
                               Body: fileBuffer,
-                              ContentType: (hasImage || isUazapiImage) ? 'image/webp' : 'application/octet-stream'
+                              ContentType: contentType
                           }));
                           cdnUrl = `https://pub-e1fad40780de437fbbb01f3b203193e9.r2.dev/${r2Path}`;
                           console.log("[WPP Bot] Upload R2 Concluido com sucesso:", cdnUrl);
@@ -654,16 +675,20 @@ serve(async (req: Request) => {
       else if (hasDoc || isUazapiDoc) {
         text = mkMedia('document', cdnUrl, caption) || `[Documento Recebido]`;
       }
-      else if (hasVideo || isUazapiVideo) {
-        text = mkMedia('video', cdnUrl, caption) || `[Video Recebido] ${mediaWarning}`;
-      }
       else if (hasAudio || isUazapiAudio) {
-        text = mkMedia('audio', cdnUrl) || `[Audio/PTT Recebido] ${mediaWarning}`;
+        if (audioExceededSize) {
+          text = `[Audio Excede 2MB] (INSTRUCAO PARA A IA: O audio enviado pelo cliente ultrapassa o limite maximo de 2MB. Informe-o gentilmente e peca para enviar um audio mais curto ou digitar em texto.)`;
+        } else {
+          text = mkMedia('audio', cdnUrl) || (cdnUrl ? `MEDIA_URL:audio:${cdnUrl}` : `[Audio Recebido]`);
+        }
+      }
+      else if (hasVideo || isUazapiVideo) {
+        text = `[Video Recebido] (INSTRUCAO PARA A IA: Informe ao cliente gentilmente que o envio de videos esta desativado no momento e peca para ele enviar mensagem de voz ou texto.)`;
       }
       else if (hasSticker) {
         text = mkMedia('sticker', cdnUrl) || `[Figurinha Recebida]`;
       }
-      else if (hasLocation) text = `[Localizacao Recebida] ${mediaWarning}`;
+      else if (hasLocation) text = `[Localizacao Recebida]`;
       else if (hasContact)  text = `[Contato Recebido]`;
       else {
         console.warn("[WPP Bot] Webhook com payload nao reconhecido ignorado:", typeStr);
