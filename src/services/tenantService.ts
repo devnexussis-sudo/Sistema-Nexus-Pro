@@ -572,7 +572,7 @@ export const TenantService = {
 
             let { data, error } = await query;
 
-            if ((error || !data || data.length === 0)) {
+            if (error || !data || data.length === 0) {
                 let fbQuery = publicSupabase
                     .from('user_groups')
                     .select('*')
@@ -580,21 +580,39 @@ export const TenantService = {
                     .order('name');
                 if (signal) fbQuery = fbQuery.abortSignal(signal);
                 const fbRes = await fbQuery;
-                if (!fbRes.error && fbRes.data) {
+                if (!fbRes.error && fbRes.data && fbRes.data.length > 0) {
                     data = fbRes.data;
                     error = null;
                 }
             }
 
-            if (error) {
-                console.error("Error fetching user groups:", error);
-                return [];
+            if (!data || data.length === 0) {
+                const defaultGroups: UserGroup[] = [
+                    {
+                        id: `sys-admin-${tenantId}`,
+                        name: 'Administradores',
+                        description: 'Controle total do sistema e gestão de permissões',
+                        permissions: ADMIN_PERMISSIONS,
+                        isSystem: true,
+                        active: true
+                    },
+                    {
+                        id: `sys-op-${tenantId}`,
+                        name: 'Operadores / Atendimento',
+                        description: 'Acesso às rotas operacionais, ordens de serviço e clientes',
+                        permissions: DEFAULT_PERMISSIONS,
+                        isSystem: true,
+                        active: true
+                    }
+                ];
+                return defaultGroups;
             }
+
             return ((data || []) as DbUserGroup[]).map(g => ({
                 id: g.id,
                 name: g.name,
                 description: g.description,
-                permissions: g.name.toLowerCase() === 'administradores' ? ADMIN_PERMISSIONS : g.permissions,
+                permissions: g.name.toLowerCase() === 'administradores' ? ADMIN_PERMISSIONS : (g.permissions || DEFAULT_PERMISSIONS),
                 isSystem: g.is_system,
                 active: true
             }));
