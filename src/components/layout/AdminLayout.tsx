@@ -55,43 +55,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     });
     const [whatsappWaitingCount, setWhatsappWaitingCount] = useState(0);
     const [solicitacoesCount, setSolicitacoesCount] = useState(0);
-    const [techLimitInfo, setTechLimitInfo] = useState<{ isReached: boolean; count: number; limit: number }>({ isReached: false, count: 0, limit: 0 });
-
-    useEffect(() => {
-        const checkTechLimit = async () => {
-            try {
-                const currentTenantId = tenant?.id || user?.tenantId || SessionStorage.get('current_tenant');
-                if (!currentTenantId) return;
-
-                const { data: tenantRow } = await supabase
-                    .from('tenants')
-                    .select('max_technicians')
-                    .eq('id', currentTenantId)
-                    .maybeSingle();
-
-                const limit = tenantRow?.max_technicians ?? 0;
-                if (limit > 0) {
-                    const techs = await DataService.getAllTechnicians(currentTenantId, undefined, true);
-                    const activeCount = techs.filter((t: any) => t.active).length;
-                    if (activeCount >= limit) {
-                        setTechLimitInfo({ isReached: true, count: activeCount, limit });
-                        return;
-                    }
-                }
-                setTechLimitInfo({ isReached: false, count: 0, limit: 0 });
-            } catch (e) {
-                console.warn('[AdminLayout] Erro ao checar limite de técnicos:', e);
-            }
-        };
-
-        checkTechLimit();
-        const interval = setInterval(checkTechLimit, 15000);
-        window.addEventListener('tech_limit_updated', checkTechLimit);
-        return () => {
-            clearInterval(interval);
-            window.removeEventListener('tech_limit_updated', checkTechLimit);
-        };
-    }, [tenant?.id, user?.tenantId]);
     const { setAuth, logout } = useAuth();
     const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
     const [avatarInput, setAvatarInput] = useState('');
@@ -1022,31 +985,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 )}
 
                 <main className="flex-1 min-w-0 overflow-hidden flex flex-col relative bg-slate-50/50 print:bg-transparent print:overflow-visible print:block print:h-auto">
-                    {/* 🔒 BANNER GLOBAL: Limite de Licenças de Técnicos Atingido */}
-                    {techLimitInfo.isReached && (
-                        <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-white px-4 py-2.5 shrink-0 flex items-center justify-between z-20 shadow-md print:hidden animate-fade-in font-poppins">
-                            <div className="flex items-center gap-3">
-                                <div className="p-1.5 bg-white/20 rounded-lg shrink-0">
-                                    <Lock size={18} className="text-white animate-pulse" />
-                                </div>
-                                <div>
-                                    <p className="text-xs font-extrabold uppercase tracking-wider">
-                                        🔒 Limite de Licenças de Técnicos Atingido ({techLimitInfo.count} de {techLimitInfo.limit} licenças ativas)
-                                    </p>
-                                    <p className="text-[11px] font-medium text-amber-50 opacity-90 leading-tight">
-                                        O limite de licenças do seu plano foi alcançado. Novos cadastros ou ativações no aplicativo móvel estão bloqueados.
-                                    </p>
-                                </div>
-                            </div>
-                            <button 
-                                onClick={() => navigate('/admin/technicians')}
-                                className="px-3.5 py-1.5 bg-white text-amber-950 hover:bg-amber-50 text-[10px] font-extrabold uppercase tracking-wider rounded-xl shadow-md transition-all whitespace-nowrap shrink-0 active:scale-95 cursor-pointer ml-2"
-                            >
-                                Gerenciar Licenças
-                            </button>
-                        </div>
-                    )}
-
                     {/* 🚨 Alerta de Desconexão do WhatsApp */}
                     {isWppDisconnected && (
                         <div className="bg-red-50 border-b border-red-200 px-4 py-3 shrink-0 flex items-center justify-between z-10 animate-fade-in print:hidden">
