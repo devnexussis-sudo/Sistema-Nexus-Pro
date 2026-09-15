@@ -249,9 +249,8 @@ export const TechnicianService = {
             if (!userId) throw new Error("ID de usuário não gerado.");
 
             // 1. Sincronizar com a tabela public.users (Base Profile)
-            // Se o usuário já existe, não sobrescrevemos o papel (role) para não rebaixar um ADMIN para TECHNICIAN na base users
-            // Apenas garantimos que o registro básico exista.
-            const { data: existingDbUser } = await supabase.from('users').select('role').eq('id', userId).single();
+            // Se o usuário já existe, não sobrescrevemos o papel (role) nem o app_scope para não rebaixar um ADMIN/HYBRID
+            const { data: existingDbUser } = await supabase.from('users').select('role, app_scope').eq('id', userId).single();
 
             const dbUser: any = {
                 id: userId,
@@ -263,7 +262,7 @@ export const TechnicianService = {
                 active: tech.active ?? true,
                 tenant_id: tenantId,
                 avatar: tech.avatar || '',
-                app_scope: AppScope.MOBILE
+                app_scope: existingDbUser?.app_scope || tech.appScope || AppScope.MOBILE
             };
 
             const { error: userError } = await supabase.from('users').upsert([dbUser]);
@@ -317,6 +316,16 @@ export const TechnicianService = {
         if (isCloudEnabled) {
             console.log("🔄 Atualizando técnico no Auth e na tabela...");
 
+            // Busca escopo e status atual do perfil de usuário base
+            const { data: existingUser } = await supabase
+                .from('users')
+                .select('app_scope, active, role')
+                .eq('id', tech.id)
+                .maybeSingle();
+
+            const userAppScope = existingUser?.app_scope || tech.appScope || AppScope.MOBILE;
+            const isPureMobile = userAppScope === AppScope.MOBILE;
+
             // 1. Atualiza os metadados no Auth (se houver mudanças de nome, telefone, etc)
             const updateAuthData: any = {
                 user_metadata: {
@@ -343,13 +352,21 @@ export const TechnicianService = {
                 throw authError;
             }
 
-            // CONTROLE DE ACESSO: Bloqueia/Desbloqueia a conta no Auth baseado no status
+            // CONTROLE DE ACESSO: Bloqueia/Desbloqueia a conta no Auth baseado no status e escopo
             if (tech.active === false) {
-                // Desabilita o técnico - bane a conta
-                await adminAuthProxy.admin.updateUserById(tech.id, {
-                    ban_duration: '876000h' // ~100 anos = banimento permanente
-                } as any);
-                console.log("🚫 Técnico bloqueado no sistema de autenticação");
+                if (isPureMobile) {
+                    // Para usuários exclusivamente MOBILE, desabilita a conta no Auth (banimento)
+                    await adminAuthProxy.admin.updateUserById(tech.id, {
+                        ban_duration: '876000h' // ~100 anos = banimento permanente
+                    } as any);
+                    console.log("🚫 Técnico MOBILE bloqueado no sistema de autenticação");
+                } else {
+                    // Para usuários HÍBRIDOS ou WEB, NÃO bane a conta no Auth (mantém acesso web livre)
+                    await adminAuthProxy.admin.updateUserById(tech.id, {
+                        ban_duration: 'none'
+                    } as any);
+                    console.log("ℹ️ Técnico com acesso Web mantido no Auth (apenas status operacional de técnico inativado)");
+                }
             } else {
                 // Reabilita o técnico - remove o banimento
                 await adminAuthProxy.admin.updateUserById(tech.id, {
@@ -359,7 +376,25 @@ export const TechnicianService = {
             }
 
             // 2. Sincroniza com as tabelas físicas
-            const dbData = {
+            const dbUserData: any = {
+                name: tech.name,
+                email: tech.email?.toLowerCase(),
+                phone: tech.phone || '',
+                avatar: tech.avatar || '',
+                tenant_id: tenantId
+            };
+
+            if (isPureMobile) {
+                dbUserData.active = tech.active ?? true;
+            } else if (tech.active === true) {
+                dbUserData.active = true;
+            }
+
+            // Atualiza tabela users (base)
+            await supabase.from('users').update(dbUserData).eq('id', tech.id).eq('tenant_id', tenantId);
+
+            // Atualiza tabela technicians (específica)
+            const dbTechData = {
                 name: tech.name,
                 email: tech.email?.toLowerCase(),
                 active: tech.active ?? true,
@@ -369,12 +404,8 @@ export const TechnicianService = {
                 tenant_id: tenantId
             };
 
-            // Atualiza tabela users (base)
-            await supabase.from('users').update(dbData).eq('id', tech.id).eq('tenant_id', tenantId);
-
-            // Atualiza tabela technicians (específica)
             const { data, error } = await supabase.from('technicians')
-                .update(dbData)
+                .update(dbTechData)
                 .eq('id', tech.id)
                 .eq('tenant_id', tenantId)
                 .select()

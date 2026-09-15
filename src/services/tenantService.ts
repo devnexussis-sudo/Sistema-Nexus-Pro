@@ -798,9 +798,15 @@ export const TenantService = {
 
             if (error) throw error;
 
-            // Optionally update Auth Metadata if needed
+            // Sync Auth status / metadata if needed
+            if (userData.active === true) {
+                await adminAuthProxy.admin.updateUserById(userData.id, { ban_duration: 'none' }).catch(() => {});
+            } else if (userData.active === false) {
+                await adminAuthProxy.admin.updateUserById(userData.id, { ban_duration: '876000h' }).catch(() => {});
+            }
+
             if (userData.password) {
-                await adminAuthProxy.admin.updateUserById(userData.id, { password: userData.password });
+                await adminAuthProxy.admin.updateUserById(userData.id, { password: userData.password }).catch(() => {});
             }
 
             return data;
