@@ -272,8 +272,7 @@ export const OrderService = {
             const tenantId = getCurrentTenantId();
             if (!tenantId) return [];
 
-            const isImpersonating = typeof window !== 'undefined' && (SessionStorage.get('is_impersonating') === true || (window as any).__NEXUS_IMPERSONATION === true);
-            const clientToUse = isImpersonating ? publicSupabase : supabase;
+            const clientToUse = supabase;
 
             const MAX_RETRIES = 2;
 
@@ -382,8 +381,7 @@ export const OrderService = {
                 return { orders: [], total: 0 };
             }
 
-            const isImpersonating = typeof window !== 'undefined' && (SessionStorage.get('is_impersonating') === true || (window as any).__NEXUS_IMPERSONATION === true);
-            const clientToUse = isImpersonating ? publicSupabase : supabase;
+            const clientToUse = supabase;
 
             const from = (page - 1) * limit;
             const to = from + limit - 1;

@@ -42,8 +42,7 @@ export const CustomerService = {
                 return [];
             }
 
-            const isImpersonating = typeof window !== 'undefined' && (SessionStorage.get('is_impersonating') === true || (window as any).__NEXUS_IMPERSONATION === true);
-            const clientToUse = isImpersonating ? publicSupabase : supabase;
+            const clientToUse = supabase;
 
             const cacheKey = `customers_${tenantId}`;
             const cached = CacheManager.get<Customer[]>(cacheKey);

@@ -23,20 +23,23 @@ import {
 // ------------------------------------------------------------------
 
 export const useOrders = (enabled = true) => {
-    return useQuery('orders', (signal) => OrderService.getOrders(undefined, signal), {
-        enabled,
-        staleTime: 1000 * 30, // 30 seconds
-        keepPreviousData: true
+    const tid = DataService.getCurrentTenantId() || 'default';
+    return useQuery(['orders', tid], (signal) => OrderService.getOrders(undefined, signal), {
+        enabled: enabled && !!DataService.getCurrentTenantId(),
+        staleTime: 0,
+        refetchOnMount: 'always',
+        keepPreviousData: false
     });
 };
 
 export const useOrdersStats = (enabled = true, startDate?: string, endDate?: string) => {
-    // Cache key includes dates to ensure freshness when range changes
-    const key = ['orders_stats', startDate || 'all', endDate || 'all'];
+    const tid = DataService.getCurrentTenantId() || 'default';
+    const key = ['orders_stats', tid, startDate || 'all', endDate || 'all'];
     return useQuery(key, (signal) => OrderService.getOrdersForStats(startDate, endDate, signal), {
-        enabled,
-        staleTime: 1000 * 60 * 5, // 5 minutes
-        keepPreviousData: true
+        enabled: enabled && !!DataService.getCurrentTenantId(),
+        staleTime: 0,
+        refetchOnMount: 'always',
+        keepPreviousData: false
     });
 };
 
@@ -58,12 +61,13 @@ export const useOrder = (id: string, enabled = true) => {
  * Muda de página = novo fetch. Filtros no servidor.
  */
 export const usePagedOrders = (page: number, filters: OrderFilters = {}, enabled = true) => {
+    const tid = DataService.getCurrentTenantId() || 'default';
     const filtersKey = JSON.stringify(filters);
-    const key = ['orders_paged', page.toString(), filtersKey];
+    const key = ['orders_paged', tid, page.toString(), filtersKey];
     return useQuery(
         key,
         (signal) => getOrdersPage(page, filters, signal),
-        { enabled, staleTime: 1000 * 30, keepPreviousData: true }
+        { enabled: enabled && !!DataService.getCurrentTenantId(), staleTime: 0, refetchOnMount: 'always', keepPreviousData: false }
     );
 };
 
@@ -71,12 +75,13 @@ export const usePagedOrders = (page: number, filters: OrderFilters = {}, enabled
  * Hook de Orçamentos paginados — busca 20 itens por página direto do Supabase.
  */
 export const usePagedQuotes = (page: number, filters: QuoteFilters = {}, enabled = true) => {
+    const tid = DataService.getCurrentTenantId() || 'default';
     const filtersKey = JSON.stringify(filters);
-    const key = ['quotes_paged', page.toString(), filtersKey];
+    const key = ['quotes_paged', tid, page.toString(), filtersKey];
     return useQuery(
         key,
         (signal) => getQuotesPage(page, filters, signal),
-        { enabled, staleTime: 1000 * 30, keepPreviousData: true }
+        { enabled: enabled && !!DataService.getCurrentTenantId(), staleTime: 0, refetchOnMount: 'always', keepPreviousData: false }
     );
 };
 
@@ -84,20 +89,23 @@ export const usePagedQuotes = (page: number, filters: QuoteFilters = {}, enabled
  * Hook de Contratos paginados — busca 20 itens por página direto do Supabase.
  */
 export const usePagedContracts = (page: number, filters: ContractFilters = {}, enabled = true) => {
+    const tid = DataService.getCurrentTenantId() || 'default';
     const filtersKey = JSON.stringify(filters);
-    const key = ['contracts_paged', page.toString(), filtersKey];
+    const key = ['contracts_paged', tid, page.toString(), filtersKey];
     return useQuery(
         key,
         (signal) => getContractsPage(page, filters, signal),
-        { enabled, staleTime: 1000 * 30, keepPreviousData: true }
+        { enabled: enabled && !!DataService.getCurrentTenantId(), staleTime: 0, refetchOnMount: 'always', keepPreviousData: false }
     );
 };
 
 export const usePaginatedOrders = (page: number, limit: number, filters?: any) => {
-    const key = ['orders', 'page', page.toString(), JSON.stringify(filters)];
+    const tid = DataService.getCurrentTenantId() || 'default';
+    const key = ['orders', tid, 'page', page.toString(), JSON.stringify(filters)];
     return useQuery(key, (signal) => OrderService.getOrdersPaginated(page, limit, undefined, filters, signal), {
-        staleTime: 1000 * 60 * 5,
-        keepPreviousData: true
+        staleTime: 0,
+        refetchOnMount: 'always',
+        keepPreviousData: false
     });
 };
 
@@ -144,10 +152,12 @@ export const useUserGroups = (enabled = true) => {
 // ------------------------------------------------------------------
 
 export const useTechnicians = (enabled = true) => {
-    return useQuery('technicians', (signal) => TechnicianService.getAllTechnicians(undefined, signal), {
-        enabled,
-        staleTime: 1000 * 30, // 30 seconds
-        keepPreviousData: true
+    const tid = DataService.getCurrentTenantId() || 'default';
+    return useQuery(['technicians', tid], (signal) => TechnicianService.getAllTechnicians(undefined, signal), {
+        enabled: enabled && !!DataService.getCurrentTenantId(),
+        staleTime: 0,
+        refetchOnMount: 'always',
+        keepPreviousData: false
     });
 };
 
@@ -156,10 +166,12 @@ export const useTechnicians = (enabled = true) => {
 // ------------------------------------------------------------------
 
 export const useCustomers = (enabled = true) => {
-    return useQuery('customers', (signal) => CustomerService.getCustomers(signal), {
-        enabled,
-        staleTime: 1000 * 30, // 30 seconds
-        keepPreviousData: true
+    const tid = DataService.getCurrentTenantId() || 'default';
+    return useQuery(['customers', tid], (signal) => CustomerService.getCustomers(signal), {
+        enabled: enabled && !!DataService.getCurrentTenantId(),
+        staleTime: 0,
+        refetchOnMount: 'always',
+        keepPreviousData: false
     });
 };
 
@@ -168,18 +180,22 @@ export const useCustomers = (enabled = true) => {
 // ------------------------------------------------------------------
 
 export const useStock = (enabled = true) => {
-    return useQuery('stock', (signal) => StockService.getStockItems(signal), {
-        enabled,
-        staleTime: 1000 * 60 * 5,
-        keepPreviousData: true
+    const tid = DataService.getCurrentTenantId() || 'default';
+    return useQuery(['stock', tid], (signal) => StockService.getStockItems(signal), {
+        enabled: enabled && !!DataService.getCurrentTenantId(),
+        staleTime: 0,
+        refetchOnMount: 'always',
+        keepPreviousData: false
     });
 };
 
 export const useStockCategories = (enabled = true) => {
-    return useQuery('stock_categories', (signal) => StockService.getCategories(signal), {
-        enabled,
-        staleTime: 1000 * 60 * 60, // 1 hour
-        keepPreviousData: true
+    const tid = DataService.getCurrentTenantId() || 'default';
+    return useQuery(['stock_categories', tid], (signal) => StockService.getCategories(signal), {
+        enabled: enabled && !!DataService.getCurrentTenantId(),
+        staleTime: 0,
+        refetchOnMount: 'always',
+        keepPreviousData: false
     });
 };
 
@@ -188,23 +204,29 @@ export const useStockCategories = (enabled = true) => {
 // ------------------------------------------------------------------
 
 export const useCashFlow = (enabled: boolean = true) => {
-    return useQuery('cash_flow', (signal) => FinancialService.getCashFlow(signal as any), {
-        enabled,
-        staleTime: 60 * 1000
+    const tid = DataService.getCurrentTenantId() || 'default';
+    return useQuery(['cash_flow', tid], (signal) => FinancialService.getCashFlow(signal as any), {
+        enabled: enabled && !!DataService.getCurrentTenantId(),
+        staleTime: 0,
+        refetchOnMount: 'always'
     });
 };
 
 export const useAccountsPayable = (enabled: boolean = true, filters?: { start?: string, end?: string, status?: string }) => {
-    return useQuery(['accounts_payable', filters], () => FinancialService.getAccountsPayable(filters), {
-        enabled,
-        staleTime: 60 * 1000
+    const tid = DataService.getCurrentTenantId() || 'default';
+    return useQuery(['accounts_payable', tid, filters], () => FinancialService.getAccountsPayable(filters), {
+        enabled: enabled && !!DataService.getCurrentTenantId(),
+        staleTime: 0,
+        refetchOnMount: 'always'
     });
 };
 
 export const usePayableCategories = (enabled: boolean = true) => {
-    return useQuery('payable_categories', () => FinancialService.getPayableCategories(), {
-        enabled,
-        staleTime: 60 * 60 * 1000 // 1 hora
+    const tid = DataService.getCurrentTenantId() || 'default';
+    return useQuery(['payable_categories', tid], () => FinancialService.getPayableCategories(), {
+        enabled: enabled && !!DataService.getCurrentTenantId(),
+        staleTime: 0,
+        refetchOnMount: 'always'
     });
 };
 
@@ -213,10 +235,12 @@ export const usePayableCategories = (enabled: boolean = true) => {
 // ------------------------------------------------------------------
 
 export const useContracts = (enabled = true) => {
-    return useQuery('contracts', (signal) => ContractService.getContracts(signal), {
-        enabled,
-        staleTime: 1000 * 60 * 5,
-        keepPreviousData: true
+    const tid = DataService.getCurrentTenantId() || 'default';
+    return useQuery(['contracts', tid], (signal) => ContractService.getContracts(signal), {
+        enabled: enabled && !!DataService.getCurrentTenantId(),
+        staleTime: 0,
+        refetchOnMount: 'always',
+        keepPreviousData: false
     });
 };
 
