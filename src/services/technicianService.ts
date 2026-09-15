@@ -66,7 +66,7 @@ export const TechnicianService = {
             const cacheKey = `techs_${tenantId}`;
             if (!skipCache) {
                 const cached = CacheManager.get<any[]>(cacheKey);
-                if (cached) return cached;
+                if (cached && cached.length > 0) return cached;
             }
 
             // 🔄 Deduplication: Se já houver uma requisição em voo, espera por ela
@@ -102,30 +102,29 @@ export const TechnicianService = {
                     techData = [];
                 }
 
-                // Busca usuários na tabela base `users` para recuperar o escopo de acesso (`app_scope`)
-                // e para sincronizar usuários criados na tela de Usuários que possuem acesso ao app
-                let { data: userRows } = await clientToUse.from('users')
-                    .select('id, name, email, active, phone, avatar, role, app_scope, tenant_id')
-                    .eq('tenant_id', tenantId);
-
-                if (!userRows) {
-                    const fbUsers = await publicSupabase.from('users')
-                        .select('id, name, email, active, phone, avatar, role, app_scope, tenant_id')
-                        .eq('tenant_id', tenantId);
-                    userRows = fbUsers.data || [];
+                // 2. Busca todos os usuários do tenant utilizando TenantService.getTenantUsers
+                // (Garante resiliência com 3 camadas de fallback: supabase DB, publicSupabase, adminAuthProxy)
+                let tenantUsers: any[] = [];
+                try {
+                    const { TenantService } = await import('./tenantService');
+                    tenantUsers = await TenantService.getTenantUsers(tenantId, currentSignal || signal);
+                } catch (userErr) {
+                    console.warn("⚠️ Non-fatal notice querying users table for tech enrichment:", userErr);
                 }
 
                 const techMap = new Map<string, any>();
 
-                // 1. Adiciona os técnicos já existentes na tabela `technicians`
+                // 1. Adiciona os técnicos existentes na tabela `technicians`
                 (techData || []).forEach(d => {
                     const techObj = TechnicianService._mapTechFromDB(d);
-                    techMap.set(d.id, techObj);
+                    if (techObj && techObj.id) {
+                        techMap.set(techObj.id, techObj);
+                    }
                 });
 
                 // 2. Mescla o escopo de acesso da tabela `users` e inclui usuários habilitados para o App que ainda não tenham registro em `technicians`
-                (userRows || []).forEach(u => {
-                    const userScope = u.app_scope || (u.role === UserRole.TECHNICIAN ? AppScope.MOBILE : AppScope.WEB);
+                (tenantUsers || []).forEach(u => {
+                    const userScope = (u as any).appScope || (u as any).app_scope || (u.role === UserRole.TECHNICIAN ? AppScope.MOBILE : AppScope.WEB);
                     const hasAppAccess = userScope === AppScope.HYBRID || userScope === AppScope.MOBILE || u.role === UserRole.TECHNICIAN;
 
                     if (techMap.has(u.id)) {
@@ -133,12 +132,14 @@ export const TechnicianService = {
                         existingTech.appScope = userScope;
                         existingTech.app_scope = userScope;
                         existingTech.userRole = u.role;
+                        if (!existingTech.email && u.email) existingTech.email = u.email;
+                        if ((!existingTech.name || existingTech.name === 'Técnico') && u.name) existingTech.name = u.name;
                     } else if (hasAppAccess) {
                         // Usuário habilitado para o App que ainda não possui linha na tabela `technicians`
                         const syntheticTech = {
                             id: u.id,
-                            name: u.name || u.email,
-                            email: u.email,
+                            name: u.name || u.email || 'Técnico',
+                            email: u.email || '',
                             active: u.active ?? true,
                             phone: u.phone || '',
                             avatar: u.avatar || '',
@@ -147,15 +148,15 @@ export const TechnicianService = {
                             techCode: formatTechCode(u.id),
                             appScope: userScope,
                             app_scope: userScope,
-                            tenantId: u.tenant_id
+                            tenantId: u.tenantId || tenantId
                         };
                         techMap.set(u.id, syntheticTech);
 
                         // Garante sincronização em background da linha na tabela `technicians`
                         supabase.from('technicians').upsert([{
                             id: u.id,
-                            name: u.name,
-                            email: u.email,
+                            name: u.name || u.email || 'Técnico',
+                            email: u.email || '',
                             active: u.active ?? true,
                             phone: u.phone || '',
                             avatar: u.avatar || '',
@@ -166,7 +167,9 @@ export const TechnicianService = {
                 });
 
                 const result = Array.from(techMap.values());
-                CacheManager.set(cacheKey, result, CacheManager.TTL.SHORT);
+                if (result && result.length > 0) {
+                    CacheManager.set(cacheKey, result, CacheManager.TTL.SHORT);
+                }
                 return result;
             }, signal);
         }

@@ -40,8 +40,8 @@ export const TechnicianManagement: React.FC = () => {
   const loadTechs = async () => {
     setLoading(true);
     try {
-      const techs = await DataService.getAllTechnicians();
-      setTechnicians(techs);
+      const techs = await DataService.getAllTechnicians(undefined, undefined, true);
+      setTechnicians(techs || []);
       
       const tenant = await DataService.getTenantById();
       setTenantLimit(tenant?.max_technicians || 0);
@@ -60,7 +60,11 @@ export const TechnicianManagement: React.FC = () => {
   }, []);
 
   const filteredTechs = technicians.filter(t => {
-    const matchesSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase()) || t.email.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!t) return false;
+    const nameStr = String(t.name || t.email || '').toLowerCase();
+    const emailStr = String(t.email || '').toLowerCase();
+    const searchStr = String(searchTerm || '').toLowerCase();
+    const matchesSearch = nameStr.includes(searchStr) || emailStr.includes(searchStr);
     const matchesStatus = statusFilter === 'ALL' || (statusFilter === 'ACTIVE' ? t.active : !t.active);
     return matchesSearch && matchesStatus;
   });
@@ -271,11 +275,6 @@ export const TechnicianManagement: React.FC = () => {
                         <Globe size={12} className="text-indigo-600" />
                         <Smartphone size={12} className="text-indigo-600" />
                         Painel + App
-                      </span>
-                    ) : isWeb ? (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 shadow-xs">
-                        <Globe size={12} className="text-slate-600" />
-                        Apenas Painel
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs">
