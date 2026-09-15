@@ -58,19 +58,39 @@ export const TechnicianService = {
 
     getAllTechnicians: async (tenantIdOverride?: string | null, signal?: AbortSignal, skipCache = false): Promise<any[]> => {
         if (isCloudEnabled) {
-            const tenantId = tenantIdOverride || getCurrentTenantId();
-            if (!tenantId) return [];
+            let tenantId = tenantIdOverride || getCurrentTenantId();
+            if (!tenantId || tenantId === 'default' || tenantId === 'null') {
+                tenantId = SessionStorage.get('current_tenant') || localStorage.getItem('nexus_current_tenant') || localStorage.getItem('nexus_tenant_id') || localStorage.getItem('tenant_id');
+            }
+            if (!tenantId || tenantId === 'default' || tenantId === 'null') {
+                try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    tenantId = session?.user?.user_metadata?.tenantId || session?.user?.user_metadata?.tenant_id;
+                } catch (e) {}
+            }
+            if (!tenantId || tenantId === 'default' || tenantId === 'null') {
+                try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (session?.user?.id) {
+                        const { data: dbUser } = await supabase.from('users').select('tenant_id').eq('id', session.user.id).maybeSingle();
+                        if (dbUser?.tenant_id) tenantId = dbUser.tenant_id;
+                    }
+                } catch (e) {}
+            }
+            if (!tenantId || tenantId === 'default' || tenantId === 'null') {
+                console.warn("⚠️ [TechnicianService.getAllTechnicians] TenantID não localizado.");
+                return [];
+            }
 
             const clientToUse = supabase;
-
             const cacheKey = `techs_${tenantId}`;
+
             if (!skipCache) {
                 const cached = CacheManager.get<any[]>(cacheKey);
                 if (cached && cached.length > 0) return cached;
             }
 
-            // 🔄 Deduplication: Se já houver uma requisição em voo, espera por ela
-            return CacheManager.deduplicate(cacheKey, async (currentSignal) => {
+            const fetcher = async (currentSignal?: AbortSignal): Promise<any[]> => {
                 let query = clientToUse.from('technicians')
                     .select('*')
                     .eq('tenant_id', tenantId)
@@ -103,7 +123,6 @@ export const TechnicianService = {
                 }
 
                 // 2. Busca todos os usuários do tenant utilizando TenantService.getTenantUsers
-                // (Garante resiliência com 3 camadas de fallback: supabase DB, publicSupabase, adminAuthProxy)
                 let tenantUsers: any[] = [];
                 try {
                     const { TenantService } = await import('./tenantService');
@@ -122,10 +141,19 @@ export const TechnicianService = {
                     }
                 });
 
-                // 2. Mescla o escopo de acesso da tabela `users` e inclui usuários habilitados para o App que ainda não tenham registro em `technicians`
+                // 2. Mescla escopo de acesso e inclui usuários habilitados para o App (HYBRID, MOBILE ou role TECHNICIAN)
                 (tenantUsers || []).forEach(u => {
-                    const userScope = (u as any).appScope || (u as any).app_scope || (u.role === UserRole.TECHNICIAN ? AppScope.MOBILE : AppScope.WEB);
-                    const hasAppAccess = userScope === AppScope.HYBRID || userScope === AppScope.MOBILE || u.role === UserRole.TECHNICIAN;
+                    const rawScope = String((u as any).appScope || (u as any).app_scope || '').toUpperCase();
+                    const rawRole = String(u.role || '').toUpperCase();
+
+                    let userScope = rawScope;
+                    if (!userScope) {
+                        if (rawRole === 'TECHNICIAN' || rawRole === 'TECNICO') userScope = 'MOBILE';
+                        else if (rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN') userScope = 'HYBRID';
+                        else userScope = 'WEB';
+                    }
+
+                    const hasAppAccess = userScope === 'HYBRID' || userScope === 'MOBILE' || rawRole === 'TECHNICIAN' || rawRole === 'TECNICO';
 
                     if (techMap.has(u.id)) {
                         const existingTech = techMap.get(u.id);
@@ -135,7 +163,6 @@ export const TechnicianService = {
                         if (!existingTech.email && u.email) existingTech.email = u.email;
                         if ((!existingTech.name || existingTech.name === 'Técnico') && u.name) existingTech.name = u.name;
                     } else if (hasAppAccess) {
-                        // Usuário habilitado para o App que ainda não possui linha na tabela `technicians`
                         const syntheticTech = {
                             id: u.id,
                             name: u.name || u.email || 'Técnico',
@@ -144,7 +171,7 @@ export const TechnicianService = {
                             phone: u.phone || '',
                             avatar: u.avatar || '',
                             role: u.role || UserRole.TECHNICIAN,
-                            jobTitle: u.role === UserRole.ADMIN ? 'Administrador / Técnico' : 'Técnico de Campo',
+                            jobTitle: rawRole === 'ADMIN' ? 'Administrador / Técnico' : 'Técnico de Campo',
                             techCode: formatTechCode(u.id),
                             appScope: userScope,
                             app_scope: userScope,
@@ -152,7 +179,6 @@ export const TechnicianService = {
                         };
                         techMap.set(u.id, syntheticTech);
 
-                        // Garante sincronização em background da linha na tabela `technicians`
                         supabase.from('technicians').upsert([{
                             id: u.id,
                             name: u.name || u.email || 'Técnico',
@@ -171,7 +197,13 @@ export const TechnicianService = {
                     CacheManager.set(cacheKey, result, CacheManager.TTL.SHORT);
                 }
                 return result;
-            }, signal);
+            };
+
+            if (skipCache) {
+                return await fetcher(signal);
+            }
+
+            return CacheManager.deduplicate(cacheKey, fetcher, signal);
         }
         return [];
     },

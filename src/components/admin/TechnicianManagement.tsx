@@ -219,96 +219,121 @@ export const TechnicianManagement: React.FC = () => {
       </div>
 
       <div className="bg-white border border-slate-200 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
-        <div className="flex-1 overflow-auto p-0 custom-scrollbar">
-          <table className="w-full border-separate border-spacing-y-1">
-            <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md z-10 border-b border-slate-300 shadow-sm">
-              <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center font-poppins">
-                <th className="px-4 py-3 text-left">Identidade Visual</th>
-                <th className="px-4 py-3 text-center">Código</th>
-                <th className="px-4 py-3">Credencial (E-mail)</th>
-                <th className="px-4 py-3 text-center">Acesso / Escopo</th>
-                <th className="px-4 py-3 text-center">Status App</th>
-                <th className="px-4 py-3 text-right pr-6">{t.common.actions}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedTechs.map(t => {
-                const scope = (t as any).appScope || (t as any).app_scope || 'MOBILE';
-                const isHybrid = scope === 'HYBRID';
-                const isWeb = scope === 'WEB';
+        {filteredTechs.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-12 text-center animate-fade-in">
+            <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-4 border border-slate-200 shadow-inner">
+              <Smartphone size={32} />
+            </div>
+            <h3 className="text-sm font-bold text-slate-700">Nenhum técnico localizado</h3>
+            <p className="text-xs text-slate-400 mt-1 max-w-sm leading-relaxed">
+              {searchTerm || statusFilter !== 'ALL' 
+                ? 'Nenhum técnico corresponde aos termos de busca ou filtros aplicados.' 
+                : 'Nenhum técnico cadastrado ou habilitado. Você pode registrar um novo técnico pelo botão acima ou habilitar o acesso mobile em Usuários.'}
+            </p>
+            {(searchTerm || statusFilter !== 'ALL') ? (
+              <Button onClick={() => { setSearchTerm(''); setStatusFilter('ALL'); }} className="mt-4 text-xs h-9 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold">
+                Limpar Filtros de Busca
+              </Button>
+            ) : (
+              <Button onClick={() => loadTechs()} className="mt-4 text-xs h-9 px-4 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl font-bold shadow-md">
+                Recarregar Lista
+              </Button>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="flex-1 overflow-auto p-0 custom-scrollbar">
+              <table className="w-full border-separate border-spacing-y-1">
+                <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md z-10 border-b border-slate-300 shadow-sm">
+                  <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center font-poppins">
+                    <th className="px-4 py-3 text-left">Identidade Visual</th>
+                    <th className="px-4 py-3 text-center">Código</th>
+                    <th className="px-4 py-3">Credencial (E-mail)</th>
+                    <th className="px-4 py-3 text-center">Acesso / Escopo</th>
+                    <th className="px-4 py-3 text-center">Status App</th>
+                    <th className="px-4 py-3 text-right pr-6">{t.common.actions}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedTechs.map(t => {
+                    const scope = (t as any).appScope || (t as any).app_scope || 'MOBILE';
+                    const isHybrid = scope === 'HYBRID';
+                    const isWeb = scope === 'WEB';
 
-                return (
-                <tr key={t.id} onClick={(e) => handleViewTech(t, e)} className="bg-white hover:bg-emerald-50/40 transition-all group shadow-sm hover:shadow-md cursor-pointer">
-                  <td className="px-4 py-1.5 rounded-l-[1.5rem] border border-slate-100 border-r-0">
-                    <div className="flex items-center gap-4">
-                      <div className="relative group/avatar shrink-0">
-                        <img src={t.avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(t.name) + '&background=10b981&color=fff'} className="w-10 h-10 rounded-xl object-cover border-2 border-white shadow-md bg-slate-100 transition-transform group-hover/avatar:scale-105" alt={t.name} />
-                      </div>
-                      <div className="truncate">
-                        <p className="text-slate-900 tracking-tight text-[13px] font-medium truncate max-w-[150px]">{t.name}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          {isHybrid ? (
-                            <>
-                              <Globe size={11} className="text-indigo-600" />
-                              <span className="text-[10px] font-bold text-indigo-600 tracking-wider">Painel + Mobile</span>
-                            </>
-                          ) : (
-                            <>
-                              <Smartphone size={11} className="text-emerald-500" />
-                              <span className="text-[10px] text-emerald-600 tracking-wider">App Mobile</span>
-                            </>
-                          )}
+                    return (
+                    <tr key={t.id} onClick={(e) => handleViewTech(t, e)} className="bg-white hover:bg-emerald-50/40 transition-all group shadow-sm hover:shadow-md cursor-pointer">
+                      <td className="px-4 py-1.5 rounded-l-[1.5rem] border border-slate-100 border-r-0">
+                        <div className="flex items-center gap-4">
+                          <div className="relative group/avatar shrink-0">
+                            <img src={t.avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(t.name) + '&background=10b981&color=fff'} className="w-10 h-10 rounded-xl object-cover border-2 border-white shadow-md bg-slate-100 transition-transform group-hover/avatar:scale-105" alt={t.name} />
+                          </div>
+                          <div className="truncate">
+                            <p className="text-slate-900 tracking-tight text-[13px] font-medium truncate max-w-[150px]">{t.name}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {isHybrid ? (
+                                <>
+                                  <Globe size={11} className="text-indigo-600" />
+                                  <span className="text-[10px] font-bold text-indigo-600 tracking-wider">Painel + Mobile</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Smartphone size={11} className="text-emerald-500" />
+                                  <span className="text-[10px] text-emerald-600 tracking-wider">App Mobile</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-1.5 border-y border-slate-100 text-center">
-                    <span className="font-mono text-[11px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2.5 py-1 rounded-lg tracking-widest border border-[#1c2d4f]/15">
-                      {formatTechCode((t as any).techCode)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-1.5 border-y border-slate-100 text-[12px] text-slate-500 truncate max-w-[180px]">{t.email}</td>
-                  
-                  {/* Escopo de Acesso */}
-                  <td className="px-4 py-1.5 border-y border-slate-100 text-center whitespace-nowrap">
-                    {isHybrid ? (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs">
-                        <Globe size={12} className="text-indigo-600" />
-                        <Smartphone size={12} className="text-indigo-600" />
-                        Painel + App
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs">
-                        <Smartphone size={12} className="text-emerald-600" />
-                        Apenas App
-                      </span>
-                    )}
-                  </td>
+                      </td>
+                      <td className="px-4 py-1.5 border-y border-slate-100 text-center">
+                        <span className="font-mono text-[11px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2.5 py-1 rounded-lg tracking-widest border border-[#1c2d4f]/15">
+                          {formatTechCode((t as any).techCode)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-1.5 border-y border-slate-100 text-[12px] text-slate-500 truncate max-w-[180px]">{t.email}</td>
+                      
+                      {/* Escopo de Acesso */}
+                      <td className="px-4 py-1.5 border-y border-slate-100 text-center whitespace-nowrap">
+                        {isHybrid ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs">
+                            <Globe size={12} className="text-indigo-600" />
+                            <Smartphone size={12} className="text-indigo-600" />
+                            Painel + App
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs">
+                            <Smartphone size={12} className="text-emerald-600" />
+                            Apenas App
+                          </span>
+                        )}
+                      </td>
 
-                  <td className="px-4 py-1.5 border-y border-slate-100 text-center whitespace-nowrap">
-                    <StatusBadge status={t.active ? OrderStatus.COMPLETED : OrderStatus.CANCELED} />
-                  </td>
-                  <td className="px-4 py-1.5 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
-                      <button onClick={(e) => {
-                        if (!canEdit('technicians')) { e.preventDefault(); alert('Acesso Negado: Você não tem permissão para editar.'); return; }
-                        e.stopPropagation();
-                        setIsReadOnly(false);
-                        setFormData(t); setEditingId(t.id); setIsModalOpen(true);
-                      }} className={`p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90 ${!canEdit('technicians') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar Técnico"><Edit2 size={16} /></button>
-                  </td>
-                </tr>
-              );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalItems={filteredTechs.length}
-          itemsPerPage={ITEMS_PER_PAGE}
-          onPageChange={setCurrentPage}
-        />
+                      <td className="px-4 py-1.5 border-y border-slate-100 text-center whitespace-nowrap">
+                        <StatusBadge status={t.active ? OrderStatus.COMPLETED : OrderStatus.CANCELED} />
+                      </td>
+                      <td className="px-4 py-1.5 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
+                          <button onClick={(e) => {
+                            if (!canEdit('technicians')) { e.preventDefault(); alert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                            e.stopPropagation();
+                            setIsReadOnly(false);
+                            setFormData(t); setEditingId(t.id); setIsModalOpen(true);
+                          }} className={`p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90 ${!canEdit('technicians') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar Técnico"><Edit2 size={16} /></button>
+                      </td>
+                    </tr>
+                  );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredTechs.length}
+              itemsPerPage={ITEMS_PER_PAGE}
+              onPageChange={setCurrentPage}
+            />
+          </>
+        )}
       </div>
 
       {

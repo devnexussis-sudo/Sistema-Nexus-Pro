@@ -73,7 +73,18 @@ export class CacheManager {
         }
         keysToDelete.forEach(k => {
             this.storage.delete(k);
-            console.log(`🧹 CacheManager: Invalidado ${k}`); // Better logging
+            console.log(`🧹 CacheManager: Invalidado ${k}`);
+        });
+
+        const inflightToDelete: string[] = [];
+        for (const key of this.inflightRequests.keys()) {
+            if (key.includes(pattern)) {
+                inflightToDelete.push(key);
+            }
+        }
+        inflightToDelete.forEach(k => {
+            this.inflightRequests.delete(k);
+            console.log(`🧹 CacheManager: Inflight request invalidada ${k}`);
         });
     }
 
