@@ -106,32 +106,36 @@ export const usePaginatedOrders = (page: number, limit: number, filters?: any) =
 // ------------------------------------------------------------------
 
 export const useUsers = (enabled = true) => {
-    return useQuery('users', async (signal) => {
-        const tid = DataService.getCurrentTenantId();
-        if (!tid) {
+    const tid = DataService.getCurrentTenantId() || 'default';
+    return useQuery(['users', tid], async (signal) => {
+        const tenantId = DataService.getCurrentTenantId();
+        if (!tenantId) {
             console.warn('[useUsers] No tenant ID found');
             return [];
         }
-        return TenantService.getTenantUsers(tid, signal);
+        return TenantService.getTenantUsers(tenantId, signal);
     }, {
         enabled,
-        staleTime: 1000 * 60 * 5,
-        keepPreviousData: true
+        staleTime: 0,
+        refetchOnMount: 'always',
+        keepPreviousData: false
     });
 };
 
 export const useUserGroups = (enabled = true) => {
-    return useQuery('user_groups', async (signal) => {
-        const tid = DataService.getCurrentTenantId();
-        if (!tid) {
+    const tid = DataService.getCurrentTenantId() || 'default';
+    return useQuery(['user_groups', tid], async (signal) => {
+        const tenantId = DataService.getCurrentTenantId();
+        if (!tenantId) {
             console.warn('[useUserGroups] No tenant ID found');
             return [];
         }
-        return TenantService.getUserGroups(tid, signal);
+        return TenantService.getUserGroups(tenantId, signal);
     }, {
         enabled,
-        staleTime: 1000 * 60 * 30,
-        keepPreviousData: true
+        staleTime: 0,
+        refetchOnMount: 'always',
+        keepPreviousData: false
     });
 };
 

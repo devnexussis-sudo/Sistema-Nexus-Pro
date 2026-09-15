@@ -499,11 +499,14 @@ export const TenantService = {
                     }
                 }
                 
+                const rawRole = (u.role || '').toUpperCase();
+                const normalizedRole = (rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN') ? UserRole.ADMIN : (rawRole as UserRole);
+
                 return {
                     id: u.id,
                     name: u.name,
                     email: u.email,
-                    role: u.role as UserRole,
+                    role: normalizedRole,
                     active: u.active,
                     avatar: u.avatar,
                     groupId: u.group_id as string,

@@ -468,9 +468,7 @@ export const UserManagement: React.FC = () => {
 
   useEffect(() => {
     if (usersData) {
-      // Filtra para mostrar apenas ADMINS nesta tela por segurança, se necessário
-      const admins = usersData.filter(u => u.role === UserRole.ADMIN || u.role === 'SUPER_ADMIN' as any);
-      setUsers(admins.length > 0 ? admins : usersData);
+      setUsers(usersData);
     }
   }, [usersData]);
 
