@@ -692,8 +692,39 @@ export const TenantService = {
         }
     },
 
+    checkTechnicianLicenseLimit: async (tenantId: string, targetUserId?: string): Promise<void> => {
+        if (!isCloudEnabled || !tenantId) return;
+
+        const { data: tenantRow } = await supabase
+            .from('tenants')
+            .select('max_technicians, name, company_name')
+            .eq('id', tenantId)
+            .maybeSingle();
+
+        const limit = tenantRow?.max_technicians ?? 0;
+        if (limit <= 0) return; // 0 = sem restrição
+
+        const { TechnicianService } = await import('./technicianService');
+        const techs = await TechnicianService.getAllTechnicians(tenantId, undefined, true);
+        const activeTechsCount = techs.filter(t => t.active && t.id !== targetUserId).length;
+
+        if (activeTechsCount >= limit) {
+            const companyName = tenantRow?.name || tenantRow?.company_name || 'sua empresa';
+            throw new Error(
+                `🔒 Limite de licenças atingido: A empresa ${companyName} possui plano para no máximo ${limit} técnico(s) ativo(s). ` +
+                `Para habilitar este usuário no aplicativo, desative um técnico existente na tela de Técnicos ou contate o suporte DUNO para upgrade.`
+            );
+        }
+    },
+
     createUser: async (userData: Omit<User, 'id'> & { password?: string; tenantId: string; groupId?: string }): Promise<DbUser> => {
         if (isCloudEnabled) {
+            // 🔒 LICENSE GUARD: Se o novo usuário for habilitado para o aplicativo, verifica o limite
+            const isTechUser = userData.appScope === AppScope.HYBRID || userData.appScope === AppScope.MOBILE || userData.role === UserRole.TECHNICIAN;
+            if (isTechUser && userData.active !== false) {
+                await TenantService.checkTechnicianLicenseLimit(userData.tenantId);
+            }
+
             let userId: string | null = null;
             const targetEmail = userData.email.toLowerCase().trim();
 
@@ -775,6 +806,31 @@ export const TenantService = {
 
     updateUser: async (userData: Partial<User> & { id: string; password?: string; groupId?: string }): Promise<DbUser> => {
         if (isCloudEnabled) {
+            // 🔒 LICENSE GUARD na edição: Se o usuário passou a ter acesso de técnico/app e estiver ativo
+            const { data: existingUser } = await supabase
+                .from('users')
+                .select('app_scope, role, active, tenant_id')
+                .eq('id', userData.id)
+                .maybeSingle();
+
+            if (existingUser) {
+                const oldScope = existingUser.app_scope || AppScope.WEB;
+                const oldRole = existingUser.role;
+                const oldWasTech = (oldScope === AppScope.HYBRID || oldScope === AppScope.MOBILE || oldRole === UserRole.TECHNICIAN) && existingUser.active !== false;
+
+                const newScope = userData.appScope !== undefined ? userData.appScope : oldScope;
+                const newRole = userData.role !== undefined ? userData.role : oldRole;
+                const newIsActive = userData.active !== undefined ? userData.active : existingUser.active;
+                const newWillBeTech = (newScope === AppScope.HYBRID || newScope === AppScope.MOBILE || newRole === UserRole.TECHNICIAN) && newIsActive !== false;
+
+                if (!oldWasTech && newWillBeTech) {
+                    const tid = existingUser.tenant_id || getCurrentTenantId();
+                    if (tid) {
+                        await TenantService.checkTechnicianLicenseLimit(tid, userData.id);
+                    }
+                }
+            }
+
             const validGroupId = (userData.groupId && userData.groupId.trim() !== '' && /^[0-9a-fA-F-]{36}$/.test(userData.groupId)) 
                 ? userData.groupId 
                 : null;

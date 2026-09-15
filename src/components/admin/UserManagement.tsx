@@ -532,6 +532,21 @@ export const UserManagement: React.FC = () => {
         appScope: formData.appScope || AppScope.WEB,
       };
 
+      // 🔒 LICENSE GUARD: Se o usuário estiver ativado com perfil de técnico/app, valida o limite de licenças da empresa
+      const isTechUser = dataToSave.appScope === AppScope.HYBRID || dataToSave.appScope === AppScope.MOBILE || dataToSave.role === UserRole.TECHNICIAN;
+      if (isTechUser && dataToSave.active !== false) {
+        const tenant = await DataService.getTenantById();
+        const limit = tenant?.max_technicians || 0;
+        if (limit > 0) {
+          const techs = await DataService.getAllTechnicians(undefined, undefined, true);
+          const activeTechsCount = techs.filter(t => t.active && t.id !== editingUser?.id).length;
+          if (activeTechsCount >= limit) {
+            const companyName = tenant?.name || tenant?.company_name || 'sua empresa';
+            throw new Error(`🔒 Limite de licenças atingido: A empresa ${companyName} possui um plano para até ${limit} técnico(s) ativo(s). Desative um técnico antigo na tela de Técnicos ou contate o suporte DUNO para ampliar seu plano.`);
+          }
+        }
+      }
+
       if (editingUser) {
         await TenantService.updateUser({ ...dataToSave, id: editingUser.id } as User);
         // Atualiza o cache local caso o usuário editado seja ele mesmo
@@ -1133,7 +1148,28 @@ export const UserManagement: React.FC = () => {
                       <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 space-y-4">
                         <h3 className="text-sm font-bold text-slate-900 border-l-4 border-emerald-500 pl-3">status de acesso</h3>
                         <div
-                          onClick={() => { if (!isReadOnly) setFormData({ ...formData, active: !formData.active }) }}
+                          onClick={async () => {
+                            if (isReadOnly) return;
+                            const nextActive = !formData.active;
+                            const isTechScope = formData.appScope === AppScope.HYBRID || formData.appScope === AppScope.MOBILE || formData.role === UserRole.TECHNICIAN;
+                            if (nextActive && isTechScope) {
+                              try {
+                                const tenant = await DataService.getTenantById();
+                                const limit = tenant?.max_technicians || 0;
+                                if (limit > 0) {
+                                  const techs = await DataService.getAllTechnicians(undefined, undefined, true);
+                                  const countToEvaluate = techs.filter(t => t.active && t.id !== editingUser?.id).length;
+                                  if (countToEvaluate >= limit) {
+                                    alert(`🔒 Limite de licenças atingido! O plano atual permite no máximo ${limit} técnico(s) ativo(s). Desative um técnico existente na tela de Técnicos para reativar este usuário.`);
+                                    return;
+                                  }
+                                }
+                              } catch (err) {
+                                console.warn("Erro ao verificar limite de licenças:", err);
+                              }
+                            }
+                            setFormData({ ...formData, active: nextActive });
+                          }}
                           className={`flex items-center gap-4 p-5 rounded-xl border transition-all ${!isReadOnly ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'} ${formData.active ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'
                             }`}
                         >
@@ -1157,7 +1193,27 @@ export const UserManagement: React.FC = () => {
                       <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 space-y-4">
                         <h3 className="text-sm font-bold text-slate-900 border-l-4 border-violet-500 pl-3">escopo de acesso</h3>
                         <div
-                          onClick={() => { if (!isReadOnly) setFormData({ ...formData, appScope: formData.appScope === AppScope.HYBRID ? AppScope.WEB : AppScope.HYBRID }) }}
+                          onClick={async () => {
+                            if (isReadOnly) return;
+                            const nextScope = formData.appScope === AppScope.HYBRID ? AppScope.WEB : AppScope.HYBRID;
+                            if (nextScope === AppScope.HYBRID && formData.active !== false) {
+                              try {
+                                const tenant = await DataService.getTenantById();
+                                const limit = tenant?.max_technicians || 0;
+                                if (limit > 0) {
+                                  const techs = await DataService.getAllTechnicians(undefined, undefined, true);
+                                  const countToEvaluate = techs.filter(t => t.active && t.id !== editingUser?.id).length;
+                                  if (countToEvaluate >= limit) {
+                                    alert(`🔒 Limite de licenças excedido! O plano da sua empresa permite no máximo ${limit} técnico(s) ativo(s). Para habilitar este usuário no aplicativo, desative um técnico antigo na tela de Técnicos ou contate o suporte DUNO para upgrade.`);
+                                    return;
+                                  }
+                                }
+                              } catch (err) {
+                                console.warn("Erro ao verificar limite de licenças:", err);
+                              }
+                            }
+                            setFormData({ ...formData, appScope: nextScope });
+                          }}
                           className={`flex items-center gap-4 p-5 rounded-xl border transition-all ${!isReadOnly ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'} ${
                             formData.appScope === AppScope.HYBRID
                               ? 'bg-violet-50 border-violet-200'
