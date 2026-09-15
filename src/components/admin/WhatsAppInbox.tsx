@@ -1294,7 +1294,7 @@ export const WhatsAppInbox: React.FC = () => {
             <Plus size={16} /> Nova Conversa
           </button>
 
-          {/* Abas de Filtro com Destaque Vibrante de Pendências */}
+          {/* Abas de Filtro com Cores Suaves Por Status e Container Ajustado Sem Vazar */}
           {(() => {
             const counts = {
               all: conversations.length,
@@ -1304,47 +1304,74 @@ export const WhatsAppInbox: React.FC = () => {
               resolved: conversations.filter(c => c.state === 'RESOLVED').length
             };
 
+            const getTabStyle = (f: 'all' | 'waiting' | 'mine' | 'active' | 'resolved', isActive: boolean, hasPendingWaiting: boolean) => {
+              if (isActive) {
+                switch (f) {
+                  case 'all':
+                    return { btn: 'bg-slate-800 text-white shadow-sm ring-1 ring-slate-800 font-extrabold', badge: 'bg-white/25 text-white' };
+                  case 'waiting':
+                    return { btn: 'bg-amber-500 text-slate-950 shadow-sm ring-1 ring-amber-400 font-extrabold', badge: 'bg-slate-950 text-amber-300' };
+                  case 'mine':
+                    return { btn: 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-600 font-extrabold', badge: 'bg-white/25 text-white' };
+                  case 'active':
+                    return { btn: 'bg-sky-600 text-white shadow-sm ring-1 ring-sky-600 font-extrabold', badge: 'bg-white/25 text-white' };
+                  case 'resolved':
+                    return { btn: 'bg-purple-600 text-white shadow-sm ring-1 ring-purple-600 font-extrabold', badge: 'bg-white/25 text-white' };
+                }
+              }
+
+              // Inativo: Cores suaves estilo pastel (agradáveis e leves)
+              switch (f) {
+                case 'all':
+                  return { btn: 'bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-100/70', badge: 'bg-slate-100 text-slate-700' };
+                case 'waiting':
+                  return {
+                    btn: hasPendingWaiting 
+                      ? 'bg-amber-100/90 text-amber-900 border border-amber-300 animate-pulse font-bold' 
+                      : 'bg-amber-50/90 text-amber-800 border border-amber-200/70 hover:bg-amber-100/80',
+                    badge: 'bg-amber-200/90 text-amber-900'
+                  };
+                case 'mine':
+                  return { btn: 'bg-emerald-50/90 text-emerald-800 border border-emerald-200/70 hover:bg-emerald-100/80', badge: 'bg-emerald-200/90 text-emerald-950' };
+                case 'active':
+                  return { btn: 'bg-sky-50/90 text-sky-800 border border-sky-200/70 hover:bg-sky-100/80', badge: 'bg-sky-200/90 text-sky-950' };
+                case 'resolved':
+                  return { btn: 'bg-purple-50/90 text-purple-800 border border-purple-200/70 hover:bg-purple-100/80', badge: 'bg-purple-200/90 text-purple-950' };
+              }
+            };
+
             return (
-              <div className="flex gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200/60 font-poppins">
-                {(['all', 'waiting', 'mine', 'active', 'resolved'] as const).map(f => {
-                  const isActiveTab = filter === f;
-                  const count = counts[f];
-                  const isWaitingTab = f === 'waiting';
-                  const hasPendingWaiting = isWaitingTab && count > 0;
+              <div className="w-full max-w-full overflow-hidden p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 font-poppins">
+                <div className="flex gap-1 overflow-x-auto no-scrollbar scroll-smooth w-full">
+                  {(['all', 'waiting', 'mine', 'active', 'resolved'] as const).map(f => {
+                    const isActiveTab = filter === f;
+                    const count = counts[f];
+                    const isWaitingTab = f === 'waiting';
+                    const hasPendingWaiting = isWaitingTab && count > 0;
+                    const style = getTabStyle(f, isActiveTab, hasPendingWaiting);
 
-                  return (
-                    <button
-                      key={f}
-                      onClick={() => setFilter(f)}
-                      className={`relative flex-1 py-1.5 px-1 rounded-lg text-[10px] font-bold uppercase tracking-tight transition-all flex items-center justify-center gap-1 ${
-                        isActiveTab
-                          ? (hasPendingWaiting 
-                              ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30 ring-2 ring-amber-400 font-extrabold' 
-                              : 'bg-[#1c2d4f] text-white shadow-sm ring-1 ring-[#1c2d4f]')
-                          : (hasPendingWaiting 
-                              ? 'bg-amber-400/25 text-amber-700 border border-amber-300 animate-pulse font-extrabold' 
-                              : 'text-slate-500 hover:bg-white hover:text-slate-800')
-                      }`}
-                    >
-                      {hasPendingWaiting && (
-                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping absolute -top-1 -right-1" />
-                      )}
-                      <span>
-                        {f === 'all' ? 'Todos' : f === 'waiting' ? 'Aguarda' : f === 'mine' ? 'Meus' : f === 'active' ? 'Outros' : 'Finalizados'}
-                      </span>
-
-                      {count > 0 && (
-                        <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black leading-none ${
-                          isActiveTab
-                            ? (hasPendingWaiting ? 'bg-slate-950 text-amber-400' : 'bg-white/20 text-white')
-                            : (hasPendingWaiting ? 'bg-amber-500 text-slate-950' : 'bg-slate-200 text-slate-600')
-                        }`}>
-                          {count}
+                    return (
+                      <button
+                        key={f}
+                        onClick={() => setFilter(f)}
+                        className={`relative shrink-0 flex-1 min-w-[54px] py-1.5 px-1.5 rounded-lg text-[9.5px] font-bold uppercase tracking-tight transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${style.btn}`}
+                      >
+                        {hasPendingWaiting && (
+                          <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping absolute -top-1 -right-1" />
+                        )}
+                        <span className="truncate">
+                          {f === 'all' ? 'Todos' : f === 'waiting' ? 'Aguarda' : f === 'mine' ? 'Meus' : f === 'active' ? 'Outros' : 'Finalizados'}
                         </span>
-                      )}
-                    </button>
-                  );
-                })}
+
+                        {count > 0 && (
+                          <span className={`px-1 py-0.2 rounded-full text-[8.5px] font-black leading-none shrink-0 ${style.badge}`}>
+                            {count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             );
           })()}
