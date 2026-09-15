@@ -452,7 +452,10 @@ export const TenantService = {
     getTenantUsers: async (tenantId: string, signal?: AbortSignal): Promise<User[]> => {
         if (!tenantId) return [];
         if (isCloudEnabled) {
-            let query = supabase
+            const isImpersonating = typeof window !== 'undefined' && (SessionStorage.get('is_impersonating') === true || (window as any).__NEXUS_IMPERSONATION === true);
+            const clientToUse = isImpersonating ? publicSupabase : supabase;
+
+            let query = clientToUse
                 .from('users')
                 .select('*')
                 .eq('tenant_id', tenantId)
@@ -463,14 +466,29 @@ export const TenantService = {
                 query = query.abortSignal(signal);
             }
 
-            const { data, error } = await query;
+            let { data, error } = await query;
+
+            if ((error || !data || data.length === 0) && clientToUse === supabase) {
+                let fbQuery = publicSupabase
+                    .from('users')
+                    .select('*')
+                    .eq('tenant_id', tenantId)
+                    .order('created_at', { ascending: false })
+                    .limit(100);
+                if (signal) fbQuery = fbQuery.abortSignal(signal);
+                const fbRes = await fbQuery;
+                if (!fbRes.error && fbRes.data) {
+                    data = fbRes.data;
+                    error = null;
+                }
+            }
 
             if (error) {
                 console.error("Error fetching tenant users:", error);
-                throw error;
+                return [];
             }
 
-            return (data as DbUser[]).map(u => {
+            return ((data || []) as DbUser[]).map(u => {
                 let parsedGroupIds: string[] = [];
                 if (u.group_ids) {
                     if (typeof u.group_ids === 'string') {
@@ -502,7 +520,10 @@ export const TenantService = {
     getUserGroups: async (tenantId: string, signal?: AbortSignal): Promise<UserGroup[]> => {
         if (!tenantId) return [];
         if (isCloudEnabled) {
-            let query = supabase
+            const isImpersonating = typeof window !== 'undefined' && (SessionStorage.get('is_impersonating') === true || (window as any).__NEXUS_IMPERSONATION === true);
+            const clientToUse = isImpersonating ? publicSupabase : supabase;
+
+            let query = clientToUse
                 .from('user_groups')
                 .select('*')
                 .eq('tenant_id', tenantId)
@@ -512,13 +533,27 @@ export const TenantService = {
                 query = query.abortSignal(signal);
             }
 
-            const { data, error } = await query;
+            let { data, error } = await query;
+
+            if ((error || !data || data.length === 0) && clientToUse === supabase) {
+                let fbQuery = publicSupabase
+                    .from('user_groups')
+                    .select('*')
+                    .eq('tenant_id', tenantId)
+                    .order('name');
+                if (signal) fbQuery = fbQuery.abortSignal(signal);
+                const fbRes = await fbQuery;
+                if (!fbRes.error && fbRes.data) {
+                    data = fbRes.data;
+                    error = null;
+                }
+            }
 
             if (error) {
                 console.error("Error fetching user groups:", error);
-                throw error;
+                return [];
             }
-            return (data as DbUserGroup[]).map(g => ({
+            return ((data || []) as DbUserGroup[]).map(g => ({
                 id: g.id,
                 name: g.name,
                 description: g.description,

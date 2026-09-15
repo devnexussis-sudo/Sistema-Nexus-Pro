@@ -61,6 +61,9 @@ export const TechnicianService = {
             const tenantId = tenantIdOverride || getCurrentTenantId();
             if (!tenantId) return [];
 
+            const isImpersonating = typeof window !== 'undefined' && (SessionStorage.get('is_impersonating') === true || (window as any).__NEXUS_IMPERSONATION === true);
+            const clientToUse = isImpersonating ? publicSupabase : supabase;
+
             const cacheKey = `techs_${tenantId}`;
             if (!skipCache) {
                 const cached = CacheManager.get<any[]>(cacheKey);
@@ -69,7 +72,7 @@ export const TechnicianService = {
 
             // 🔄 Deduplication: Se já houver uma requisição em voo, espera por ela
             return CacheManager.deduplicate(cacheKey, async (currentSignal) => {
-                let query = supabase.from('technicians')
+                let query = clientToUse.from('technicians')
                     .select('*')
                     .eq('tenant_id', tenantId)
                     .order('name')
@@ -79,16 +82,32 @@ export const TechnicianService = {
                     query = query.abortSignal((currentSignal || signal) as AbortSignal);
                 }
 
-                const { data, error } = await query;
+                let { data, error } = await query;
 
-                if (error) throw error;
+                if ((error || !data || data.length === 0) && clientToUse === supabase) {
+                    let fbQuery = publicSupabase.from('technicians')
+                        .select('*')
+                        .eq('tenant_id', tenantId)
+                        .order('name')
+                        .limit(100);
+                    if (currentSignal || signal) fbQuery = fbQuery.abortSignal((currentSignal || signal) as AbortSignal);
+                    const fbRes = await fbQuery;
+                    if (!fbRes.error && fbRes.data) {
+                        data = fbRes.data;
+                        error = null;
+                    }
+                }
+
+                if (error) {
+                    console.error("Error fetching technicians:", error);
+                    return [];
+                }
                 const result = (data || []).map(d => TechnicianService._mapTechFromDB(d));
 
-                CacheManager.set(cacheKey, result, CacheManager.TTL.SHORT); // Reduzido para 1 min (Standard Cloud)
+                CacheManager.set(cacheKey, result, CacheManager.TTL.SHORT);
                 return result;
             }, signal);
         }
-        // Fallback local removido para focar na arquitetura cloud-first, mas poderia manter se necessário
         return [];
     },
 

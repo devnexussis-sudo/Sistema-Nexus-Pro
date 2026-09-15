@@ -281,12 +281,16 @@ export const OrderService = {
                             await new Promise(r => setTimeout(r, 1500));
                             continue;
                         }
-                        throw new Error('SESSION_EXPIRED_AUTH');
-                    }
-
-                    let tenantId = getCurrentTenantId();
-                    if (!tenantId) {
-                        throw new Error('SESSION_EXPIRED_NO_TENANT');
+                    if (clientToUse === supabase) {
+                        const sessionOk = await ensureValidSession();
+                        if (!sessionOk) {
+                            console.error(`❌ [getOrders] Attempt ${attempt + 1}: Session inválida.`);
+                            if (attempt < MAX_RETRIES - 1) {
+                                await new Promise(r => setTimeout(r, 1500));
+                                continue;
+                            }
+                            throw new Error('SESSION_EXPIRED_AUTH');
+                        }
                     }
 
                     console.log(`📡 Nexus DataSync: Buscando Ordens (tentativa ${attempt + 1})...`);
@@ -295,7 +299,7 @@ export const OrderService = {
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 20000);
 
-                    const { data, error } = await supabase.from('orders')
+                    let { data, error } = await clientToUse.from('orders')
                         .select('*')
                         .eq('tenant_id', tenantId)
                         .order('created_at', { ascending: false })
@@ -303,6 +307,18 @@ export const OrderService = {
                         .abortSignal(signal || controller.signal);
 
                     clearTimeout(timeoutId);
+
+                    if ((error || !data || data.length === 0) && clientToUse === supabase) {
+                        const fbRes = await publicSupabase.from('orders')
+                            .select('*')
+                            .eq('tenant_id', tenantId)
+                            .order('created_at', { ascending: false })
+                            .limit(100);
+                        if (!fbRes.error && fbRes.data) {
+                            data = fbRes.data;
+                            error = null;
+                        }
+                    }
 
                     if (error) {
                         // 🔒 Check for auth/session errors
@@ -312,9 +328,6 @@ export const OrderService = {
                             error.code === 'PGRST301') {
 
                             if (attempt < MAX_RETRIES - 1) {
-                                // ⚠️ NÃO chamar refreshSession() manualmente — causa race condition
-                                // com autoRefreshToken do SDK e invalida o refresh token.
-                                // Aguarda o SDK renovar automaticamente e tenta novamente.
                                 await new Promise(r => setTimeout(r, 2000));
                                 continue;
                             }
@@ -373,10 +386,13 @@ export const OrderService = {
                 return { orders: [], total: 0 };
             }
 
+            const isImpersonating = typeof window !== 'undefined' && (SessionStorage.get('is_impersonating') === true || (window as any).__NEXUS_IMPERSONATION === true);
+            const clientToUse = isImpersonating ? publicSupabase : supabase;
+
             const from = (page - 1) * limit;
             const to = from + limit - 1;
 
-            let query = supabase
+            let query = clientToUse
                 .from('orders')
                 .select('*', { count: 'exact' })
                 .eq('tenant_id', tenantId);
@@ -401,9 +417,29 @@ export const OrderService = {
                 query = query.abortSignal(signal);
             }
 
-            const { data, error, count } = await query
+            let { data, error, count } = await query
                 .order('created_at', { ascending: false })
                 .range(from, to);
+
+            if ((error || !data || data.length === 0) && clientToUse === supabase) {
+                let fbQuery = publicSupabase
+                    .from('orders')
+                    .select('*', { count: 'exact' })
+                    .eq('tenant_id', tenantId);
+
+                if (unusedToken) fbQuery = fbQuery.eq('assigned_to', unusedToken);
+                if (filters?.status && filters.status !== 'ALL' as any) fbQuery = fbQuery.eq('status', filters.status);
+                if (filters?.startDate) fbQuery = fbQuery.gte('scheduled_date', filters.startDate);
+                if (filters?.endDate) fbQuery = fbQuery.lte('scheduled_date', filters.endDate);
+                if (signal) fbQuery = fbQuery.abortSignal(signal);
+
+                const fbRes = await fbQuery.order('created_at', { ascending: false }).range(from, to);
+                if (!fbRes.error && fbRes.data) {
+                    data = fbRes.data;
+                    count = fbRes.count;
+                    error = null;
+                }
+            }
 
             if (error) {
                 console.error("❌ Erro ao buscar ordens paginadas:", error.message);

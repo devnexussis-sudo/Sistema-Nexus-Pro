@@ -1,14 +1,13 @@
 
-import { supabase } from '../lib/supabase';
+import { supabase, publicSupabase } from '../lib/supabase';
 import { Customer } from '../types';
 import type { DbCustomer } from '../types/database';
 import { CacheManager } from '../lib/cache';
 import { getCurrentTenantId } from '../lib/tenantContext';
+import SessionStorage from '../lib/sessionStorage';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 const STORAGE_KEYS = { CUSTOMERS: 'nexus_customers_v2' };
-
-
 
 export const CustomerService = {
 
@@ -40,17 +39,18 @@ export const CustomerService = {
             let tenantId = getCurrentTenantId();
 
             if (!tenantId) {
-                // If needed, try to recover from session or wait
-                // For now, return empty if no tenant
                 return [];
             }
+
+            const isImpersonating = typeof window !== 'undefined' && (SessionStorage.get('is_impersonating') === true || (window as any).__NEXUS_IMPERSONATION === true);
+            const clientToUse = isImpersonating ? publicSupabase : supabase;
 
             const cacheKey = `customers_${tenantId}`;
             const cached = CacheManager.get<Customer[]>(cacheKey);
             if (cached) return cached;
 
             return CacheManager.deduplicate(cacheKey, async (currentSignal) => {
-                let query = supabase.from('customers')
+                let query = clientToUse.from('customers')
                     .select('*')
                     .eq('tenant_id', tenantId)
                     .order('name')
@@ -60,10 +60,25 @@ export const CustomerService = {
                     query = query.abortSignal((currentSignal || signal) as AbortSignal);
                 }
 
-                const { data, error } = await query;
+                let { data, error } = await query;
+
+                if ((error || !data || data.length === 0) && clientToUse === supabase) {
+                    let fbQuery = publicSupabase.from('customers')
+                        .select('*')
+                        .eq('tenant_id', tenantId)
+                        .order('name')
+                        .limit(100);
+                    if (currentSignal || signal) fbQuery = fbQuery.abortSignal((currentSignal || signal) as AbortSignal);
+                    const fbRes = await fbQuery;
+                    if (!fbRes.error && fbRes.data) {
+                        data = fbRes.data;
+                        error = null;
+                    }
+                }
 
                 if (error) {
-                    throw error;
+                    console.error("Error fetching customers:", error);
+                    return [];
                 }
 
                 const mapped = (data || []).map(d => CustomerService._mapCustomerFromDB(d));

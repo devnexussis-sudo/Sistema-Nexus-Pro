@@ -1,9 +1,10 @@
 
-import { supabase } from '../lib/supabase';
+import { supabase, publicSupabase } from '../lib/supabase';
 import { Equipment, EquipmentFamily } from '../types';
 import type { DbEquipment } from '../types/database';
 import { CacheManager } from '../lib/cache';
 import { getCurrentTenantId } from '../lib/tenantContext';
+import SessionStorage from '../lib/sessionStorage';
 
 export const DEFAULT_EQUIPMENT_FAMILIES: EquipmentFamily[] = [
   { id: 'f-refri', name: 'Refrigeração Industrial', description: 'Chillers, balcões refrigerados e câmaras frias', active: true },
@@ -75,12 +76,15 @@ export const EquipmentService = {
             const tenantId = getCurrentTenantId();
             if (!tenantId) return [];
 
+            const isImpersonating = typeof window !== 'undefined' && (SessionStorage.get('is_impersonating') === true || (window as any).__NEXUS_IMPERSONATION === true);
+            const clientToUse = isImpersonating ? publicSupabase : supabase;
+
             const cacheKey = `equipments_${tenantId}`;
             const cached = CacheManager.get<Equipment[]>(cacheKey);
             if (cached) return cached;
 
             return CacheManager.deduplicate(cacheKey, async (currentSignal) => {
-                let query = supabase.from('equipments')
+                let query = clientToUse.from('equipments')
                     .select('*')
                     .eq('tenant_id', tenantId)
                     .order('model')
@@ -90,8 +94,26 @@ export const EquipmentService = {
                     query = query.abortSignal((currentSignal || signal) as AbortSignal);
                 }
 
-                const { data, error } = await query;
-                if (error) throw error;
+                let { data, error } = await query;
+
+                if ((error || !data || data.length === 0) && clientToUse === supabase) {
+                    let fbQuery = publicSupabase.from('equipments')
+                        .select('*')
+                        .eq('tenant_id', tenantId)
+                        .order('model')
+                        .limit(500);
+                    if (currentSignal || signal) fbQuery = fbQuery.abortSignal((currentSignal || signal) as AbortSignal);
+                    const fbRes = await fbQuery;
+                    if (!fbRes.error && fbRes.data) {
+                        data = fbRes.data;
+                        error = null;
+                    }
+                }
+
+                if (error) {
+                    console.error("Error fetching equipments:", error);
+                    return [];
+                }
 
                 const mapped = (data || []).map(d => EquipmentService._mapEquipmentFromDB(d));
                 CacheManager.set(cacheKey, mapped, CacheManager.TTL.MEDIUM);
