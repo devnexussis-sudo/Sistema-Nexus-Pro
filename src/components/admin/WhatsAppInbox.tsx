@@ -1294,7 +1294,7 @@ export const WhatsAppInbox: React.FC = () => {
             <Plus size={16} /> Nova Conversa
           </button>
 
-          {/* Abas de Filtro com Cores Suaves Por Status e Container Ajustado Sem Vazar */}
+          {/* Abas de Filtro — 5 Colunas Perfeitamente Legíveis Sem Barras de Rolagem */}
           {(() => {
             const counts = {
               all: conversations.length,
@@ -1308,22 +1308,22 @@ export const WhatsAppInbox: React.FC = () => {
               if (isActive) {
                 switch (f) {
                   case 'all':
-                    return { btn: 'bg-slate-800 text-white shadow-sm ring-1 ring-slate-800 font-extrabold', badge: 'bg-white/25 text-white' };
+                    return { btn: 'bg-slate-800 text-white shadow-xs ring-1 ring-slate-800 font-extrabold', badge: 'bg-white/20 text-white' };
                   case 'waiting':
-                    return { btn: 'bg-amber-500 text-slate-950 shadow-sm ring-1 ring-amber-400 font-extrabold', badge: 'bg-slate-950 text-amber-300' };
+                    return { btn: 'bg-amber-500 text-slate-950 shadow-xs ring-1 ring-amber-400 font-extrabold', badge: 'bg-slate-950 text-amber-300' };
                   case 'mine':
-                    return { btn: 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-600 font-extrabold', badge: 'bg-white/25 text-white' };
+                    return { btn: 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-600 font-extrabold', badge: 'bg-white/20 text-white' };
                   case 'active':
-                    return { btn: 'bg-sky-600 text-white shadow-sm ring-1 ring-sky-600 font-extrabold', badge: 'bg-white/25 text-white' };
+                    return { btn: 'bg-sky-600 text-white shadow-xs ring-1 ring-sky-600 font-extrabold', badge: 'bg-white/20 text-white' };
                   case 'resolved':
-                    return { btn: 'bg-purple-600 text-white shadow-sm ring-1 ring-purple-600 font-extrabold', badge: 'bg-white/25 text-white' };
+                    return { btn: 'bg-purple-600 text-white shadow-xs ring-1 ring-purple-600 font-extrabold', badge: 'bg-white/20 text-white' };
                 }
               }
 
-              // Inativo: Cores suaves estilo pastel (agradáveis e leves)
+              // Inativo: Cores suaves pastel (agradáveis e leves)
               switch (f) {
                 case 'all':
-                  return { btn: 'bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-100/70', badge: 'bg-slate-100 text-slate-700' };
+                  return { btn: 'bg-white text-slate-700 border border-slate-200/80 hover:bg-slate-100/70', badge: 'bg-slate-100 text-slate-700' };
                 case 'waiting':
                   return {
                     btn: hasPendingWaiting 
@@ -1340,9 +1340,19 @@ export const WhatsAppInbox: React.FC = () => {
               }
             };
 
+            const getTabTitle = (f: 'all' | 'waiting' | 'mine' | 'active' | 'resolved') => {
+              switch (f) {
+                case 'all': return 'Todas as conversas';
+                case 'waiting': return 'Aguardando atendimento humano';
+                case 'mine': return 'Atendimentos sob minha responsabilidade';
+                case 'active': return 'Outras conversas em atendimento';
+                case 'resolved': return 'Conversas finalizadas';
+              }
+            };
+
             return (
-              <div className="w-full max-w-full overflow-hidden p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 font-poppins">
-                <div className="flex gap-1 overflow-x-auto no-scrollbar scroll-smooth w-full">
+              <div className="w-full p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 font-poppins">
+                <div className="grid grid-cols-5 gap-1 w-full [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                   {(['all', 'waiting', 'mine', 'active', 'resolved'] as const).map(f => {
                     const isActiveTab = filter === f;
                     const count = counts[f];
@@ -1350,21 +1360,22 @@ export const WhatsAppInbox: React.FC = () => {
                     const hasPendingWaiting = isWaitingTab && count > 0;
                     const style = getTabStyle(f, isActiveTab, hasPendingWaiting);
 
+                    const label = f === 'all' ? 'Todos' : f === 'waiting' ? 'Fila' : f === 'mine' ? 'Meus' : f === 'active' ? 'Outros' : 'Fim';
+
                     return (
                       <button
                         key={f}
                         onClick={() => setFilter(f)}
-                        className={`relative shrink-0 flex-1 min-w-[54px] py-1.5 px-1.5 rounded-lg text-[9.5px] font-bold uppercase tracking-tight transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${style.btn}`}
+                        className={`relative py-1.5 px-0.5 rounded-lg text-[9.5px] font-bold uppercase tracking-tight transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap overflow-hidden ${style.btn}`}
+                        title={getTabTitle(f)}
                       >
                         {hasPendingWaiting && (
                           <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping absolute -top-1 -right-1" />
                         )}
-                        <span className="truncate">
-                          {f === 'all' ? 'Todos' : f === 'waiting' ? 'Aguarda' : f === 'mine' ? 'Meus' : f === 'active' ? 'Outros' : 'Finalizados'}
-                        </span>
+                        <span className="leading-none">{label}</span>
 
                         {count > 0 && (
-                          <span className={`px-1 py-0.2 rounded-full text-[8.5px] font-black leading-none shrink-0 ${style.badge}`}>
+                          <span className={`px-1 py-0.5 rounded-full text-[8.5px] font-black leading-none ${style.badge}`}>
                             {count}
                           </span>
                         )}
