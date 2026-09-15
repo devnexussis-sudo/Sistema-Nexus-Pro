@@ -269,18 +269,18 @@ export const OrderService = {
 
     getOrders: async (unusedToken?: any, signal?: AbortSignal): Promise<ServiceOrder[]> => {
         if (isCloudEnabled) {
+            const tenantId = getCurrentTenantId();
+            if (!tenantId) return [];
+
+            const isImpersonating = typeof window !== 'undefined' && (SessionStorage.get('is_impersonating') === true || (window as any).__NEXUS_IMPERSONATION === true);
+            const clientToUse = isImpersonating ? publicSupabase : supabase;
+
             const MAX_RETRIES = 2;
 
             for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
                 try {
-                    // 🛡️ Session Guard: Validate/refresh token BEFORE the query
-                    const sessionOk = await ensureValidSession();
-                    if (!sessionOk) {
-                        console.error(`❌ [getOrders] Attempt ${attempt + 1}: Session inválida.`);
-                        if (attempt < MAX_RETRIES - 1) {
-                            await new Promise(r => setTimeout(r, 1500));
-                            continue;
-                        }
+                    if (signal?.aborted) return [];
+
                     if (clientToUse === supabase) {
                         const sessionOk = await ensureValidSession();
                         if (!sessionOk) {
@@ -295,7 +295,6 @@ export const OrderService = {
 
                     console.log(`📡 Nexus DataSync: Buscando Ordens (tentativa ${attempt + 1})...`);
 
-                    // 🛡️ Timeout Protection: 20s
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 20000);
 
@@ -321,7 +320,6 @@ export const OrderService = {
                     }
 
                     if (error) {
-                        // 🔒 Check for auth/session errors
                         if (error.message?.includes('JWT') ||
                             error.message?.includes('expired') ||
                             error.message?.includes('auth') ||
@@ -341,7 +339,6 @@ export const OrderService = {
                     }
                     const mapped = (data || []).map(d => OrderService._mapOrderFromDB(d));
 
-                    // Atualiza cache local silenciosamente
                     localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(mapped));
 
                     return mapped;
@@ -349,9 +346,8 @@ export const OrderService = {
                 } catch (err: any) {
                     if (err?.name === 'AbortError' || err?.message?.includes('Killed by Nexus')) {
                         if (attempt < MAX_RETRIES - 1) continue;
-                        throw err; // Lança para o useQuery (NexusHooks) fazer retry
+                        throw err;
                     }
-                    // Generic error on last attempt
                     if (attempt >= MAX_RETRIES - 1) {
                         console.error("❌ Erro ao buscar ordens:", err.message);
                         const cached = localStorage.getItem(STORAGE_KEYS.ORDERS);
@@ -359,7 +355,7 @@ export const OrderService = {
                             console.warn("⚠️ Usando dados em cache devido a erro (Fallback secundário).");
                             return JSON.parse(cached);
                         }
-                        throw err; // Lança para o useQuery engatilhar retry invés de retornar vazio falso
+                        throw err;
                     }
                 }
             }
