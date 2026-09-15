@@ -253,6 +253,27 @@ export const AuthService = {
             return undefined;
         }
 
+        // 🔒 TENANT SUSPENSION CHECK — Verificação síncrona/imediata da empresa no gateway de usuário
+        if (dbUser.tenant_id) {
+            const { data: tenantRow } = await supabase
+                .from('tenants')
+                .select('status, name, company_name')
+                .eq('id', dbUser.tenant_id)
+                .maybeSingle();
+
+            if (tenantRow?.status === 'suspended') {
+                const companyName = tenantRow.company_name || tenantRow.name || 'sua empresa';
+                logger.warn('🔒 Acesso Negado: Empresa com acesso suspenso no painel master.', { tenantId: dbUser.tenant_id, companyName });
+                
+                // Desloga do Supabase para encerrar a sessão imediatamente
+                await supabase.auth.signOut().catch(() => {});
+                SessionStorage.clear();
+                GlobalStorage.remove('persistent_user');
+                
+                throw new Error(`🔒 Acesso bloqueado: ${companyName} está com o acesso suspenso. Entre em contato com o suporte para regularizar sua situação.`);
+            }
+        }
+
         // 2. Validação Exclusiva de Acesso ao Painel (MIT/Harvard Principle)
         // Somente ADMIN e SUPER_ADMIN podem acessar o Portal Administrativo.
         // Usuários com papel exclusivo de TECHNICIAN devem ser barrados aqui.

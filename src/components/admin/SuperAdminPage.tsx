@@ -173,6 +173,26 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
   const [masterNotifications, setMasterNotifications] = useState<any[]>([]);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
 
+  // 👁️ Audit Tracking Modal State
+  const [selectedAuditNotif, setSelectedAuditNotif] = useState<any>(null);
+  const [auditReadDetails, setAuditReadDetails] = useState<any[]>([]);
+  const [isLoadingAudit, setIsLoadingAudit] = useState(false);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
+
+  const handleOpenAuditModal = async (notif: any) => {
+    setSelectedAuditNotif(notif);
+    setIsAuditModalOpen(true);
+    setIsLoadingAudit(true);
+    try {
+      const details = await DataService.getNotificationReadDetails(notif.id);
+      setAuditReadDetails(details);
+    } catch (err) {
+      console.error('[SuperAdminPage] Erro ao carregar audit de leitura:', err);
+    } finally {
+      setIsLoadingAudit(false);
+    }
+  };
+
   const loadMasterNotifications = React.useCallback(async () => {
     try {
       setIsLoadingStats(true);
@@ -759,13 +779,19 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
 
                     <div className="flex items-center gap-3 shrink-0">
                       {/* Telemetria de Leitura */}
-                      <div className="flex items-center gap-2 bg-slate-950/80 px-3.5 py-2 rounded-xl border border-slate-800">
-                        <Eye size={15} className="text-blue-400" />
+                      <button
+                        onClick={() => handleOpenAuditModal(notif)}
+                        className="flex items-center gap-2 bg-slate-950/80 hover:bg-slate-800 px-3.5 py-2 rounded-xl border border-slate-800 hover:border-blue-500/40 transition-all text-left group"
+                        title="Clique para ver detalhes dos usuários e empresas que leram"
+                      >
+                        <Eye size={15} className="text-blue-400 group-hover:scale-110 transition-transform" />
                         <div className="flex flex-col">
-                          <span className="text-[8px] font-extrabold text-slate-400 uppercase tracking-widest">Leituras</span>
+                          <span className="text-[8px] font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                            Leituras <ChevronRight size={10} className="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </span>
                           <span className="text-xs font-black text-white leading-none">{notif.readCount || 0} confirmações</span>
                         </div>
-                      </div>
+                      </button>
 
                       {/* Revogação Instantânea Realtime */}
                       <button
@@ -1643,6 +1669,125 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                     Cancelar Operação
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 👁️ Modal de Telemetria e Audit de Leitura por Usuário/Empresa */}
+        {isAuditModalOpen && selectedAuditNotif && (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/80 backdrop-blur-2xl p-4 overflow-y-auto animate-in fade-in duration-300">
+            <div className="bg-slate-900/95 border border-slate-800 rounded-3xl w-full max-w-3xl shadow-[0_25px_60px_rgba(0,0,0,0.8)] my-auto max-h-[90vh] flex flex-col overflow-hidden ring-1 ring-white/10">
+              <div className="px-6 py-5 border-b border-slate-800 flex justify-between items-center shrink-0 bg-slate-950/60">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-blue-500/10 rounded-2xl text-blue-400 border border-blue-500/20">
+                    <Eye size={22} />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-black uppercase tracking-tight text-white flex items-center gap-2">
+                      Telemetria de Leitura Detalhada
+                    </h2>
+                    <p className="text-[10px] text-blue-400 font-extrabold uppercase tracking-[0.15em] mt-0.5 truncate max-w-md">
+                      {selectedAuditNotif.title}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsAuditModalOpen(false);
+                    setSelectedAuditNotif(null);
+                    setAuditReadDetails([]);
+                  }}
+                  className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-slate-400 hover:text-white transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto space-y-4 flex-1 custom-scrollbar">
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-950/50 p-4 rounded-2xl border border-slate-800 text-xs">
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Total de Confirmações</span>
+                    <strong className="text-white text-base font-black">{selectedAuditNotif.readCount || 0} usuários</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Prioridade</span>
+                    <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
+                      selectedAuditNotif.priority === 'urgent' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
+                      selectedAuditNotif.priority === 'warning' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                      'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                    }`}>
+                      {selectedAuditNotif.priority}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Enviado em</span>
+                    <span className="text-slate-200 font-medium">
+                      {new Date(selectedAuditNotif.created_at || selectedAuditNotif.createdAt).toLocaleDateString('pt-BR')} {new Date(selectedAuditNotif.created_at || selectedAuditNotif.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                </div>
+
+                {isLoadingAudit ? (
+                  <div className="py-12 text-center text-slate-400 flex flex-col items-center justify-center gap-3">
+                    <Loader2 size={30} className="animate-spin text-blue-400" />
+                    <span className="text-xs font-bold uppercase tracking-wider">Carregando confirmações de leitura...</span>
+                  </div>
+                ) : auditReadDetails.length === 0 ? (
+                  <div className="py-12 text-center text-slate-500 text-xs font-medium bg-slate-950/30 rounded-2xl border border-slate-800/50">
+                    <CheckCircle2 size={32} className="mx-auto mb-2 text-slate-600" />
+                    Nenhuma empresa ou usuário visualizou este comunicado ainda.
+                  </div>
+                ) : (
+                  <div className="bg-slate-950/40 rounded-2xl border border-slate-800 overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-900/80 text-[10px] uppercase font-black tracking-wider text-slate-400 border-b border-slate-800">
+                          <tr>
+                            <th className="px-4 py-3">Empresa (Tenant)</th>
+                            <th className="px-4 py-3">Usuário</th>
+                            <th className="px-4 py-3">Cargo</th>
+                            <th className="px-4 py-3 text-right">Data/Hora da Leitura</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60 font-medium">
+                          {auditReadDetails.map((item, idx) => (
+                            <tr key={idx} className="hover:bg-slate-800/30 transition-colors">
+                              <td className="px-4 py-3 text-white font-bold">
+                                {item.tenantName || item.tenantId || 'Empresa Desconhecida'}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="text-slate-200 font-semibold">{item.userName}</div>
+                                <div className="text-[10px] text-slate-500">{item.userEmail}</div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded text-[9px] font-bold uppercase border border-blue-500/20">
+                                  {item.userRole}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-right text-emerald-400 font-mono text-[11px]">
+                                {new Date(item.readAt).toLocaleDateString('pt-BR')} {new Date(item.readAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="px-6 py-4 border-t border-slate-800 flex justify-end bg-slate-950/60">
+                <button
+                  onClick={() => {
+                    setIsAuditModalOpen(false);
+                    setSelectedAuditNotif(null);
+                    setAuditReadDetails([]);
+                  }}
+                  className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all"
+                >
+                  Fechar
+                </button>
               </div>
             </div>
           </div>

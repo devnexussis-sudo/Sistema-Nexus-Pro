@@ -234,6 +234,34 @@ export function useSystemNotifications(userId?: string, tenantId?: string, userR
         };
     }, [userId, tenantId, userRole]);
 
+    // 🛡️ 3. Timer Periódico a cada 10 segundos para purgar notificações que expiraram em tempo real
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (!isMounted.current) return;
+            const nowMs = Date.now();
+            setNotifications(prev => {
+                const active = prev.filter(n => {
+                    if (!n.expiresAt) return true;
+                    const expMs = new Date(n.expiresAt).getTime();
+                    return !isNaN(expMs) && expMs > nowMs;
+                });
+                if (active.length !== prev.length) return active;
+                return prev;
+            });
+            setActiveToast(prev => {
+                if (!prev) return null;
+                const notif = notifications.find(n => n.id === prev.id);
+                if (notif?.expiresAt) {
+                    const expMs = new Date(notif.expiresAt).getTime();
+                    if (!isNaN(expMs) && expMs <= nowMs) return null;
+                }
+                return prev;
+            });
+        }, 10000);
+
+        return () => clearInterval(interval);
+    }, [notifications]);
+
     const unreadCount = notifications.filter(n => !n.isRead).length;
     const warningNotifications = notifications.filter(n => !n.isRead && n.priority === 'warning');
     const urgentNotifications = notifications.filter(n => !n.isRead && n.priority === 'urgent');

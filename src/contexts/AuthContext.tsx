@@ -70,6 +70,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     isRefreshingUser.current = false;
                     if (rUser && isMounted.current) {
                         setAuth({ user: rUser, isAuthenticated: true });
+                    } else if (isMounted.current) {
+                        setAuth({ user: null, isAuthenticated: false });
+                        setSession(null);
+                        SessionStorage.clear();
+                        GlobalStorage.remove('persistent_user');
                     }
                 }
                 return;
@@ -90,6 +95,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         isRefreshingUser.current = false;
                         if (rUser && isMounted.current) {
                             setAuth({ user: rUser, isAuthenticated: true });
+                        } else if (isMounted.current) {
+                            setAuth({ user: null, isAuthenticated: false });
+                            setSession(null);
+                            SessionStorage.clear();
+                            GlobalStorage.remove('persistent_user');
                         }
                     }
                     return;
@@ -150,6 +160,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     isRefreshingUser.current = false;
                     if (rUser && isMounted.current) {
                         setAuth({ user: rUser, isAuthenticated: true });
+                    } else if (isMounted.current) {
+                        setAuth({ user: null, isAuthenticated: false });
+                        setSession(null);
+                        SessionStorage.clear();
+                        GlobalStorage.remove('persistent_user');
                     }
                 }
             } else if (event === 'TOKEN_REFRESHED' && newSession?.user) {

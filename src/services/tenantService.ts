@@ -950,9 +950,20 @@ export const TenantService = {
                     };
                 });
 
-                // Attach isRead flag based on the combined readIds and filter by targetTenants and targetRoles
+                // Attach isRead flag based on the combined readIds and filter by targetTenants, targetRoles, and strict expiration
+                const nowMs = Date.now();
+
                 return notifications
                     .filter(n => {
+                        // 🛡️ Filtro Rigoroso de Expiração (se expirou, NUNCA exibir)
+                        const expStr = n.expiresAt || n.expires_at;
+                        if (expStr) {
+                            const expMs = new Date(expStr).getTime();
+                            if (!isNaN(expMs) && expMs <= nowMs) {
+                                return false; // Expirou! Excluir da resposta
+                            }
+                        }
+
                         const notifType = String(n.type || 'broadcast').toLowerCase().trim();
 
                         // 1. Filtro por Tenant
@@ -1038,6 +1049,68 @@ export const TenantService = {
             }
         }
         return [];
+    },
+
+    getNotificationReadDetails: async (notificationId: string): Promise<Array<{
+        userId: string;
+        userName: string;
+        userEmail: string;
+        userRole: string;
+        tenantId: string;
+        tenantName: string;
+        readAt: string;
+    }>> => {
+        if (!isCloudEnabled || !notificationId) return [];
+
+        try {
+            const { data: rawReads, error } = await publicSupabase
+                .from('system_notification_reads')
+                .select('user_id, read_at')
+                .eq('notification_id', notificationId)
+                .order('read_at', { ascending: false });
+
+            if (error || !rawReads || rawReads.length === 0) return [];
+
+            const userIds = rawReads.map(r => r.user_id);
+            const { data: usersData } = await publicSupabase
+                .from('users')
+                .select('id, name, email, role, tenant_id')
+                .in('id', userIds);
+
+            const tenantIds = Array.from(new Set((usersData || []).map(u => u.tenant_id).filter(Boolean)));
+            let tenantMap: Record<string, string> = {};
+            if (tenantIds.length > 0) {
+                const { data: tenantsData } = await publicSupabase
+                    .from('tenants')
+                    .select('id, name, company_name')
+                    .in('id', tenantIds);
+
+                (tenantsData || []).forEach((t: any) => {
+                    tenantMap[t.id] = t.company_name || t.name || t.id;
+                });
+            }
+
+            const userMap: Record<string, any> = {};
+            (usersData || []).forEach((u: any) => {
+                userMap[u.id] = u;
+            });
+
+            return rawReads.map((r: any) => {
+                const u = userMap[r.user_id] || {};
+                return {
+                    userId: r.user_id,
+                    userName: u.name || 'Usuário',
+                    userEmail: u.email || 'N/A',
+                    userRole: u.role || 'USER',
+                    tenantId: u.tenant_id || 'N/A',
+                    tenantName: tenantMap[u.tenant_id] || u.tenant_id || 'Instância Global',
+                    readAt: r.read_at || new Date().toISOString()
+                };
+            });
+        } catch (err) {
+            console.error('[TenantService] Failed to load notification read details:', err);
+            return [];
+        }
     },
 
     revokeSystemNotification: async (notificationId: string): Promise<void> => {

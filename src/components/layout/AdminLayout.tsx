@@ -43,8 +43,15 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     const navigate = useNavigate();
     const [showInbox, setShowInbox] = useState(false);
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-    // IDs de notificações já dispensadas neste ciclo de vida (evita flash durante gravação)
-    const [locallyDismissed, setLocallyDismissed] = useState<string[]>([]);
+    // IDs de notificações já dispensadas neste ciclo de vida / dispositivo (zero flash de tela)
+    const [locallyDismissed, setLocallyDismissed] = useState<string[]>(() => {
+        try {
+            if (!user?.id) return [];
+            return JSON.parse(localStorage.getItem(`nexus_dismissed_notif_${user.id}`) || '[]');
+        } catch (e) {
+            return [];
+        }
+    });
     const [whatsappWaitingCount, setWhatsappWaitingCount] = useState(0);
     const [solicitacoesCount, setSolicitacoesCount] = useState(0);
     const { setAuth, logout } = useAuth();
@@ -778,7 +785,16 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
             {/* 📣 CENTER GLASSMORPHIC POPUP OVERLAY (UNREAD SYSTEM NOTIFICATIONS) */}
             {!isStandalone && systemNotifications
-                .filter(n => !n.isRead && !locallyDismissed.includes(n.id))
+                .filter(n => {
+                    if (n.isRead) return false;
+                    if (locallyDismissed.includes(n.id)) return false;
+                    const expStr = n.expiresAt || n.expires_at;
+                    if (expStr) {
+                        const expMs = new Date(expStr).getTime();
+                        if (!isNaN(expMs) && expMs <= Date.now()) return false;
+                    }
+                    return true;
+                })
                 .slice(0, 1)
                 .map(activeNotif => {
                     const isUrgent = activeNotif.priority === 'urgent';
