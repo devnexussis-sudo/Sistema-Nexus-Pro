@@ -563,6 +563,7 @@ export const UserManagement: React.FC = () => {
       }
 
       await loadData();
+      window.dispatchEvent(new Event('tech_limit_updated'));
       setIsModalOpen(false);
       setEditingUser(null);
       alert("✅ Administrador processado com sucesso!");

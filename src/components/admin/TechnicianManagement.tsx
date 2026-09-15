@@ -45,6 +45,7 @@ export const TechnicianManagement: React.FC = () => {
       
       const tenant = await DataService.getTenantById();
       setTenantLimit(tenant?.max_technicians || 0);
+      window.dispatchEvent(new Event('tech_limit_updated'));
     } catch (error) {
       console.error("Erro ao carregar técnicos:", error);
     } finally {
