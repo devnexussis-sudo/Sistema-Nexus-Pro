@@ -288,7 +288,7 @@ export const WhatsAppInbox: React.FC = () => {
         .eq('tenant_id', tenantId)
         .eq('active', true)
         .order('name', { ascending: true })
-        .limit(150);
+        .limit(1000);
       if (data) {
         setAllCustomers(data as Customer[]);
       }
@@ -590,25 +590,130 @@ export const WhatsAppInbox: React.FC = () => {
 
   const selected = conversations.find(c => c.id === selectedId) || null;
 
-  // Auto-scroll quando histórico muda
+  // Estado para armazenar mensagens carregadas da tabela dedicada whatsapp_messages
+  const [currentDbMessages, setCurrentDbMessages] = useState<Message[]>([]);
+
+  // ── Carregar histórico completo da tabela dedicada whatsapp_messages para a conversa ativa ──
+  useEffect(() => {
+    if (!selectedId) {
+      setCurrentDbMessages([]);
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadMessagesFromDb = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('whatsapp_messages')
+          .select('*')
+          .eq('conversation_id', selectedId)
+          .order('created_at', { ascending: true });
+
+        if (error) {
+          console.warn('[WhatsAppInbox] Aviso ao carregar mensagens dedicadas:', error);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          const formatted: Message[] = data.map(m => ({
+            role: m.role as any,
+            content: m.content,
+            timestamp: m.created_at,
+            agent_id: m.agent_id || undefined,
+            agent_name: m.agent_name || undefined
+          }));
+          if (isMounted) setCurrentDbMessages(formatted);
+        } else {
+          if (isMounted) setCurrentDbMessages([]);
+        }
+      } catch (e) {
+        console.error('[WhatsAppInbox] Falha ao carregar mensagens do banco:', e);
+      }
+    };
+
+    loadMessagesFromDb();
+
+    // Escutar novos inserts de mensagens na tabela dedicada em tempo real para a conversa selecionada
+    const channel = supabase
+      .channel(`wpp_messages_active_${selectedId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'whatsapp_messages',
+        filter: `conversation_id=eq.${selectedId}`
+      }, (payload) => {
+        const newM = payload.new as any;
+        if (!newM) return;
+        const formatted: Message = {
+          role: newM.role,
+          content: newM.content,
+          timestamp: newM.created_at,
+          agent_id: newM.agent_id || undefined,
+          agent_name: newM.agent_name || undefined
+        };
+        if (isMounted) {
+          setCurrentDbMessages(prev => {
+            const exists = prev.some(m => 
+              m.role === formatted.role && 
+              m.content === formatted.content &&
+              Math.abs(new Date(m.timestamp).getTime() - new Date(formatted.timestamp).getTime()) < 5000
+            );
+            if (exists) return prev;
+            return [...prev, formatted];
+          });
+        }
+      })
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, [selectedId]);
+
+  // Mensagens ativas combinadas (banco dedicado + histórico otimista local)
+  const activeMessages = useMemo(() => {
+    if (!selected) return [];
+    const dbMsgs = currentDbMessages;
+    const jsonMsgs = selected.history || [];
+
+    if (dbMsgs.length > 0) {
+      const merged = [...dbMsgs];
+      jsonMsgs.forEach(jsonM => {
+        const isAlreadyInDb = merged.some(dbM => 
+          dbM.role === jsonM.role && 
+          dbM.content === jsonM.content &&
+          Math.abs(new Date(dbM.timestamp).getTime() - new Date(jsonM.timestamp).getTime()) < 10000
+        );
+        if (!isAlreadyInDb) {
+          merged.push(jsonM);
+        }
+      });
+      return merged.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    }
+
+    return jsonMsgs;
+  }, [selected, currentDbMessages]);
+
+  // Auto-scroll quando mensagens ativas mudam
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [selected?.history?.length]);
+  }, [activeMessages.length]);
 
   const [realtimeOk, setRealtimeOk] = useState(false);
 
   // Helper para disparar atualização imediata na badge do menu
   const triggerNavUpdate = () => window.dispatchEvent(new Event('whatsapp_state_changed'));
 
-  // ── Carregar conversas (merge silencioso, sem piscar) ───────────────────────
+  // ── Carregar conversas (sem limite artificial, preservando histórico completo) ──
   const fetchConversations = useCallback(async (silent = false) => {
     if (isOptimisticPending.current) return; // Não sobresscrever estado otimista com dados velhos do DB
     
     const { data } = await supabase
       .from('whatsapp_conversations')
       .select('*, customers(name, document), users(name)')
-      .order('last_message_at', { ascending: false })
-      .limit(50);
+      .order('last_message_at', { ascending: false });
     if (data) {
       setConversations(prev => {
         // Detectar novas mensagens para tocar som/notificações
@@ -1457,14 +1562,14 @@ export const WhatsAppInbox: React.FC = () => {
 
           {/* Mensagens */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
-            {(!selected.history || selected.history.length === 0) && (
+            {activeMessages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-gray-300">
                 <MessageCircle size={40} />
                 <p className="text-xs mt-2">Nenhuma mensagem ainda</p>
               </div>
             )}
             {(() => {
-              const history = selected.history || [];
+              const history = activeMessages;
               if (!history || history.length === 0) return null;
 
               const openViewerAtUrl = (mediaUrl: string) => {
