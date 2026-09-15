@@ -526,7 +526,7 @@ export const UserManagement: React.FC = () => {
 
       const dataToSave = {
         ...formData,
-        groupId: selectedGroupIds[0] || '', // legado: mantém o primeiro grupo
+        groupId: (selectedGroupIds[0] && selectedGroupIds[0].trim() !== '') ? selectedGroupIds[0] : null,
         groupIds: selectedGroupIds,
         permissions: userPermissions,
         appScope: formData.appScope || AppScope.WEB,

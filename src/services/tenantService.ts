@@ -723,6 +723,10 @@ export const TenantService = {
 
             const generatedAvatar = userData.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.name || 'User')}&background=random&color=fff&bold=true`;
 
+            const validGroupId = (userData.groupId && userData.groupId.trim() !== '' && /^[0-9a-fA-F-]{36}$/.test(userData.groupId)) 
+                ? userData.groupId 
+                : null;
+
             // 2. Create/Update DB User Entry (Promove para o papel definido na aba de usuários)
             const dbUser: any = {
                 id: userId,
@@ -731,7 +735,7 @@ export const TenantService = {
                 role: userData.role, // Aqui será ADMIN ou SUPER_ADMIN vindo da aba de usuários
                 active: userData.active,
                 tenant_id: userData.tenantId,
-                group_id: userData.groupId,
+                group_id: validGroupId,
                 group_ids: userData.groupIds,
                 avatar: generatedAvatar,
                 permissions: userData.permissions,
@@ -752,10 +756,14 @@ export const TenantService = {
 
     updateUser: async (userData: Partial<User> & { id: string; password?: string; groupId?: string }): Promise<DbUser> => {
         if (isCloudEnabled) {
+            const validGroupId = (userData.groupId && userData.groupId.trim() !== '' && /^[0-9a-fA-F-]{36}$/.test(userData.groupId)) 
+                ? userData.groupId 
+                : null;
+
             const dbUser: any = {
                 name: userData.name,
                 active: userData.active,
-                group_id: userData.groupId,
+                group_id: validGroupId,
                 group_ids: userData.groupIds,
                 avatar: userData.avatar,
                 permissions: userData.permissions,
