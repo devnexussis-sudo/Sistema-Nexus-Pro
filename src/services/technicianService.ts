@@ -2,6 +2,7 @@
 import { CacheManager } from '../lib/cache';
 import { adminAuthProxy, publicSupabase, supabase } from '../lib/supabase';
 import { getCurrentTenantId } from '../lib/tenantContext';
+import SessionStorage from '../lib/sessionStorage';
 import { UserRole, AppScope } from '../types';
 import { StorageService } from './storageService';
 
