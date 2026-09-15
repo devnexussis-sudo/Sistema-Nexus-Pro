@@ -257,10 +257,12 @@ export const useQuotes = (enabled = true) => {
 // ------------------------------------------------------------------
 
 export const useEquipments = (enabled = true) => {
-    return useQuery('equipments', (signal) => EquipmentService.getEquipments(signal), {
-        enabled,
-        staleTime: 1000 * 60 * 10,
-        keepPreviousData: true
+    const tid = DataService.getCurrentTenantId() || 'default';
+    return useQuery(['equipments', tid], (signal) => EquipmentService.getEquipments(signal), {
+        enabled: enabled && !!DataService.getCurrentTenantId(),
+        staleTime: 0,
+        refetchOnMount: 'always',
+        keepPreviousData: false
     });
 };
 

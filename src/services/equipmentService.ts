@@ -79,8 +79,6 @@ export const EquipmentService = {
             const clientToUse = supabase;
 
             const cacheKey = `equipments_${tenantId}`;
-            const cached = CacheManager.get<Equipment[]>(cacheKey);
-            if (cached) return cached;
 
             return CacheManager.deduplicate(cacheKey, async (currentSignal) => {
                 let query = clientToUse.from('equipments')
