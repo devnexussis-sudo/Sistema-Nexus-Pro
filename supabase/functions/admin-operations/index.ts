@@ -71,19 +71,26 @@ serve(async (req: Request) => {
                 .eq('id', operator.id)
                 .maybeSingle();
 
-            if (operatorData && (operatorData.role === 'ADMIN' || operatorData.role === 'SUPER_ADMIN' || operatorData.role === 'moros_admin')) {
-                isAuthorized = true;
+            if (operatorData) {
                 operatorTenantId = operatorData.tenant_id;
+                if (operatorData.role === 'ADMIN' || operatorData.role === 'SUPER_ADMIN' || operatorData.role === 'moros_admin') {
+                    isAuthorized = true;
+                }
+            } else {
+                operatorTenantId = operator.user_metadata?.tenantId || operator.user_metadata?.tenant_id || null;
             }
-        }
-
-        if (!isAuthorized) {
-            throw new Error("Acesso negado: Somente administradores podem realizar esta ação.");
         }
 
         // 5. Processar o JSON
         const body = await req.json().catch(() => ({}));
         const { action, payload } = body;
+
+        // Permissão: Ações de edição/criação/exclusão exigem perfil de Admin. Ação 'list_users' permite qualquer usuário autenticado do tenant.
+        const canPerformAction = isGlobalAdmin || isAuthorized || (action === 'list_users' && !!operatorTenantId);
+
+        if (!canPerformAction) {
+            throw new Error("Acesso negado: Permissão insuficiente para realizar esta ação.");
+        }
 
         console.log(`[Admin] Action: ${action} | Operator: ${operator.email} | IsGlobalAdmin: ${isGlobalAdmin} | Tenant: ${operatorTenantId}`);
 
@@ -166,7 +173,10 @@ serve(async (req: Request) => {
                 if (error) throw error;
                 const tenantUsers = isGlobalAdmin
                     ? data.users
-                    : data.users.filter(u => u.user_metadata?.tenantId === operatorTenantId);
+                    : data.users.filter(u => {
+                        const tid = u.user_metadata?.tenantId || u.user_metadata?.tenant_id || u.tenantId || u.tenant_id;
+                        return tid === operatorTenantId;
+                    });
                 result = { users: tenantUsers };
                 break;
             }

@@ -805,15 +805,19 @@ export const TenantService = {
             // 3. Se for usuário com acesso a app/técnico, sincroniza tabela `technicians`
             if (isTechUser) {
                 const { formatTechCode } = await import('./technicianService');
-                await supabase.from('technicians').upsert([{
-                    id: userId,
-                    name: userData.name,
-                    email: targetEmail,
-                    active: userData.active ?? true,
-                    avatar: generatedAvatar,
-                    tech_code: formatTechCode(userId),
-                    tenant_id: userData.tenantId
-                }]).catch(console.warn);
+                try {
+                    await supabase.from('technicians').upsert([{
+                        id: userId,
+                        name: userData.name,
+                        email: targetEmail,
+                        active: userData.active ?? true,
+                        avatar: generatedAvatar,
+                        tech_code: formatTechCode(userId),
+                        tenant_id: userData.tenantId
+                    }]);
+                } catch (e) {
+                    console.warn("⚠️ Non-fatal upsert tech notice:", e);
+                }
                 CacheManager.invalidate(`techs_${userData.tenantId}`);
             }
 
@@ -893,18 +897,22 @@ export const TenantService = {
             const finalRole = userData.role || existingUser?.role;
             const isTechUser = finalScope === AppScope.HYBRID || finalScope === AppScope.MOBILE || finalRole === UserRole.TECHNICIAN;
 
-            const tid = existingUser?.tenant_id || getCurrentTenantId();
             if (isTechUser && tid) {
                 const { formatTechCode } = await import('./technicianService');
-                await supabase.from('technicians').upsert([{
-                    id: userData.id,
-                    name: userData.name || existingUser?.name || 'Técnico',
-                    email: data?.email || existingUser?.email,
-                    active: userData.active ?? existingUser?.active ?? true,
-                    avatar: userData.avatar || '',
-                    tech_code: formatTechCode(userData.id),
-                    tenant_id: tid
-                }]).catch(console.warn);
+                const userEmail = userData.email || data?.email || existingUser?.email || '';
+                try {
+                    await supabase.from('technicians').upsert([{
+                        id: userData.id,
+                        name: userData.name || existingUser?.name || 'Técnico',
+                        email: userEmail,
+                        active: userData.active ?? existingUser?.active ?? true,
+                        avatar: userData.avatar || '',
+                        tech_code: formatTechCode(userData.id),
+                        tenant_id: tid
+                    }]);
+                } catch (e) {
+                    console.warn("⚠️ Non-fatal upsert tech notice:", e);
+                }
                 CacheManager.invalidate(`techs_${tid}`);
             }
 

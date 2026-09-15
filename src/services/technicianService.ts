@@ -179,16 +179,20 @@ export const TechnicianService = {
                         };
                         techMap.set(u.id, syntheticTech);
 
-                        supabase.from('technicians').upsert([{
-                            id: u.id,
-                            name: u.name || u.email || 'Técnico',
-                            email: u.email || '',
-                            active: u.active ?? true,
-                            phone: u.phone || '',
-                            avatar: u.avatar || '',
-                            tech_code: formatTechCode(u.id),
-                            tenant_id: tenantId
-                        }]).catch(console.warn);
+                        try {
+                            await supabase.from('technicians').upsert([{
+                                id: u.id,
+                                name: u.name || u.email || 'Técnico',
+                                email: u.email || '',
+                                active: u.active ?? true,
+                                phone: u.phone || '',
+                                avatar: u.avatar || '',
+                                tech_code: formatTechCode(u.id),
+                                tenant_id: tenantId
+                            }]);
+                        } catch (upsertErr) {
+                            console.warn("⚠️ Non-fatal tech upsert warning:", upsertErr);
+                        }
                     }
                 });
 
