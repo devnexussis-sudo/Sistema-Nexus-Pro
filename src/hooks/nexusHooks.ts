@@ -115,7 +115,7 @@ export const useUsers = (enabled = true) => {
         }
         return TenantService.getTenantUsers(tenantId, signal);
     }, {
-        enabled,
+        enabled: enabled && !!DataService.getCurrentTenantId(),
         staleTime: 0,
         refetchOnMount: 'always',
         keepPreviousData: false
@@ -132,7 +132,7 @@ export const useUserGroups = (enabled = true) => {
         }
         return TenantService.getUserGroups(tenantId, signal);
     }, {
-        enabled,
+        enabled: enabled && !!DataService.getCurrentTenantId(),
         staleTime: 0,
         refetchOnMount: 'always',
         keepPreviousData: false

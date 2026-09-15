@@ -45,11 +45,26 @@ class TenantContextManager {
      * Retorna `undefined` (não `null`) para compatibilidade com os services.
      */
     getCurrentTenantId(): string | undefined {
-        // 1. Cache em memória
-        if (this.cachedTenantId) return this.cachedTenantId;
-
         try {
-            // 2. Sessão de técnico (localStorage — sobrevive a reloads em PWA)
+            // 1. Sessão de admin/operador (SessionStorage — isolada por aba)
+            const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
+            if (userStr) {
+                const user = typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
+                const tid = user.tenantId || user.tenant_id;
+                if (tid) {
+                    this.cachedTenantId = tid;
+                    return tid;
+                }
+            }
+
+            // 2. SessionStorage `current_tenant` (setado por impersonation no SuperAdminPage)
+            const storedTenant = SessionStorage.get('current_tenant');
+            if (storedTenant) {
+                this.cachedTenantId = storedTenant;
+                return storedTenant;
+            }
+
+            // 3. Sessão de técnico (localStorage — sobrevive a reloads em PWA)
             const techSession = localStorage.getItem('nexus_tech_session_v2') ||
                 localStorage.getItem('nexus_tech_session');
             if (techSession) {
@@ -61,23 +76,8 @@ class TenantContextManager {
                 }
             }
 
-            // 3. Sessão de admin/operador (SessionStorage — isolada por aba)
-            const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
-            if (userStr) {
-                const user = typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
-                const tid = user.tenantId || user.tenant_id;
-                if (tid) {
-                    this.cachedTenantId = tid;
-                    return tid;
-                }
-            }
-
-            // 4. SessionStorage `current_tenant` (setado por impersonation no SuperAdminPage)
-            const storedTenant = SessionStorage.get('current_tenant');
-            if (storedTenant) {
-                this.cachedTenantId = storedTenant;
-                return storedTenant;
-            }
+            // 4. Cache em memória (fallback se sessões não declararem tenant)
+            if (this.cachedTenantId) return this.cachedTenantId;
 
             // ⛔ 5. URL params — BLOQUEADO para usuários autenticados.
             // Se chegamos aqui, não há sessão alguma. Verificamos URL apenas
@@ -145,6 +145,7 @@ class TenantContextManager {
     clear(): void {
         this.cachedTenantId = null;
         SessionStorage.remove('current_tenant');
+        SessionStorage.remove('is_impersonating');
         this.notifyListeners(null);
     }
 

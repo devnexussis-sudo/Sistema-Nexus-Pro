@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { logger } from '../lib/logger';
 import { GlobalStorage, SessionStorage } from '../lib/sessionStorage';
 import { adminAuthProxy, supabase, publicSupabase, safeUrl, safeKey } from '../lib/supabase';
-import { getCurrentTenantId as _getTenantId } from '../lib/tenantContext';
+import { tenantContext, getCurrentTenantId as _getTenantId } from '../lib/tenantContext';
 import { User, UserRole, AppScope, ADMIN_PERMISSIONS, DEFAULT_PERMISSIONS } from '../types';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
@@ -151,6 +151,9 @@ export const AuthService = {
 
                 if (fullUser.tenantId) {
                     SessionStorage.set('current_tenant', fullUser.tenantId);
+                    tenantContext.setTenantId(fullUser.tenantId);
+                } else {
+                    tenantContext.setTenantId(null);
                 }
 
                 return fullUser;
@@ -169,6 +172,7 @@ export const AuthService = {
         }
         SessionStorage.clear();
         GlobalStorage.remove('persistent_user');
+        tenantContext.clear();
 
         // Clear all potential auth keys
         const keys = [

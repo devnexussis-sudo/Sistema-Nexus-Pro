@@ -452,10 +452,7 @@ export const TenantService = {
     getTenantUsers: async (tenantId: string, signal?: AbortSignal): Promise<User[]> => {
         if (!tenantId) return [];
         if (isCloudEnabled) {
-            const isImpersonating = typeof window !== 'undefined' && (SessionStorage.get('is_impersonating') === true || (window as any).__NEXUS_IMPERSONATION === true);
-            const clientToUse = isImpersonating ? publicSupabase : supabase;
-
-            let query = clientToUse
+            let query = supabase
                 .from('users')
                 .select('*')
                 .eq('tenant_id', tenantId)
@@ -468,22 +465,62 @@ export const TenantService = {
 
             let { data, error } = await query;
 
-            if ((error || !data || data.length === 0) && clientToUse === supabase) {
-                let fbQuery = publicSupabase
-                    .from('users')
-                    .select('*')
-                    .eq('tenant_id', tenantId)
-                    .order('created_at', { ascending: false })
-                    .limit(100);
-                if (signal) fbQuery = fbQuery.abortSignal(signal);
-                const fbRes = await fbQuery;
-                if (!fbRes.error && fbRes.data) {
-                    data = fbRes.data;
-                    error = null;
+            // Fallback 1: Try publicSupabase
+            if (error || !data || data.length === 0) {
+                try {
+                    let fbQuery = publicSupabase
+                        .from('users')
+                        .select('*')
+                        .eq('tenant_id', tenantId)
+                        .order('created_at', { ascending: false })
+                        .limit(100);
+                    if (signal) fbQuery = fbQuery.abortSignal(signal);
+                    const fbRes = await fbQuery;
+                    if (!fbRes.error && fbRes.data && fbRes.data.length > 0) {
+                        data = fbRes.data;
+                        error = null;
+                    }
+                } catch (e) {
+                    console.warn('[TenantService] Fallback publicSupabase error:', e);
                 }
             }
 
-            if (error) {
+            // Fallback 2: Try adminAuthProxy (Edge Function)
+            if (error || !data || data.length === 0) {
+                try {
+                    const adminRes = await adminAuthProxy.admin.listUsers();
+                    if (adminRes.data && adminRes.data.users) {
+                        const filtered = adminRes.data.users.filter((u: any) => {
+                            const userTid = u.user_metadata?.tenantId || u.tenantId || u.tenant_id;
+                            return userTid === tenantId;
+                        });
+                        if (filtered.length > 0) {
+                            return filtered.map((u: any) => {
+                                const meta = u.user_metadata || {};
+                                const rawRole = (meta.role || u.role || 'ADMIN').toString().toUpperCase();
+                                const normalizedRole = (rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN') ? UserRole.ADMIN : (rawRole as UserRole);
+                                return {
+                                    id: u.id,
+                                    name: meta.name || u.name || u.email?.split('@')[0] || 'Usuário',
+                                    email: u.email,
+                                    role: normalizedRole,
+                                    active: u.active !== false,
+                                    avatar: meta.avatar || '',
+                                    groupId: meta.groupId || '',
+                                    groupIds: meta.groupIds || [],
+                                    tenantId: tenantId,
+                                    permissions: meta.permissions || {},
+                                    appScope: (meta.appScope as AppScope) || AppScope.WEB
+                                };
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[TenantService] Fallback adminAuthProxy error:', e);
+                }
+            }
+
+            if (error && (!data || data.length === 0)) {
                 console.error("Error fetching tenant users:", error);
                 return [];
             }
@@ -523,10 +560,7 @@ export const TenantService = {
     getUserGroups: async (tenantId: string, signal?: AbortSignal): Promise<UserGroup[]> => {
         if (!tenantId) return [];
         if (isCloudEnabled) {
-            const isImpersonating = typeof window !== 'undefined' && (SessionStorage.get('is_impersonating') === true || (window as any).__NEXUS_IMPERSONATION === true);
-            const clientToUse = isImpersonating ? publicSupabase : supabase;
-
-            let query = clientToUse
+            let query = supabase
                 .from('user_groups')
                 .select('*')
                 .eq('tenant_id', tenantId)
@@ -538,7 +572,7 @@ export const TenantService = {
 
             let { data, error } = await query;
 
-            if ((error || !data || data.length === 0) && clientToUse === supabase) {
+            if ((error || !data || data.length === 0)) {
                 let fbQuery = publicSupabase
                     .from('user_groups')
                     .select('*')
