@@ -142,7 +142,7 @@ export const TechnicianService = {
                 });
 
                 // 2. Mescla escopo de acesso e inclui usuários habilitados para o App (HYBRID, MOBILE ou role TECHNICIAN)
-                (tenantUsers || []).forEach(u => {
+                for (const u of (tenantUsers || [])) {
                     const rawScope = String((u as any).appScope || (u as any).app_scope || '').toUpperCase();
                     const rawRole = String(u.role || '').toUpperCase();
 
@@ -194,7 +194,7 @@ export const TechnicianService = {
                             console.warn("⚠️ Non-fatal tech upsert warning:", upsertErr);
                         }
                     }
-                });
+                }
 
                 const result = Array.from(techMap.values());
                 if (result && result.length > 0) {
