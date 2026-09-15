@@ -510,7 +510,7 @@ export const TenantService = {
                                     groupIds: meta.groupIds || [],
                                     tenantId: tenantId,
                                     permissions: meta.permissions || {},
-                                    appScope: (meta.appScope as AppScope) || AppScope.WEB
+                                    appScope: (meta.appScope || meta.app_scope || (normalizedRole === UserRole.TECHNICIAN ? AppScope.MOBILE : AppScope.WEB)) as AppScope
                                 };
                             });
                         }
@@ -550,7 +550,7 @@ export const TenantService = {
                     groupIds: parsedGroupIds.length > 0 ? parsedGroupIds : (u.group_id ? [u.group_id] : []),
                     tenantId: u.tenant_id as string,
                     permissions: u.permissions as any,
-                    appScope: (u.app_scope as AppScope) || AppScope.WEB
+                    appScope: (u.app_scope as AppScope) || (normalizedRole === UserRole.TECHNICIAN ? AppScope.MOBILE : AppScope.WEB)
                 };
             });
         }
@@ -737,7 +737,8 @@ export const TenantService = {
                     name: userData.name,
                     role: userData.role,
                     tenantId: userData.tenantId,
-                    avatar: userData.avatar
+                    avatar: userData.avatar,
+                    appScope: userData.appScope || AppScope.WEB
                 }
             });
 
@@ -758,6 +759,7 @@ export const TenantService = {
                                 name: userData.name,
                                 role: userData.role,
                                 tenantId: userData.tenantId,
+                                appScope: userData.appScope || AppScope.WEB
                             }
                         }).catch(() => {});
                     } else if (authError) {
@@ -777,12 +779,12 @@ export const TenantService = {
                 ? userData.groupId 
                 : null;
 
-            // 2. Create/Update DB User Entry (Promove para o papel definido na aba de usuários)
+            // 2. Create/Update DB User Entry
             const dbUser: any = {
                 id: userId,
                 name: userData.name,
                 email: userData.email,
-                role: userData.role, // Aqui será ADMIN ou SUPER_ADMIN vindo da aba de usuários
+                role: userData.role,
                 active: userData.active,
                 tenant_id: userData.tenantId,
                 group_id: validGroupId,
@@ -794,11 +796,27 @@ export const TenantService = {
 
             const { data, error } = await supabase
                 .from('users')
-                .upsert([dbUser]) // Usamos upsert para garantir que se ele já era técnico na tabela users com outro role, ele agora seja promovido
+                .upsert([dbUser])
                 .select()
                 .single();
 
             if (error) throw error;
+
+            // 3. Se for usuário com acesso a app/técnico, sincroniza tabela `technicians`
+            if (isTechUser) {
+                const { formatTechCode } = await import('./technicianService');
+                await supabase.from('technicians').upsert([{
+                    id: userId,
+                    name: userData.name,
+                    email: targetEmail,
+                    active: userData.active ?? true,
+                    avatar: generatedAvatar,
+                    tech_code: formatTechCode(userId),
+                    tenant_id: userData.tenantId
+                }]).catch(console.warn);
+                CacheManager.invalidate(`techs_${userData.tenantId}`);
+            }
+
             return data as any;
         }
         return userData as any;
@@ -809,7 +827,7 @@ export const TenantService = {
             // 🔒 LICENSE GUARD na edição: Se o usuário passou a ter acesso de técnico/app e estiver ativo
             const { data: existingUser } = await supabase
                 .from('users')
-                .select('app_scope, role, active, tenant_id')
+                .select('app_scope, role, active, tenant_id, email, name')
                 .eq('id', userData.id)
                 .maybeSingle();
 
@@ -854,15 +872,40 @@ export const TenantService = {
 
             if (error) throw error;
 
-            // Sync Auth status / metadata if needed
-            if (userData.active === true) {
-                await adminAuthProxy.admin.updateUserById(userData.id, { ban_duration: 'none' }).catch(() => {});
-            } else if (userData.active === false) {
-                await adminAuthProxy.admin.updateUserById(userData.id, { ban_duration: '876000h' }).catch(() => {});
+            // Sync Auth status / metadata e appScope
+            const updateMeta: any = {};
+            if (userData.active === true) updateMeta.ban_duration = 'none';
+            else if (userData.active === false) updateMeta.ban_duration = '876000h';
+            if (userData.password) updateMeta.password = userData.password;
+            if (userData.appScope || userData.name || userData.role) {
+                updateMeta.user_metadata = {
+                    ...(userData.appScope ? { appScope: userData.appScope } : {}),
+                    ...(userData.name ? { name: userData.name } : {}),
+                    ...(userData.role ? { role: userData.role } : {})
+                };
+            }
+            if (Object.keys(updateMeta).length > 0) {
+                await adminAuthProxy.admin.updateUserById(userData.id, updateMeta).catch(() => {});
             }
 
-            if (userData.password) {
-                await adminAuthProxy.admin.updateUserById(userData.id, { password: userData.password }).catch(() => {});
+            // Sincroniza tabela física `technicians` se o usuário tiver acesso a aplicativo
+            const finalScope = userData.appScope || existingUser?.app_scope;
+            const finalRole = userData.role || existingUser?.role;
+            const isTechUser = finalScope === AppScope.HYBRID || finalScope === AppScope.MOBILE || finalRole === UserRole.TECHNICIAN;
+
+            const tid = existingUser?.tenant_id || getCurrentTenantId();
+            if (isTechUser && tid) {
+                const { formatTechCode } = await import('./technicianService');
+                await supabase.from('technicians').upsert([{
+                    id: userData.id,
+                    name: userData.name || existingUser?.name || 'Técnico',
+                    email: data?.email || existingUser?.email,
+                    active: userData.active ?? existingUser?.active ?? true,
+                    avatar: userData.avatar || '',
+                    tech_code: formatTechCode(userData.id),
+                    tenant_id: tid
+                }]).catch(console.warn);
+                CacheManager.invalidate(`techs_${tid}`);
             }
 
             return data;
