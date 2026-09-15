@@ -81,9 +81,9 @@ export const TechnicianService = {
                     query = query.abortSignal((currentSignal || signal) as AbortSignal);
                 }
 
-                let { data, error } = await query;
+                let { data: techData, error } = await query;
 
-                if ((error || !data || data.length === 0) && clientToUse === supabase) {
+                if ((error || !techData || techData.length === 0) && clientToUse === supabase) {
                     let fbQuery = publicSupabase.from('technicians')
                         .select('*')
                         .eq('tenant_id', tenantId)
@@ -92,17 +92,80 @@ export const TechnicianService = {
                     if (currentSignal || signal) fbQuery = fbQuery.abortSignal((currentSignal || signal) as AbortSignal);
                     const fbRes = await fbQuery;
                     if (!fbRes.error && fbRes.data) {
-                        data = fbRes.data;
+                        techData = fbRes.data;
                         error = null;
                     }
                 }
 
                 if (error) {
                     console.error("Error fetching technicians:", error);
-                    return [];
+                    techData = [];
                 }
-                const result = (data || []).map(d => TechnicianService._mapTechFromDB(d));
 
+                // Busca usuários na tabela base `users` para recuperar o escopo de acesso (`app_scope`)
+                // e para sincronizar usuários criados na tela de Usuários que possuem acesso ao app
+                let { data: userRows } = await clientToUse.from('users')
+                    .select('id, name, email, active, phone, avatar, role, app_scope, tenant_id')
+                    .eq('tenant_id', tenantId);
+
+                if (!userRows) {
+                    const fbUsers = await publicSupabase.from('users')
+                        .select('id, name, email, active, phone, avatar, role, app_scope, tenant_id')
+                        .eq('tenant_id', tenantId);
+                    userRows = fbUsers.data || [];
+                }
+
+                const techMap = new Map<string, any>();
+
+                // 1. Adiciona os técnicos já existentes na tabela `technicians`
+                (techData || []).forEach(d => {
+                    const techObj = TechnicianService._mapTechFromDB(d);
+                    techMap.set(d.id, techObj);
+                });
+
+                // 2. Mescla o escopo de acesso da tabela `users` e inclui usuários habilitados para o App que ainda não tenham registro em `technicians`
+                (userRows || []).forEach(u => {
+                    const userScope = u.app_scope || (u.role === UserRole.TECHNICIAN ? AppScope.MOBILE : AppScope.WEB);
+                    const hasAppAccess = userScope === AppScope.HYBRID || userScope === AppScope.MOBILE || u.role === UserRole.TECHNICIAN;
+
+                    if (techMap.has(u.id)) {
+                        const existingTech = techMap.get(u.id);
+                        existingTech.appScope = userScope;
+                        existingTech.app_scope = userScope;
+                        existingTech.userRole = u.role;
+                    } else if (hasAppAccess) {
+                        // Usuário habilitado para o App que ainda não possui linha na tabela `technicians`
+                        const syntheticTech = {
+                            id: u.id,
+                            name: u.name || u.email,
+                            email: u.email,
+                            active: u.active ?? true,
+                            phone: u.phone || '',
+                            avatar: u.avatar || '',
+                            role: u.role || UserRole.TECHNICIAN,
+                            jobTitle: u.role === UserRole.ADMIN ? 'Administrador / Técnico' : 'Técnico de Campo',
+                            techCode: formatTechCode(u.id),
+                            appScope: userScope,
+                            app_scope: userScope,
+                            tenantId: u.tenant_id
+                        };
+                        techMap.set(u.id, syntheticTech);
+
+                        // Garante sincronização em background da linha na tabela `technicians`
+                        supabase.from('technicians').upsert([{
+                            id: u.id,
+                            name: u.name,
+                            email: u.email,
+                            active: u.active ?? true,
+                            phone: u.phone || '',
+                            avatar: u.avatar || '',
+                            tech_code: formatTechCode(u.id),
+                            tenant_id: tenantId
+                        }]).catch(console.warn);
+                    }
+                });
+
+                const result = Array.from(techMap.values());
                 CacheManager.set(cacheKey, result, CacheManager.TTL.SHORT);
                 return result;
             }, signal);

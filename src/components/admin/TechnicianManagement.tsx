@@ -6,7 +6,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import {
   Plus, Edit2, X, Save, Lock, AtSign, Loader2,
-  Smartphone, Search, Filter, ChevronLeft, Hash
+  Smartphone, Search, Filter, ChevronLeft, Hash, Globe, Monitor
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { DataService } from '../../services/dataService';
@@ -221,12 +221,18 @@ export const TechnicianManagement: React.FC = () => {
                 <th className="px-4 py-3 text-left">Identidade Visual</th>
                 <th className="px-4 py-3 text-center">Código</th>
                 <th className="px-4 py-3">Credencial (E-mail)</th>
+                <th className="px-4 py-3 text-center">Acesso / Escopo</th>
                 <th className="px-4 py-3 text-center">Status App</th>
                 <th className="px-4 py-3 text-right pr-6">{t.common.actions}</th>
               </tr>
             </thead>
             <tbody>
-              {paginatedTechs.map(t => (
+              {paginatedTechs.map(t => {
+                const scope = (t as any).appScope || (t as any).app_scope || 'MOBILE';
+                const isHybrid = scope === 'HYBRID';
+                const isWeb = scope === 'WEB';
+
+                return (
                 <tr key={t.id} onClick={(e) => handleViewTech(t, e)} className="bg-white hover:bg-emerald-50/40 transition-all group shadow-sm hover:shadow-md cursor-pointer">
                   <td className="px-4 py-1.5 rounded-l-[1.5rem] border border-slate-100 border-r-0">
                     <div className="flex items-center gap-4">
@@ -235,7 +241,19 @@ export const TechnicianManagement: React.FC = () => {
                       </div>
                       <div className="truncate">
                         <p className="text-slate-900 tracking-tight text-[13px] font-medium truncate max-w-[150px]">{t.name}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5"><Smartphone size={10} className="text-emerald-500" /><span className="text-[10px] text-emerald-500 tracking-widest">Mobile Ativo</span></div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {isHybrid ? (
+                            <>
+                              <Globe size={11} className="text-indigo-600" />
+                              <span className="text-[10px] font-bold text-indigo-600 tracking-wider">Painel + Mobile</span>
+                            </>
+                          ) : (
+                            <>
+                              <Smartphone size={11} className="text-emerald-500" />
+                              <span className="text-[10px] text-emerald-600 tracking-wider">App Mobile</span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </td>
@@ -245,6 +263,28 @@ export const TechnicianManagement: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-4 py-1.5 border-y border-slate-100 text-[12px] text-slate-500 truncate max-w-[180px]">{t.email}</td>
+                  
+                  {/* Escopo de Acesso */}
+                  <td className="px-4 py-1.5 border-y border-slate-100 text-center whitespace-nowrap">
+                    {isHybrid ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs">
+                        <Globe size={12} className="text-indigo-600" />
+                        <Smartphone size={12} className="text-indigo-600" />
+                        Painel + App
+                      </span>
+                    ) : isWeb ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 shadow-xs">
+                        <Globe size={12} className="text-slate-600" />
+                        Apenas Painel
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs">
+                        <Smartphone size={12} className="text-emerald-600" />
+                        Apenas App
+                      </span>
+                    )}
+                  </td>
+
                   <td className="px-4 py-1.5 border-y border-slate-100 text-center whitespace-nowrap">
                     <StatusBadge status={t.active ? OrderStatus.COMPLETED : OrderStatus.CANCELED} />
                   </td>
@@ -257,7 +297,8 @@ export const TechnicianManagement: React.FC = () => {
                       }} className={`p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90 ${!canEdit('technicians') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar Técnico"><Edit2 size={16} /></button>
                   </td>
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </div>
