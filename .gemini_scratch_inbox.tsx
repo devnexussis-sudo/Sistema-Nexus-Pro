@@ -1,0 +1,1977 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { useLocation } from 'react-router-dom';
+import { supabase } from '../../lib/supabase';
+import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw, X, BellRing, Bell, Volume2, ArrowRight, ArrowLeft, Sticker, FileVideo, Mic, FileText, Download, AlertCircle, Plus, Search, Loader2, CheckCircle2, ExternalLink } from 'lucide-react';
+import { Customer } from '../../types';
+import { getCurrentTenantId } from '../../lib/tenantContext';
+
+interface Message {
+  role: 'bot' | 'user' | 'agent';
+  content: string;
+  timestamp: string;
+  agent_id?: string;
+  type?: 'text' | 'sticker';
+  agent_name?: string;
+}
+
+interface Conversation {
+  id: string;
+  phone_number: string;
+  state: string;
+  history: Message[];
+  last_message_at: string;
+  customer_id: string | null;
+  assigned_agent_id: string | null;
+  customers?: { name: string; document?: string } | null;
+  users?: { name: string } | null;
+}
+
+const STATE_LABELS: Record<string, { label: string; color: string; dot: string }> = {
+  GREETING:       { label: 'Iniciando',        color: 'text-gray-400',    dot: 'bg-gray-300' },
+  IDENTIFYING:    { label: 'Identificando',    color: 'text-yellow-500',  dot: 'bg-yellow-400' },
+  CUSTOMER_FOUND: { label: 'Bot ativo',        color: 'text-emerald-600', dot: 'bg-emerald-400' },
+  VIEWING_ORDERS: { label: 'Bot ativo',        color: 'text-emerald-600', dot: 'bg-emerald-400' },
+  CREATING_ORDER: { label: 'Abrindo OS',       color: 'text-blue-500',    dot: 'bg-blue-400' },
+  WAITING_HUMAN:  { label: '⚠ Aguarda humano', color: 'text-orange-500',  dot: 'bg-orange-400 animate-pulse' },
+  HUMAN_ACTIVE:   { label: 'Humano ativo',     color: 'text-indigo-600',  dot: 'bg-indigo-400' },
+  RESOLVED:       { label: 'Finalizada',       color: 'text-gray-400',    dot: 'bg-gray-300' },
+  CLOSED:         { label: 'Finalizada',       color: 'text-gray-400',    dot: 'bg-gray-300' },
+};
+
+const DEFAULT_EMOJIS = [
+  '😀','😂','😅','😉','😊','😍','😘','😜','😎','😏',
+  '😒','😔','😭','😡','👍','👎','👏','🙌','🤝','🙏',
+  '💪','✌️','👋','✋','👌','✅','❌','❗','❓','💯',
+  '🔥','✨','🎉','💼','📅','📞','📱','🔧','⚙️','🚀',
+  '📝','📎','📌','🔍','💡','⏳','⏰','💰','💳','📦'
+];
+
+function formatPhone(phone: string) {
+  const d = phone.replace(/\D/g, '');
+  if (d.length === 13) return `+${d.slice(0,2)} (${d.slice(2,4)}) ${d.slice(4,9)}-${d.slice(9)}`;
+  if (d.length === 12) return `+${d.slice(0,2)} (${d.slice(2,4)}) ${d.slice(4,8)}-${d.slice(8)}`;
+  return phone;
+}
+
+function timeAgo(iso: string) {
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diff < 60) return `${Math.floor(diff)}s`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}min`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return `${Math.floor(diff / 86400)}d`;
+}
+
+// ─── Notificações ────────────────────────────────────────────────────────────
+
+let audioCtx: AudioContext | null = null;
+let audioUnlocked = false;
+
+function initGlobalAudioUnlock() {
+  if (audioUnlocked || typeof window === 'undefined') return;
+
+  const unlock = () => {
+    try {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!audioCtx && Ctx) {
+        audioCtx = new Ctx();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      if (audioCtx) {
+        const buf = audioCtx.createBuffer(1, 1, 22050);
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        src.connect(audioCtx.destination);
+        src.start(0);
+      }
+      audioUnlocked = true;
+      ['click', 'touchstart', 'keydown'].forEach(evt => {
+        document.removeEventListener(evt, unlock);
+      });
+    } catch (e) {
+      console.warn('[Audio] Erro ao desbloquear:', e);
+    }
+  };
+
+  ['click', 'touchstart', 'keydown'].forEach(evt => {
+    document.addEventListener(evt, unlock, { once: true });
+  });
+}
+
+initGlobalAudioUnlock();
+
+let titleFlashInterval: ReturnType<typeof setInterval> | null = null;
+
+function flashTitle() {
+  if (titleFlashInterval) return;
+  let toggle = false;
+  const original = document.title;
+  titleFlashInterval = setInterval(() => {
+    document.title = toggle ? '💬 Nova mensagem!' : original;
+    toggle = !toggle;
+  }, 900);
+  const stop = () => {
+    if (titleFlashInterval) clearInterval(titleFlashInterval);
+    titleFlashInterval = null;
+    document.title = original;
+    window.removeEventListener('focus', stop);
+  };
+  window.addEventListener('focus', stop);
+  setTimeout(stop, 30000);
+}
+
+function playBloop() {
+  try {
+    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!audioCtx && Ctx) {
+      audioCtx = new Ctx();
+    }
+    if (!audioCtx) return;
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+
+    const g = audioCtx.createGain();
+    g.connect(audioCtx.destination);
+
+    [[880, 0], [1100, 0.1]].forEach(([freq, delay]) => {
+      const osc = audioCtx!.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq as number, audioCtx!.currentTime + delay);
+      osc.connect(g);
+      
+      g.gain.setValueAtTime(0, audioCtx!.currentTime + delay);
+      g.gain.linearRampToValueAtTime(0.5, audioCtx!.currentTime + delay + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, audioCtx!.currentTime + delay + 0.3);
+      
+      osc.start(audioCtx!.currentTime + delay);
+      osc.stop(audioCtx!.currentTime + delay + 0.35);
+    });
+  } catch (e) {
+    console.error('[Audio] Erro no playBloop:', e);
+  }
+}
+
+function sendBrowserNotification(title: string, body: string) {
+  if (Notification.permission !== 'granted') return;
+  if (!document.hidden) return;
+  try {
+    const n = new Notification(title, {
+      body,
+      icon: '/favicon.ico',
+      tag: 'duno-whatsapp',
+      requireInteraction: false,
+    });
+    n.onclick = () => { window.focus(); n.close(); };
+    setTimeout(() => n.close(), 6000);
+  } catch (_) {}
+}
+
+export const WhatsAppInbox: React.FC = () => {
+  const location = useLocation();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState('');
+  const [sendingAction, setSendingAction] = useState<string | null>(null);
+  const [filter, setFilter] = useState<'all' | 'waiting' | 'mine' | 'active'>('all');
+  const [toast, setToast] = useState<string | null>(null);
+  const [permissionState, setPermissionState] = useState<'prompt' | 'granted' | 'denied'>('prompt');
+  const [permBannerDismissed, setPermBannerDismissed] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserName, setCurrentUserName] = useState<string>('Agente');
+  const [teamMembers, setTeamMembers] = useState<{ id: string, name: string }[]>([]);
+  const [transferModal, setTransferModal] = useState<string | null>(null);
+  const [inboxSearch, setInboxSearch] = useState('');
+  const [agentSearch, setAgentSearch] = useState('');
+  const [readIndex, setReadIndex] = useState<Record<string, number>>({});
+  const [showStickers, setShowStickers] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const conversationsRef = useRef<Conversation[]>([]);
+  const selectedIdRef = useRef<string | null>(null);
+  const isOptimisticPending = useRef(false);
+  const actionInitiatedConvId = useRef<string | null>(null);
+  const stickerRef = useRef<HTMLDivElement>(null);
+
+  // Estados para histórico on-demand da UAZAPI
+  const [olderMessages, setOlderMessages] = useState<Record<string, Message[]>>({});
+  const [isLoadingHistory, setIsLoadingHistory] = useState<Record<string, boolean>>({});
+  const [tenantSettings, setTenantSettings] = useState<any>(null);
+
+  // ── Modal de Nova Conversa ──
+  const [isNewChatOpen, setIsNewChatOpen] = useState(false);
+  const [newChatTab, setNewChatTab] = useState<'customer' | 'manual'>('customer');
+  const [customerQuery, setCustomerQuery] = useState('');
+  const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [manualPhone, setManualPhone] = useState('');
+  const [initialMessage, setInitialMessage] = useState('');
+  const [startingChat, setStartingChat] = useState(false);
+  const [newChatError, setNewChatError] = useState<string | null>(null);
+
+  const fetchCustomersList = async () => {
+    setLoadingCustomers(true);
+    try {
+      const tenantId = getCurrentTenantId();
+      if (!tenantId) return;
+      const { data } = await supabase
+        .from('customers')
+        .select('id, name, document, phone, whatsapp, city, state, address')
+        .eq('tenant_id', tenantId)
+        .eq('active', true)
+        .order('name', { ascending: true })
+        .limit(150);
+      if (data) {
+        setAllCustomers(data as Customer[]);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar clientes para nova conversa:', err);
+    } finally {
+      setLoadingCustomers(false);
+    }
+  };
+
+  const filteredSearchCustomers = allCustomers.filter(c => {
+    if (!customerQuery.trim()) return true;
+    const q = customerQuery.toLowerCase();
+    const qClean = q.replace(/\D/g, '');
+
+    const nameMatch = (c.name || '').toLowerCase().includes(q);
+
+    const docRaw = ((c as any).document || (c as any).cpf || (c as any).cnpj || '').replace(/\D/g, '');
+    const docMatch = qClean.length > 0 && docRaw.includes(qClean);
+
+    const phoneRaw = (c.phone || '').replace(/\D/g, '');
+    const waRaw = (c.whatsapp || '').replace(/\D/g, '');
+    const phoneMatch = qClean.length > 0 && (phoneRaw.includes(qClean) || waRaw.includes(qClean));
+
+    return nameMatch || docMatch || phoneMatch;
+  });
+
+  const handleStartNewChat = async () => {
+    setNewChatError(null);
+
+    let targetRaw = '';
+    if (newChatTab === 'customer') {
+      if (!selectedCustomer) {
+        setNewChatError('Selecione um cliente da lista.');
+        return;
+      }
+      targetRaw = selectedCustomer.whatsapp && selectedCustomer.whatsapp.trim()
+        ? selectedCustomer.whatsapp.trim()
+        : selectedCustomer.phone || '';
+    } else {
+      targetRaw = manualPhone;
+    }
+
+    if (!targetRaw.trim()) {
+      setNewChatError('O cliente selecionado não possui número de WhatsApp ou telefone cadastrado.');
+      return;
+    }
+
+    let cleaned = targetRaw.replace(/\D/g, '');
+    if (cleaned.startsWith('0') && (cleaned.length === 11 || cleaned.length === 12)) {
+      cleaned = cleaned.slice(1);
+    }
+    if (cleaned.length === 10 || cleaned.length === 11) {
+      cleaned = '55' + cleaned;
+    }
+
+    if (cleaned.length < 12) {
+      setNewChatError('Número de WhatsApp inválido. Informe DDD + Número (ex: 11999998888).');
+      return;
+    }
+
+    setStartingChat(true);
+
+    try {
+      const tenantId = getCurrentTenantId();
+      if (!tenantId) {
+        setNewChatError('Tenant não localizado. Atualize a página e tente novamente.');
+        setStartingChat(false);
+        return;
+      }
+
+      let targetConvId: string | null = null;
+      let usedEdgeFunction = false;
+
+      // 1. Tentar primeiro via RPC Security Definer (bypassa RLS 100% no Postgres)
+      try {
+        const { data: rpcData, error: rpcErr } = await supabase.rpc('start_whatsapp_chat' as any, {
+          p_phone_number: cleaned,
+          p_customer_id: selectedCustomer?.id || null,
+          p_initial_message: initialMessage.trim() || null
+        });
+
+        if (!rpcErr && rpcData?.ok && rpcData?.conversation_id) {
+          targetConvId = rpcData.conversation_id;
+          usedEdgeFunction = true;
+        }
+      } catch (e) {
+        console.warn('[NewChat] RPC start_whatsapp_chat indisponível, tentando Edge Function...', e);
+      }
+
+      // 2. Tentar pela Edge Function de servidor
+      if (!usedEdgeFunction) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const { data, error } = await supabase.functions.invoke('whatsapp-admin-send', {
+            body: {
+              action: 'start_conversation',
+              phone_number: cleaned,
+              customer_id: selectedCustomer?.id || null,
+              initial_message: initialMessage.trim(),
+              tenant_id: tenantId,
+              agent_name: currentUserName
+            },
+            headers: { Authorization: `Bearer ${session?.access_token}` },
+          });
+
+          if (!error && data?.ok && data?.conversation_id) {
+            targetConvId = data.conversation_id;
+            usedEdgeFunction = true;
+          }
+        } catch (e) {
+          console.warn('[NewChat] Edge function start_conversation ainda não ativa, usando fallback no DB...', e);
+        }
+      }
+
+      // 2. Fallback resiliente no DB caso a Edge Function remota ainda esteja no formato anterior
+      if (!usedEdgeFunction) {
+        // Verificar se conversa já existe no DB
+        const { data: existingConv } = await supabase
+          .from('whatsapp_conversations')
+          .select('id, history, customer_id')
+          .eq('tenant_id', tenantId)
+          .eq('phone_number', cleaned)
+          .maybeSingle();
+
+        if (existingConv) {
+          let history = existingConv.history || [];
+          if (initialMessage.trim()) {
+            const msg: Message = {
+              role: 'agent',
+              content: initialMessage.trim(),
+              timestamp: new Date().toISOString(),
+              agent_id: currentUserId || undefined,
+              agent_name: currentUserName,
+            };
+            history = [...history, msg];
+          }
+
+          const { error: updateErr } = await supabase
+            .from('whatsapp_conversations')
+            .update({
+              state: 'HUMAN_ACTIVE',
+              assigned_agent_id: currentUserId,
+              customer_id: selectedCustomer?.id || existingConv.customer_id,
+              history: history.slice(-100),
+              last_message_at: new Date().toISOString(),
+            })
+            .eq('id', existingConv.id);
+
+          if (updateErr) throw new Error(updateErr.message);
+          targetConvId = existingConv.id;
+        } else {
+          // Criar nova conversa no DB
+          const initialHistory: Message[] = initialMessage.trim() ? [{
+            role: 'agent',
+            content: initialMessage.trim(),
+            timestamp: new Date().toISOString(),
+            agent_id: currentUserId || undefined,
+            agent_name: currentUserName,
+          }] : [];
+
+          const { data: created, error: insertError } = await supabase
+            .from('whatsapp_conversations')
+            .insert([{
+              tenant_id: tenantId,
+              phone_number: cleaned,
+              customer_id: selectedCustomer?.id || null,
+              assigned_agent_id: currentUserId,
+              state: 'HUMAN_ACTIVE',
+              history: initialHistory,
+              last_message_at: new Date().toISOString(),
+            }])
+            .select('id')
+            .single();
+
+          if (insertError) throw new Error(insertError.message);
+          targetConvId = created?.id;
+        }
+
+        // Se houver mensagem inicial, disparar via envio de mensagem padrão da Edge Function
+        if (initialMessage.trim() && targetConvId) {
+          const { data: { session } } = await supabase.auth.getSession();
+          await supabase.functions.invoke('whatsapp-admin-send', {
+            body: {
+              conversation_id: targetConvId,
+              action: 'send',
+              message: initialMessage.trim(),
+              agent_name: currentUserName
+            },
+            headers: { Authorization: `Bearer ${session?.access_token}` },
+          });
+        }
+      }
+
+      setIsNewChatOpen(false);
+      triggerNavUpdate();
+      await fetchConversations(true);
+      if (targetConvId) setSelectedId(targetConvId);
+      setToast('✅ Conversa iniciada com sucesso!');
+      setTimeout(() => setToast(null), 4000);
+    } catch (err: any) {
+      setNewChatError(err.message || 'Erro ao iniciar conversa.');
+    } finally {
+      setStartingChat(false);
+    }
+  };
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        setCurrentUserId(data.user.id);
+        const mdName = data.user.user_metadata?.name || data.user.user_metadata?.full_name;
+        if (mdName) setCurrentUserName(mdName);
+      }
+    });
+    supabase.from('users').select('id, name').neq('role', 'TECHNICIAN').order('name').then(({ data }) => setTeamMembers(data || []));
+    const notifPerm = (Notification.permission as 'prompt' | 'granted' | 'denied');
+    setPermissionState(notifPerm === 'default' ? 'prompt' : notifPerm);
+
+    // Selecionar conversa vinda de outra página (ex: Solicitações)
+    const state = location.state as { selectedConvId?: string } | null;
+    if (state?.selectedConvId) {
+      setSelectedId(state.selectedConvId);
+      // Opcional: limpar o state para não re-selecionar ao navegar voltar/avançar
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
+  // Buscar configurações da UAZAPI para fetch de histórico on-demand
+  useEffect(() => {
+    const fetchSettings = async () => {
+      const tenantId = getCurrentTenantId();
+      if (!tenantId) return;
+      const { data } = await supabase.from('tenants').select('whatsapp_settings').eq('id', tenantId).single();
+      if (data?.whatsapp_settings) {
+        setTenantSettings(data.whatsapp_settings);
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  // Função que pede todas as permissões de uma vez
+  const requestPermissions = async () => {
+    // 1) Forçar desbloqueio de áudio
+    try {
+      if (audioCtx && audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
+    } catch(e) {}
+
+    // 2) Pedir permissão de notificações do navegador
+    try {
+      const result = await Notification.requestPermission();
+      setPermissionState(result as 'granted' | 'denied');
+      if (result === 'granted') {
+        new Notification('✅ Duno — Notificações ativadas!', {
+          body: 'Você receberá alertas de novas mensagens do WhatsApp.',
+          icon: '/favicon.ico',
+        });
+        playBloop();
+      }
+    } catch (e) {
+      console.warn('Notificações não suportadas:', e);
+    }
+    setPermBannerDismissed(true);
+  };
+
+  // Manter refs sincronizadas para uso dentro do Realtime callback
+  conversationsRef.current = conversations;
+  selectedIdRef.current = selectedId;
+
+  // Registrar leitura local para apagar a notificação da sidebar instantaneamente ao clicar/visualizar
+  useEffect(() => {
+    if (selectedId) {
+      try {
+        const conv = conversations.find(c => c.id === selectedId);
+        if (conv && conv.history && conv.history.length > 0) {
+          const lastMsg = conv.history[conv.history.length - 1];
+          const lastMsgTime = lastMsg.timestamp || new Date().toISOString();
+          
+          const receiptsStr = localStorage.getItem('wa_read_receipts');
+          let receipts = receiptsStr ? JSON.parse(receiptsStr) : {};
+          
+          receipts[selectedId] = lastMsgTime;
+          localStorage.setItem('wa_read_receipts', JSON.stringify(receipts));
+          window.dispatchEvent(new Event('wa_read_receipts_changed'));
+        }
+      } catch (e) {
+        console.error('Erro ao salvar recibo de leitura:', e);
+      }
+    }
+  }, [selectedId, conversations]);
+
+  // Fechar popover de emojis ao clicar fora
+  useEffect(() => {
+    if (!showStickers) return;
+    const handler = (e: MouseEvent) => {
+      if (stickerRef.current && !stickerRef.current.contains(e.target as Node)) {
+        setShowStickers(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showStickers]);
+
+  // Quando teamMembers carregam, derivar o nome do agente atual (mais confiável que user_metadata)
+  useEffect(() => {
+    if (!currentUserId || teamMembers.length === 0) return;
+    const me = teamMembers.find(m => m.id === currentUserId);
+    if (me?.name) setCurrentUserName(me.name);
+  }, [currentUserId, teamMembers]);
+
+  const selected = conversations.find(c => c.id === selectedId) || null;
+
+  // Auto-scroll quando histórico muda
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [selected?.history?.length]);
+
+  const [realtimeOk, setRealtimeOk] = useState(false);
+
+  // Helper para disparar atualização imediata na badge do menu
+  const triggerNavUpdate = () => window.dispatchEvent(new Event('whatsapp_state_changed'));
+
+  // ── Carregar conversas (merge silencioso, sem piscar) ───────────────────────
+  const fetchConversations = useCallback(async (silent = false) => {
+    if (isOptimisticPending.current) return; // Não sobresscrever estado otimista com dados velhos do DB
+    
+    const { data } = await supabase
+      .from('whatsapp_conversations')
+      .select('*, customers(name, document), users(name)')
+      .order('last_message_at', { ascending: false })
+      .limit(50);
+    if (data) {
+      setConversations(prev => {
+        // Detectar novas mensagens para tocar som/notificações
+        const next = (data as Conversation[]).map(updated => {
+          const existing = prev.find(c => c.id === updated.id);
+          if (!existing) return updated;
+
+          // Preservar mensagens otimistas locais que ainda não chegaram do servidor
+          const serverHistoryLen = updated.history?.length || 0;
+          let mergedHistory = [...(updated.history || [])];
+          
+          // Buscar mensagens otimistas locais (enviadas pelo agente que talvez ainda não estejam no server)
+          const existingHistory = existing.history || [];
+          const optimisticMsgs = existingHistory.filter(m => m.role === 'agent' || m.role === 'bot');
+
+          // Adicionar as otimistas que não estão no histórico do servidor (mesmo conteúdo e horário próximo)
+          optimisticMsgs.forEach(optMsg => {
+            const isAlreadyInServer = mergedHistory.some(srvMsg => 
+              srvMsg.role === optMsg.role && 
+              srvMsg.content === optMsg.content &&
+              Math.abs(new Date(srvMsg.timestamp).getTime() - new Date(optMsg.timestamp).getTime()) < 60000
+            );
+            if (!isAlreadyInServer) {
+              mergedHistory.push(optMsg);
+            }
+          });
+
+          // ✨ Garantir ordem estritamente cronológica para evitar balões fora de ordem
+          mergedHistory = mergedHistory.sort((a: Message, b: Message) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+          const newMsgs = serverHistoryLen > (prev.find(c => c.id === updated.id)?.history?.length || 0)
+            ? (updated.history || []).slice(prev.find(c => c.id === updated.id)?.history?.length || 0)
+            : [];
+          
+          const hasUserMsg = newMsgs.some((m: Message) => m.role === 'user');
+          
+          const justAskedForHuman = updated.state === 'WAITING_HUMAN' && existing.state !== 'WAITING_HUMAN';
+          const userMsgWhileHuman = hasUserMsg && (updated.state === 'WAITING_HUMAN' || updated.state === 'HUMAN_ACTIVE');
+          
+          // Se fui eu que iniciei a ação, não devo receber notificação de que foi transferido para mim
+          const isMyOwnAction = actionInitiatedConvId.current === updated.id;
+          const justAssignedToMe = !isMyOwnAction && updated.assigned_agent_id === currentUserId && existing.assigned_agent_id !== currentUserId && currentUserId !== null && updated.state === 'HUMAN_ACTIVE';
+
+          let shouldNotify = false;
+          if (justAssignedToMe) {
+             shouldNotify = true;
+          } else if (justAskedForHuman) {
+             shouldNotify = true;
+          } else if (userMsgWhileHuman) {
+             if (updated.assigned_agent_id) {
+                 shouldNotify = (updated.assigned_agent_id === currentUserId);
+             } else {
+                 shouldNotify = true;
+             }
+          }
+
+          if (shouldNotify) {
+            playBloop();
+            flashTitle();
+            if (justAssignedToMe) {
+              sendBrowserNotification('💬 Chat Transferido!', `Um atendimento foi transferido para você.`);
+              setToast('⚠️ Uma conversa foi transferida para você!');
+            } else {
+              const previewMsg = newMsgs.find(m => m.role === 'user')?.content || 'Cliente solicitou atendimento.';
+              const preview = String(previewMsg).substring(0, 60);
+              sendBrowserNotification('💬 Duno WhatsApp', `${updated.phone_number}: ${preview}`);
+              setToast(justAskedForHuman ? '⚠️ Cliente pediu atendimento humano!' : '💬 Nova mensagem do cliente!');
+              setTimeout(() => setToast(null), 5000);
+            }
+          }
+
+          return { ...updated, history: mergedHistory };
+        });
+        return next;
+      });
+    }
+    if (!silent) setLoading(false);
+  }, [currentUserId]);
+
+  // ── Realtime subscription + polling fallback ─────────────────────────────
+  useEffect(() => {
+    fetchConversations();
+
+    // POLLING: Sempre ativo a cada 3s — garante entrega mesmo sem Realtime
+    const pollInterval = setInterval(() => fetchConversations(true), 3000);
+
+    // REALTIME: atualiza ainda mais rápido quando funcionar
+    const channel = supabase
+      .channel('whatsapp-inbox-v4')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'whatsapp_conversations',
+      }, () => {
+        // Quando chega evento realtime, recarregar imediatamente
+        fetchConversations(true);
+      })
+      .subscribe((status) => {
+        console.log('[Realtime] Status:', status);
+        setRealtimeOk(status === 'SUBSCRIBED');
+      });
+
+    return () => {
+      clearInterval(pollInterval);
+      supabase.removeChannel(channel);
+    };
+  }, [fetchConversations]);
+
+  // ── Ações ─────────────────────────────────────────────────────────────────
+
+  const invoke = async (action: string, extra: object = {}) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const { data, error } = await supabase.functions.invoke('whatsapp-admin-send', {
+      body: { conversation_id: selectedId, action, ...extra },
+      headers: { Authorization: `Bearer ${session?.access_token}` },
+    });
+    if (error) {
+      let msg = error.message;
+      try { msg = (await (error as any).context?.json())?.error || error.message; } catch {}
+      alert('Erro: ' + msg);
+      return false;
+    }
+    if (data && !data.ok) {
+      alert('Erro: ' + data.error);
+      return false;
+    }
+    // Não recarregamos imediatamente aqui porque o realtime já faz o trabalho 
+    // ou deixamos as promises que chamam `invoke` cuidarem disso, evitando dupla re-renderização.
+    triggerNavUpdate();
+    return true;
+  };
+
+  const loadOlderMessages = async (conv: Conversation) => {
+    if (!tenantSettings?.uazapi_url || !tenantSettings?.uazapi_token || !tenantSettings?.uazapi_instance) {
+      setToast('⚠️ Configurações da API de WhatsApp ausentes. Não é possível buscar histórico.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    setIsLoadingHistory(prev => ({ ...prev, [conv.id]: true }));
+
+    try {
+      let baseUrl = tenantSettings.uazapi_url.trim().replace(/\/$/, '');
+      if (!baseUrl.startsWith('http')) {
+        baseUrl = 'https://' + baseUrl;
+      }
+      
+      const token = tenantSettings.uazapi_token.trim();
+      const instance = tenantSettings.uazapi_instance.trim();
+
+      let phone = conv.phone_number.replace(/\D/g, '');
+      if (phone.length === 10 || phone.length === 11) phone = '55' + phone;
+      const remoteJid = `${phone}@s.whatsapp.net`;
+
+      const existingOlderCount = olderMessages[conv.id]?.length || 0;
+      
+      const payload = {
+        where: { "key.remoteJid": remoteJid },
+        take: 100, // Busca 100 mensagens por vez
+        skip: existingOlderCount,
+        orderBy: { "messageTimestamp": "desc" } // A API retorna as mais recentes primeiro
+      };
+
+      const res = await fetch(`${baseUrl}/chat/findMessages/${instance}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': token
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) throw new Error('Falha ao buscar mensagens da API');
+
+      const json = await res.json();
+      const records = json?.messages?.records || json?.records || [];
+
+      if (records.length === 0) {
+        setToast('ℹ️ Não há mais mensagens antigas.');
+        setTimeout(() => setToast(null), 3000);
+        setIsLoadingHistory(prev => ({ ...prev, [conv.id]: false }));
+        return;
+      }
+
+      // Mapear records da UAZAPI para nosso tipo Message
+      const newOlderMsgs: Message[] = records.map((r: any) => {
+        const isFromMe = r.key?.fromMe;
+        let content = '';
+        
+        if (r.message?.conversation) {
+          content = r.message.conversation;
+        } else if (r.message?.extendedTextMessage?.text) {
+          content = r.message.extendedTextMessage.text;
+        } else if (r.message?.imageMessage) {
+          content = r.message.imageMessage.caption ? `MEDIA_URL:image:|[📸 Imagem - Histórico] ${r.message.imageMessage.caption}` : `MEDIA_URL:image:|[📸 Imagem - Histórico]`;
+        } else if (r.message?.audioMessage) {
+          content = `MEDIA_URL:audio:|[🎤 Áudio - Histórico]`;
+        } else if (r.message?.videoMessage) {
+          content = r.message.videoMessage.caption ? `MEDIA_URL:video:|[📹 Vídeo - Histórico] ${r.message.videoMessage.caption}` : `MEDIA_URL:video:|[📹 Vídeo - Histórico]`;
+        } else if (r.message?.documentMessage) {
+          content = r.message.documentMessage.fileName ? `MEDIA_URL:document:|[📄 Documento - Histórico] ${r.message.documentMessage.fileName}` : `MEDIA_URL:document:|[📄 Documento - Histórico]`;
+        } else if (r.message?.stickerMessage) {
+          content = `MEDIA_URL:sticker:|[✨ Figurinha - Histórico]`;
+        } else if (r.message?.protocolMessage) {
+          content = '[❌ Mensagem apagada - Histórico]';
+        } else {
+          content = '[📎 Mídia/Outro - Histórico]';
+        }
+
+        return {
+          role: isFromMe ? 'agent' : 'user',
+          content,
+          timestamp: new Date((r.messageTimestamp || Math.floor(Date.now() / 1000)) * 1000).toISOString(),
+          agent_name: isFromMe ? '👤 Equipe (Histórico)' : undefined
+        };
+      });
+
+      // A API retorna DESC (mais novas primeiro), precisamos inverter para colocar em ordem cronológica
+      const chronologicalMsgs = newOlderMsgs.reverse();
+
+      setOlderMessages(prev => ({
+        ...prev,
+        [conv.id]: [...chronologicalMsgs, ...(prev[conv.id] || [])]
+      }));
+
+    } catch (e) {
+      console.error('[loadOlderMessages] Error:', e);
+      setToast('❌ Erro ao buscar histórico. Verifique a conexão com a API.');
+      setTimeout(() => setToast(null), 3000);
+    } finally {
+      setIsLoadingHistory(prev => ({ ...prev, [conv.id]: false }));
+    }
+  };
+
+  const handleTakeover = async () => {
+    if (!selected) return;
+    setSendingAction('takeover');
+    isOptimisticPending.current = true;
+    actionInitiatedConvId.current = selected.id;
+    
+    const optimisticMsg: Message = {
+      role: 'agent',
+      content: `✅ *${currentUserName}* da equipe assumiu o atendimento. Como posso ajudar?`,
+      timestamp: new Date().toISOString(),
+      agent_id: currentUserId || undefined,
+      agent_name: currentUserName
+    };
+
+    setConversations(prev => prev.map(c => c.id === selected.id ? { ...c, state: 'HUMAN_ACTIVE', assigned_agent_id: currentUserId, history: [...(c.history||[]), optimisticMsg] } : c));
+    await invoke('takeover');
+    setSendingAction(null);
+    setTimeout(() => { 
+      isOptimisticPending.current = false; 
+      fetchConversations(true); 
+      setTimeout(() => actionInitiatedConvId.current = null, 2000);
+    }, 500);
+  };
+
+  const handleReturnToBot = async () => {
+    if (!selected) return;
+    setSendingAction('return_to_bot');
+    isOptimisticPending.current = true;
+    const optimisticMsg: Message = {
+      role: 'bot',
+      content: `🤖 O atendimento foi retornado ao assistente virtual. Como posso ajudar?`,
+      timestamp: new Date().toISOString()
+    };
+    setConversations(prev => prev.map(c => c.id === selected.id ? { ...c, state: 'CUSTOMER_FOUND', assigned_agent_id: null, history: [...(c.history||[]), optimisticMsg] } : c));
+    await invoke('return_to_bot');
+    setSendingAction(null);
+    setTimeout(() => { isOptimisticPending.current = false; fetchConversations(true); }, 500);
+  };
+
+  const handleCloseConversation = async () => {
+    if (!selected) return;
+    setSendingAction('close');
+    isOptimisticPending.current = true;
+    const optimisticMsg: Message = {
+      role: 'agent',
+      content: `Atendimento encerrado por um de nossos agentes. Agradecemos o contato! 👋`,
+      timestamp: new Date().toISOString(),
+      agent_id: currentUserId || undefined,
+      agent_name: currentUserName
+    };
+    
+    setConversations(prev => prev.map(c => c.id === selected.id ? { ...c, state: 'RESOLVED', assigned_agent_id: null, history: [...(c.history||[]), optimisticMsg] } : c));
+    const oldId = selected.id;
+    setSelectedId(null);
+    await invoke('close_conversation', { agent_name: currentUserName });
+    setSendingAction(null);
+    setTimeout(() => { isOptimisticPending.current = false; fetchConversations(true); }, 500);
+  };
+  
+  const handleResetBot = async () => {
+    if (!selected) return;
+    setShowResetConfirm(false);
+    setSendingAction('reset');
+    isOptimisticPending.current = true;
+    setConversations(prev => prev.map(c => c.id === selected.id ? { ...c, state: 'GREETING', assigned_agent_id: null } : c));
+    setSelectedId(null);
+    await invoke('reset_bot');
+    setSendingAction(null);
+    setTimeout(() => { isOptimisticPending.current = false; fetchConversations(true); }, 500);
+  };
+
+  const handleTransfer = async (targetUserId: string) => {
+    if (!selected) return;
+    setSendingAction('transfer');
+    isOptimisticPending.current = true;
+    actionInitiatedConvId.current = selected.id;
+    setTransferModal(null);
+    const targetName = teamMembers.find(m => m.id === targetUserId)?.name || "outro agente";
+    
+    const optimisticMsg: Message = {
+      role: 'agent',
+      content: `🔃 O atendimento foi transferido para *${targetName}*. Aguarde um momento.`,
+      timestamp: new Date().toISOString(),
+      agent_id: currentUserId || undefined,
+      agent_name: currentUserName
+    };
+
+    setConversations(prev => prev.map(c => c.id === selected.id ? { ...c, assigned_agent_id: targetUserId, history: [...(c.history||[]), optimisticMsg] } : c));
+    setSelectedId(null);
+    await invoke('transfer', { target_user_id: targetUserId, agent_name: currentUserName });
+    setSendingAction(null);
+    setTimeout(() => { 
+      isOptimisticPending.current = false; 
+      fetchConversations(true); 
+      setTimeout(() => actionInitiatedConvId.current = null, 2000);
+    }, 500);
+  };
+
+  const handleSend = () => {
+    if (!message.trim() || !selected || sendingAction !== null) return;
+    const txt = message;
+    setMessage('');
+
+    // ✨ Update otimista: mensagem aparece instantaneamente na tela
+    const optimisticMsg: Message = {
+      role: 'agent',
+      content: txt,
+      timestamp: new Date().toISOString(),
+      agent_id: currentUserId || undefined,
+      agent_name: currentUserName,
+    };
+    setConversations(prev => prev.map(c => {
+      if (c.id !== selected.id) return c;
+      return { ...c, history: [...(c.history || []), optimisticMsg], last_message_at: new Date().toISOString() };
+    }));
+
+    // Libera o botão imediatamente — rede roda em background
+    isOptimisticPending.current = true;
+    invoke('send', { message: txt, agent_name: currentUserName }).then(() => {
+      setTimeout(() => { isOptimisticPending.current = false; fetchConversations(true); }, 500);
+    }).catch(() => {
+      // Se falhar, desfazer o optimistic update e restaurar texto
+      setConversations(prev => prev.map(c => {
+        if (c.id !== selected.id) return c;
+        return { ...c, history: (c.history || []).filter(m => m !== optimisticMsg) };
+      }));
+      setMessage(txt);
+      setToast('❌ Falha ao enviar mensagem. Tente novamente.');
+      setTimeout(() => setToast(null), 3000);
+      isOptimisticPending.current = false;
+    });
+  };
+
+  const handleSendSticker = async (url: string) => {
+    if (!selected) return;
+    setSendingAction('sticker');
+    setShowStickers(false);
+
+    const optimisticMsg: Message = {
+      role: 'agent',
+      content: '[✨ Figurinha Enviada]',
+      timestamp: new Date().toISOString(),
+    };
+    
+    setConversations(prev => prev.map(c => {
+      if (c.id !== selected.id) return c;
+      return { ...c, history: [...(c.history || []), optimisticMsg], last_message_at: new Date().toISOString() };
+    }));
+
+    try {
+      isOptimisticPending.current = true;
+      await invoke('send_sticker', { message: url });
+      setTimeout(() => { isOptimisticPending.current = false; fetchConversations(true); }, 500);
+    } catch {
+      setConversations(prev => prev.map(c => {
+        if (c.id !== selected.id) return c;
+        return { ...c, history: (c.history || []).filter(m => m !== optimisticMsg) };
+      }));
+      isOptimisticPending.current = false;
+    } finally {
+      setSendingAction(null);
+    }
+  };
+
+  // ── Filtros ───────────────────────────────────────────────────────────────
+  const filtered = conversations.filter(c => {
+    // Ocultar conversas encerradas (RESOLVED) — histórico preservado no banco
+    if (c.state === 'RESOLVED') return false;
+
+    if (filter === 'waiting' && c.state !== 'WAITING_HUMAN') return false;
+    if (filter === 'mine' && (c.state !== 'HUMAN_ACTIVE' || c.assigned_agent_id !== currentUserId)) return false;
+    if (filter === 'active' && c.state !== 'HUMAN_ACTIVE') return false;
+
+    if (inboxSearch.trim()) {
+      const q = inboxSearch.toLowerCase().trim();
+      const matchPhone = c.phone_number?.includes(q) || false;
+      const matchName = c.customers?.name?.toLowerCase().includes(q) || c.users?.name?.toLowerCase().includes(q) || false;
+      const matchHistory = c.history?.some(h => h.content?.toLowerCase().includes(q));
+      if (!matchPhone && !matchName && !matchHistory) return false;
+    }
+
+    return true;
+  });
+
+  const waitingCount = conversations.filter(c => c.state === 'WAITING_HUMAN').length;
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  return (
+    <div className="flex h-full bg-gray-50/30 rounded-2xl overflow-hidden border border-gray-100 shadow-xl relative">
+
+      {/* Toast de notificação */}
+      {toast && (
+        <div
+          className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 bg-indigo-600 text-white rounded-full shadow-2xl"
+          style={{ animation: 'slideDown 0.3s ease' }}
+        >
+          <BellRing size={18} className="animate-bounce" />
+          <span className="text-sm font-bold">{toast}</span>
+          <button onClick={() => setToast(null)} className="ml-1 bg-white/20 rounded-full p-1 hover:bg-white/30">
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
+      {/* Banner de permissão — aparece até o usuário conceder acesso */}
+      {!permBannerDismissed && permissionState !== 'granted' && (
+        <div className="absolute bottom-0 left-0 right-0 z-40 p-4">
+          <div className={`flex items-center gap-4 px-5 py-4 rounded-2xl shadow-2xl border ${
+            permissionState === 'denied'
+              ? 'bg-red-50 border-red-200'
+              : 'bg-gradient-to-r from-indigo-600 to-violet-600 border-transparent'
+          }`}>
+            <div className={`p-2 rounded-xl flex-shrink-0 ${
+              permissionState === 'denied' ? 'bg-red-100' : 'bg-white/20'
+            }`}>
+              {permissionState === 'denied'
+                ? <Bell size={22} className="text-red-500" />
+                : <Volume2 size={22} className="text-white" />
+              }
+            </div>
+            <div className="flex-1 min-w-0">
+              {permissionState === 'denied' ? (
+                <>
+                  <p className="text-sm font-bold text-red-700">Notificações bloqueadas</p>
+                  <p className="text-xs text-red-500 mt-0.5">
+                    Clique no cadeado 🔒 na barra do navegador → Notificações → Permitir.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-bold text-white">Ativar alertas de mensagens</p>
+                  <p className="text-xs text-white/80 mt-0.5">
+                    Receba som e notificação visual sempre que um cliente enviar mensagem.
+                  </p>
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {permissionState !== 'denied' && (
+                <button
+                  onClick={requestPermissions}
+                  className="px-4 py-2 bg-white text-indigo-700 text-xs font-bold rounded-xl hover:bg-indigo-50 transition-all shadow-sm"
+                >
+                  🔔 Ativar Notificações
+                </button>
+              )}
+              <button
+                onClick={() => setPermBannerDismissed(true)}
+                className={`p-2 rounded-xl transition-all ${
+                  permissionState === 'denied'
+                    ? 'text-red-400 hover:bg-red-100'
+                    : 'text-white/60 hover:bg-white/20'
+                }`}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Coluna esquerda: lista de conversas ── */}
+      <div className={`${selected ? 'hidden md:flex' : 'flex'} w-full md:w-80 flex-shrink-0 bg-white border-r border-gray-100 flex-col`}>
+        <div className="p-3 border-b border-gray-50">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2">
+              <MessageCircle size={18} className="text-emerald-500" />
+              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-tight font-poppins">WhatsApp Inbox</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <div 
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider font-poppins ${
+                  realtimeOk 
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80 shadow-xs' 
+                    : 'bg-amber-50 text-amber-700 border-amber-200/80 shadow-xs'
+                }`} 
+                title={realtimeOk ? 'Tempo real ativo via WebSocket' : 'Modo Polling ativo (sincronização a cada 3s)'}
+              >
+                <div className={`w-2 h-2 rounded-full ${realtimeOk ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
+                <span className="hidden sm:inline">{realtimeOk ? 'Ao Vivo' : 'Polling (3s)'}</span>
+              </div>
+              <button
+                onClick={() => window.open('/#/admin/whatsapp?standalone=true', '_blank', 'width=1200,height=800,left=100,top=100')}
+                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100 shadow-sm"
+                title="Abrir em Nova Aba"
+              >
+                <ExternalLink size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* Botão Nova Conversa */}
+          <button
+            onClick={() => {
+              setIsNewChatOpen(true);
+              setNewChatTab('customer');
+              setCustomerQuery('');
+              setSelectedCustomer(null);
+              setManualPhone('');
+              setInitialMessage('');
+              setNewChatError(null);
+              fetchCustomersList();
+            }}
+            className="w-full mb-3 flex items-center justify-center gap-2 py-2 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 active:scale-95 cursor-pointer font-poppins"
+          >
+            <Plus size={16} /> Nova Conversa
+          </button>
+
+          {/* Abas de Filtro com Destaque Vibrante de Pendências */}
+          {(() => {
+            const counts = {
+              all: conversations.filter(c => c.state !== 'RESOLVED').length,
+              waiting: conversations.filter(c => c.state === 'WAITING_HUMAN').length,
+              mine: conversations.filter(c => c.state === 'HUMAN_ACTIVE' && c.assigned_agent_id === currentUserId).length,
+              active: conversations.filter(c => c.state === 'HUMAN_ACTIVE' && c.assigned_agent_id !== currentUserId).length
+            };
+
+            return (
+              <div className="flex gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200/60 font-poppins">
+                {(['all', 'waiting', 'mine', 'active'] as const).map(f => {
+                  const isActiveTab = filter === f;
+                  const count = counts[f];
+                  const isWaitingTab = f === 'waiting';
+                  const hasPendingWaiting = isWaitingTab && count > 0;
+
+                  return (
+                    <button
+                      key={f}
+                      onClick={() => setFilter(f)}
+                      className={`relative flex-1 py-1.5 px-1 rounded-lg text-[10px] font-bold uppercase tracking-tight transition-all flex items-center justify-center gap-1 ${
+                        isActiveTab
+                          ? (hasPendingWaiting 
+                              ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30 ring-2 ring-amber-400 font-extrabold' 
+                              : 'bg-[#1c2d4f] text-white shadow-sm ring-1 ring-[#1c2d4f]')
+                          : (hasPendingWaiting 
+                              ? 'bg-amber-400/25 text-amber-700 border border-amber-300 animate-pulse font-extrabold' 
+                              : 'text-slate-500 hover:bg-white hover:text-slate-800')
+                      }`}
+                    >
+                      {hasPendingWaiting && (
+                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping absolute -top-1 -right-1" />
+                      )}
+                      <span>
+                        {f === 'all' ? 'Todos' : f === 'waiting' ? 'Aguarda' : f === 'mine' ? 'Meus' : 'Outros'}
+                      </span>
+
+                      {count > 0 && (
+                        <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black leading-none ${
+                          isActiveTab
+                            ? (hasPendingWaiting ? 'bg-slate-950 text-amber-400' : 'bg-white/20 text-white')
+                            : (hasPendingWaiting ? 'bg-amber-500 text-slate-950' : 'bg-slate-200 text-slate-600')
+                        }`}>
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
+          {/* Campo de pesquisa de conversas */}
+          <div className="mt-3 relative">
+            <input
+              type="text"
+              placeholder="Pesquisar conversa..."
+              value={inboxSearch}
+              onChange={(e) => setInboxSearch(e.target.value)}
+              className="w-full pl-8 pr-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none placeholder:text-gray-400 text-gray-700"
+            />
+            <svg className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            {inboxSearch && (
+              <button
+                onClick={() => setInboxSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {loading && (
+            <div className="flex items-center justify-center p-8">
+              <RefreshCw size={20} className="animate-spin text-gray-300" />
+            </div>
+          )}
+          {!loading && filtered.length === 0 && (
+            <div className="flex flex-col items-center justify-center p-8 text-gray-300">
+              <MessageCircle size={40} />
+              <p className="text-xs mt-2">Nenhuma conversa</p>
+            </div>
+          )}
+          {filtered.map(conv => {
+            const stateInfo = STATE_LABELS[conv.state] || STATE_LABELS['GREETING'];
+            const history = conv.history || [];
+            const lastMsg = history[history.length - 1];
+            const customerName = conv.customers?.name;
+            const isSelected = selectedId === conv.id;
+            const unreadCount = history.length - (readIndex[conv.id] || 0);
+            const isUnread = !isSelected && unreadCount > 0 && lastMsg?.role === 'user';
+            
+            return (
+              <button
+                key={conv.id}
+                onClick={() => {
+                  setSelectedId(conv.id);
+                  setReadIndex(prev => ({ ...prev, [conv.id]: history.length }));
+                }}
+                className={`w-full text-left p-3 border-b border-gray-50 hover:bg-gray-50 transition-all ${
+                  isSelected ? 'bg-emerald-50 border-l-2 border-l-emerald-400' : isUnread ? 'bg-emerald-50/30' : ''
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${stateInfo.dot}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1">
+                      <p className={`text-xs font-bold truncate ${isUnread ? 'text-emerald-700' : 'text-gray-800'}`}>
+                        {customerName || formatPhone(conv.phone_number)}
+                      </p>
+                      <span className="text-[9px] text-gray-400 flex-shrink-0">{timeAgo(conv.last_message_at)}</span>
+                    </div>
+                    {!customerName && <p className="text-[10px] text-gray-400">{formatPhone(conv.phone_number)}</p>}
+                    <p className={`text-[10px] font-medium ${stateInfo.color}`}>
+                      {conv.state === 'HUMAN_ACTIVE' && conv.users?.name ? `👤 Em atendimento pelo: ${conv.users.name.split(' ')[0]}` : conv.state === 'RESOLVED' && conv.users?.name ? `✅ Finalizado por: ${conv.users.name.split(' ')[0]}` : stateInfo.label}
+                    </p>
+                    {lastMsg && (
+                      <p className={`text-xs truncate w-full ${isUnread ? 'text-emerald-600 font-semibold' : 'text-slate-500'}`}>
+                        {isUnread && <span className="mr-1 text-[8px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full animate-pulse">NOVA</span>}
+                        {lastMsg.role === 'bot' ? '🤖' : lastMsg.role === 'agent' ? '👤' : '💬'} {String(lastMsg.content || '').substring(0, 50)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Coluna direita: janela de chat ── */}
+      {selected ? (
+        <div className={`flex-1 flex-col ${!selected ? 'hidden md:flex' : 'flex'} w-full h-full absolute md:relative z-20 md:z-auto bg-gray-50/30`}>
+          {/* Header */}
+          <div className="bg-white border-b border-gray-100 p-2 sm:p-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+            <div className="flex-1 flex items-start sm:items-center gap-2 min-w-0 w-full sm:w-auto">
+              <button 
+                className="md:hidden p-1.5 -ml-1 text-slate-500 hover:bg-slate-100 rounded-full shrink-0"
+                onClick={() => setSelected(null)}
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-bold text-gray-800 truncate">
+                    {selected.customers?.name || formatPhone(selected.phone_number)}
+                  </p>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
+                    selected.state === 'WAITING_HUMAN' ? 'bg-orange-50 text-orange-500 border-orange-200' :
+                    selected.state === 'HUMAN_ACTIVE'  ? 'bg-indigo-50 text-indigo-500 border-indigo-200' :
+                    selected.state.includes('FOUND') || selected.state.includes('VIEWING') ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
+                    'bg-gray-50 text-gray-400 border-gray-200'
+                  }`}>
+                    {STATE_LABELS[selected.state]?.label || selected.state}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                  <p className="text-[10px] text-gray-400 shrink-0">
+                    <Phone size={10} className="inline mr-1" />{formatPhone(selected.phone_number)}
+                    {selected.customers?.document && ` · Doc: ${selected.customers.document}`}
+                  </p>
+                  {selected.state === 'HUMAN_ACTIVE' && selected.users?.name && (
+                    <span className="text-[10px] font-medium text-slate-500 shrink-0">
+                      · Atendido por: <strong className="text-slate-700">{selected.users.name}</strong>
+                    </span>
+                  )}
+                  {selected.state === 'RESOLVED' && selected.users?.name && (
+                    <span className="text-[10px] text-slate-500 shrink-0">
+                      · Finalizado por: <strong className="text-slate-700">{selected.users.name}</strong> em {new Date(selected.last_message_at).toLocaleDateString('pt-BR')}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2 flex-wrap sm:justify-end shrink-0 overflow-x-auto pb-1 sm:pb-0 w-full sm:w-auto">
+              {(selected.state !== 'HUMAN_ACTIVE' || selected.assigned_agent_id !== currentUserId) && (
+                <button
+                  onClick={handleTakeover}
+                  disabled={sendingAction !== null}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1c2d4f] text-white text-[11px] font-bold rounded-xl hover:bg-[#2a4376] disabled:opacity-50 transition-all shadow-sm border border-[#1c2d4f] whitespace-nowrap"
+                >
+                  {sendingAction === 'takeover' ? <RefreshCw size={14} className="animate-spin" /> : <UserCheck size={14} />} {selected.state === 'HUMAN_ACTIVE' ? 'Assumir p/ Mim' : 'Assumir'}
+                </button>
+              )}
+              {selected.state !== 'HUMAN_ACTIVE' && (
+                <button
+                  onClick={() => setShowResetConfirm(true)}
+                  disabled={sendingAction !== null}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-slate-600 text-[11px] font-bold rounded-xl hover:bg-slate-50 disabled:opacity-50 transition-all border border-slate-200 shadow-sm whitespace-nowrap"
+                >
+                  {sendingAction === 'reset' ? <RefreshCw size={14} className="animate-spin" /> : <RotateCcw size={14} />} Reiniciar
+                </button>
+              )}
+              {selected.state === 'HUMAN_ACTIVE' && selected.assigned_agent_id === currentUserId && (
+                <>
+                    <button
+                      onClick={() => {
+                        supabase.from('users').select('id, name').neq('role', 'TECHNICIAN').order('name').then(({ data }) => setTeamMembers(data || []));
+                        setTransferModal(selected.id);
+                        setAgentSearch('');
+                      }}
+                      disabled={sendingAction !== null}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 text-[11px] font-bold rounded-xl hover:bg-indigo-100 disabled:opacity-50 transition-all border border-indigo-200 shadow-sm whitespace-nowrap"
+                    >
+                      {sendingAction === 'transfer' ? <RefreshCw size={14} className="animate-spin" /> : <ArrowRight size={14} />} Transferir
+                    </button>
+                  <button
+                    onClick={handleReturnToBot}
+                    disabled={sendingAction !== null}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-[11px] font-bold rounded-xl hover:bg-emerald-100 disabled:opacity-50 transition-all border border-emerald-200 shadow-sm whitespace-nowrap"
+                  >
+                    {sendingAction === 'return_to_bot' ? <RefreshCw size={14} className="animate-spin" /> : <Bot size={14} />} Devolver
+                  </button>
+                </>
+              )}
+              {/* Encerrar Atendimento agora sempre visível (se não estiver encerrado) */}
+              <button
+                onClick={handleCloseConversation}
+                disabled={sendingAction !== null}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-700 text-[11px] font-bold rounded-xl hover:bg-rose-100 disabled:opacity-50 transition-all border border-rose-200 shadow-sm"
+              >
+                {sendingAction === 'close' ? <RefreshCw size={14} className="animate-spin" /> : <X size={14} />} Encerrar
+              </button>
+
+              <button onClick={() => setSelectedId(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 ml-1">
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* Mensagens */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
+            {/* Botão de Histórico */}
+            {selected.history && selected.history.length > 0 && (
+              <div className="flex justify-center mb-4 mt-2">
+                <button
+                  onClick={() => loadOlderMessages(selected)}
+                  disabled={isLoadingHistory[selected.id]}
+                  className="flex items-center gap-2 px-4 py-1.5 bg-white border border-slate-200 text-slate-500 text-[11px] font-bold rounded-full shadow-sm hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300 transition-all disabled:opacity-50 uppercase tracking-wide"
+                >
+                  {isLoadingHistory[selected.id] ? (
+                    <><RefreshCw size={12} className="animate-spin" /> Buscando no servidor...</>
+                  ) : (
+                    <><RotateCcw size={12} /> Carregar mensagens anteriores</>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {(!selected.history || selected.history.length === 0) && (!olderMessages[selected.id] || olderMessages[selected.id].length === 0) && (
+              <div className="flex flex-col items-center justify-center h-full text-gray-300">
+                <MessageCircle size={40} />
+                <p className="text-xs mt-2">Nenhuma mensagem ainda</p>
+              </div>
+            )}
+
+            {(() => {
+              // Mesclar histórico remoto antigo com o histórico recente local
+              const combinedRaw = [...(olderMessages[selected.id] || []), ...(selected.history || [])];
+
+              // Desduplicar usando conteúdo (apenas parte) e janela de tempo para evitar mensagens duplas
+              // já que algumas do cache local também podem vir da API
+              const combinedHistory = combinedRaw.filter((msg, index, self) => {
+                return index === self.findIndex((t) => (
+                  t.role === msg.role && 
+                  Math.abs(new Date(t.timestamp).getTime() - new Date(msg.timestamp).getTime()) < 60000 &&
+                  t.content === msg.content // Desduplicação exata pelo conteúdo
+                ));
+              }).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+              return combinedHistory.map((msg, i) => {
+                const isFromMe = msg.role === 'agent' || msg.role === 'bot';
+                return (
+                  <div
+                    key={i}
+                    className={`flex gap-2 items-end ${isFromMe ? 'justify-end' : 'justify-start'}`}
+                  >
+                    {/* Avatar esquerda — apenas cliente */}
+                    {!isFromMe && (
+                      <div className="w-7 h-7 rounded-full bg-slate-300 flex items-center justify-center flex-shrink-0 shadow-sm flex-shrink-0">
+                        <User size={14} className="text-slate-600" />
+                      </div>
+                    )}
+
+                    {/* Balão */}
+                    <div className={`max-w-[72%] px-3.5 py-2.5 text-xs leading-relaxed shadow-sm ${
+                      msg.role === 'agent'
+                        ? 'bg-emerald-800 text-white rounded-2xl rounded-br-sm'
+                        : msg.role === 'bot'
+                        ? 'bg-violet-700 text-white rounded-2xl rounded-bl-sm'
+                        : 'bg-blue-800 text-white rounded-2xl rounded-bl-sm'
+                    }`}>
+                      {/* Nome — apenas para o remetente correto */}
+                      {msg.role === 'user' && (
+                        <p className="text-[10px] font-semibold text-blue-200 mb-1 tracking-wide">
+                          {formatPhone(selected.phone_number)}
+                        </p>
+                      )}
+                      {msg.role === 'agent' && (
+                        <p className="text-[10px] font-semibold text-emerald-200 mb-1 tracking-wide uppercase">
+                          {msg.agent_name === '👤 Equipe (Histórico)' ? msg.agent_name : `👤 ${msg.agent_name || (msg.agent_id ? teamMembers.find(m => m.id === msg.agent_id)?.name : null) || selected.users?.name || currentUserName}`}
+                        </p>
+                      )}
+                      {msg.role === 'bot' && (
+                        <p className="text-[10px] font-semibold text-emerald-200 mb-1 tracking-wide uppercase">
+                          🤖 Assistente Virtual
+                        </p>
+                      )}
+
+                      {(() => {
+                        const content = msg.content || '';
+                        if (content.startsWith('MEDIA_URL:')) {
+                          const withoutPrefix = content.replace('MEDIA_URL:', '');
+                          const colonIdx = withoutPrefix.indexOf(':');
+                          const mediaType = withoutPrefix.substring(0, colonIdx);
+                          const rest = withoutPrefix.substring(colonIdx + 1);
+                          const pipeIdx = rest.lastIndexOf('|');
+                          const mediaUrl = pipeIdx >= 0 ? rest.substring(0, pipeIdx) : rest;
+                          const caption = pipeIdx >= 0 ? rest.substring(pipeIdx + 1) : '';
+                          const isLight = isFromMe;
+                          const textColor = isLight ? 'text-white/60' : 'text-slate-400';
+
+                          // Se mediaUrl for vazio ou inválido, apenas mostramos a legenda (como é o caso de histórico remoto antigo onde o arquivo já expirou)
+                          if (!mediaUrl || mediaUrl === '') {
+                             return <p className={`text-[11px] opacity-80 italic ${isLight ? 'text-white/80' : 'text-blue-100'}`}>{caption || `[Mídia ${mediaType}]`}</p>;
+                          }
+
+                          if ((mediaType === 'image' || mediaType === 'sticker') && mediaUrl) {
+                            return (
+                              <div className="space-y-1">
+                                <img
+                                  src={mediaUrl}
+                                  alt={caption || 'Imagem'}
+                                  className="max-w-[220px] rounded-xl object-cover cursor-pointer hover:opacity-90 transition-opacity border border-white/10"
+                                  onClick={() => window.open(mediaUrl, '_blank')}
+                                  onError={(e) => {
+                                    const el = e.target as HTMLImageElement;
+                                    el.style.display = 'none';
+                                    const parent = el.parentElement;
+                                    if (parent && !parent.querySelector('.img-fallback')) {
+                                      const fb = document.createElement('div');
+                                      fb.className = 'img-fallback flex items-center gap-2 text-[11px] opacity-70 py-1';
+                                      fb.innerHTML = '📸 Imagem (visualização indisponível)';
+                                      parent.appendChild(fb);
+                                    }
+                                  }}
+                                />
+                                {caption && <p className={`text-[10px] italic ${textColor}`}>{caption}</p>}
+                              </div>
+                            );
+                          }
+                          if (mediaType === 'audio' && mediaUrl) {
+                            return (
+                              <div className="flex items-center gap-2 py-1">
+                                <Mic size={16} className={isLight ? 'text-white/70' : 'text-indigo-400'} />
+                                <audio controls src={mediaUrl} className="h-8" style={{ width: '180px' }} />
+                              </div>
+                            );
+                          }
+                          if (mediaType === 'video' && mediaUrl) {
+                            return (
+                              <div className="space-y-1">
+                                <video src={mediaUrl} controls className="max-w-[220px] rounded-xl" style={{ maxHeight: '160px' }} />
+                                {caption && <p className={`text-[10px] italic ${textColor}`}>{caption}</p>}
+                              </div>
+                            );
+                          }
+                          if (mediaType === 'document') {
+                            const fileName = caption || mediaUrl.split('/').pop() || 'Documento';
+                            return (
+                              <a href={mediaUrl || '#'} target="_blank" rel="noopener noreferrer"
+                                 className={`flex items-center gap-2 p-2 rounded-lg hover:opacity-80 transition-opacity ${isLight ? 'bg-white/10' : 'bg-slate-100'}`}>
+                                <FileText size={16} className={isLight ? 'text-white' : 'text-indigo-500'} />
+                                <span className={`text-[11px] font-medium truncate max-w-[150px] ${isLight ? 'text-white' : 'text-slate-700'}`}>{fileName}</span>
+                                {mediaUrl && <Download size={12} className={isLight ? 'text-white/70' : 'text-slate-400'} />}
+                              </a>
+                            );
+                          }
+                          const mediaLabel: Record<string, string> = {
+                            image: '📸 Imagem', video: '📹 Vídeo', audio: '🎤 Áudio',
+                            document: '📄 Documento', sticker: '✨ Figurinha'
+                          };
+                          return (
+                            <p className="text-[11px] opacity-80 italic">
+                              {mediaLabel[mediaType] || '📎 Mídia'} recebida (pré-visualização não disponível)
+                            </p>
+                          );
+                        }
+                        return <p className="whitespace-pre-wrap">{content}</p>;
+                      })()}
+
+                      <p className={`text-[9px] mt-1 ${isFromMe ? 'text-white/50 text-right' : 'text-slate-400'}`}>
+                        {new Date(msg.timestamp).toLocaleDateString('pt-BR')} às {new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+
+                    {/* Avatar do Agente/Bot (direita) */}
+                    {isFromMe && (
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${msg.role === 'bot' ? 'bg-emerald-100' : 'bg-emerald-700 border border-emerald-600/50'}`}>
+                        {msg.role === 'bot' ? <Bot size={14} className="text-emerald-600" /> : <User size={14} className="text-white" />}
+                      </div>
+                    )}
+                  </div>
+                );
+              });
+            })()}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Input */}
+          {selected.state === 'HUMAN_ACTIVE' ? (
+            <div className="bg-white border-t border-slate-100 p-4 relative shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
+              
+              {/* Emoji Popover */}
+              {showStickers && selected.assigned_agent_id === currentUserId && (
+                <div
+                  ref={stickerRef}
+                  className="absolute bottom-full mb-2 left-4 bg-white border border-slate-200 shadow-xl rounded-2xl p-3 z-50 w-72 animate-in slide-in-from-bottom-2"
+                >
+                  <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100">
+                    <p className="text-xs font-bold text-slate-600">Emojis Rápidos</p>
+                    <button onClick={() => setShowStickers(false)} className="text-slate-400 hover:text-slate-600">
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-8 gap-1 h-36 overflow-y-auto custom-scrollbar pr-1">
+                    {DEFAULT_EMOJIS.map(emoji => (
+                      <button
+                        key={emoji}
+                        onClick={() => setMessage(prev => prev + emoji)}
+                        className="text-xl hover:bg-slate-100 rounded p-1 transition-colors flex items-center justify-center"
+                        disabled={sendingAction !== null}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className={`flex items-end gap-3 rounded-3xl pr-2 pl-2 py-2 transition-all shadow-inner border ${selected.assigned_agent_id === currentUserId ? 'bg-slate-50 border-slate-200 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-400' : 'bg-slate-100 border-slate-200 opacity-70 cursor-not-allowed'}`}>
+                <button
+                  onClick={() => setShowStickers(!showStickers)}
+                  disabled={selected.assigned_agent_id !== currentUserId}
+                  className={`w-9 h-9 mb-0.5 flex items-center justify-center rounded-full transition-colors shrink-0 ${selected.assigned_agent_id !== currentUserId ? 'text-slate-300' : showStickers ? 'bg-emerald-100 text-emerald-600' : 'text-slate-400 hover:bg-slate-200 hover:text-slate-600'}`}
+                  title="Inserir Emoji"
+                >
+                  <Sticker size={18} />
+                </button>
+                <textarea
+                  value={message}
+                  onChange={e => setMessage(e.target.value)}
+                  onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSend();
+                      }
+                  }}
+                  disabled={selected.assigned_agent_id !== currentUserId}
+                  rows={1}
+                  placeholder={selected.assigned_agent_id === currentUserId ? "Digite sua mensagem (Shift + Enter para nova linha)..." : "Esta conversa pertence a outro agente."}
+                  className="flex-1 bg-transparent border-none outline-none text-sm text-slate-700 placeholder-slate-400 py-1.5 resize-none custom-scrollbar disabled:cursor-not-allowed"
+                  style={{ minHeight: '36px', maxHeight: '120px' }}
+                  onInput={(e) => {
+                      const target = e.target as HTMLTextAreaElement;
+                      target.style.height = 'auto';
+                      target.style.height = `${target.scrollHeight}px`;
+                  }}
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={sendingAction !== null || !message.trim() || selected.assigned_agent_id !== currentUserId}
+                  className="w-10 h-10 mb-0.5 flex items-center justify-center bg-emerald-500 text-white rounded-full hover:bg-emerald-600 disabled:opacity-50 transition-all shrink-0 shadow-md hover:shadow-lg active:scale-95 disabled:hover:bg-emerald-500 disabled:hover:shadow-md disabled:active:scale-100"
+                  title="Enviar (Enter)"
+                >
+                  {sendingAction === 'send' ? <RefreshCw size={18} className="animate-spin" /> : <Send size={18} className="ml-1" />}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white border-t border-gray-100 p-3 text-center text-[11px] text-gray-400">
+              {selected.state === 'WAITING_HUMAN'
+                ? '⚠ Cliente aguardando — clique em "Assumir Conversa" para responder'
+                : '🤖 Bot está gerenciando esta conversa'}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center text-gray-300 space-y-3">
+          <MessageCircle size={48} />
+          <p className="text-sm font-medium">Selecione uma conversa</p>
+          <p className="text-xs">As mensagens chegam automaticamente em tempo real</p>
+        </div>
+      )}
+
+      {/* Modal de Confirmação para Reiniciar Bot */}
+      {showResetConfirm && selected && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-[#1c2d4f]/20 rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-[#1c2d4f] px-6 py-4 flex items-center gap-3">
+              <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center text-white">
+                <RotateCcw size={18} />
+              </div>
+              <h3 className="text-base font-bold text-white tracking-wide">Reiniciar Assistente</h3>
+            </div>
+            <div className="p-6 bg-slate-50/50">
+              <p className="text-sm text-slate-600 leading-relaxed font-medium mb-6">
+                O bot de Inteligência Artificial assumirá esta conversa desde o início (fluxo de atendimento). O histórico de mensagens anteriores será mantido para consulta.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowResetConfirm(false)}
+                  className="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-xl transition-all shadow-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleResetBot}
+                  className="px-5 py-2.5 bg-[#1c2d4f] hover:bg-[#15223c] text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-[#1c2d4f]/20 flex items-center gap-2"
+                >
+                  <RotateCcw size={14} /> Confirmar Reinício
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Modal de Transferir Conversa ── */}
+      {transferModal && selected && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh] animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-[#1c2d4f] px-6 py-5 flex items-center justify-between text-white shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-indigo-500/20 border border-indigo-400/30 rounded-2xl flex items-center justify-center text-indigo-300">
+                  <ArrowRight size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold tracking-tight">Transferir Atendimento</h3>
+                  <p className="text-[11px] text-slate-300">Selecione o membro da equipe para assumir este chat</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setTransferModal(null); setAgentSearch(''); }}
+                className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-700 block uppercase tracking-wider">
+                  Buscar Agente / Atendente
+                </label>
+                <div className="relative">
+                  <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Digite o nome do atendente..."
+                    value={agentSearch}
+                    onChange={(e) => setAgentSearch(e.target.value)}
+                    className="w-full pl-10 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all"
+                    autoFocus
+                  />
+                  {agentSearch && (
+                    <button
+                      onClick={() => setAgentSearch('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Agents List */}
+              <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-1">
+                {(() => {
+                  const filteredAgents = teamMembers.filter(m => 
+                    m.id !== currentUserId && 
+                    (m.name || '').toLowerCase().includes(agentSearch.toLowerCase().trim())
+                  );
+
+                  if (filteredAgents.length === 0) {
+                    return (
+                      <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-100">
+                        <User size={28} className="text-slate-300 mx-auto mb-2" />
+                        <p className="text-xs font-semibold text-slate-500">Nenhum agente encontrado</p>
+                        <p className="text-[10px] text-slate-400 mt-1">Verifique o nome digitado ou se há outros usuários cadastrados na equipe.</p>
+                      </div>
+                    );
+                  }
+
+                  return filteredAgents.map(m => (
+                    <button
+                      key={m.id}
+                      onClick={() => {
+                        handleTransfer(m.id);
+                        setTransferModal(null);
+                        setAgentSearch('');
+                      }}
+                      className="w-full flex items-center justify-between p-3 bg-white hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-200 rounded-2xl transition-all group text-left shadow-sm hover:shadow-md"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                          {m.name ? m.name.charAt(0).toUpperCase() : 'U'}
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-800 group-hover:text-indigo-950">{m.name}</p>
+                          <p className="text-[10px] text-slate-400">Atendente / Equipe</p>
+                        </div>
+                      </div>
+                      <div className="px-3 py-1 bg-slate-100 group-hover:bg-indigo-600 group-hover:text-white text-slate-600 text-[10px] font-bold rounded-lg transition-colors">
+                        Transferir
+                      </div>
+                    </button>
+                  ));
+                })()}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                onClick={() => { setTransferModal(null); setAgentSearch(''); }}
+                className="px-5 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl transition-all shadow-sm"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Modal de Nova Conversa ── */}
+      {isNewChatOpen && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-6 overflow-hidden animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh] animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center text-[#1c2d4f] border border-slate-200">
+                  <MessageCircle size={18} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 tracking-tight">Iniciar Nova Conversa</h2>
+                  <p className="text-[10px] font-bold text-slate-400 mt-0.5">WhatsApp Outbound • Atendimento direto</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsNewChatOpen(false)}
+                className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Alternador de Abas */}
+            <div className="p-4 bg-slate-50/50 border-b border-slate-200 flex gap-2 shrink-0">
+              <button
+                onClick={() => { setNewChatTab('customer'); setNewChatError(null); }}
+                className={`flex-1 py-2.5 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                  newChatTab === 'customer'
+                    ? 'bg-[#1c2d4f] text-white shadow-md'
+                    : 'bg-white text-slate-500 border border-slate-200 hover:text-[#1c2d4f] hover:bg-slate-50'
+                }`}
+              >
+                <User size={15} /> Cliente Cadastrado
+              </button>
+              <button
+                onClick={() => { setNewChatTab('manual'); setNewChatError(null); setSelectedCustomer(null); }}
+                className={`flex-1 py-2.5 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                  newChatTab === 'manual'
+                    ? 'bg-[#1c2d4f] text-white shadow-md'
+                    : 'bg-white text-slate-500 border border-slate-200 hover:text-[#1c2d4f] hover:bg-slate-50'
+                }`}
+              >
+                <Phone size={15} /> Digitar Número
+              </button>
+            </div>
+
+            {/* Corpo do Modal */}
+            <div className="p-6 overflow-y-auto space-y-5 flex-1 min-h-0 custom-scrollbar bg-slate-50/30">
+              {newChatError && (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-rose-700 text-xs font-medium animate-in fade-in">
+                  <AlertCircle size={18} className="shrink-0 text-rose-500" />
+                  <span>{newChatError}</span>
+                </div>
+              )}
+
+              {newChatTab === 'customer' ? (
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    Buscar Cliente por Nome, CPF, CNPJ ou Telefone
+                  </label>
+                  <div className="relative">
+                    <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Digite o nome, CPF/CNPJ ou telefone..."
+                      value={customerQuery}
+                      onChange={e => setCustomerQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all"
+                    />
+                  </div>
+
+                  {/* Lista de Clientes */}
+                  <div className="max-h-52 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                    {loadingCustomers ? (
+                      <div className="p-6 text-center text-slate-400 flex items-center justify-center gap-2 text-xs">
+                        <Loader2 size={16} className="animate-spin text-emerald-600" />
+                        <span>Carregando lista de clientes...</span>
+                      </div>
+                    ) : filteredSearchCustomers.length > 0 ? (
+                      filteredSearchCustomers.map(c => {
+                        const isSelected = selectedCustomer?.id === c.id;
+                        const targetWA = c.whatsapp && c.whatsapp.trim() ? c.whatsapp.trim() : c.phone || '';
+                        const docStr = (c as any).document || (c as any).cpf || (c as any).cnpj;
+
+                        return (
+                          <div
+                            key={c.id}
+                            onClick={() => {
+                              setSelectedCustomer(c);
+                              setNewChatError(null);
+                            }}
+                            className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                              isSelected
+                                ? 'bg-emerald-50/80 border-emerald-500 shadow-sm'
+                                : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80'
+                            }`}
+                          >
+                            <div className="space-y-1 min-w-0 flex-1 pr-3">
+                              <div className="flex items-center gap-2">
+                                <p className="text-xs font-bold text-slate-900 truncate">{c.name}</p>
+                                {docStr && (
+                                  <span className="text-[10px] font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-semibold shrink-0">
+                                    {docStr}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3 text-[11px]">
+                                <span className={`font-mono font-bold flex items-center gap-1 ${targetWA ? 'text-emerald-700' : 'text-slate-400'}`}>
+                                  <MessageCircle size={12} className={targetWA ? 'text-emerald-600' : 'text-slate-400'} />
+                                  {targetWA ? formatPhone(targetWA) : 'Sem WhatsApp'}
+                                </span>
+                                {c.city && (
+                                  <span className="text-slate-400 text-[10px] truncate">• {c.city} - {c.state}</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="shrink-0">
+                              {isSelected ? (
+                                <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-sm">
+                                  <CheckCircle2 size={16} />
+                                </div>
+                              ) : (
+                                <div className="w-6 h-6 rounded-full border border-slate-300 bg-slate-50" />
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="p-8 text-center text-slate-400 space-y-1">
+                        <User size={24} className="mx-auto text-slate-300 mb-2" />
+                        <p className="text-xs font-bold text-slate-600">Nenhum cliente localizado</p>
+                        <p className="text-[11px]">Tente buscar por outro termo ou use a aba "Digitar Número".</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedCustomer && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-xs text-emerald-800 font-bold">
+                      <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                      <span>
+                        Selecionado: {selectedCustomer.name} (WhatsApp: {selectedCustomer.whatsapp || selectedCustomer.phone})
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    Número de WhatsApp com DDD
+                  </label>
+                  <div className="relative">
+                    <Phone size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Ex: (11) 99999-8888 ou 5511999998888"
+                      value={manualPhone}
+                      onChange={e => {
+                        setManualPhone(e.target.value);
+                        setNewChatError(null);
+                      }}
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                    💡 O código do país (55 para Brasil) será adicionado automaticamente caso você digite apenas o DDD e número.
+                  </p>
+                </div>
+              )}
+
+              {/* Mensagem Inicial */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Mensagem Inicial de Abertura (Opcional)
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Ex: Olá! Sou da equipe de suporte da Nexus Pro. Como posso ajudar com sua ordem de serviço?"
+                  value={initialMessage}
+                  onChange={e => setInitialMessage(e.target.value)}
+                  className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all custom-scrollbar resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-end gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsNewChatOpen(false)}
+                disabled={startingChat}
+                className="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 hover:text-rose-600 text-slate-500 text-xs font-bold rounded-lg transition-all shadow-sm disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleStartNewChat}
+                disabled={startingChat || (newChatTab === 'customer' && !selectedCustomer) || (newChatTab === 'manual' && !manualPhone.trim())}
+                className="px-6 py-2.5 bg-[#1c2d4f] hover:bg-[#2a4070] text-white text-xs font-bold rounded-lg transition-all shadow-md shadow-[#1c2d4f]/20 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 cursor-pointer"
+              >
+                {startingChat ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Iniciando...</span>
+                  </>
+                ) : (
+                  <>
+                    <MessageCircle size={15} />
+                    <span>Iniciar Conversa</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      <style>{`
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateX(-50%) translateY(-16px); }
+          to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+      `}</style>
+    </div>
+  );
+};

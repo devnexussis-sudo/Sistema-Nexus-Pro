@@ -710,8 +710,10 @@ export const UserManagement: React.FC = () => {
             <div className="flex bg-white/60 p-1 rounded-xl border border-[#1c2d4f]/10 shadow-sm shrink-0">
               <button
                 onClick={() => {
-                  if (can('manageUsers')) setActiveTab('users');
-                  else alert("Acesso Negado: Você não tem permissão para gerenciar usuários.");
+                  if (can('manageUsers')) {
+                    setActiveTab('users');
+                    setSearchTerm('');
+                  } else alert("Acesso Negado: Você não tem permissão para gerenciar usuários.");
                 }}
                 className={`px-3 h-8 rounded-lg text-[9px] transition-all flex items-center gap-1.5 ${!can('manageUsers') ? 'opacity-30 cursor-not-allowed grayscale' : activeTab === 'users' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}
               >
@@ -719,8 +721,10 @@ export const UserManagement: React.FC = () => {
               </button>
               <button
                 onClick={() => {
-                  if (can('manageGroups')) setActiveTab('groups');
-                  else alert("Acesso Negado: Você não tem permissão para gerenciar grupos.");
+                  if (can('manageGroups')) {
+                    setActiveTab('groups');
+                    setSearchTerm('');
+                  } else alert("Acesso Negado: Você não tem permissão para gerenciar grupos.");
                 }}
                 className={`px-3 h-8 rounded-lg text-[9px] transition-all flex items-center gap-1.5 ${!can('manageGroups') ? 'opacity-30 cursor-not-allowed grayscale' : activeTab === 'groups' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}
               >
@@ -878,7 +882,13 @@ export const UserManagement: React.FC = () => {
               </thead>
               <tbody>
                 {(() => {
-                  const filteredGroups = groups.filter(g => g.name.toLowerCase().includes(searchTerm.toLowerCase()) || g.description?.toLowerCase().includes(searchTerm.toLowerCase()));
+                  const searchLower = (searchTerm || '').toLowerCase().trim();
+                  const filteredGroups = (groups || []).filter(g => 
+                    g && (
+                      (g.name || '').toLowerCase().includes(searchLower) || 
+                      (g.description || '').toLowerCase().includes(searchLower)
+                    )
+                  );
 
                   return filteredGroups.length > 0 ? (
                     filteredGroups.map((group) => (

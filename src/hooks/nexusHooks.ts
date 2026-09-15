@@ -130,17 +130,19 @@ export const useUsers = (enabled = true) => {
     });
 };
 
+import { getCurrentTenantId } from '../lib/tenantContext';
+
 export const useUserGroups = (enabled = true) => {
-    const tid = DataService.getCurrentTenantId() || 'default';
+    const tid = DataService.getCurrentTenantId() || getCurrentTenantId() || 'default';
     return useQuery(['user_groups', tid], async (signal) => {
-        const tenantId = DataService.getCurrentTenantId();
+        const tenantId = DataService.getCurrentTenantId() || getCurrentTenantId();
         if (!tenantId) {
             console.warn('[useUserGroups] No tenant ID found');
             return [];
         }
         return TenantService.getUserGroups(tenantId, signal);
     }, {
-        enabled: enabled && !!DataService.getCurrentTenantId(),
+        enabled: enabled && !!(DataService.getCurrentTenantId() || getCurrentTenantId()),
         staleTime: 0,
         refetchOnMount: 'always',
         keepPreviousData: false

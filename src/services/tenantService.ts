@@ -557,13 +557,14 @@ export const TenantService = {
         return [];
     },
 
-    getUserGroups: async (tenantId: string, signal?: AbortSignal): Promise<UserGroup[]> => {
-        if (!tenantId) return [];
+    getUserGroups: async (tenantId?: string, signal?: AbortSignal): Promise<UserGroup[]> => {
+        const tid = tenantId || getCurrentTenantId() || '';
+        if (!tid) return [];
         if (isCloudEnabled) {
             let query = supabase
                 .from('user_groups')
                 .select('*')
-                .eq('tenant_id', tenantId)
+                .eq('tenant_id', tid)
                 .order('name');
 
             if (signal) {
@@ -576,7 +577,7 @@ export const TenantService = {
                 let fbQuery = publicSupabase
                     .from('user_groups')
                     .select('*')
-                    .eq('tenant_id', tenantId)
+                    .eq('tenant_id', tid)
                     .order('name');
                 if (signal) fbQuery = fbQuery.abortSignal(signal);
                 const fbRes = await fbQuery;
@@ -589,7 +590,7 @@ export const TenantService = {
             if (!data || data.length === 0) {
                 const defaultGroups: UserGroup[] = [
                     {
-                        id: `sys-admin-${tenantId}`,
+                        id: `sys-admin-${tid}`,
                         name: 'Administradores',
                         description: 'Controle total do sistema e gestão de permissões',
                         permissions: ADMIN_PERMISSIONS,
@@ -597,7 +598,7 @@ export const TenantService = {
                         active: true
                     },
                     {
-                        id: `sys-op-${tenantId}`,
+                        id: `sys-op-${tid}`,
                         name: 'Operadores / Atendimento',
                         description: 'Acesso às rotas operacionais, ordens de serviço e clientes',
                         permissions: DEFAULT_PERMISSIONS,
@@ -610,10 +611,10 @@ export const TenantService = {
 
             return ((data || []) as DbUserGroup[]).map(g => ({
                 id: g.id,
-                name: g.name,
-                description: g.description,
-                permissions: g.name.toLowerCase() === 'administradores' ? ADMIN_PERMISSIONS : (g.permissions || DEFAULT_PERMISSIONS),
-                isSystem: g.is_system,
+                name: g.name || 'Sem Nome',
+                description: g.description || '',
+                permissions: (g.name && g.name.toLowerCase() === 'administradores') ? ADMIN_PERMISSIONS : (g.permissions || DEFAULT_PERMISSIONS),
+                isSystem: !!g.is_system,
                 active: true
             }));
         }
