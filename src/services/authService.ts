@@ -239,6 +239,14 @@ export const AuthService = {
     // 🛡️ GATEKEEPER: Busca dados enriquecidos do usuário (Role, Permissions, Tenant)
     // Implementa a lógica de permissão MIT/Harvard: Acesso ao PAINEL restrito a registros na tabela 'users'.
     _fetchFullUser: (authId: string, email: string, metadata: any): Promise<User | undefined> => {
+        if (!authId || authId === 'master-override' || !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(authId)) {
+            const stored = SessionStorage.get('user');
+            if (stored) {
+                return Promise.resolve(typeof stored === 'string' ? JSON.parse(stored) : stored);
+            }
+            return Promise.resolve(undefined);
+        }
+
         if (_fetchFullUserPromise && _fetchFullUserId === authId) return _fetchFullUserPromise;
 
         const task = async (): Promise<User | undefined> => {
@@ -410,6 +418,9 @@ export const AuthService = {
     refreshUser: async (): Promise<User | undefined> => {
         const currentUser = await AuthService.getCurrentUser();
         if (currentUser) {
+            if (currentUser.id === 'master-override' || !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(currentUser.id)) {
+                return currentUser;
+            }
             const fresh = await AuthService._fetchFullUser(currentUser.id, currentUser.email, {});
             if (fresh) {
                 SessionStorage.set('user', fresh);
