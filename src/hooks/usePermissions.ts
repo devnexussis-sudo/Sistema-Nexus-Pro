@@ -40,7 +40,7 @@ const MENU_ACCESS_DEFAULTS: NonNullable<UserPermissions['menuAccess']> = {
   settings: false,
   whatsapp: false,
   solicitacoes: false,
-  regions: false,
+  regions: true,
   integrations: false,
 };
 
@@ -77,7 +77,7 @@ export const usePermissions = (): PermissionUtils => {
   // 🔑 REGRA CENTRAL:
   // Um usuário é "admin irrestrito" SOMENTE se:
   //   1. É modo auditoria (impersonation), OU
-  //   2. É explicitamente do grupo Administradores
+  //   2. É explicitamente do grupo Administradores ou possui role ADMIN/SUPER_ADMIN
   //
   // Usuários SEM grupo vinculado NÃO recebem acesso total — usam DEFAULT_PERMISSIONS.
   // Isso fecha a brecha de segurança onde um user sem grupo tinha tudo liberado.
@@ -86,7 +86,7 @@ export const usePermissions = (): PermissionUtils => {
     user?.groupId
   );
 
-  const isMasterAdminGroup = user?.groupName?.toLowerCase() === 'administradores';
+  const isMasterAdminGroup = user?.groupName?.toLowerCase() === 'administradores' || user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
 
   // Admin irrestrito = em auditoria ou faz parte do grupo mestre "Administradores"
   const isAdmin = (user && isMasterAdminGroup) || impersonating;
@@ -100,6 +100,7 @@ export const usePermissions = (): PermissionUtils => {
     if (menu === 'financial') return can('financial', 'read');
     if (menu === 'settings') return can('settings');
     if (menu === 'users') return can('manageUsers') || can('manageGroups');
+    if (menu === 'regions') return can('regions', 'read');
 
     // Tem grupo mas sem permissions salvas → usa defaults
     if (!permissions) return MENU_ACCESS_DEFAULTS[menu] ?? false;

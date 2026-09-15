@@ -1,5 +1,5 @@
 // src/services/regionService.ts
-import { supabase } from '../lib/supabase';
+import { supabase, publicSupabase } from '../lib/supabase';
 import type { Region } from '../types/region';
 import { getCurrentTenantId } from '../lib/tenantContext';
 
@@ -10,13 +10,23 @@ export async function getRegions(): Promise<Region[]> {
   const tid = getCurrentTenantId();
   if (!tid) return [];
 
-  const { data, error } = await supabase
-    .from<Region>('service_regions')
+  let { data, error } = await supabase
+    .from('service_regions')
     .select('*')
     .eq('tenant_id', tid);
   
-  if (error) throw error;
-  return data || [];
+  if (error || !data || data.length === 0) {
+    const fbRes = await publicSupabase
+      .from('service_regions')
+      .select('*')
+      .eq('tenant_id', tid);
+    if (!fbRes.error && fbRes.data && fbRes.data.length > 0) {
+      data = fbRes.data as any;
+      error = null;
+    }
+  }
+
+  return (data || []) as Region[];
 }
 
 /**

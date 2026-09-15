@@ -149,6 +149,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
       stock: true,
       technicians: true,
       forms: true,
+      regions: true,
       users: true,
       settings: true
     }
