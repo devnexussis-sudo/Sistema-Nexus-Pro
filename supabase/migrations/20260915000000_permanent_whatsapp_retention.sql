@@ -1,21 +1,28 @@
 -- ═══════════════════════════════════════════════════════════════════
--- WhatsApp Inbox — Retenção Permanente Indefinida
--- Garante que NENHUMA conversa ou mensagem antiga seja deletada
+-- WhatsApp Inbox — Retenção Permanente Indefinida e Preservação de Estado
+-- Garante que NENHUMA conversa seja deletada nem auto-encerrada da lista
 -- ═══════════════════════════════════════════════════════════════════
 
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 
 DO $$
 BEGIN
-  -- Unschedules any auto-cleanup cron tasks for whatsapp conversations
+  -- Cancelar rotina de deleção de conversas antigas
   PERFORM cron.unschedule('clean-old-whatsapp-conversations');
 EXCEPTION WHEN OTHERS THEN
-  -- Ignora se a extensão cron não estiver ativa ou a job não existir
 END $$;
 
 DO $$
 BEGIN
+  -- Cancelar rotina de deleção de mensagens antigas
   PERFORM cron.unschedule('clean-old-whatsapp-messages');
+EXCEPTION WHEN OTHERS THEN
+END $$;
+
+DO $$
+BEGIN
+  -- Cancelar rotina de auto-encetramento (resolve-stale) por inatividade
+  PERFORM cron.unschedule('resolve-stale-whatsapp-conversations');
 EXCEPTION WHEN OTHERS THEN
 END $$;
 

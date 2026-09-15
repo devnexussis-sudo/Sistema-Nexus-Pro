@@ -743,25 +743,8 @@ serve(async (req: Request) => {
     if (existingConv) {
       conversation = existingConv as Conversation;
 
-      const lastMsgTime = conversation.last_message_at ? new Date(conversation.last_message_at).getTime() : 0;
-      if (Date.now() - lastMsgTime > 8 * 60 * 60 * 1000 && conversation.state !== 'RESOLVED') {
-        conversation.assigned_agent_id = null;
-        
-        await supabase
-          .from("whatsapp_conversations")
-          .update({
-            state: "RESOLVED",
-            assigned_agent_id: null,
-          })
-          .eq("id", conversation.id);
-
-        conversation.state = "GREETING";
-        conversation.history = [];
-      }
-
       if (conversation.state === 'RESOLVED') {
         conversation.state = "GREETING";
-        conversation.history = [];
       }
     } else {
       const { data: newConv, error: createErr } = await supabase

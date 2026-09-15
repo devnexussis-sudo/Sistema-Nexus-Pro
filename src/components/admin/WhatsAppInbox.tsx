@@ -223,7 +223,7 @@ export const WhatsAppInbox: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [sendingAction, setSendingAction] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'waiting' | 'mine' | 'active'>('all');
+  const [filter, setFilter] = useState<'all' | 'waiting' | 'mine' | 'active' | 'resolved'>('all');
   const [toast, setToast] = useState<string | null>(null);
   const [permissionState, setPermissionState] = useState<'prompt' | 'granted' | 'denied'>('prompt');
   const [permBannerDismissed, setPermBannerDismissed] = useState(false);
@@ -1153,12 +1153,11 @@ export const WhatsAppInbox: React.FC = () => {
 
   // ── Filtros ───────────────────────────────────────────────────────────────
   const filtered = conversations.filter(c => {
-    // Ocultar conversas encerradas (RESOLVED) — histórico preservado no banco
-    if (c.state === 'RESOLVED') return false;
-
+    // Na aba 'Todos' (all), EXIBIR TODAS AS CONVERSAS SEM NENHUMA EXCLUSÃO
     if (filter === 'waiting' && c.state !== 'WAITING_HUMAN') return false;
     if (filter === 'mine' && (c.state !== 'HUMAN_ACTIVE' || c.assigned_agent_id !== currentUserId)) return false;
     if (filter === 'active' && c.state !== 'HUMAN_ACTIVE') return false;
+    if (filter === 'resolved' && c.state !== 'RESOLVED') return false;
 
     if (inboxSearch.trim()) {
       const q = inboxSearch.toLowerCase().trim();
@@ -1298,15 +1297,16 @@ export const WhatsAppInbox: React.FC = () => {
           {/* Abas de Filtro com Destaque Vibrante de Pendências */}
           {(() => {
             const counts = {
-              all: conversations.filter(c => c.state !== 'RESOLVED').length,
+              all: conversations.length,
               waiting: conversations.filter(c => c.state === 'WAITING_HUMAN').length,
               mine: conversations.filter(c => c.state === 'HUMAN_ACTIVE' && c.assigned_agent_id === currentUserId).length,
-              active: conversations.filter(c => c.state === 'HUMAN_ACTIVE' && c.assigned_agent_id !== currentUserId).length
+              active: conversations.filter(c => c.state === 'HUMAN_ACTIVE' && c.assigned_agent_id !== currentUserId).length,
+              resolved: conversations.filter(c => c.state === 'RESOLVED').length
             };
 
             return (
               <div className="flex gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200/60 font-poppins">
-                {(['all', 'waiting', 'mine', 'active'] as const).map(f => {
+                {(['all', 'waiting', 'mine', 'active', 'resolved'] as const).map(f => {
                   const isActiveTab = filter === f;
                   const count = counts[f];
                   const isWaitingTab = f === 'waiting';
@@ -1330,7 +1330,7 @@ export const WhatsAppInbox: React.FC = () => {
                         <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping absolute -top-1 -right-1" />
                       )}
                       <span>
-                        {f === 'all' ? 'Todos' : f === 'waiting' ? 'Aguarda' : f === 'mine' ? 'Meus' : 'Outros'}
+                        {f === 'all' ? 'Todos' : f === 'waiting' ? 'Aguarda' : f === 'mine' ? 'Meus' : f === 'active' ? 'Outros' : 'Finalizados'}
                       </span>
 
                       {count > 0 && (
