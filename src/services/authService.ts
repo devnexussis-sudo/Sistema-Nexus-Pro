@@ -2,7 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { logger } from '../lib/logger';
 import { GlobalStorage, SessionStorage } from '../lib/sessionStorage';
-import { adminAuthProxy, supabase, safeUrl, safeKey } from '../lib/supabase';
+import { adminAuthProxy, supabase, publicSupabase, safeUrl, safeKey } from '../lib/supabase';
 import { getCurrentTenantId as _getTenantId } from '../lib/tenantContext';
 import { User, UserRole, AppScope, ADMIN_PERMISSIONS, DEFAULT_PERMISSIONS } from '../types';
 
@@ -31,6 +31,34 @@ export const AuthService = {
     // Retrieve current tenant ID — delegado ao singleton centralizado
     getCurrentTenantId: (): string | undefined => _getTenantId(),
 
+    // 🔒 Auxiliar para verificar se o e-mail pertence a um tenant suspenso ANTES de tentar login
+    _checkTenantSuspensionByEmail: async (email: string): Promise<string | null> => {
+        if (!isCloudEnabled || !email) return null;
+        try {
+            const cleanEmail = email.toLowerCase().trim();
+            const { data: dbUser } = await publicSupabase
+                .from('users')
+                .select('tenant_id')
+                .eq('email', cleanEmail)
+                .maybeSingle();
+
+            if (dbUser?.tenant_id) {
+                const { data: tenantRow } = await publicSupabase
+                    .from('tenants')
+                    .select('status, name, company_name')
+                    .eq('id', dbUser.tenant_id)
+                    .maybeSingle();
+
+                if (tenantRow?.status === 'suspended') {
+                    return tenantRow.company_name || tenantRow.name || 'sua empresa';
+                }
+            }
+        } catch (e) {
+            console.warn('[AuthService] Erro ao checar suspensão por e-mail:', e);
+        }
+        return null;
+    },
+
     getCurrentUser: async (): Promise<User | undefined> => {
         if (isCloudEnabled) {
             const { data: { session } } = await supabase.auth.getSession();
@@ -55,43 +83,61 @@ export const AuthService = {
     login: async (email: string, password?: string): Promise<User | undefined> => {
         if (isCloudEnabled) {
             logger.info('authenticating_user', { email });
+            const cleanEmail = email.toLowerCase().trim();
+
+            // 🔒 1. TENANT SUSPENSION CHECK PRE-LOGIN — Todos os usuários da empresa recebem a mensagem padrão
+            const suspendedCompanyName = await AuthService._checkTenantSuspensionByEmail(cleanEmail);
+            if (suspendedCompanyName) {
+                await supabase.auth.signOut().catch(() => {});
+                SessionStorage.clear();
+                GlobalStorage.remove('persistent_user');
+                throw new Error(`🔒 Acesso bloqueado: ${suspendedCompanyName} está com o acesso suspenso. Entre em contato com o suporte para regularizar sua situação.`);
+            }
 
             const { data, error } = await supabase.auth.signInWithPassword({
-                email: email.toLowerCase(),
+                email: cleanEmail,
                 password: password || ''
             });
 
             if (error) {
                 console.error("❌ Erro no Login Supabase:", error.message);
-                throw new Error(error.message === 'Invalid login credentials' ? 'Credenciais inválidas' : error.message);
+                
+                if (error.message === 'User is banned' || error.message.includes('banned')) {
+                    throw new Error('Sua conta foi desativada. Entre em contato com o administrador da sua empresa.');
+                }
+                if (error.message === 'Invalid login credentials' || error.message.includes('Invalid login')) {
+                    throw new Error('Credenciais inválidas. Verifique seu e-mail e senha.');
+                }
+                throw new Error(error.message);
             }
 
             if (data.user) {
                 logger.info('auth_success_loading_profile');
-                const fullUser = await AuthService._fetchFullUser(data.user.id, email, data.user.user_metadata);
+                const fullUser = await AuthService._fetchFullUser(data.user.id, cleanEmail, data.user.user_metadata);
 
                 if (!fullUser) throw new Error("Usuário autenticado mas sem registro na tabela users.");
                 if (fullUser.active === false) throw new Error("Sua conta foi desativada. Contate o administrador.");
 
-                // 🔒 TENANT SUSPENSION CHECK — verifica status da empresa ANTES de liberar acesso
+                // 🔒 2. TENANT SUSPENSION CHECK POST-FETCH — Garantia dupla pós-login
                 if (fullUser.tenantId) {
-                    const { data: tenantRow } = await supabase
+                    const { data: tenantRow } = await publicSupabase
                         .from('tenants')
                         .select('status, name, company_name')
                         .eq('id', fullUser.tenantId)
                         .maybeSingle();
 
                     if (tenantRow?.status === 'suspended') {
-                        // Desloga imediatamente para não deixar token ativo
-                        await supabase.auth.signOut();
-                        const companyName = tenantRow.name || tenantRow.company_name || 'sua empresa';
+                        await supabase.auth.signOut().catch(() => {});
+                        SessionStorage.clear();
+                        GlobalStorage.remove('persistent_user');
+                        const companyName = tenantRow.company_name || tenantRow.name || 'sua empresa';
                         throw new Error(`🔒 Acesso bloqueado: ${companyName} está com o acesso suspenso. Entre em contato com o suporte para regularizar sua situação.`);
                     }
                 }
 
                 // 🛡️ APP_SCOPE GUARD — Bloqueia técnicos MOBILE de acessarem o Painel Web
                 if (fullUser.appScope === AppScope.MOBILE) {
-                    await supabase.auth.signOut();
+                    await supabase.auth.signOut().catch(() => {});
                     throw new Error('🔒 Esta conta é exclusiva do aplicativo móvel. Para acessar o painel administrativo, solicite ao administrador a liberação de acesso web.');
                 }
 
@@ -103,7 +149,6 @@ export const AuthService = {
                     GlobalStorage.remove('persistent_user');
                 }
 
-                // Define current tenant na sessão
                 if (fullUser.tenantId) {
                     SessionStorage.set('current_tenant', fullUser.tenantId);
                 }
