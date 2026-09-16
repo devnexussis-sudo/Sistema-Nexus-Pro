@@ -67,10 +67,11 @@ export const DocsPage: React.FC = () => {
                 "Acesse a gestão de Grupos e crie perfis de acesso sob medida (ex: Almoxarife, Supervisor de Campo, Faturamento, Operador de Call Center).",
                 "Defina permissões granulares por módulo de sistema, habilitando/desabilitando ações de Leitura (View), Escrita (Create/Edit) e Exclusão (Delete).",
                 "Configure se o grupo de permissões tem acesso à aba sensível de 'Gestão de Regiões' e alteração de regras do Geofencing.",
-                "Cadastre novos usuários inserindo nome, e-mail e vinculando-os a um Grupo de Permissões. O convite é enviado por e-mail para que o usuário crie sua senha via fluxo seguro LGPD.",
-                "Monitore logs de último login e utilize o botão de suspensão instantânea para bloquear acessos de funcionários desligados."
+                "Cadastre novos usuários inserindo nome, e-mail e vinculando-os a um Grupo de Permissões.",
+                "Monitore logs de último login e utilize o botão de suspensão instantânea para bloquear acessos de funcionários desligados.",
+                "NOVO: Todos os usuários recebem automaticamente um Código de Identidade de 6 Dígitos. Esse código atua como um PIN seguro para validação e reconhecimento rápido nas operações logísticas."
             ],
-            technicalDetails: "Toda consulta executa a função 'get_user_tenant_id()' na camada de banco de dados, aplicando o Row Level Security (RLS) de forma inviolável."
+            technicalDetails: "A segurança granular não é apenas visual. Toda ação de escrita e leitura executa validações de RLS (Row Level Security) diretamente no motor do PostgreSQL, onde a função 'has_module_permission' inspeciona o JSON de permissões do usuário em milissegundos. Isso bloqueia qualquer tentativa de fraude, mesmo via API direta."
         },
         {
             id: 'customers',
@@ -265,6 +266,24 @@ export const DocsPage: React.FC = () => {
             ]
         },
         {
+            id: 'invoicing_asaas',
+            title: "Faturamento, Notas Fiscais e Gateway Asaas",
+            category: 'workflow',
+            stepRelation: 6,
+            icon: DollarSign,
+            menuPath: "Menu Lateral > Financeiro > Faturamento",
+            filePath: "src/components/admin/InvoiceManagement.tsx",
+            dbTable: "public.invoices & public.invoice_installments",
+            description: "Integração nativa com o banco Asaas para emissão de cobranças, boletos, links de pagamento via Pix e Notas Fiscais de Serviço (NFS-e).",
+            steps: [
+                "Gere uma Fatura a partir de uma OS finalizada ou Orçamento aprovado.",
+                "Escolha a condição de pagamento (À Vista, Parcelado) e o método (Pix, Boleto, Cartão de Crédito).",
+                "O sistema se comunica com a API do Asaas e gera automaticamente o link de cobrança digital.",
+                "Após o pagamento, o webhook do Asaas atualiza o status no Duno em tempo real e emite a Nota Fiscal (NFS-e) na prefeitura."
+            ],
+            technicalDetails: "A integração financeira utiliza Webhooks HTTPS para conciliação bancária automática e emissão de notas com certificado A1."
+        },
+        {
             id: 'integrations',
             title: "Integrações, Chaves de API e Webhooks",
             category: 'engineering',
@@ -400,6 +419,18 @@ export const DocsPage: React.FC = () => {
         {
             q: "O que é e para que serve o painel de Solicitações?",
             a: "O painel de Solicitações é uma central de auditoria que atua como um 'funil' de aprovação. Em vez de permitir ações destrutivas (ex: cancelamentos de OS sensíveis ou liberações excepcionais), o sistema cria um card no painel de solicitações para que os supervisores validem antes da execução. Isso mantém o controle e segurança sobre a operação."
+        },
+        {
+            q: "Como funciona a integração de pagamentos com o Asaas?",
+            a: "O Duno possui um gateway nativo conectado à API do banco Asaas. Ao gerar uma fatura, o sistema cria automaticamente cobranças em formato Pix, Boleto ou Cartão. Graças ao nosso sistema de Webhooks, assim que o cliente paga, o Duno recebe a notificação em tempo real (conciliação automática) e aciona o robô que pode, inclusive, emitir a NFS-e automaticamente na prefeitura correspondente."
+        },
+        {
+            q: "O que acontece se um funcionário tentar editar um Orçamento burlando a interface (Hack / Injeção de API)?",
+            a: "O sistema bloqueia instantaneamente. Adotamos o conceito de Segurança em Profundidade (Row Level Security Granular). As restrições de Grupo que você define (pode ver, não pode editar, etc.) são injetadas diretamente dentro do banco de dados PostgreSQL. Mesmo se um funcionário mal-intencionado tentar forçar uma requisição direta para a nossa API, o banco de dados vai ler o JSON do grupo dele e rejeitar a transação, retornando Acesso Negado."
+        },
+        {
+            q: "Para que servem os Códigos de Identidade de 6 dígitos?",
+            a: "Tanto Técnicos quanto Gestores do Painel ganham automaticamente um código exclusivo de 6 dígitos no ato da criação da conta. Esse código (PIN) serve como uma assinatura rápida para identificar o colaborador em operações logísticas dinâmicas, retiradas de estoque via App e assinatura de relatórios de forma inviolável."
         }
     ];
 

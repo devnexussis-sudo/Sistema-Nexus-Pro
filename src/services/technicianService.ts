@@ -16,21 +16,39 @@ function _generateTechCode(): string {
     return String(Math.floor(100000 + Math.random() * 900000));
 }
 
-async function _generateUniqueTechCode(tenantId: string): Promise<string> {
-    for (let i = 0; i < 20; i++) {
+export async function generateUniqueUnifiedCode(tenantId: string): Promise<string> {
+    for (let i = 0; i < 25; i++) {
         const code = _generateTechCode();
-        const { count } = await supabase
+        const { count: techCount } = await supabase
             .from('technicians')
             .select('id', { count: 'exact', head: true })
             .eq('tenant_id', tenantId)
             .eq('tech_code', code);
-        if (count === 0) return code;
+            
+        const { count: userCount } = await supabase
+            .from('users')
+            .select('id', { count: 'exact', head: true })
+            .eq('tenant_id', tenantId)
+            .eq('user_code', code);
+
+        if ((techCount ?? 0) === 0 && (userCount ?? 0) === 0) {
+            return code;
+        }
     }
     return String(Date.now()).slice(-6);
 }
 
-export function formatTechCode(code: string | undefined): string {
-    if (!code) return '---';
+async function _generateUniqueTechCode(tenantId: string): Promise<string> {
+    return generateUniqueUnifiedCode(tenantId);
+}
+
+export function formatTechCode(code: string | undefined | null): string {
+    if (!code || code === '---' || code.length > 10) return '---';
+    return code;
+}
+
+export function formatUserCode(code: string | undefined | null): string {
+    if (!code || code === '---' || code.length > 10) return '---';
     return code;
 }
 
@@ -621,38 +639,15 @@ export const TechnicianService = {
     },
 
     /**
-     * 🔄 Backfill Engine — Atribui tech_code a técnicos que ainda não possuem.
+     * 🔄 Backfill Engine — Atribui tech_code/user_code a técnicos e usuários que ainda não possuem.
      */
     backfillMissingCodes: async (): Promise<number> => {
-        const tid = getCurrentTenantId();
-        if (!isCloudEnabled || !tid) return 0;
-
-        const { data, error } = await supabase
-            .from('technicians')
-            .select('id')
-            .eq('tenant_id', tid)
-            .is('tech_code', null);
-
-        if (error || !data || data.length === 0) return 0;
-
-        let updated = 0;
-        for (const tech of data) {
-            try {
-                const code = await _generateUniqueTechCode(tid);
-                await supabase.from('technicians')
-                    .update({ tech_code: code })
-                    .eq('id', tech.id)
-                    .eq('tenant_id', tid);
-                updated++;
-            } catch (e) {
-                console.warn(`[TechnicianService] Backfill falhou para tech ${tech.id}`, e);
-            }
+        try {
+            const { TenantService } = await import('./tenantService');
+            return await TenantService.backfillMissingUserCodes();
+        } catch (e) {
+            console.warn("[TechnicianService] Backfill error:", e);
+            return 0;
         }
-
-        if (updated > 0) {
-            CacheManager.invalidate(`techs_${tid}`);
-            console.log(`[TechnicianService] ✅ Backfill: ${updated} técnicos receberam código único.`);
-        }
-        return updated;
     }
 };

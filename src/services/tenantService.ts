@@ -5,6 +5,7 @@ import { getCurrentTenantId } from '../lib/tenantContext';
 import { User, UserGroup, UserRole, AppScope, ADMIN_PERMISSIONS } from '../types';
 import type { DbTenant, DbTenantInsert, DbTenantStats, DbUser, DbUserGroup } from '../types/database';
 import { StorageService } from './storageService';
+import { generateUniqueUnifiedCode, formatUserCode, formatTechCode } from './technicianService';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
@@ -499,6 +500,7 @@ export const TenantService = {
                                 const meta = u.user_metadata || {};
                                 const rawRole = (meta.role || u.role || 'ADMIN').toString().toUpperCase();
                                 const normalizedRole = (rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN') ? UserRole.ADMIN : (rawRole as UserRole);
+                                const rawCode = meta.userCode || meta.user_code || meta.techCode || meta.tech_code || u.user_code;
                                 return {
                                     id: u.id,
                                     name: meta.name || u.name || u.email?.split('@')[0] || 'Usuário',
@@ -510,7 +512,9 @@ export const TenantService = {
                                     groupIds: meta.groupIds || [],
                                     tenantId: tenantId,
                                     permissions: meta.permissions || {},
-                                    appScope: (meta.appScope || meta.app_scope || (normalizedRole === UserRole.TECHNICIAN ? AppScope.MOBILE : AppScope.WEB)) as AppScope
+                                    appScope: (meta.appScope || meta.app_scope || (normalizedRole === UserRole.TECHNICIAN ? AppScope.MOBILE : AppScope.WEB)) as AppScope,
+                                    userCode: formatUserCode(rawCode),
+                                    user_code: formatUserCode(rawCode)
                                 };
                             });
                         }
@@ -550,7 +554,9 @@ export const TenantService = {
                     groupIds: parsedGroupIds.length > 0 ? parsedGroupIds : (u.group_id ? [u.group_id] : []),
                     tenantId: u.tenant_id as string,
                     permissions: u.permissions as any,
-                    appScope: (u.app_scope as AppScope) || (normalizedRole === UserRole.TECHNICIAN ? AppScope.MOBILE : AppScope.WEB)
+                    appScope: (u.app_scope as AppScope) || (normalizedRole === UserRole.TECHNICIAN ? AppScope.MOBILE : AppScope.WEB),
+                    userCode: formatUserCode(u.user_code),
+                    user_code: formatUserCode(u.user_code)
                 };
             });
         }
@@ -728,6 +734,9 @@ export const TenantService = {
             let userId: string | null = null;
             const targetEmail = userData.email.toLowerCase().trim();
 
+            // 🔑 Gera código único de 6 dígitos para o usuário (compartilhado com técnico se tiver acesso ao app)
+            const userCode = await generateUniqueUnifiedCode(userData.tenantId);
+
             // 1. Tenta criar no Auth via adminAuthProxy
             const { data: authUser, error: authError } = await adminAuthProxy.admin.createUser({
                 email: targetEmail,
@@ -738,7 +747,8 @@ export const TenantService = {
                     role: userData.role,
                     tenantId: userData.tenantId,
                     avatar: userData.avatar,
-                    appScope: userData.appScope || AppScope.WEB
+                    appScope: userData.appScope || AppScope.WEB,
+                    userCode: userCode
                 }
             });
 
@@ -759,7 +769,8 @@ export const TenantService = {
                                 name: userData.name,
                                 role: userData.role,
                                 tenantId: userData.tenantId,
-                                appScope: userData.appScope || AppScope.WEB
+                                appScope: userData.appScope || AppScope.WEB,
+                                userCode: userCode
                             }
                         }).catch(() => {});
                     } else if (authError) {
@@ -791,7 +802,8 @@ export const TenantService = {
                 group_ids: userData.groupIds,
                 avatar: generatedAvatar,
                 permissions: userData.permissions,
-                app_scope: userData.appScope || AppScope.WEB
+                app_scope: userData.appScope || AppScope.WEB,
+                user_code: userCode
             };
 
             const { data, error } = await supabase
@@ -802,9 +814,8 @@ export const TenantService = {
 
             if (error) throw error;
 
-            // 3. Se for usuário com acesso a app/técnico, sincroniza tabela `technicians`
+            // 3. Se for usuário com acesso a app/técnico, sincroniza tabela `technicians` com o MESMO código
             if (isTechUser) {
-                const { formatTechCode } = await import('./technicianService');
                 try {
                     await supabase.from('technicians').upsert([{
                         id: userId,
@@ -812,7 +823,7 @@ export const TenantService = {
                         email: targetEmail,
                         active: userData.active ?? true,
                         avatar: generatedAvatar,
-                        tech_code: formatTechCode(userId),
+                        tech_code: userCode,
                         tenant_id: userData.tenantId
                     }]);
                 } catch (e) {
@@ -831,9 +842,25 @@ export const TenantService = {
             // 🔒 LICENSE GUARD na edição: Se o usuário passou a ter acesso de técnico/app e estiver ativo
             const { data: existingUser } = await supabase
                 .from('users')
-                .select('app_scope, role, active, tenant_id, email, name')
+                .select('user_code, app_scope, role, active, tenant_id, email, name')
                 .eq('id', userData.id)
                 .maybeSingle();
+
+            const tid = existingUser?.tenant_id || getCurrentTenantId();
+
+            let userCode = existingUser?.user_code || (userData as any).userCode || (userData as any).user_code;
+            if (!userCode || userCode.length > 10 || userCode === '---') {
+                // Checa se existe código na tabela de técnicos
+                if (tid) {
+                    const { data: techRow } = await supabase.from('technicians').select('tech_code').eq('id', userData.id).maybeSingle();
+                    if (techRow?.tech_code && techRow.tech_code.length <= 10 && techRow.tech_code !== '---') {
+                        userCode = techRow.tech_code;
+                    }
+                }
+                if (!userCode && tid) {
+                    userCode = await generateUniqueUnifiedCode(tid);
+                }
+            }
 
             if (existingUser) {
                 const oldScope = existingUser.app_scope || AppScope.WEB;
@@ -846,7 +873,6 @@ export const TenantService = {
                 const newWillBeTech = (newScope === AppScope.HYBRID || newScope === AppScope.MOBILE || newRole === UserRole.TECHNICIAN) && newIsActive !== false;
 
                 if (!oldWasTech && newWillBeTech) {
-                    const tid = existingUser.tenant_id || getCurrentTenantId();
                     if (tid) {
                         await TenantService.checkTechnicianLicenseLimit(tid, userData.id);
                     }
@@ -864,7 +890,8 @@ export const TenantService = {
                 group_ids: userData.groupIds,
                 avatar: userData.avatar,
                 permissions: userData.permissions,
-                app_scope: userData.appScope || undefined
+                app_scope: userData.appScope || undefined,
+                user_code: userCode || undefined
             };
 
             const { data, error } = await supabase
@@ -876,29 +903,29 @@ export const TenantService = {
 
             if (error) throw error;
 
-            // Sync Auth status / metadata e appScope
+            // Sync Auth status / metadata e appScope / userCode
             const updateMeta: any = {};
             if (userData.active === true) updateMeta.ban_duration = 'none';
             else if (userData.active === false) updateMeta.ban_duration = '876000h';
             if (userData.password) updateMeta.password = userData.password;
-            if (userData.appScope || userData.name || userData.role) {
+            if (userData.appScope || userData.name || userData.role || userCode) {
                 updateMeta.user_metadata = {
                     ...(userData.appScope ? { appScope: userData.appScope } : {}),
                     ...(userData.name ? { name: userData.name } : {}),
-                    ...(userData.role ? { role: userData.role } : {})
+                    ...(userData.role ? { role: userData.role } : {}),
+                    ...(userCode ? { userCode: userCode } : {})
                 };
             }
             if (Object.keys(updateMeta).length > 0) {
                 await adminAuthProxy.admin.updateUserById(userData.id, updateMeta).catch(() => {});
             }
 
-            // Sincroniza tabela física `technicians` se o usuário tiver acesso a aplicativo
+            // Sincroniza tabela física `technicians` se o usuário tiver acesso a aplicativo com o MESMO código
             const finalScope = userData.appScope || existingUser?.app_scope;
             const finalRole = userData.role || existingUser?.role;
             const isTechUser = finalScope === AppScope.HYBRID || finalScope === AppScope.MOBILE || finalRole === UserRole.TECHNICIAN;
 
             if (isTechUser && tid) {
-                const { formatTechCode } = await import('./technicianService');
                 const userEmail = userData.email || data?.email || existingUser?.email || '';
                 try {
                     await supabase.from('technicians').upsert([{
@@ -907,7 +934,7 @@ export const TenantService = {
                         email: userEmail,
                         active: userData.active ?? existingUser?.active ?? true,
                         avatar: userData.avatar || '',
-                        tech_code: formatTechCode(userData.id),
+                        tech_code: userCode,
                         tenant_id: tid
                     }]);
                 } catch (e) {
@@ -919,6 +946,97 @@ export const TenantService = {
             return data;
         }
         return userData;
+    },
+
+    /**
+     * 🔄 Backfill Engine — Sincroniza códigos únicos de 6 dígitos para TODOS os usuários e técnicos.
+     * Garante que usuários com acesso ao App mantenham o MESMO código em ambas as tabelas (users e technicians).
+     */
+    backfillMissingUserCodes: async (tenantIdOverride?: string): Promise<number> => {
+        const tid = tenantIdOverride || getCurrentTenantId();
+        if (!isCloudEnabled || !tid || tid === 'default' || tid === 'null') return 0;
+
+        try {
+            const [usersRes, techsRes] = await Promise.all([
+                supabase.from('users').select('id, user_code, role, app_scope, email, name').eq('tenant_id', tid),
+                supabase.from('technicians').select('id, tech_code, email, name').eq('tenant_id', tid)
+            ]);
+
+            const usersList = usersRes.data || [];
+            const techsList = techsRes.data || [];
+
+            const techCodeMap = new Map<string, string>();
+            techsList.forEach((t: any) => {
+                if (t.tech_code && t.tech_code.length <= 10 && t.tech_code !== '---') {
+                    techCodeMap.set(t.id, t.tech_code);
+                }
+            });
+
+            const userCodeMap = new Map<string, string>();
+            usersList.forEach((u: any) => {
+                if (u.user_code && u.user_code.length <= 10 && u.user_code !== '---') {
+                    userCodeMap.set(u.id, u.user_code);
+                }
+            });
+
+            let updatedCount = 0;
+
+            for (const u of usersList) {
+                let code = userCodeMap.get(u.id) || techCodeMap.get(u.id);
+                if (!code) {
+                    code = await generateUniqueUnifiedCode(tid);
+                }
+
+                // Sincroniza user_code na tabela users
+                if (u.user_code !== code) {
+                    await supabase.from('users').update({ user_code: code }).eq('id', u.id).eq('tenant_id', tid);
+                    userCodeMap.set(u.id, code);
+                    updatedCount++;
+                }
+
+                // Se o usuário tiver acesso ao App móvel, sincroniza com o MESMO código na tabela technicians
+                const isTech = (u.app_scope === 'HYBRID' || u.app_scope === 'MOBILE' || u.role === 'TECHNICIAN' || u.role === 'TECNICO');
+                const currentTechCode = techCodeMap.get(u.id);
+
+                if (isTech && currentTechCode !== code) {
+                    try {
+                        await supabase.from('technicians').upsert([{
+                            id: u.id,
+                            name: u.name || 'Técnico',
+                            email: u.email || '',
+                            active: true,
+                            tech_code: code,
+                            tenant_id: tid
+                        }]);
+                        techCodeMap.set(u.id, code);
+                        updatedCount++;
+                    } catch (e) {
+                        console.warn(`Backfill tech code error for ${u.id}:`, e);
+                    }
+                }
+            }
+
+            // Sincroniza qualquer técnico da tabela technicians que não possua código válido
+            for (const t of techsList) {
+                if (!t.tech_code || t.tech_code.length > 10 || t.tech_code === '---') {
+                    const code = userCodeMap.get(t.id) || await generateUniqueUnifiedCode(tid);
+                    try {
+                        await supabase.from('technicians').update({ tech_code: code }).eq('id', t.id).eq('tenant_id', tid);
+                        techCodeMap.set(t.id, code);
+                        updatedCount++;
+                    } catch (e) {}
+                }
+            }
+
+            if (updatedCount > 0) {
+                CacheManager.invalidate(`techs_${tid}`);
+                console.log(`✅ [TenantService] Backfill: ${updatedCount} usuários/técnicos sincronizados com código único de 6 dígitos.`);
+            }
+            return updatedCount;
+        } catch (e) {
+            console.warn("⚠️ Backfill error:", e);
+            return 0;
+        }
     },
 
     deleteUser: async (userId: string): Promise<void> => {

@@ -340,6 +340,8 @@ export interface User {
   groupName?: string; // Nome do grupo para exibição
   permissions?: UserPermissions;
   appScope?: AppScope; // Escopo de acesso: WEB, MOBILE ou HYBRID
+  userCode?: string; // Código de 6 dígitos do usuário
+  user_code?: string;
 }
 
 export interface UserWithPassword extends User {

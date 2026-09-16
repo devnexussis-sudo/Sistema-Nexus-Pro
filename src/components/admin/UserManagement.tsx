@@ -39,6 +39,7 @@ import { useUserGroups, useUsers } from '../../hooks/nexusHooks';
 import { useI18n } from '../../i18n/I18nContext';
 import { DataService } from '../../services/dataService';
 import { TenantService } from '../../services/tenantService';
+import { TechnicianService, formatUserCode } from '../../services/technicianService';
 import { AuthService } from '../../services/authService';
 import { StorageService } from '../../services/storageService';
 import { useAuth } from '../../contexts/AuthContext';
@@ -478,6 +479,13 @@ export const UserManagement: React.FC = () => {
     }
   }, [groupsData]);
 
+  // 🔑 Backfill: atribui e sincroniza código único de 6 dígitos a todos os usuários
+  useEffect(() => {
+    TenantService.backfillMissingUserCodes().then((count) => {
+      if (count > 0) refetchUsers();
+    }).catch(console.warn);
+  }, []);
+
   // Função legado de refresh mantida para compatibilidade com botões de ação
   const loadData = async () => {
     await Promise.all([refetchUsers(), refetchGroups()]);
@@ -809,6 +817,7 @@ export const UserManagement: React.FC = () => {
               <thead className="sticky top-0 bg-slate-50 z-10">
                 <tr className="text-[10px] font-poppins font-bold text-slate-500 tracking-wider uppercase text-left border-b border-slate-200">
                   <th className="px-6 py-3">Identidade</th>
+                  <th className="px-4 py-3 text-center">Código</th>
                   <th className="px-4 py-3">Credencial (E-mail)</th>
                   <th className="px-4 py-3">Grupo de Acesso</th>
                   <th className="px-4 py-3 text-center">Status</th>
@@ -847,6 +856,12 @@ export const UserManagement: React.FC = () => {
                           )}
                         </div>
                       </div>
+                    </td>
+
+                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                      <span className="font-mono text-[11px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2.5 py-1 rounded-lg tracking-widest border border-[#1c2d4f]/15">
+                        {formatUserCode(user.userCode || (user as any).user_code)}
+                      </span>
                     </td>
 
                     <td className="px-4 py-3 text-left whitespace-nowrap">
@@ -986,9 +1001,16 @@ export const UserManagement: React.FC = () => {
                     <h2 className="text-lg font-bold text-slate-900 tracking-tight">
                       {isReadOnly ? 'Detalhes da Identidade' : (editingUser ? 'Atualizar Identidade' : 'Registrar Novo Gestor')}
                     </h2>
-                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">
-                      Nexus Operacional • acesso e privilégios corporativos
-                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-[10px] font-bold text-slate-400">
+                        Nexus Operacional • acesso e privilégios corporativos
+                      </p>
+                      {editingUser && (editingUser.userCode || (editingUser as any).user_code) && (
+                        <span className="font-mono text-[10px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2 py-0.5 rounded border border-[#1c2d4f]/15 tracking-widest">
+                          {editingUser.userCode || (editingUser as any).user_code}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">

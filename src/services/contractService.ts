@@ -74,7 +74,9 @@ export const ContractService = {
                     throw error;
                 }
                 const mapped = (data || []).map(d => ContractService._mapContractFromDB(d));
-                CacheManager.set(cacheKey, mapped, CacheManager.TTL.MEDIUM); // 5 min
+                if (mapped && mapped.length > 0) {
+                    CacheManager.set(cacheKey, mapped, CacheManager.TTL.MEDIUM); // 5 min
+                }
                 return mapped;
             }, signal);
         }

@@ -88,6 +88,8 @@ export interface DbUser {
     group_id?: string;
     group_ids?: string[];
     permissions?: Partial<UserPermissions>;
+    user_code?: string;
+    app_scope?: string;
     created_at?: string;
     updated_at?: string;
 }

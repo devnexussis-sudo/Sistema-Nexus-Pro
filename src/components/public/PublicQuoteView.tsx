@@ -217,6 +217,19 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
         }
     }, [isRejectMode]);
 
+    useEffect(() => {
+        try {
+            const hash = window.location.hash;
+            if (hash.includes('print=true') && !loading && quote) {
+                setTimeout(() => {
+                    window.print();
+                }, 800);
+            }
+        } catch(e) {
+            console.error('Erro ao verificar param de impressão', e);
+        }
+    }, [loading, quote]);
+
     const enterSignatureMode = async (mode: 'approve' | 'reject') => {
         if (mode === 'approve') setIsApproveMode(true);
         if (mode === 'reject') setIsRejectMode(true);
@@ -399,12 +412,15 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
     if (isSuccess || isRejected) return (
         <div className="public-view-wrapper font-poppins" style={{ fontFamily: "'Poppins', sans-serif" }}>
             {fontStyle}
-            <div className={`min-h-screen ${isSuccess ? 'bg-emerald-600' : 'bg-rose-600'} flex items-center justify-center p-4 py-8 animate-fade-in`}>
-                <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-2xl text-center w-full max-w-md border-4 border-white/30 my-auto">
-                    <div className={`w-16 h-16 ${isSuccess ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'} rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg`}>
-                        {isSuccess ? <CheckCircle className="w-9 h-9" /> : <AlertCircle className="w-9 h-9" />}
+            <div className={`min-h-screen ${isSuccess ? 'bg-emerald-50' : 'bg-rose-50'} flex items-center justify-center p-4 py-8 animate-fade-in`}>
+                <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-xl shadow-slate-200/50 text-center w-full max-w-md border border-slate-200/60 my-auto relative overflow-hidden">
+                    {/* Fundo decorativo leve dentro do card */}
+                    <div className={`absolute top-0 left-0 w-full h-1.5 ${isSuccess ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
+
+                    <div className={`w-16 h-16 ${isSuccess ? 'bg-emerald-100/50 text-emerald-600' : 'bg-rose-100/50 text-rose-600'} rounded-2xl flex items-center justify-center mx-auto mb-4 border ${isSuccess ? 'border-emerald-200' : 'border-rose-200'}`}>
+                        {isSuccess ? <CheckCircle className="w-8 h-8" /> : <AlertCircle className="w-8 h-8" />}
                     </div>
-                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900 uppercase italic tracking-tight mb-2">
+                    <h2 className={`text-xl sm:text-2xl font-bold uppercase italic tracking-tight mb-2 ${isSuccess ? 'text-emerald-800' : 'text-rose-800'}`}>
                         {isSuccess ? 'Proposta Aprovada!' : 'Proposta Recusada'}
                     </h2>
                     <p className="text-xs sm:text-sm font-semibold text-slate-500 uppercase leading-relaxed mb-6 px-2">
@@ -425,6 +441,19 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                             </p>
                         </div>
                     </div>
+
+                    <button 
+                        onClick={() => window.location.reload()}
+                        className={`w-full py-4 rounded-xl text-xs sm:text-sm font-bold uppercase tracking-wider shadow-md flex items-center justify-center gap-2 transition-all active:scale-[0.98] mb-6 ${
+                            isSuccess 
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20' 
+                            : 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/20'
+                        }`}
+                    >
+                        <FileText size={18} />
+                        Visualizar Documento Registrado
+                    </button>
+
                     <div className="flex items-center justify-center gap-2 opacity-60">
                         <NexusBranding size="sm" />
                     </div>
@@ -1161,8 +1190,8 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                                             <SignaturePad
                                                 ref={sigCanvas}
                                                 penColor="#e11d48"
-                                                minWidth={1.5}
-                                                maxWidth={3.5}
+                                                minWidth={0.5}
+                                                maxWidth={1.5}
                                                 canvasProps={{ className: "w-full h-56 sm:h-72 cursor-crosshair bg-slate-50/50 touch-none", style: { touchAction: 'none' } }}
                                             />
                                         ) : (
@@ -1234,8 +1263,8 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                                             <SignaturePad
                                                 ref={sigCanvas}
                                                 penColor="#0f172a"
-                                                minWidth={1.5}
-                                                maxWidth={3.5}
+                                                minWidth={0.5}
+                                                maxWidth={1.5}
                                                 canvasProps={{
                                                     className: "w-full h-64 sm:h-80 md:h-96 cursor-crosshair bg-slate-50/50 touch-none",
                                                     style: { touchAction: 'none' }

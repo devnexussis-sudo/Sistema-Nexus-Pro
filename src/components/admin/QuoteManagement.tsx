@@ -18,10 +18,12 @@ import {
     Loader2,
     Lock,
     MapPin,
+    MessageCircle,
     Plus,
     Printer,
     RefreshCw,
     Search,
+    Share2,
     ShieldCheck,
     ShoppingCart,
     Signature as SignatureIcon,
@@ -1598,6 +1600,46 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         </button>
                                     );
                                 })()}
+                                
+                                <button
+                                    onClick={() => {
+                                        const url = `${window.location.origin}/#/view-quote/${viewQuote.publicToken || viewQuote.id}`;
+                                        const compName = tenant?.company_name || tenant?.name || tenant?.companyName || 'nossa empresa';
+                                        const text = `Olá! Tudo bem? 🏢\n\nSomos da *${compName}* e preparamos sua proposta comercial com muito carinho.\n\n📄 *Acesse seu orçamento no link abaixo:*\n${url}\n\nFicamos à disposição para esclarecer qualquer dúvida!`;
+                                        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                                    }}
+                                    className="inline-flex items-center justify-center min-w-max h-8 sm:h-9 px-3 sm:px-3.5 gap-1.5 border border-[#25D366]/20 bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366]/20 rounded-lg text-xs font-medium transition-all shrink-0 whitespace-nowrap"
+                                >
+                                    <MessageCircle size={14} className="shrink-0" />
+                                    <span className="leading-none hidden sm:inline">WhatsApp</span>
+                                </button>
+
+                                <button
+                                    onClick={() => {
+                                        const url = `${window.location.origin}/#/view-quote/${viewQuote.publicToken || viewQuote.id}`;
+                                        navigator.clipboard.writeText(url).then(() => {
+                                            showAlert('Link público copiado com sucesso!', 'success');
+                                        }).catch(() => {
+                                            showAlert('Erro ao copiar link.', 'error');
+                                        });
+                                    }}
+                                    className="inline-flex items-center justify-center min-w-max h-8 sm:h-9 px-3 sm:px-3.5 gap-1.5 border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg text-xs font-medium transition-all shrink-0 whitespace-nowrap"
+                                >
+                                    <Share2 size={14} className="shrink-0" />
+                                    <span className="leading-none hidden sm:inline">Copiar Link</span>
+                                </button>
+
+                                <button
+                                    onClick={() => {
+                                        const url = `${window.location.origin}/#/view-quote/${viewQuote.publicToken || viewQuote.id}?print=true`;
+                                        window.open(url, '_blank');
+                                    }}
+                                    className="inline-flex items-center justify-center min-w-max h-8 sm:h-9 px-3 sm:px-3.5 gap-1.5 border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg text-xs font-medium transition-all shrink-0 whitespace-nowrap"
+                                >
+                                    <Printer size={14} className="shrink-0" />
+                                    <span className="leading-none hidden sm:inline">PDF</span>
+                                </button>
+
                                 <button
                                     onClick={() => {
                                         const url = `${window.location.origin}/#/view-quote/${viewQuote.publicToken || viewQuote.id}`;

@@ -102,7 +102,9 @@ export const QuoteService = {
                     throw error;
                 }
                 const mapped = (data || []).map(d => QuoteService._mapQuoteFromDB(d));
-                CacheManager.set(cacheKey, mapped, CacheManager.TTL.MEDIUM); // 5 min
+                if (mapped && mapped.length > 0) {
+                    CacheManager.set(cacheKey, mapped, CacheManager.TTL.MEDIUM); // 5 min
+                }
                 return mapped;
             }, signal);
         }

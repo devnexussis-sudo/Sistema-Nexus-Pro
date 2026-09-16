@@ -81,7 +81,9 @@ export const CustomerService = {
                 }
 
                 const mapped = (data || []).map(d => CustomerService._mapCustomerFromDB(d));
-                CacheManager.set(cacheKey, mapped, CacheManager.TTL.MEDIUM);
+                if (mapped && mapped.length > 0) {
+                    CacheManager.set(cacheKey, mapped, CacheManager.TTL.MEDIUM);
+                }
                 return mapped;
             }, signal);
         }

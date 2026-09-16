@@ -113,7 +113,9 @@ export const EquipmentService = {
                 }
 
                 const mapped = (data || []).map(d => EquipmentService._mapEquipmentFromDB(d));
-                CacheManager.set(cacheKey, mapped, CacheManager.TTL.MEDIUM);
+                if (mapped && mapped.length > 0) {
+                    CacheManager.set(cacheKey, mapped, CacheManager.TTL.MEDIUM);
+                }
                 return mapped;
             }, signal);
         }
