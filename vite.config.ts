@@ -96,8 +96,8 @@ export default defineConfig({
     // Tamanho máximo de chunk (500KB)
     chunkSizeWarningLimit: 500,
 
-    // Source maps para produção (ajuda em debug)
-    sourcemap: process.env.NODE_ENV === 'production' ? 'hidden' : true,
+    // Source maps desativados para produção (previne vazamento de código)
+    sourcemap: process.env.NODE_ENV === 'production' ? false : true,
 
     // Otimização CSS
     cssCodeSplit: true,

@@ -134,7 +134,7 @@ export const TenantService = {
     createTenant: async (tenant: Partial<DbTenantInsert> & { initialPassword?: string; adminEmail?: string; adminName?: string }): Promise<DbTenant> => {
         if (isCloudEnabled) {
             const { initialPassword, ...tenantData } = tenant;
-            const initialPass = initialPassword || 'Nexus2025!';
+            const initialPass = initialPassword || (Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8).toUpperCase() + '!1aA');
 
             // 🛠️ Nexus Schema Cleaner: Remove campos camelCase
             const processedTenant: Partial<DbTenantInsert> & Record<string, unknown> = {};
