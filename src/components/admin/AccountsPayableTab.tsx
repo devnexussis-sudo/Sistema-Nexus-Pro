@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { useAccountsPayable, NexusQueryClient } from '../../hooks/nexusHooks';
+import { useAccountsPayable, useTechnicians, NexusQueryClient } from '../../hooks/nexusHooks';
 import { useI18n } from '../../i18n';
 import { useDialog } from '../../contexts/DialogContext';
 import { DataService } from '../../services/dataService';
-import { Search, Plus, Filter, CreditCard, Calendar, ArrowUpRight, DollarSign, Loader2, CheckCircle2, Tag, RefreshCcw, Trash2, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown, X } from 'lucide-react';
+import { Search, Plus, Filter, CreditCard, Calendar, ArrowUpRight, DollarSign, Loader2, CheckCircle2, Tag, RefreshCcw, Trash2, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown, X, UserCheck, User, Award, CheckSquare } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { CreatePayableModal } from './CreatePayableModal';
 import { PayableCategoriesModal } from './PayableCategoriesModal';
@@ -34,7 +34,9 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
         d.setDate(0); // Fim do mês atual
         return d.toISOString().split('T')[0];
     });
-    const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'PAID'
+    const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELLED'
+    const [categoryFilter, setCategoryFilter] = useState('ALL'); // 'ALL' | 'Comissão' | etc.
+    const [technicianFilter, setTechnicianFilter] = useState('ALL'); // 'ALL' | tech name
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 10;
@@ -45,24 +47,63 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
     const [selectedItem, setSelectedItem] = useState<any | null>(null);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-    const [showFilters, setShowFilters] = useState(false);
+    const [showFilters, setShowFilters] = useState(true);
 
     const { data: payables = [], isLoading, isFetching, refetch } = useAccountsPayable(true, { start: startDate, end: endDate, status: statusFilter });
+    const { data: techniciansData = [] } = useTechnicians();
 
     // Resetar seleção ao mudar página ou filtro
     React.useEffect(() => {
         setSelectedIds([]);
-    }, [currentPage, statusFilter, searchTerm, startDate, endDate]);
+    }, [currentPage, statusFilter, categoryFilter, technicianFilter, searchTerm, startDate, endDate]);
+
+    // Extrair lista de técnicos únicos
+    const availableTechnicians = useMemo(() => {
+        const techSet = new Set<string>();
+        if (techniciansData && Array.isArray(techniciansData)) {
+            techniciansData.forEach((t: any) => { if (t.name) techSet.add(t.name); });
+        }
+        payables.forEach(item => {
+            if (item.supplierName && (item.category === 'Comissão' || !item.category)) {
+                techSet.add(item.supplierName);
+            }
+        });
+        return Array.from(techSet).sort();
+    }, [techniciansData, payables]);
+
+    // Extrair lista de categorias únicas
+    const availableCategories = useMemo(() => {
+        const catSet = new Set<string>();
+        catSet.add('Comissão');
+        payables.forEach(item => { if (item.category) catSet.add(item.category); });
+        return Array.from(catSet).sort();
+    }, [payables]);
 
     const filteredItems = useMemo(() => {
         let items = payables;
+
+        // Filtro por Categoria
+        if (categoryFilter !== 'ALL') {
+            items = items.filter(item => (item.category || '').toLowerCase() === categoryFilter.toLowerCase());
+        }
+
+        // Filtro por Técnico (Fornecedor)
+        if (technicianFilter !== 'ALL') {
+            items = items.filter(item => 
+                (item.supplierName || '').toLowerCase().trim() === technicianFilter.toLowerCase().trim()
+            );
+        }
+
+        // Filtro de Pesquisa por texto
         if (searchTerm) {
             const lowerSearch = searchTerm.toLowerCase();
             items = items.filter(item => 
-                item.description.toLowerCase().includes(lowerSearch) ||
-                (item.supplierName && item.supplierName.toLowerCase().includes(lowerSearch))
+                (item.description || '').toLowerCase().includes(lowerSearch) ||
+                (item.supplierName && item.supplierName.toLowerCase().includes(lowerSearch)) ||
+                (item.category && item.category.toLowerCase().includes(lowerSearch))
             );
         }
+
         if (sortConfig.key) {
             items = [...items].sort((a, b) => {
                 let aValue: any = a[sortConfig.key as keyof typeof a];
@@ -92,7 +133,37 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
             });
         }
         return items;
-    }, [payables, searchTerm, sortConfig]);
+    }, [payables, categoryFilter, technicianFilter, searchTerm, sortConfig]);
+
+    // Estatísticas de comissões/contas filtradas
+    const commissionStats = useMemo(() => {
+        const isCommissionFocus = categoryFilter === 'Comissão' || technicianFilter !== 'ALL';
+        const targetItems = isCommissionFocus
+            ? filteredItems.filter(i => (i.category || '').toLowerCase() === 'comissão' || technicianFilter !== 'ALL')
+            : filteredItems;
+
+        const totalCount = targetItems.length;
+        const pendingItems = targetItems.filter(i => i.status === 'PENDING');
+        const pendingCount = pendingItems.length;
+        const pendingTotal = pendingItems.reduce((acc, curr) => acc + curr.amount, 0);
+
+        const paidItems = targetItems.filter(i => i.status === 'PAID');
+        const paidCount = paidItems.length;
+        const paidTotal = paidItems.reduce((acc, curr) => acc + curr.amount, 0);
+
+        const grandTotal = targetItems.reduce((acc, curr) => acc + curr.amount, 0);
+
+        return {
+            isCommissionFocus,
+            totalCount,
+            pendingCount,
+            pendingTotal,
+            paidCount,
+            paidTotal,
+            grandTotal,
+            pendingItems
+        };
+    }, [filteredItems, categoryFilter, technicianFilter]);
 
     const requestSort = (key: string) => {
         let direction: 'asc' | 'desc' = 'asc';
@@ -142,10 +213,9 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
                     await FinancialService.updateAccountPayable(item.id, {
                         status: 'PAID',
                         paidAt,
-                        paymentMethod: 'Dinheiro' // Default para simplificar, poderia abrir modal
+                        paymentMethod: 'Pix'
                     });
 
-                    // Lançar no fluxo de caixa (valor negativo por ser despesa, mas DataService espera valor absoluto e TYPE = EXPENSE)
                     await DataService.registerCashFlow({
                         type: 'EXPENSE',
                         category: item.category,
@@ -153,7 +223,7 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
                         description: `Pagamento de conta: ${item.description}${item.supplierName ? ` (${item.supplierName})` : ''}`,
                         referenceId: item.id,
                         referenceType: 'PAYABLE',
-                        paymentMethod: 'Dinheiro',
+                        paymentMethod: 'Pix',
                         entryDate: paidAt
                     });
 
@@ -166,6 +236,50 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
             },
             'Confirmar Pagamento',
             'Dar Baixa'
+        );
+    };
+
+    const handleBulkMarkAsPaid = async (itemsToPay?: any[]) => {
+        const list = itemsToPay || filteredItems.filter(i => selectedIds.includes(i.id) && i.status === 'PENDING');
+        if (!list || list.length === 0) {
+            showAlert('Nenhuma conta pendente para dar baixa.', 'warning');
+            return;
+        }
+        const totalVal = list.reduce((acc, curr) => acc + curr.amount, 0);
+        const techLabel = technicianFilter !== 'ALL' ? ` do técnico "${technicianFilter}"` : '';
+
+        showConfirm(
+            `Confirmar a baixa em lote de ${list.length} comissão(ões)/conta(s)${techLabel} no valor total de R$ ${totalVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}?`,
+            async () => {
+                try {
+                    const paidAt = new Date().toISOString();
+                    for (const item of list) {
+                        await FinancialService.updateAccountPayable(item.id, {
+                            status: 'PAID',
+                            paidAt,
+                            paymentMethod: 'Pix'
+                        });
+                        await DataService.registerCashFlow({
+                            type: 'EXPENSE',
+                            category: item.category,
+                            amount: item.amount,
+                            description: `Pagamento de comissão/conta: ${item.description}${item.supplierName ? ` (${item.supplierName})` : ''}`,
+                            referenceId: item.id,
+                            referenceType: 'PAYABLE',
+                            paymentMethod: 'Pix',
+                            entryDate: paidAt
+                        });
+                    }
+                    showAlert(`Baixa realizada em ${list.length} conta(s) com sucesso!`, 'success');
+                    setSelectedIds([]);
+                    NexusQueryClient.invalidateFinancials();
+                    refetch();
+                } catch (error: any) {
+                    showAlert(`Erro ao dar baixa em lote: ${error.message}`, 'error');
+                }
+            },
+            'Dar Baixa em Lote',
+            'Confirmar Baixa'
         );
     };
 
@@ -210,7 +324,7 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
     };
 
     const toggleSelect = (id: string, e: React.MouseEvent) => {
-        e.stopPropagation(); // Prevenir abrir o modal
+        e.stopPropagation();
         setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
     };
 
@@ -221,7 +335,7 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
                 {/* Card 1: Total a Pagar (Verde leve) */}
                 <div className="bg-emerald-50/70 rounded-lg border border-emerald-200/80 px-3.5 py-2 shadow-2xs flex items-center justify-between">
                     <div>
-                        <p className="text-[9px] font-bold text-emerald-700/90 uppercase tracking-wider">Total a Pagar (Período)</p>
+                        <p className="text-[9px] font-bold text-emerald-700/90 uppercase tracking-wider">Total a Pagar ({technicianFilter !== 'ALL' ? technicianFilter : 'Período'})</p>
                         <h3 className="text-base font-extrabold text-emerald-950">{totalPending.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</h3>
                     </div>
                     <div className="w-7 h-7 rounded-md bg-emerald-100/90 flex items-center justify-center shrink-0">
@@ -243,11 +357,103 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
                             {totalSelected.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                         </h3>
                     </div>
-                    <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${selectedIds.length > 0 ? 'bg-sky-100/90 text-sky-700' : 'bg-slate-100 text-slate-300'}`}>
-                        <CheckCircle2 size={15} />
+                    <div className="flex items-center gap-2">
+                        {selectedIds.length > 0 && (
+                            <button
+                                onClick={() => handleBulkMarkAsPaid()}
+                                className="px-2.5 py-1 text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md shadow-xs transition-colors flex items-center gap-1"
+                                title="Dar baixa nas selecionadas"
+                            >
+                                <CheckCircle2 size={12} /> Dar Baixa ({selectedIds.length})
+                            </button>
+                        )}
+                        <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${selectedIds.length > 0 ? 'bg-sky-100/90 text-sky-700' : 'bg-slate-100 text-slate-300'}`}>
+                            <CheckCircle2 size={15} />
+                        </div>
                     </div>
                 </div>
             </div>
+
+            {/* Painel Especial de Resumo de Comissões por Técnico */}
+            {commissionStats.isCommissionFocus && (
+                <div className="bg-gradient-to-r from-teal-900 via-slate-900 to-indigo-950 text-white rounded-xl p-4 shadow-md border border-teal-700/40 relative overflow-hidden animate-in fade-in duration-300">
+                    <div className="absolute right-0 top-0 bottom-0 w-64 bg-teal-500/10 blur-2xl pointer-events-none" />
+                    
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-3 pb-3 border-b border-white/10">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-teal-500/20 border border-teal-400/30 flex items-center justify-center text-teal-300 shadow-inner">
+                                <UserCheck size={18} />
+                            </div>
+                            <div>
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-teal-300/90 block">
+                                    Resumo Assertivo de Comissões
+                                </span>
+                                <h4 className="text-sm font-black text-white flex items-center gap-2">
+                                    {technicianFilter !== 'ALL' ? technicianFilter : 'Todos os Técnicos'}
+                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-200 border border-teal-500/30">
+                                        {new Date(startDate + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(endDate + 'T00:00:00').toLocaleDateString('pt-BR')}
+                                    </span>
+                                </h4>
+                            </div>
+                        </div>
+
+                        {commissionStats.pendingCount > 0 && (
+                            <button
+                                onClick={() => handleBulkMarkAsPaid(commissionStats.pendingItems)}
+                                className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 active:scale-95"
+                            >
+                                <CheckSquare size={14} />
+                                <span>Pagar Todas as {commissionStats.pendingCount} Comissões ({commissionStats.pendingTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})</span>
+                            </button>
+                        )}
+                    </div>
+
+                    {/* KPIs em Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="bg-white/5 backdrop-blur-md rounded-lg p-2.5 border border-white/10">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-300 block">Qtd. Total Comissões</span>
+                            <div className="flex items-baseline gap-1.5 mt-0.5">
+                                <span className="text-lg font-black text-white">{commissionStats.totalCount}</span>
+                                <span className="text-[10px] font-medium text-slate-400">no período</span>
+                            </div>
+                        </div>
+
+                        <div className="bg-emerald-500/10 backdrop-blur-md rounded-lg p-2.5 border border-emerald-500/20">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-300 block">A Pagar (Pendentes)</span>
+                            <div className="flex items-baseline justify-between mt-0.5">
+                                <span className="text-lg font-black text-emerald-200">
+                                    {commissionStats.pendingTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </span>
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/30 text-emerald-200">
+                                    {commissionStats.pendingCount} OSs
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="bg-sky-500/10 backdrop-blur-md rounded-lg p-2.5 border border-sky-500/20">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-sky-300 block">Já Pagas</span>
+                            <div className="flex items-baseline justify-between mt-0.5">
+                                <span className="text-lg font-black text-sky-200">
+                                    {commissionStats.paidTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </span>
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-500/30 text-sky-200">
+                                    {commissionStats.paidCount} OSs
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="bg-amber-500/10 backdrop-blur-md rounded-lg p-2.5 border border-amber-500/20">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-amber-300 block">Valor Total Gerado</span>
+                            <div className="flex items-baseline justify-between mt-0.5">
+                                <span className="text-lg font-black text-amber-200">
+                                    {commissionStats.grandTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </span>
+                                <Award size={14} className="text-amber-400" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Top Toolbar */}
             <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-3">
@@ -257,7 +463,7 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                         <input
                             type="text"
-                            placeholder="Pesquisar por descrição ou fornecedor..."
+                            placeholder="Pesquisar por descrição, fornecedor ou técnico..."
                             value={searchTerm}
                             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                             className="w-full h-9 pl-9 pr-4 text-xs font-medium bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1c2d4f]/10 transition-shadow shadow-sm"
@@ -269,10 +475,10 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
                         <button
                             onClick={() => setShowFilters(!showFilters)}
                             className={`h-9 px-3 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm ${
-                                showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                showFilters ? 'bg-teal-50 border-teal-200 text-teal-700 shadow-inner font-bold' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                             }`}
                         >
-                            <Filter size={14} /> <span>{showFilters ? 'Ocultar Filtros' : 'Filtros'}</span>
+                            <Filter size={14} /> <span>{showFilters ? 'Filtros Ativos' : 'Filtros'}</span>
                         </button>
 
                         <button
@@ -302,65 +508,111 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
                     </div>
                 </div>
 
-                {/* Retractable Filters Panel */}
+                {/* Retractable Filters Panel - Uma única linha perfeita em telas grandes */}
                 {showFilters && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3 bg-white rounded-xl border border-slate-200/80 animate-in fade-in slide-in-from-top-2 duration-200">
-                        {/* De (Início) */}
-                        <div className="sm:col-span-1 lg:col-span-1 flex flex-col gap-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">De (Início)</label>
-                            <div className="relative flex items-center bg-slate-50 border border-slate-200 rounded-lg shadow-sm h-9 px-2.5">
-                                <Calendar size={14} className="text-slate-400 shrink-0 mr-2" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 p-3 bg-white rounded-xl border border-slate-200/80 animate-in fade-in slide-in-from-top-2 duration-200 items-end">
+                        {/* 1. Técnico */}
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-extrabold text-teal-700 uppercase tracking-widest px-0.5 flex items-center gap-1 truncate">
+                                <UserCheck size={11} className="text-teal-600 shrink-0" /> Técnico
+                            </label>
+                            <div className="relative">
+                                <select
+                                    value={technicianFilter}
+                                    onChange={(e) => { setTechnicianFilter(e.target.value); setCurrentPage(1); }}
+                                    className="w-full appearance-none bg-teal-50/70 border border-teal-200 text-xs font-bold text-teal-950 outline-none cursor-pointer pl-2.5 pr-7 py-2 rounded-lg h-9 shadow-2xs focus:ring-2 focus:ring-teal-500/20 truncate"
+                                >
+                                    <option value="ALL" className="bg-[#1c2d4f] text-white font-semibold py-1">👥 Todos os Técnicos</option>
+                                    {availableTechnicians.map((tech) => (
+                                        <option key={tech} value={tech} className="bg-[#1c2d4f] text-white font-medium py-1">
+                                            👤 {tech}
+                                        </option>
+                                    ))}
+                                </select>
+                                <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-teal-600 pointer-events-none" />
+                            </div>
+                        </div>
+
+                        {/* 2. Categoria */}
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5 truncate">Categoria</label>
+                            <div className="relative">
+                                <select
+                                    value={categoryFilter}
+                                    onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
+                                    className="w-full appearance-none bg-white border border-slate-200 text-xs font-semibold text-slate-700 outline-none cursor-pointer pl-2.5 pr-7 py-2 rounded-lg h-9 shadow-sm focus:ring-2 focus:ring-[#1c2d4f]/10 truncate"
+                                >
+                                    <option value="ALL" className="bg-[#1c2d4f] text-white font-semibold py-1">Todas Categorias</option>
+                                    <option value="Comissão" className="bg-[#1c2d4f] text-teal-300 font-bold py-1">💎 Comissão</option>
+                                    {availableCategories.filter(c => c !== 'Comissão').map((cat) => (
+                                        <option key={cat} value={cat} className="bg-[#1c2d4f] text-white font-medium py-1">{cat}</option>
+                                    ))}
+                                </select>
+                                <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                            </div>
+                        </div>
+
+                        {/* 3. De (Início) */}
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5 truncate">De (Início)</label>
+                            <div className="relative flex items-center bg-slate-50 border border-slate-200 rounded-lg shadow-sm h-9 px-2">
+                                <Calendar size={13} className="text-slate-400 shrink-0 mr-1.5" />
                                 <input
                                     type="date"
                                     value={startDate}
                                     onChange={(e) => handleDateValidation(e.target.value, endDate)}
-                                    className="bg-transparent border-none text-xs font-semibold text-slate-800 outline-none cursor-pointer w-full"
+                                    className="bg-transparent border-none text-[11px] font-semibold text-slate-800 outline-none cursor-pointer w-full"
                                 />
                             </div>
                         </div>
 
-                        {/* Até (Fim) */}
-                        <div className="sm:col-span-1 lg:col-span-1 flex flex-col gap-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">Até (Fim)</label>
-                            <div className="relative flex items-center bg-slate-50 border border-slate-200 rounded-lg shadow-sm h-9 px-2.5">
-                                <Calendar size={14} className="text-slate-400 shrink-0 mr-2" />
+                        {/* 4. Até (Fim) */}
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5 truncate">Até (Fim)</label>
+                            <div className="relative flex items-center bg-slate-50 border border-slate-200 rounded-lg shadow-sm h-9 px-2">
+                                <Calendar size={13} className="text-slate-400 shrink-0 mr-1.5" />
                                 <input
                                     type="date"
                                     value={endDate}
                                     onChange={(e) => handleDateValidation(startDate, e.target.value)}
-                                    className="bg-transparent border-none text-xs font-semibold text-slate-800 outline-none cursor-pointer w-full"
+                                    className="bg-transparent border-none text-[11px] font-semibold text-slate-800 outline-none cursor-pointer w-full"
                                 />
                             </div>
                         </div>
 
-                        {/* Status Filter */}
-                        <div className="sm:col-span-2 lg:col-span-1 flex flex-col gap-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5">Status da Conta</label>
-                            <select
-                                value={statusFilter}
-                                onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-                                className="w-full bg-white border border-slate-200 text-xs font-semibold uppercase text-slate-700 outline-none cursor-pointer px-3 py-2 rounded-lg h-9 shadow-sm"
-                            >
-                                <option value="ALL">Todas</option>
-                                <option value="PENDING">Pendentes</option>
-                                <option value="OVERDUE">Atrasadas</option>
-                                <option value="PAID">Pagas</option>
-                                <option value="CANCELLED">Inativas</option>
-                            </select>
+                        {/* 5. Status */}
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-0.5 truncate">Status</label>
+                            <div className="relative">
+                                <select
+                                    value={statusFilter}
+                                    onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                                    className="w-full appearance-none bg-white border border-slate-200 text-xs font-semibold uppercase text-slate-700 outline-none cursor-pointer pl-2.5 pr-7 py-2 rounded-lg h-9 shadow-sm focus:ring-2 focus:ring-[#1c2d4f]/10 truncate"
+                                >
+                                    <option value="ALL" className="bg-[#1c2d4f] text-white font-semibold py-1">Todas</option>
+                                    <option value="PENDING" className="bg-[#1c2d4f] text-amber-300 font-semibold py-1">Pendentes</option>
+                                    <option value="OVERDUE" className="bg-[#1c2d4f] text-rose-300 font-semibold py-1">Atrasadas</option>
+                                    <option value="PAID" className="bg-[#1c2d4f] text-emerald-300 font-semibold py-1">Pagas</option>
+                                    <option value="CANCELLED" className="bg-[#1c2d4f] text-slate-400 font-semibold py-1">Inativas</option>
+                                </select>
+                                <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                            </div>
                         </div>
 
-                        {/* Limpar Filtros */}
-                        <div className="sm:col-span-2 lg:col-span-1 flex flex-col justify-end gap-1">
+                        {/* 6. Limpar Filtros (mesma linha) */}
+                        <div className="flex flex-col gap-1">
                             <button
                                 onClick={() => {
                                     const date = new Date();
                                     setStartDate(new Date(date.getFullYear(), date.getMonth(), 1).toISOString().split('T')[0]);
                                     setEndDate(new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split('T')[0]);
                                     setStatusFilter('ALL');
+                                    setCategoryFilter('ALL');
+                                    setTechnicianFilter('ALL');
                                     setSearchTerm('');
                                     setCurrentPage(1);
                                 }}
-                                className="h-9 w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all"
+                                className="h-9 w-full flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border border-slate-200 shadow-2xs"
                                 title="Limpar todos os filtros"
                             >
                                 <X size={14} /> Limpar

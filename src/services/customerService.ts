@@ -61,19 +61,7 @@ export const CustomerService = {
 
                 let { data, error } = await query;
 
-                if ((error || !data || data.length === 0) && clientToUse === supabase) {
-                    let fbQuery = publicSupabase.from('customers')
-                        .select('*')
-                        .eq('tenant_id', tenantId)
-                        .order('name')
-                        .limit(100);
-                    if (currentSignal || signal) fbQuery = fbQuery.abortSignal((currentSignal || signal) as AbortSignal);
-                    const fbRes = await fbQuery;
-                    if (!fbRes.error && fbRes.data) {
-                        data = fbRes.data;
-                        error = null;
-                    }
-                }
+                // Fallback removido por segurança
 
                 if (error) {
                     console.error("Error fetching customers:", error);

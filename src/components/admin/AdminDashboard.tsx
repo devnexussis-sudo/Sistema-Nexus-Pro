@@ -132,6 +132,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
   const [isManualSyncing, setIsManualSyncing] = useState(false);
   const [isBatchPrinting, setIsBatchPrinting] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [ordersToPrint, setOrdersToPrint] = useState<ServiceOrder[]>([]);
   const [activeTab, setActiveTab] = useState<'overview' | 'internal_notes' | 'equipments' | 'forms' | 'execution' | 'media' | 'audit' | 'costs' | 'visits' | 'history'>('overview');
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
@@ -328,17 +329,50 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Hook de Exportação (Refatorado - Big Tech Standard)
   const { handleExportExcel: exportToExcel } = useOrderExport();
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (selectedOrderIds.length === 0) return;
+    setIsExportingExcel(true);
 
-    // Exporta apenas os itens selecionados
-    exportToExcel({
-      orders: pagedOrders,
-      filteredOrders: pagedOrders.filter(o => selectedOrderIds.includes(o.id)),
-      selectedOrderIds,
-      techs,
-      customers
-    });
+    try {
+        // Tenta acionar a Edge Function (Padrão Big Tech)
+        const { data, error } = await supabase.functions.invoke('export-excel', {
+            body: { orderIds: selectedOrderIds }
+        });
+
+        if (error) throw error;
+        
+        // 2. Transforma a resposta Base64 no arquivo Excel (.xlsx) final
+        if (!data.fileData) throw new Error("Falha ao gerar o arquivo Excel na nuvem.");
+        
+        const byteCharacters = atob(data.fileData);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Relatorio_OS_${new Date().getTime()}.xlsx`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    } catch (err) {
+        console.warn('Edge Function indisponível ou falhou, ativando fallback Automático...', err);
+        // Fallback Seguro e Instantâneo via Frontend (Zero Cost)
+        await exportToExcel({
+          orders: pagedOrders,
+          filteredOrders: pagedOrders.filter(o => selectedOrderIds.includes(o.id)),
+          selectedOrderIds,
+          techs,
+          customers
+        });
+    } finally {
+        setIsExportingExcel(false);
+    }
   };
 
   const handleBatchPrint = async () => {
@@ -1196,12 +1230,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         {/* Batch Actions (Appears below when items are selected) */}
         {selectedOrderIds.length > 0 && (
-          <div className="flex items-center gap-1.5 px-2 py-1 h-10 bg-slate-900 rounded-xl shadow-lg animate-in fade-in slide-in-from-top-2 w-max">
-            <div className="flex items-center justify-center w-6 h-6 rounded bg-slate-800 text-white text-[10px] font-semibold">{selectedOrderIds.length}</div>
-            <button onClick={handleExportExcel} className="p-1.5 text-white hover:text-emerald-400 transition-colors" title="Excel"><FileSpreadsheet size={16} /></button>
-            <button onClick={handleBatchPrint} className="p-1.5 text-white hover:text-blue-400 transition-colors" title="PDF"><FileText size={16} /></button>
-            <div className="w-px h-4 bg-slate-700 mx-0.5" />
-            <button onClick={() => setSelectedOrderIds([])} className="p-1.5 text-white hover:text-rose-400 transition-colors" title="Limpar"><X size={16} /></button>
+          <div className="flex items-center gap-1.5 px-3 py-2 h-auto bg-slate-900/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl animate-in fade-in slide-in-from-bottom-4 zoom-in-95 w-max">
+            <div className="flex items-center gap-2 pl-1 pr-3 border-r border-white/10">
+              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary-500 text-white text-[11px] font-bold shadow-inner">
+                {selectedOrderIds.length}
+              </div>
+              <span className="text-xs font-medium text-slate-300 tracking-wide">Selecionados</span>
+            </div>
+            
+            <button 
+              onClick={handleExportExcel} 
+              disabled={isExportingExcel}
+              className="flex items-center gap-2 px-3 py-1.5 text-slate-300 hover:text-emerald-400 hover:bg-white/5 rounded-lg transition-all disabled:opacity-50"
+            >
+              {isExportingExcel ? <Loader2 size={15} className="animate-spin" /> : <FileSpreadsheet size={15} />}
+              <span className="text-xs font-medium">Excel</span>
+            </button>
+            
+            <button 
+              onClick={handleBatchPrint} 
+              disabled={isBatchPrinting}
+              className="flex items-center gap-2 px-3 py-1.5 text-slate-300 hover:text-blue-400 hover:bg-white/5 rounded-lg transition-all disabled:opacity-50"
+            >
+              {isBatchPrinting ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />}
+              <span className="text-xs font-medium">PDF</span>
+            </button>
+            
+            <div className="w-px h-5 bg-white/10 mx-1" />
+            
+            <button 
+              onClick={() => setSelectedOrderIds([])} 
+              className="flex items-center justify-center w-8 h-8 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all" 
+              title="Limpar Seleção"
+            >
+              <X size={16} />
+            </button>
           </div>
         )}
 

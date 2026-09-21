@@ -797,8 +797,8 @@ export const WhatsAppInbox: React.FC = () => {
   useEffect(() => {
     fetchConversations();
 
-    // POLLING: Sempre ativo a cada 3s — garante entrega mesmo sem Realtime
-    const pollInterval = setInterval(() => fetchConversations(true), 3000);
+    // POLLING: Fallback de 30s se o Realtime piscar — com Realtime conectado, as atualizações são push instantâneas
+    const pollInterval = setInterval(() => fetchConversations(true), 30000);
 
     // REALTIME: atualiza ainda mais rápido quando funcionar
     const channel = supabase
@@ -1179,7 +1179,7 @@ export const WhatsAppInbox: React.FC = () => {
       {/* Toast de notificação */}
       {toast && (
         <div
-          className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 bg-indigo-600 text-white rounded-full shadow-2xl"
+          className="absolute top-4 left-1/2 -translate-x-1/2 z-[99999999] flex items-center gap-3 px-5 py-3 bg-indigo-600 text-white rounded-full shadow-2xl"
           style={{ animation: 'slideDown 0.3s ease' }}
         >
           <BellRing size={18} className="animate-bounce" />

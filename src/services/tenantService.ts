@@ -37,19 +37,7 @@ export const TenantService = {
                         if (error) console.warn('[TenantService] View (auth) failed:', error.message);
                     } catch (e) { /* continue */ }
 
-                    // Strategy 2: Try view with public/anon client
-                    try {
-                        const { data, error } = await publicSupabase
-                            .from('vw_tenant_stats')
-                            .select('*')
-                            .order('name');
-                        if (!error && data && data.length > 0) {
-                            console.log('[TenantService] ✅ Loaded tenants via view (anon):', data.length);
-                            CacheManager.set(cacheKey, data, CacheManager.TTL.SHORT);
-                            return data as DbTenantStats[];
-                        }
-                        if (error) console.warn('[TenantService] View (anon) failed:', error.message);
-                    } catch (e) { /* continue */ }
+                    // Estratégia 2 (anon view) removida por motivos de segurança
 
                     // Strategy 3: Direct table query (authenticated)
                     try {
@@ -65,19 +53,7 @@ export const TenantService = {
                         if (error) console.warn('[TenantService] Table (auth) failed:', error.message);
                     } catch (e) { /* continue */ }
 
-                    // Strategy 4: Direct table query (anon/public)
-                    try {
-                        const { data, error } = await publicSupabase
-                            .from('tenants')
-                            .select('*')
-                            .order('name');
-                        if (!error && data && data.length > 0) {
-                            console.log('[TenantService] ✅ Loaded tenants via table (anon):', data.length);
-                            CacheManager.set(cacheKey, data, CacheManager.TTL.SHORT);
-                            return data as DbTenantStats[];
-                        }
-                        if (error) console.warn('[TenantService] Table (anon) failed:', error.message);
-                    } catch (e) { /* continue */ }
+                    // Estratégia 4 (anon table) removida por motivos de segurança
 
                     console.error('[TenantService] ❌ All strategies failed. RLS is blocking all reads. You need to run this SQL in Supabase:\n' +
                         'GRANT SELECT ON vw_tenant_stats TO anon;\n' +
@@ -134,12 +110,9 @@ export const TenantService = {
                     return data;
                 }
 
-                // Fallback: Tenta com cliente PÚBLICO (anon) se o acima falhar por RLS/Sessão
+                // Fallback: Tenta com cliente PÚBLICO via RPC (Fase 1.2 do plano de segurança)
                 const { data: publicData, error: publicError } = await publicSupabase
-                    .from('tenants')
-                    .select('*')
-                    .eq('id', tid)
-                    .maybeSingle();
+                    .rpc('get_public_tenant_info', { p_tenant_id: tid });
 
                 if (publicError) {
                     console.error('[TenantService] Erro ao buscar tenant publicamente:', publicError);
@@ -466,25 +439,7 @@ export const TenantService = {
 
             let { data, error } = await query;
 
-            // Fallback 1: Try publicSupabase
-            if (error || !data || data.length === 0) {
-                try {
-                    let fbQuery = publicSupabase
-                        .from('users')
-                        .select('*')
-                        .eq('tenant_id', tenantId)
-                        .order('created_at', { ascending: false })
-                        .limit(100);
-                    if (signal) fbQuery = fbQuery.abortSignal(signal);
-                    const fbRes = await fbQuery;
-                    if (!fbRes.error && fbRes.data && fbRes.data.length > 0) {
-                        data = fbRes.data;
-                        error = null;
-                    }
-                } catch (e) {
-                    console.warn('[TenantService] Fallback publicSupabase error:', e);
-                }
-            }
+            // Fallback 1: Try publicSupabase - REMOVIDO POR SEGURANÇA
 
             // Fallback 2: Try adminAuthProxy (Edge Function)
             if (error || !data || data.length === 0) {
@@ -579,19 +534,7 @@ export const TenantService = {
 
             let { data, error } = await query;
 
-            if (error || !data || data.length === 0) {
-                let fbQuery = publicSupabase
-                    .from('user_groups')
-                    .select('*')
-                    .eq('tenant_id', tid)
-                    .order('name');
-                if (signal) fbQuery = fbQuery.abortSignal(signal);
-                const fbRes = await fbQuery;
-                if (!fbRes.error && fbRes.data && fbRes.data.length > 0) {
-                    data = fbRes.data;
-                    error = null;
-                }
-            }
+            // Fallback publicSupabase - REMOVIDO POR SEGURANÇA
 
             if (!data || data.length === 0) {
                 const defaultGroups: UserGroup[] = [
@@ -1041,12 +984,49 @@ export const TenantService = {
 
     deleteUser: async (userId: string): Promise<void> => {
         if (isCloudEnabled) {
-            // Deleta do Auth via Edge Function
-            await adminAuthProxy.admin.deleteUser(userId);
-            // Deleta do banco — RLS garante que só admin do próprio tenant pode deletar
-            await supabase.from('users').delete().eq('id', userId);
+            // Chama a RPC de exclusão em cascata (auth.users + public.users + public.technicians)
+            const { data, error } = await supabase.rpc('delete_user_cascade', { p_user_id: userId });
+            if (error || (data && data.success === false)) {
+                const errMsg = error?.message || (typeof data === 'object' && data?.error) || 'Erro ao excluir usuário.';
+                console.warn('⚠️ Fallback deleteUser via adminAuthProxy/REST:', errMsg);
+                try {
+                    await adminAuthProxy.admin.deleteUser(userId);
+                } catch (e) {
+                    console.warn('⚠️ adminAuthProxy deleteUser fallback warn:', e);
+                }
+                try {
+                    await supabase.from('technicians').delete().eq('id', userId);
+                } catch (e) {
+                    console.warn('⚠️ technicians delete fallback warn:', e);
+                }
+                const { error: dbErr } = await supabase.from('users').delete().eq('id', userId);
+                if (dbErr) throw dbErr;
+            }
         }
     },
+
+    deleteTechnician: async (techId: string): Promise<void> => {
+        if (isCloudEnabled) {
+            const { data, error } = await supabase.rpc('delete_user_cascade', { p_user_id: techId });
+            if (error || (data && data.success === false)) {
+                const errMsg = error?.message || (typeof data === 'object' && data?.error) || 'Erro ao excluir técnico.';
+                console.warn('⚠️ Fallback deleteTechnician via adminAuthProxy/REST:', errMsg);
+                try {
+                    await adminAuthProxy.admin.deleteUser(techId);
+                } catch (e) {
+                    console.warn('⚠️ adminAuthProxy deleteUser fallback warn:', e);
+                }
+                try {
+                    await supabase.from('users').delete().eq('id', techId);
+                } catch (e) {
+                    console.warn('⚠️ users delete fallback warn:', e);
+                }
+                const { error: dbErr } = await supabase.from('technicians').delete().eq('id', techId);
+                if (dbErr) throw dbErr;
+            }
+        }
+    },
+
 
     // 📢 Nexus Global Notifications
 
@@ -1459,12 +1439,12 @@ export const TenantService = {
                 // silencioso para tentar fallback
             }
 
-            // 2. Apaga confirmações de leitura associadas
-            await publicSupabase
-                .from('system_notification_reads')
-                .delete()
-                .eq('notification_id', notificationId)
-                .catch(() => {});
+            try {
+                await publicSupabase
+                    .from('system_notification_reads')
+                    .delete()
+                    .eq('notification_id', notificationId);
+            } catch (_e) {}
 
             // 3. Apaga a notificação física no Supabase
             const { error } = await publicSupabase

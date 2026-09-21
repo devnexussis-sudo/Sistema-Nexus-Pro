@@ -30,6 +30,8 @@ interface Technician {
     active?: boolean;
     speed?: number;
     battery_level?: number;
+    device_model?: string;
+    motion_state?: string;
 }
 
 
@@ -130,13 +132,13 @@ export const TechnicianMap: React.FC = () => {
 
         let interval: any;
         if (isAutoRefresh) {
-            console.log('[Map] Auto-refresh habilitado: Atualizando mapa e todos os status a cada 4 segundos');
+            console.log('[Map] Auto-refresh habilitado: Atualizando mapa e todos os status a cada 20 segundos');
             // Refresh silencioso imediato ao ligar o modo Live
             handleRefresh(true);
 
             interval = setInterval(() => {
                 handleRefresh(true);
-            }, 4000); // 4 segundos
+            }, 20000); // 20 segundos
         }
 
         const timer = setTimeout(() => {
@@ -226,10 +228,10 @@ export const TechnicianMap: React.FC = () => {
         return `${Math.floor(hours / 24)}d atrás`;
     };
 
-    const isTechMoving = (lastSeen?: string): boolean => {
+    const isTechOnline = (lastSeen?: string): boolean => {
         if (!lastSeen) return false;
         const diff = Date.now() - new Date(lastSeen).getTime();
-        return Math.floor(diff / 60000) < 30;
+        return Math.floor(diff / 60000) < 15; // 15 mins to be considered offline since ping is 90s
     };
 
     const activeTechs = technicians.filter(t => {
@@ -248,8 +250,8 @@ export const TechnicianMap: React.FC = () => {
         return hasCoords && isActive && isRecent;
     });
 
-    const movingTechs = activeTechs.filter(t => isTechMoving(t.last_seen));
-    const stoppedTechs = activeTechs.filter(t => !isTechMoving(t.last_seen));
+    const movingTechs = activeTechs.filter(t => isTechOnline(t.last_seen) && t.motion_state === 'EM MOVIMENTO');
+    const stoppedTechs = activeTechs.filter(t => !isTechOnline(t.last_seen) || t.motion_state !== 'EM MOVIMENTO');
 
     const getTechActiveOrder = (techId: string) => {
         return orders.find(o =>
@@ -511,7 +513,12 @@ export const TechnicianMap: React.FC = () => {
 
                     {/* --- TECHS LIVE RENDERING --- */}
                     {activeTechs.map(t => {
-                        const isMoving = isTechMoving(t.last_seen);
+                        const isOnline = isTechOnline(t.last_seen);
+                        const isMoving = isOnline && t.motion_state === 'EM MOVIMENTO';
+                        const statusColor = isMoving ? 'emerald' : (isOnline ? 'amber' : 'red');
+                        const statusIcon = isMoving ? '🟢' : (isOnline ? '🟡' : '🔴');
+                        const statusText = isMoving ? 'Em Movimento' : (isOnline ? 'Parado' : 'Offline');
+
                         const activeOrder = getTechActiveOrder(t.id);
                         const activeOrderStatusColor = activeOrder ? getStatusColorHex(activeOrder.status) : undefined;
 
@@ -531,8 +538,8 @@ export const TechnicianMap: React.FC = () => {
                                             </div>
                                         </div>
                                         <div className="mb-2 flex flex-col gap-1">
-                                            <span className={`inline-flex w-full justify-center items-center gap-1 px-2 py-1 rounded-full text-[8px] font-black uppercase ${isMoving ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-                                                {isMoving ? '🟢 Sinal GPS Recente' : '🔴 Sem Sinal (> 30m)'}
+                                            <span className={`inline-flex w-full justify-center items-center gap-1 px-2 py-1 rounded-full text-[8px] font-black uppercase ${isMoving ? 'bg-emerald-50 text-emerald-700' : (isOnline ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700')}`}>
+                                                {statusIcon} {statusText}
                                             </span>
                                             {activeOrder && (
                                                 <span
@@ -556,6 +563,12 @@ export const TechnicianMap: React.FC = () => {
                                                 </div>
                                                 <span>{(t.battery_level !== undefined && t.battery_level !== null) ? `${Math.round(t.battery_level)}%` : '--'}</span>
                                             </div>
+                                        </div>
+                                        <div className="flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-100 mb-2">
+                                            <span className="text-[9px] text-slate-500 font-bold uppercase">Aparelho:</span>
+                                            <span className="font-black text-[10px] text-slate-700 truncate max-w-[100px]" title={t.device_model || 'Não Informado'}>
+                                                {t.device_model || 'Não Informado'}
+                                            </span>
                                         </div>
                                         <div className="flex items-center gap-1.5 text-[10px] text-slate-600">
                                             <Clock size={12} className="text-slate-400" />

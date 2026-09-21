@@ -22,6 +22,7 @@ import { supabase } from '../../lib/supabase';
 import { PaymentService } from '../../services/paymentService';
 import { AccountsPayableTab } from './AccountsPayableTab';
 import { CashFlowTab } from './CashFlowTab';
+import { CommissionsTab } from './CommissionsTab';
 import { InvoiceReceiptTemplate } from './InvoiceReceiptTemplate';
 import { formatInvoiceDisplayId } from '../../utils/invoiceUtils';
 
@@ -69,7 +70,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
     const printRef = useRef<HTMLDivElement>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [mainTab, setMainTab] = useState<'RECEIVABLES' | 'PAYABLES' | 'CASH_FLOW'>('RECEIVABLES');
+    const [mainTab, setMainTab] = useState<'RECEIVABLES' | 'PAYABLES' | 'CASH_FLOW' | 'COMMISSIONS'>('RECEIVABLES');
 
     const getDefaultDates = () => {
         const dEnd = new Date();
@@ -722,7 +723,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     }
                 });
             }
-        }, 8000);
+        }, 60000); // 60s fallback — atualizações imediatas são tratadas via Supabase Realtime
 
         return () => clearInterval(intervalId);
     }, [mainTab, tenantIdStr, nfseDataMap]);
@@ -2024,6 +2025,17 @@ ${container.innerHTML}
                         <Wallet size={16} className={mainTab === 'CASH_FLOW' ? 'text-indigo-600' : 'text-slate-400'} />
                         <span>Giro de Caixa</span>
                     </button>
+                    <button
+                        onClick={() => setMainTab('COMMISSIONS')}
+                        className={`flex items-center gap-2 pb-3 pt-1 text-sm font-semibold border-b-2 transition-all relative ${
+                            mainTab === 'COMMISSIONS'
+                                ? 'border-teal-600 text-teal-700'
+                                : 'border-transparent text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        <UserCheck size={16} className={mainTab === 'COMMISSIONS' ? 'text-teal-600' : 'text-slate-400'} />
+                        <span>Comissões</span>
+                    </button>
                 </div>
             </div>
 
@@ -2070,6 +2082,12 @@ ${container.innerHTML}
             {mainTab === 'CASH_FLOW' && (
                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-8">
                     <CashFlowTab tenantId={tenant?.id || ''} receivables={allItems} />
+                </div>
+            )}
+
+            {mainTab === 'COMMISSIONS' && (
+                <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-8">
+                    <CommissionsTab techs={techs} />
                 </div>
             )}
 

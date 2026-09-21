@@ -242,88 +242,49 @@ export const QuoteService = {
     getPublicQuoteById: async (id: string, signal?: AbortSignal): Promise<any> => {
         if (!isCloudEnabled) return null;
 
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-        console.log(`[QuoteService] Buscando orçamento: "${id}" (isUuid=${isUuid})`);
+        console.log(`[QuoteService] Buscando orçamento: "${id}"`);
 
-        // ── Tentativa 1: publicSupabase por public_token (anon — funciona p/ clientes externos) ──
+        // 🛡️ Estratégia 1: RPC get_public_document (SECURITY DEFINER — bypassa RLS com segurança)
         try {
-            const { data, error } = await publicSupabase
+            let rpcQuery = publicSupabase.rpc('get_public_document', { doc_token: id, doc_type: 'quote' });
+            if (signal) rpcQuery = rpcQuery.abortSignal(signal);
+            const { data, error } = await rpcQuery;
+            if (!error && data) { console.log('[QuoteService] ✅ Encontrado via RPC get_public_document'); return QuoteService._mapQuoteFromDB(data); }
+        } catch (err: any) {
+            if (err?.name === 'AbortError') return null;
+        }
+
+        // 🛡️ Estratégia 2: supabase autenticado por public_token (admin em nova aba)
+        try {
+            const { data } = await supabase
                 .from('quotes')
                 .select('*')
                 .eq('public_token', id)
                 .maybeSingle();
-            if (error) console.warn('[QuoteService] T1 anon/public_token erro:', error.code, error.message);
-            if (data) { console.log('[QuoteService] ✅ Encontrado via T1 (anon + public_token)'); return QuoteService._mapQuoteFromDB(data); }
+            if (data) { console.log('[QuoteService] ✅ Encontrado via auth + public_token'); return QuoteService._mapQuoteFromDB(data); }
         } catch (err: any) {
             if (err?.name === 'AbortError') return null;
         }
 
-        // ── Tentativa 2: publicSupabase por id (anon) ──────────────────────────────────────────
+        // 🛡️ Estratégia 3: supabase autenticado por id (admin em nova aba)
         try {
-            const { data, error } = await publicSupabase
+            const { data } = await supabase
                 .from('quotes')
                 .select('*')
                 .eq('id', id)
                 .maybeSingle();
-            if (error) console.warn('[QuoteService] T2 anon/id erro:', error.code, error.message);
-            if (data) { console.log('[QuoteService] ✅ Encontrado via T2 (anon + id)'); return QuoteService._mapQuoteFromDB(data); }
+            if (data) { console.log('[QuoteService] ✅ Encontrado via auth + id'); return QuoteService._mapQuoteFromDB(data); }
         } catch (err: any) {
             if (err?.name === 'AbortError') return null;
         }
 
-        // ── Tentativa 3: RPC get_public_document (SECURITY DEFINER — bypassa RLS) ────────────
-        if (isUuid) {
-            try {
-                let rpcQuery = publicSupabase.rpc('get_public_document', { doc_token: id, doc_type: 'quote' });
-                if (signal) rpcQuery = rpcQuery.abortSignal(signal);
-                const { data, error } = await rpcQuery;
-                if (error) console.warn('[QuoteService] T3 RPC erro:', error.code, error.message);
-                if (data) { console.log('[QuoteService] ✅ Encontrado via T3 (RPC)'); return QuoteService._mapQuoteFromDB(data); }
-            } catch (err: any) {
-                if (err?.name === 'AbortError') return null;
-            }
-        }
-
-        // ── Tentativa 4: supabase autenticado por public_token (admin em nova aba) ─────────────
+        // 🛡️ Estratégia 4: display_id via RPC
         try {
-            const { data, error } = await supabase
-                .from('quotes')
-                .select('*')
-                .eq('public_token', id)
-                .maybeSingle();
-            if (error) console.warn('[QuoteService] T4 auth/public_token erro:', error.code, error.message);
-            if (data) { console.log('[QuoteService] ✅ Encontrado via T4 (auth + public_token)'); return QuoteService._mapQuoteFromDB(data); }
-        } catch (err: any) {
-            if (err?.name === 'AbortError') return null;
-        }
-
-        // ── Tentativa 5: supabase autenticado por id (admin em nova aba) ─────────────────────
-        try {
-            const { data, error } = await supabase
-                .from('quotes')
-                .select('*')
-                .eq('id', id)
-                .maybeSingle();
-            if (error) console.warn('[QuoteService] T5 auth/id erro:', error.code, error.message);
-            if (data) { console.log('[QuoteService] ✅ Encontrado via T5 (auth + id)'); return QuoteService._mapQuoteFromDB(data); }
-        } catch (err: any) {
-            if (err?.name === 'AbortError') return null;
-        }
-
-        // ── Display ID fallback ────────────────────────────────────────────────────────────────
-        if (!isUuid) {
-            try {
-                const { data, error } = await publicSupabase
-                    .from('quotes')
-                    .select('*')
-                    .eq('display_id', id)
-                    .maybeSingle();
-                if (error) console.warn('[QuoteService] T6 display_id erro:', error.code, error.message);
-                if (data) { console.log('[QuoteService] ✅ Encontrado via T6 (display_id)'); return QuoteService._mapQuoteFromDB(data); }
-            } catch (err: any) {
-                if (err?.name === 'AbortError') return null;
-            }
-        }
+            let rpcQuery = publicSupabase.rpc('get_public_document', { doc_token: id, doc_type: 'quote' });
+            if (signal) rpcQuery = rpcQuery.abortSignal(signal);
+            const { data } = await rpcQuery;
+            if (data) { console.log('[QuoteService] ✅ Encontrado via RPC (display_id retry)'); return QuoteService._mapQuoteFromDB(data); }
+        } catch { /* silent */ }
 
         console.error(`[QuoteService] ❌ Orçamento não encontrado após todas as tentativas. ID: "${id}"`);
         return null;
@@ -336,8 +297,8 @@ export const QuoteService = {
             // Obter display_id para manter Storage organizado
             let folderId = id;
             try {
-                const { data: qData } = await publicSupabase.from('quotes').select('display_id').eq('id', id).single();
-                if (qData?.display_id) folderId = qData.display_id;
+                const { data: pData } = await publicSupabase.rpc('get_public_document', { p_token: id, p_type: 'quote' });
+                if (pData?.display_id) folderId = pData.display_id;
             } catch(e) { }
 
             let finalSignature = approvalData.signature;
@@ -386,8 +347,8 @@ export const QuoteService = {
             // Obter display_id para manter Storage organizado
             let folderId = id;
             try {
-                const { data: qData } = await publicSupabase.from('quotes').select('display_id').eq('id', id).single();
-                if (qData?.display_id) folderId = qData.display_id;
+                const { data: pData } = await publicSupabase.rpc('get_public_document', { p_token: id, p_type: 'quote' });
+                if (pData?.display_id) folderId = pData.display_id;
             } catch(e) { }
 
             let finalSignature = rejectionData.signature;

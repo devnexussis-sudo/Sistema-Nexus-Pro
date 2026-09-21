@@ -83,10 +83,10 @@ export const StorageService = {
                 const orderId = parts[1];
                 const subfolder = parts[2];
                 
-                const { data } = await publicSupabase.from('service_orders').select('code, tenant_id').eq('id', orderId).single();
+                const { data } = await supabase.from('orders').select('display_id, tenant_id').eq('id', orderId).maybeSingle();
                 if (data) {
                     if (!tenantIdToUse) tenantIdToUse = data.tenant_id;
-                    const code = data.code || orderId.substring(0, 8);
+                    const code = data.display_id || orderId.substring(0, 8);
                     
                     let subHuman = 'Arquivos';
                     if (subfolder === 'evidence') subHuman = 'Evidencias';
@@ -95,6 +95,17 @@ export const StorageService = {
                     else if (subfolder) subHuman = subfolder;
                     
                     finalHumanPath = `Ordem de Servico/${code}/${subHuman}`;
+                } else {
+                    // Fallback for public dropzone
+                    const { data: pData } = await publicSupabase.rpc('get_public_document', { p_token: orderId, p_type: 'order' });
+                    if (pData) {
+                        if (!tenantIdToUse) tenantIdToUse = pData.tenant_id;
+                        const code = pData.display_id || pData.id?.substring(0, 8) || orderId.substring(0, 8);
+                        let subHuman = 'Arquivos';
+                        if (subfolder === 'signatures') subHuman = 'Assinaturas';
+                        else if (subfolder) subHuman = subfolder;
+                        finalHumanPath = `Ordem de Servico/${code}/${subHuman}`;
+                    }
                 }
             } 
             else if (cleanPath.startsWith('quotes/')) {
@@ -102,10 +113,10 @@ export const StorageService = {
                 const quoteId = parts[1];
                 const subfolder = parts[2];
                 
-                const { data } = await publicSupabase.from('service_quotes').select('code, tenant_id').eq('id', quoteId).single();
+                const { data } = await supabase.from('quotes').select('display_id, tenant_id').eq('id', quoteId).maybeSingle();
                 if (data) {
                     if (!tenantIdToUse) tenantIdToUse = data.tenant_id;
-                    const code = data.code || quoteId.substring(0, 8);
+                    const code = data.display_id || quoteId.substring(0, 8);
                     
                     let subHuman = 'Arquivos';
                     if (subfolder === 'signatures') subHuman = 'Assinaturas';
@@ -113,13 +124,25 @@ export const StorageService = {
                     else if (subfolder) subHuman = subfolder;
                     
                     finalHumanPath = `Orcamentos/${code}/${subHuman}`;
+                } else {
+                    // Fallback for public dropzone
+                    const { data: pData } = await publicSupabase.rpc('get_public_document', { p_token: quoteId, p_type: 'quote' });
+                    if (pData) {
+                        if (!tenantIdToUse) tenantIdToUse = pData.tenant_id;
+                        const code = pData.display_id || pData.id?.substring(0, 8) || quoteId.substring(0, 8);
+                        let subHuman = 'Arquivos';
+                        if (subfolder === 'signatures') subHuman = 'Assinaturas';
+                        else if (subfolder === 'rejections') subHuman = 'Rejeicoes';
+                        else if (subfolder) subHuman = subfolder;
+                        finalHumanPath = `Orcamentos/${code}/${subHuman}`;
+                    }
                 }
             } 
             else if (cleanPath.startsWith('avatars/users/')) {
                 const parts = cleanPath.split('/');
                 const userId = parts[2];
                 if (userId) {
-                    const { data } = await publicSupabase.from('users').select('name').eq('id', userId).single();
+                    const { data } = await supabase.from('users').select('name').eq('id', userId).maybeSingle();
                     const userName = data?.name ? data.name.trim().replace(/[^a-zA-Z0-9]/g, '_') : userId;
                     finalHumanPath = `Avatares/Usuarios/${userName}`;
                 }
@@ -137,9 +160,18 @@ export const StorageService = {
             // Buscar o nome fantasia do tenant
             let tenantNameStr = 'Empresa';
             if (tenantIdToUse !== 'anon') {
-                 const { data: tData } = await publicSupabase.from('tenants').select('trade_name').eq('id', tenantIdToUse).single();
-                 if (tData?.trade_name) {
-                     tenantNameStr = tData.trade_name.trim().replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+                 // Try auth first
+                 const { data: tData } = await supabase.from('tenants').select('trade_name, name, company_name').eq('id', tenantIdToUse).maybeSingle();
+                 if (tData) {
+                     const tName = tData.trade_name || tData.name || tData.company_name;
+                     if (tName) tenantNameStr = tName.trim().replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+                 } else {
+                     // Fallback via RPC public
+                     const { data: pData } = await publicSupabase.rpc('get_public_tenant_info', { p_tenant_id: tenantIdToUse });
+                     if (pData) {
+                         const tName = pData.trade_name || pData.name || pData.company_name;
+                         if (tName) tenantNameStr = tName.trim().replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+                     }
                  }
             }
 

@@ -228,16 +228,19 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-3 px-1">
-                                    <input
-                                        type="checkbox"
-                                        id="keep-logged"
-                                        checked={keepLoggedIn}
-                                        onChange={(e) => setKeepLoggedIn(e.target.checked)}
-                                        className="w-5 h-5 rounded-lg border-slate-300 text-primary-600 focus:ring-primary-100 cursor-pointer transition-all"
-                                    />
-                                    <label htmlFor="keep-logged" className="text-slate-500 text-[10px] font-medium cursor-pointer select-none">
-                                        Manter conectado nesta sessão
+                                <div className="flex items-center gap-3 px-1 mt-2">
+                                    <label htmlFor="keep-logged" className="relative flex items-center cursor-pointer group">
+                                        <input
+                                            type="checkbox"
+                                            id="keep-logged"
+                                            checked={keepLoggedIn}
+                                            onChange={(e) => setKeepLoggedIn(e.target.checked)}
+                                            className="sr-only peer"
+                                        />
+                                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1c2d4f] group-hover:bg-slate-300"></div>
+                                        <span className="ml-3 text-[12px] font-semibold text-slate-600 tracking-tight select-none">
+                                            Permanecer conectado
+                                        </span>
                                     </label>
                                 </div>
 
@@ -331,12 +334,6 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                         </div>
 
                         <div className="flex flex-col items-center gap-3">
-                            <button
-                                onClick={onToggleMaster}
-                                className="text-slate-300 hover:text-primary-400 text-[9px] font-black uppercase tracking-[0.25em] transition-all"
-                            >
-                                Multi-Tenant Master Login
-                            </button>
                             <div className="flex items-center gap-6 text-slate-300 text-[9px] font-bold uppercase tracking-widest italic">
                                 <span>DUNO v2.0</span>
                                 <span className="w-1.5 h-1.5 rounded-full bg-slate-100"></span>

@@ -73,7 +73,7 @@ export const GlobalAlertProvider: React.FC = () => {
   if (alerts.length === 0) return null;
 
   return safeCreatePortal(
-    <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+    <div className="fixed top-4 right-4 z-[99999999] flex flex-col gap-2 max-w-sm w-full pointer-events-none">
       {alerts.map(alert => (
         <div key={alert.id} className={`pointer-events-auto p-4 rounded-xl shadow-2xl border flex items-start gap-3 transform transition-all duration-300 animate-fade-in ${
           alert.type === 'error' ? 'bg-white border-rose-500/20 shadow-rose-500/10' :

@@ -325,7 +325,17 @@ serve(async (req: Request) => {
 
     // ── Null-safety: history pode vir como null do banco
     const rawHistory: any[] = Array.isArray(conversation.history) ? conversation.history : [];
-    const recentHistory = rawHistory.slice(-10);
+    
+    // Filtra histórico para remover as mensagens do usuário do final (pois serão representadas pela user_message unificada)
+    let lastBotIdx = -1;
+    for (let i = rawHistory.length - 1; i >= 0; i--) {
+      if (rawHistory[i]?.role === 'bot' || rawHistory[i]?.role === 'agent') {
+        lastBotIdx = i;
+        break;
+      }
+    }
+    const filteredHistory = lastBotIdx >= 0 ? rawHistory.slice(0, lastBotIdx + 1) : [];
+    const recentHistory = filteredHistory.slice(-10);
 
     // Descobre a saudação e despedida com base na hora atual em São Paulo/Brasília
     const now = new Date();
@@ -399,7 +409,12 @@ REGRAS TÉCNICAS (Use as Tools OBRIGATORIAMENTE):
 - O cliente passou Nº de OS (ex: 1007, NEX-1007)? → Execute 'get_order_details'.
 - O cliente quer abrir chamado, agendar visita, relatou um problema ou pediu ajuda técnica? → EXECUTE IMEDIATAMENTE a tool 'request_service_order'. NUNCA prometa "vou abrir um chamado" sem efetivamente acionar a ferramenta no MESMO momento. Colete os dados básicos e já execute a tool!
 - **ATENÇÃO MÁXIMA:** Se você JÁ abriu um chamado/OS nesta conversa e já passou o número do Ticket para o cliente, e na mensagem seguinte ele apenas pedir urgência, adicionar uma observação extra ou agradecer, **NÃO execute 'request_service_order' novamente**. Apenas responda confirmando de forma empática que você já repassou a urgência/observação para a equipe responsável pelo Ticket atual.
-- O cliente quer falar com um atendente, suporte, ou representante? → Execute 'escalate_to_human'. Se o sistema avisar que está fechado, siga as instruções de criar o ticket imediatamente.
+- MÍDIAS (Fotos, Imagens e Arquivos/Documentos):
+  * Ao receber Foto/Imagem ou Documento/Arquivo: Confirme SEMPRE o recebimento da imagem/documento com simpatia e clareza.
+  * Se o cliente enviou uma foto ou arquivo (com ou sem legenda): Responda ao contexto enviado e pergunte se ele gostaria de ser direcionado a um departamento ou especialista para dar suporte.
+  * Se o Status Atual da Empresa for ABERTO (horário comercial) e o cliente pedir para falar com departamento ou atendente: EXECUTE a ferramenta 'escalate_to_human'.
+  * Se o Status Atual da Empresa for FECHADO (fora do horário comercial): Avise que a empresa está fechada no momento (informe o horário) e EXECUTE IMEDIATAMENTE a ferramenta 'request_service_order' para criar um chamado/Ticket com os detalhes e o protocolo, garantindo ao cliente que a equipe analisará o arquivo/foto no próximo dia útil.
+- O cliente quer falar com um atendente, suporte, departamento ou representante? → Execute 'escalate_to_human'. Se o sistema avisar que está fechado, siga as instruções de criar o ticket imediatamente.
 - IMPORTANTE: Nunca afirme que não encontrou informações antes de de fato executar as ferramentas de busca.
 
 APRESENTAÇÃO DE O.S.:

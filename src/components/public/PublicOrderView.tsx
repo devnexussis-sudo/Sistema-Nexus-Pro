@@ -41,7 +41,25 @@ const isVideoUrl = (url: string | null) => {
   return videoExtensions.some(ext => lower.includes(ext)) || lower.startsWith('data:video/') || lower.includes('/form_videos/') || lower.includes('/videos/');
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
+/** Detecta URIs locais de dispositivo que NÃO devem ser renderizadas no link público */
+const isLocalDeviceUri = (url: string | null | undefined): boolean => {
+  if (!url || typeof url !== 'string') return false;
+  const s = url.trim();
+  if (!s) return false;
+  if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:')) return false;
+  return (
+    s.startsWith('file://') ||
+    s.startsWith('/var/') ||
+    s.startsWith('/private/') ||
+    s.includes('/Containers/') ||
+    s.includes('/Library/') ||
+    s.includes('/Caches/') ||
+    s.includes('/Camera/') ||
+    s.includes('/ExponentExperienceData/')
+  );
+};
+
+
 // Sub-components
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -297,28 +315,138 @@ const VisitCard: React.FC<{
             });
           })()}
 
-          {/* Assinatura do responsável pelo impedimento */}
-          {visit.status === 'blocked' && (visitData.impediment_responsible || visitData.impediment_signature) && (
-            <div className="mt-6 border border-red-100 bg-red-50/40 rounded-2xl overflow-hidden shadow-sm">
-              <div className="bg-red-100/60 px-4 py-3 border-b border-red-100">
-                <p className="text-xs text-red-700 uppercase tracking-widest">Cliente / Responsável por acompanhar o atendimento</p>
+          {/* Assinatura e Detalhes do Impedimento */}
+          {visit.status === 'blocked' && (
+            <div className="mt-6 border border-red-200 bg-red-50/50 rounded-2xl overflow-hidden shadow-sm">
+              <div className="bg-red-100/80 px-4 py-3 border-b border-red-200 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldAlert size={16} className="text-red-700" />
+                  <p className="text-xs text-red-700 font-semibold uppercase tracking-widest">
+                    Visita Impedida / Pendência
+                  </p>
+                </div>
               </div>
-              <div className="p-4 sm:p-5 flex flex-col items-start gap-3">
-                {visitData.impediment_responsible && (
-                  <p className="text-sm text-slate-800 uppercase">{visitData.impediment_responsible}</p>
-                )}
-                {visitData.impediment_signature && (
-                  <div
-                    className="w-full sm:w-64 h-28 bg-white rounded-xl border border-red-200 flex items-center justify-center p-2 cursor-zoom-in hover:border-red-400/40 transition-colors"
-                    onClick={() => onImageClick(visitData.impediment_signature)}
-                  >
-                    <img
-                      src={visitData.impediment_signature}
-                      className="max-h-full max-w-full object-contain mix-blend-multiply"
-                      alt="Assinatura do responsável"
-                    />
+              <div className="p-4 sm:p-5 space-y-4">
+                {/* Motivo do Impedimento */}
+                {(() => {
+                  const reason =
+                    visitData.impediment_reason ||
+                    visitData.impedimento_motivo ||
+                    visitData.blockReason ||
+                    visitData.block_reason ||
+                    visitData.reason ||
+                    visit.impediment_reason ||
+                    (visit.notes && visit.notes.toLowerCase().includes('impedimento') ? visit.notes.replace(/^IMPEDIMENTO:\s*/i, '') : visit.notes);
+                  
+                  if (!reason) return null;
+                  return (
+                    <div>
+                      <p className="text-[10px] text-red-600 font-semibold uppercase tracking-widest mb-1.5">
+                        Motivo do Impedimento
+                      </p>
+                      <div className="p-3 bg-white rounded-xl border border-red-200 shadow-sm">
+                        <p className="text-sm text-slate-800 leading-relaxed font-medium whitespace-pre-wrap">
+                          {reason}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Responsável e Assinatura do Impedimento */}
+                {(visitData.impediment_responsible || visitData.impediment_signature) && (
+                  <div className="pt-3 border-t border-red-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    {visitData.impediment_responsible && (
+                      <div>
+                        <p className="text-[10px] text-red-600 font-semibold uppercase tracking-widest mb-1">
+                          Responsável por Acompanhar
+                        </p>
+                        <p className="text-sm text-slate-800 font-bold uppercase">{visitData.impediment_responsible}</p>
+                      </div>
+                    )}
+                    {visitData.impediment_signature && (
+                      <div>
+                        <p className="text-[10px] text-red-600 font-semibold uppercase tracking-widest mb-1">
+                          Assinatura do Responsável
+                        </p>
+                        <div
+                          className="w-full sm:w-56 h-24 bg-white rounded-xl border border-red-200 flex items-center justify-center p-2 cursor-zoom-in hover:border-red-400/50 transition-colors shadow-sm"
+                          onClick={() => onImageClick(visitData.impediment_signature)}
+                        >
+                          <img
+                            src={visitData.impediment_signature}
+                            className="max-h-full max-w-full object-contain mix-blend-multiply"
+                            alt="Assinatura do responsável pelo impedimento"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
+
+                {/* Fotos do Impedimento */}
+                {(() => {
+                  const rawBlockPhotos: string[] = Array.isArray(visitData.impediment_photos)
+                    ? visitData.impediment_photos
+                    : Array.isArray(visitData.block_photo_urls)
+                    ? visitData.block_photo_urls
+                    : Array.isArray(visitData.blockPhotoUrls)
+                    ? visitData.blockPhotoUrls
+                    : typeof visitData.impediment_photos === 'string' && visitData.impediment_photos
+                    ? visitData.impediment_photos.split(',')
+                    : [];
+                  const blockPhotos = rawBlockPhotos.filter((p: string) => p && !isLocalDeviceUri(p));
+                  if (blockPhotos.length === 0) return null;
+
+                  return (
+                    <div className="pt-3 border-t border-red-200/60">
+                      <p className="text-[10px] text-red-600 font-semibold uppercase tracking-widest mb-2">
+                        Fotos de Evidência do Impedimento
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {blockPhotos.map((url, pIdx) => (
+                          <div
+                            key={pIdx}
+                            className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-white border border-red-200 cursor-zoom-in group hover:shadow-md transition-all shrink-0"
+                            onClick={() => onImageClick(url, blockPhotos)}
+                          >
+                            <img src={url} className="w-full h-full object-cover group-hover:scale-110 transition-transform" alt="Evidência" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Vídeos do Impedimento */}
+                {(() => {
+                  const rawVid = visitData.video_url || visitData.videoUrl || '';
+                  const impedimentVideos = typeof rawVid === 'string'
+                    ? rawVid.split(',').map(u => u.trim()).filter(u => u && !isLocalDeviceUri(u))
+                    : [];
+                  if (impedimentVideos.length === 0) return null;
+                  return (
+                    <div className="pt-3 border-t border-red-200/60">
+                      <p className="text-[10px] text-red-600 font-semibold uppercase tracking-widest mb-2">
+                        Vídeos de Evidência do Impedimento
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {impedimentVideos.map((vUrl, vIdx) => (
+                          <div
+                            key={`imp-vid-${vIdx}`}
+                            className="w-[80px] h-[80px] sm:w-[100px] sm:h-[100px] shrink-0 rounded-xl overflow-hidden border border-red-200 bg-black cursor-zoom-in group hover:shadow-md transition-all active:scale-95 relative"
+                            onClick={() => onImageClick(vUrl, impedimentVideos)}
+                          >
+                            <video src={`${vUrl}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <Play size={16} className="text-white fill-white group-hover:scale-110 transition-transform" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )}
@@ -358,10 +486,11 @@ const VisitCard: React.FC<{
                 {/* Fotos e Vídeos */}
                 {(visitPhotos.length > 0 || visitData.videoUrl || visitData.video_url) && (() => {
                   const rawVid = visitData.videoUrl || visitData.video_url || '';
-                  const vidArr = typeof rawVid === 'string' ? rawVid.split(',').map(u => u.trim()).filter(Boolean) : [];
+                  const vidArr = typeof rawVid === 'string' ? rawVid.split(',').map(u => u.trim()).filter(u => u && !isLocalDeviceUri(u)) : [];
+                  const filteredVisitPhotos = visitPhotos.filter((p: string) => !isLocalDeviceUri(p));
                   const allMedia = [
                     ...vidArr,
-                    ...visitPhotos
+                    ...filteredVisitPhotos
                   ];
                   return (
                     <div className={(visitData.technical_report || visitData.technicalReport || visit.notes || visitData.parts_used || visitData.partsUsed) ? "pt-2 border-t border-slate-200 mt-2" : ""}>
@@ -499,7 +628,8 @@ const CollapsibleFormSection: React.FC<{
     'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
     'clientName', 'customerName', 'customerAddress', 'tenantId',
     'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
-    'extra_photos', 'photos', 'equipment_ids'
+    'extra_photos', 'photos', 'equipment_ids',
+    'block_photo_urls', 'blockPhotoUrls', 'block_photos', 'blockPhotos', 'block_photo', 'blockPhoto'
   ]);
 
   const isSignatureKey = (k: string) =>
@@ -511,7 +641,21 @@ const CollapsibleFormSection: React.FC<{
   const isImageVal = (v: any) => {
     if (typeof v !== 'string') return false;
     const lower = v.toLowerCase().trim();
-    return lower.startsWith('data:image') || lower.startsWith('data:video') || lower.startsWith('http://') || lower.startsWith('https://') || lower.includes('/form_videos/') || lower.includes('/videos/');
+    return (
+      lower.startsWith('data:image') ||
+      lower.startsWith('data:video') ||
+      lower.startsWith('http://') ||
+      lower.startsWith('https://') ||
+      lower.startsWith('file://') ||
+      lower.startsWith('/var/') ||
+      lower.includes('/containers/') ||
+      lower.includes('/library/') ||
+      lower.includes('/caches/') ||
+      lower.includes('/camera/') ||
+      lower.includes('/form_videos/') ||
+      lower.includes('/videos/') ||
+      isVideoUrl(v)
+    );
   };
 
   // Monta lista de itens do formulário: cada item pode ter texto e/ou fotos
@@ -519,7 +663,13 @@ const CollapsibleFormSection: React.FC<{
   const templateFields = (order as any).templateFields as string[] || [];
   
   let formItems = Object.entries(formData)
-    .filter(([key]) => !SYSTEM_KEYS.has(key) && !isSignatureKey(key))
+    .filter(([key]) => {
+      if (SYSTEM_KEYS.has(key) || isSignatureKey(key)) return false;
+      // Deduplicar campos redundantes de impedimento injetados pelo backend
+      if ((key === 'block_photo_urls' || key === 'blockPhotoUrl') && formData['blockPhotoUrls']) return false;
+      if (key === 'blockPhotoUrl' && formData['block_photo_urls']) return false;
+      return true;
+    })
     .map(([key, val]) => {
       let text: string | null = null;
       let photos: string[] = [];
@@ -533,18 +683,24 @@ const CollapsibleFormSection: React.FC<{
 
       if (Array.isArray(rawVal)) {
         const textParts = rawVal.filter((v: any) => typeof v === 'string' && !isImageVal(v));
-        photos = rawVal.filter((v: any) => isImageVal(v)).map(v => String(v));
+        photos = rawVal.filter((v: any) => isImageVal(v) && !isLocalDeviceUri(v)).map(v => String(v));
         if (textParts.length > 0) text = textParts.join(', ');
       } else if (isImageVal(rawVal)) {
-        photos = [rawVal as string];
+        if (!isLocalDeviceUri(rawVal as string)) {
+          photos = [rawVal as string];
+        }
       } else if (typeof rawVal === 'string' && (rawVal.includes('http') || rawVal.includes('data:video')) && (rawVal.includes('.mp4') || rawVal.includes('.mov') || rawVal.includes('/form_videos/') || rawVal.includes('/videos/'))) {
         const parts = rawVal.split(',').map(s => s.trim()).filter(Boolean);
-        const mediaParts = parts.filter(p => isImageVal(p));
+        const mediaParts = parts.filter(p => isImageVal(p) && !isLocalDeviceUri(p));
         const nonMedia = parts.filter(p => !isImageVal(p));
         if (mediaParts.length > 0) photos = mediaParts;
         if (nonMedia.length > 0) text = nonMedia.join(', ');
       } else if (rawVal !== null && rawVal !== undefined && rawVal !== '') {
-        text = String(rawVal);
+        // Filtra textos que são URIs locais disfarçados (ex: /var/mobile/...)
+        const rawStr = String(rawVal);
+        if (!isLocalDeviceUri(rawStr)) {
+          text = rawStr;
+        }
       }
 
       return { key, text, photos };
@@ -670,9 +826,9 @@ const CollapsibleFormSection: React.FC<{
                           <h4 className="text-xs uppercase tracking-widest text-[#1c2d4f]">{group}</h4>
                         </div>
                       )}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                      <div className="columns-1 md:columns-2 gap-3 sm:gap-4 [column-fill:_balance]">
                         {items.map(({ key, cleanKey, text, photos }) => (
-                          <div key={key} className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                          <div key={key} className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm hover:shadow-md transition-all break-inside-avoid mb-3 sm:mb-4">
                             <div>
                               <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-1.5">
                                 {resolvePublicLabel(key)}
@@ -700,22 +856,61 @@ const CollapsibleFormSection: React.FC<{
                                     className="w-[70px] h-[70px] sm:w-[85px] sm:h-[85px] rounded-xl overflow-hidden bg-slate-100 border border-slate-200 cursor-zoom-in group hover:shadow-md transition-all shrink-0"
                                     onClick={() => onImageClick(url, photos)}
                                   >
-                                    {isVideoUrl(url) ? (
-                                      <div className="w-full h-full relative flex items-center justify-center bg-black">
-                                        <video src={url} className="w-full h-full object-cover opacity-60" />
-                                        <div className="absolute inset-0 flex items-center justify-center shadow-inner">
-                                          <div className="w-6 h-6 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 group-hover:bg-white/30 transition-all">
-                                            <Play size={10} className="text-white fill-white ml-0.5" />
+                                    {(() => {
+                                      const isLocal = (u: string) => {
+                                        if (!u) return false;
+                                        const lower = u.toLowerCase();
+                                        if (lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('data:')) return false;
+                                        return (
+                                          lower.startsWith('file://') ||
+                                          lower.startsWith('/var/') ||
+                                          lower.includes('/containers/') ||
+                                          lower.includes('/library/') ||
+                                          lower.includes('/caches/') ||
+                                          lower.includes('/camera/')
+                                        );
+                                      };
+
+                                      if (isVideoUrl(url)) {
+                                        if (isLocal(url)) {
+                                          return (
+                                            <div className="w-full h-full relative flex flex-col items-center justify-center bg-slate-900 p-1 text-center shadow-inner">
+                                              <Video size={16} className="text-amber-400 mb-0.5 animate-pulse" />
+                                              <span className="text-[9px] text-amber-200 font-semibold leading-tight">Vídeo Anexado</span>
+                                              <span className="text-[7px] text-slate-400 mt-0.5">Sincronizando...</span>
+                                            </div>
+                                          );
+                                        }
+                                        return (
+                                          <div className="w-full h-full relative flex items-center justify-center bg-black">
+                                            <video src={url} className="w-full h-full object-cover opacity-60" />
+                                            <div className="absolute inset-0 flex items-center justify-center shadow-inner">
+                                              <div className="w-6 h-6 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 group-hover:bg-white/30 transition-all">
+                                                <Play size={10} className="text-white fill-white ml-0.5" />
+                                              </div>
+                                            </div>
                                           </div>
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <img
-                                        src={url}
-                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                                        alt={key}
-                                      />
-                                    )}
+                                        );
+                                      }
+
+                                      if (isLocal(url)) {
+                                        return (
+                                          <div className="w-full h-full relative flex flex-col items-center justify-center bg-slate-100 p-1 text-center">
+                                            <Camera size={16} className="text-blue-500 mb-0.5" />
+                                            <span className="text-[9px] text-slate-700 font-semibold leading-tight">Foto Anexada</span>
+                                            <span className="text-[7px] text-slate-400 mt-0.5">Sincronizando...</span>
+                                          </div>
+                                        );
+                                      }
+
+                                      return (
+                                        <img
+                                          src={url}
+                                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                          alt={key}
+                                        />
+                                      );
+                                    })()}
                                   </div>
                                 ))}
                               </div>
@@ -865,6 +1060,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     // 🎯 PRIORIDADE: order.signature (nível raiz) ou mapeamentos diretos no formData
     const signature = (order as any).signature || 
       (order as any).client_signature_url || 
+      formDataPrint.impediment_signature || 
       formDataPrint.signature || 
       findNormalizedField('assinaturadocliente', formDataPrint) || 
       findNormalizedField('assinatura', formDataPrint);
@@ -872,6 +1068,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     // 🎯 Nome: Prio no digitado no app, depois mapeamentos directos e normalizados
     const name = (order as any).signatureName || 
       (order as any).client_signature_name || 
+      formDataPrint.impediment_responsible || 
       formDataPrint.signatureName || 
       formDataPrint.clientName || 
       findNormalizedField('assinaturadoclientenome', formDataPrint) || 
@@ -1161,7 +1358,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
     'clientName', 'customerName', 'customerAddress', 'tenantId',
     'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
-    'extra_photos', 'photos', 'equipment_ids'
+    'extra_photos', 'photos', 'equipment_ids',
+    'block_photo_urls', 'blockPhotoUrls', 'block_photos', 'blockPhotos', 'block_photo', 'blockPhoto'
   ]);
 
   const isSignatureKey = (k: string) => {
@@ -1623,10 +1821,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
                 'clientName', 'customerName', 'customerAddress', 'tenantId',
                 'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
-                'extra_photos', 'photos', 'equipment_ids', 'videoUrl', 'video_url'
+                'extra_photos', 'photos', 'equipment_ids', 'videoUrl', 'video_url',
+                'block_photo_urls', 'blockPhotoUrls', 'block_photos', 'blockPhotos', 'block_photo', 'blockPhoto'
               ]);
               Object.entries(vFd).forEach(([key, val]) => {
                 if (internalKeys.has(key) || key.toLowerCase().includes('assinatura')) return;
+                
+                // A deduplicação agora é feita através do array internalKeys
+
                 const match = key.match(/^\[(.*?)\]\s*(?:-|$)/);
                 const gName = match ? match[1] : 'Relatório de Atendimento';
                 if (!grps[gName]) grps[gName] = {};
@@ -1737,7 +1939,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                   <span className="text-[9px] text-slate-500 mt-0.5">S/N: {eq.equipment_serial || eq.equipmentSerial}</span>
                                 )}
                               </div>
-                              <div className="grid grid-cols-2 gap-1.5 p-2 bg-white">
+                              <div className="columns-2 gap-1.5 p-2 bg-white">
                                 {Object.entries(gData).sort((a, b) => {
                                   const matchA = a[0].replace(/^\[.*?\]\s*-\s*/, '').match(/(?:#\s*(\d+)|^(\d+)\s*#)/);
                                   const matchB = b[0].replace(/^\[.*?\]\s*-\s*/, '').match(/(?:#\s*(\d+)|^(\d+)\s*#)/);
@@ -1760,8 +1962,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                   if (!text && photos.length === 0) return null;
                                   
                                   return (
-                                    // print-checklist-row: cada pergunta+resposta fica junta no grid 2 colunas
-                                    <div key={idx} className="print-checklist-row border border-slate-200 rounded-md overflow-hidden bg-white p-2 flex flex-col justify-between">
+                                    // print-checklist-row: cada pergunta+resposta com tamanho independente
+                                    <div key={idx} className="print-checklist-row border border-slate-200 rounded-md overflow-hidden bg-white p-2 break-inside-avoid mb-1.5">
                                       <div>
                                         <div className="text-[7.5px] font-semibold uppercase tracking-tight text-slate-700 mb-0.5">
                                           {resolvePublicLabel(key)}
@@ -1774,7 +1976,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                       </div>
                                       {photos.length > 0 && (
                                         <div className="flex flex-wrap gap-1 mt-1 pt-1 border-t border-slate-100">
-                                          {photos.map((p, pIdx) => (
+                                          {Array.from(new Set(photos)).map((p, pIdx) => (
                                             <div key={pIdx} className="w-[120px] h-[120px] border border-slate-200 rounded overflow-hidden flex items-center justify-center bg-white shadow-sm shrink-0">
                                               {isVideoUrl(p) ? (
                                                 <a href={p} target="_blank" rel="noopener noreferrer" className="w-full h-full relative flex items-center justify-center bg-black cursor-pointer">
@@ -1960,6 +2162,37 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                       </div>
                     )}
 
+                    {/* Fotos do Impedimento (print) */}
+                    {v.status === 'blocked' && (() => {
+                      const rawBlockPhotos: string[] = Array.isArray(vFd.impediment_photos)
+                        ? vFd.impediment_photos
+                        : Array.isArray(vFd.block_photo_urls)
+                        ? vFd.block_photo_urls
+                        : Array.isArray(vFd.blockPhotoUrls)
+                        ? vFd.blockPhotoUrls
+                        : typeof vFd.impediment_photos === 'string' && vFd.impediment_photos
+                        ? vFd.impediment_photos.split(',')
+                        : [];
+                      
+                      const blockPhotos = Array.from(new Set(rawBlockPhotos.filter((p: string) => p && !isLocalDeviceUri(p))));
+                      if (blockPhotos.length === 0) return null;
+                      
+                      return (
+                        <div className="mt-3 pt-2 border-t border-red-200 flex flex-col items-start gap-1 break-inside-avoid">
+                          <span className="uppercase text-[8px] text-red-500 block mb-1.5">Fotos de Evidência do Impedimento</span>
+                          <div className="flex flex-wrap gap-2">
+                            {blockPhotos.map((url, pIdx) => (
+                              <div key={`imp-p-${pIdx}`} className="border border-red-200 rounded p-1 w-[140px] h-[105px] overflow-hidden flex items-center justify-center bg-white shadow-sm">
+                                <a href={url} target="_blank" rel="noopener noreferrer" className="w-full h-full block cursor-pointer">
+                                  <img src={url} className="w-full h-full object-cover" alt={`Evidência Impedimento ${pIdx + 1}`} />
+                                </a>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                   </div>
                 </div>
               );
@@ -2040,11 +2273,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white text-center">
             <div className="p-4 flex flex-col items-center justify-center gap-3">
               <p className="text-xs text-slate-400 uppercase tracking-widest">Responsável Técnico</p>
-              <div className="h-[60px] flex items-center justify-center overflow-hidden">
+              <div className="h-[80px] w-full flex items-center justify-center border-2 border-dashed border-slate-200 rounded-lg p-2 overflow-hidden">
                 {tech?.avatar ? (
                   <img src={tech.avatar} alt="Avatar" className="max-h-full max-w-full object-contain mix-blend-multiply rounded-md" />
                 ) : (
-                  <span className="text-slate-200 italic text-xs uppercase">Validação Eletrônica no Sistema</span>
+                  <div className="flex flex-col items-center opacity-60">
+                    <UserIcon size={24} className="text-slate-400 mb-1" />
+                    <span className="text-slate-400 text-[8px] uppercase tracking-wider text-center leading-tight">Validação Eletrônica<br/>no Sistema</span>
+                  </div>
                 )}
               </div>
               <div className="w-full border-t border-slate-300 pt-2">
@@ -2444,32 +2680,6 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             )}
           </div>
 
-          {/* ── IMPEDIMENTO (if any) ── */}
-          {(order.status === 'IMPEDIDO' || (order.formData as any)?.impediment_reason || (order.formData as any)?.blockReason) && (() => {
-            const fd = (order.formData as any) || {};
-            const reason = fd.impediment_reason || fd.blockReason || order.notes?.replace('IMPEDIMENTO: ', '') || 'Sem motivo detalhado.';
-            const blockPhoto = fd.blockPhotoUrl;
-            return (
-              <div className="bg-red-50 rounded-3xl border border-red-100 shadow-md shadow-red-100/50 p-8 sm:p-10">
-                <SectionHeader icon={<ShieldAlert size={15} />} title="Aviso de Impedimento" color="text-red-600" />
-                <p className="text-sm text-red-800 italic mb-4">"{reason}"</p>
-                {blockPhoto && (
-                  (blockPhoto.startsWith('http://') || blockPhoto.startsWith('https://')) ? (
-                    <a href={blockPhoto} target="_blank" rel="noreferrer" className="block">
-                      <img src={blockPhoto} alt="Foto do impedimento" className="w-full max-w-sm rounded-xl border border-red-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{maxHeight: 240}} />
-                      <span className="text-xs text-red-400 uppercase tracking-widest mt-2 block">Foto do Impedimento (clique para ampliar)</span>
-                    </a>
-                  ) : (
-                    <div className="flex items-center gap-2 p-3 bg-red-100/60 border border-red-200 rounded-xl">
-                      <span className="text-red-400" style={{fontSize: 16}}>&#128247;</span>
-                      <span className="text-xs text-red-500 ">Foto registrada pelo técnico (disponível apenas no app mobile)</span>
-                    </div>
-                  )
-                )}
-              </div>
-            );
-          })()}
-
 
           {/* ── SEÇÃO CONSOLIDADA REMOVIDA ── */}
           {false && (() => {
@@ -2731,22 +2941,30 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
                   {/* Técnico */}
                   <div className="flex flex-col items-center text-center p-6 bg-slate-50 rounded-xl border border-slate-100 gap-4">
-                    <div className="w-14 h-14 bg-[#1c2d4f]/10 rounded-2xl flex items-center justify-center overflow-hidden border border-slate-200/50 shadow-sm">
-                      {tech?.avatar ? (
-                        <img 
-                          src={tech.avatar} 
-                          alt={tech.name} 
-                          className="w-full h-full object-cover" 
-                        />
-                      ) : (
-                        <UserIcon size={24} className="text-[#1c2d4f]" />
-                      )}
-                    </div>
                     <div>
                       <p className="text-xs text-slate-400 uppercase tracking-widest mb-1">Técnico Responsável</p>
                       <p className="text-sm text-slate-900 uppercase">{tech?.name || 'Não Atribuído'}</p>
                       {tech?.email && <p className="text-xs text-slate-400 mt-0.5">{tech.email}</p>}
                     </div>
+
+                    {tech?.avatar ? (
+                      <div
+                        className="w-full h-28 flex items-center justify-center bg-white rounded-xl border border-slate-200 cursor-zoom-in hover:border-[#3e5b99]/30 transition-colors overflow-hidden p-2"
+                        onClick={() => openLightbox(tech.avatar!)}
+                      >
+                        <img
+                          src={tech.avatar}
+                          className="max-h-full max-w-full object-contain mix-blend-multiply rounded-md"
+                          alt="Foto do Técnico"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-full h-28 flex flex-col items-center justify-center bg-white rounded-xl border-2 border-dashed border-slate-200 gap-2">
+                        <UserIcon size={32} className="text-slate-300" />
+                        <p className="text-[10px] text-slate-300 uppercase tracking-widest text-center px-2">Validação Eletrônica<br/>no Sistema</p>
+                      </div>
+                    )}
+
                     <div className="w-full border-t-2 border-dashed border-slate-200 pt-3">
                       <p className="text-xs text-slate-300 uppercase tracking-widest">Assinatura do Prestador</p>
                     </div>

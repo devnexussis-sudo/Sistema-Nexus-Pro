@@ -93,19 +93,7 @@ export const EquipmentService = {
 
                 let { data, error } = await query;
 
-                if ((error || !data || data.length === 0) && clientToUse === supabase) {
-                    let fbQuery = publicSupabase.from('equipments')
-                        .select('*')
-                        .eq('tenant_id', tenantId)
-                        .order('model')
-                        .limit(500);
-                    if (currentSignal || signal) fbQuery = fbQuery.abortSignal((currentSignal || signal) as AbortSignal);
-                    const fbRes = await fbQuery;
-                    if (!fbRes.error && fbRes.data) {
-                        data = fbRes.data;
-                        error = null;
-                    }
-                }
+                // Fallback removido por segurança
 
                 if (error) {
                     console.error("Error fetching equipments:", error);

@@ -117,10 +117,10 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
     if (!isAdmin && !currentUserId) return;
 
     const checkConversations = async () => {
-      // Pega conversas esperando humano ou ativas comigo
+      // Pega conversas esperando humano ou ativas comigo (apenas metadados leves, sem coluna history)
       const { data } = await supabase
         .from('whatsapp_conversations')
-        .select('id, state, history, assigned_agent_id, phone_number')
+        .select('id, state, last_message_at, assigned_agent_id, phone_number')
         .or(`state.eq.WAITING_HUMAN,and(state.eq.HUMAN_ACTIVE,assigned_agent_id.eq.${currentUserId})`);
 
       if (!data) return;
@@ -129,11 +129,10 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
       let incomingAlerts = 0;
       
       data.forEach(conv => {
-        const history = conv.history as any[] || [];
-        const lastMsg = history.length > 0 ? history[history.length - 1] : null;
+        const lastMsgTimestamp = conv.last_message_at || null;
         
         currentMap[conv.id] = {
-          lastMsgTimestamp: lastMsg?.timestamp || null,
+          lastMsgTimestamp,
           state: conv.state,
           assigned: conv.assigned_agent_id
         };
@@ -143,16 +142,13 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
         // Avalia notificações apenas se não for a carga inicial
         if (!isInitialLoad.current) {
           const isNewToMe = !prev; // Conversa nova que acabou de cair na fila ou ser atribuída
-          const hasNewMsg = prev && lastMsg?.timestamp && prev.lastMsgTimestamp && lastMsg.timestamp !== prev.lastMsgTimestamp;
+          const hasNewMsg = prev && lastMsgTimestamp && prev.lastMsgTimestamp && lastMsgTimestamp !== prev.lastMsgTimestamp;
           const assignedToMe = conv.assigned_agent_id === currentUserId && prev?.assigned !== currentUserId && currentUserId !== null && conv.state === 'HUMAN_ACTIVE';
           const askedForHuman = conv.state === 'WAITING_HUMAN' && prev?.state !== 'WAITING_HUMAN';
 
           if (isNewToMe || hasNewMsg || assignedToMe || askedForHuman) {
-              const newMsgs = hasNewMsg ? [lastMsg] : [lastMsg || {}];
-              const hasUserMsg = newMsgs.some((m: any) => m.role === 'user');
-              
               const justAskedForHuman = askedForHuman || (isNewToMe && conv.state === 'WAITING_HUMAN');
-              const userMsgWhileHuman = hasUserMsg && (conv.state === 'WAITING_HUMAN' || conv.state === 'HUMAN_ACTIVE');
+              const userMsgWhileHuman = hasNewMsg && (conv.state === 'WAITING_HUMAN' || conv.state === 'HUMAN_ACTIVE');
               const justAssignedToMe = assignedToMe;
 
               // ── REGRA DE QUEM RECEBE A NOTIFICAÇÃO ──
@@ -183,9 +179,7 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
                 if (justAssignedToMe) {
                   sendBrowserNotification('💬 Chat Transferido!', `Um atendimento foi transferido para você.`);
                 } else if (justAskedForHuman || userMsgWhileHuman) {
-                  const previewMsg = newMsgs.find((m:any) => m.role === 'user')?.content || 'Cliente solicitou atendimento.';
-                  const preview = String(previewMsg).substring(0, 60);
-                  sendBrowserNotification('💬 Duno WhatsApp', `${conv.phone_number}: ${preview}`);
+                  sendBrowserNotification('💬 Duno WhatsApp', `${conv.phone_number}: Nova mensagem do cliente.`);
                 }
               }
           }
@@ -203,10 +197,25 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
     // Chamada inicial
     checkConversations();
 
-    // Polling a cada 3 segundos
-    const interval = setInterval(checkConversations, 3000);
+    // ⚡ Realtime Push Listener: Atualiza instantaneamente ao ocorrer eventos
+    const channel = supabase
+      .channel(`global_wa_notifs_${currentUserId || 'all'}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'whatsapp_conversations'
+      }, () => {
+        checkConversations();
+      })
+      .subscribe();
 
-    return () => clearInterval(interval);
+    // Polling de fallback a cada 60 segundos (em vez de 3s agressivo)
+    const interval = setInterval(checkConversations, 60000);
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
   }, [currentUserId, isAdmin]);
 
   return { alertCount };

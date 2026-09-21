@@ -48,11 +48,33 @@ coverage/
 temp/
 tmp/
 *.tmp
+*.bak
+*.backup
+*_bak.*
+*.old
+
+# Scratch & debug files
+scratch.*
+temp.*
+probe*.js
+debug-*.js
+
+# Database dumps & binaries
+*.dump.json
+db_dump*.json
+users_dump.json
+supabase-go
+*.db
+
+# Compressed logs
+*.log.gz
+*.txt.gz
 
 # Agent specific
 .agent
 .gemini
 _agent_scratchpad.md
+.gemini_scratch_inbox.*
 out/
 scratch/
 test-payload.json

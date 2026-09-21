@@ -178,48 +178,40 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
         if (fetchedData && fetchedData.id) {
           try {
             const refType = itemType === 'QUOTE' ? 'QUOTE' : 'ORDER';
-            const { data: invLinks } = await publicSupabase
-              .from('invoice_items')
-              .select('invoice_id, invoices(*)')
-              .eq('reference_type', refType)
-              .eq('reference_id', fetchedData.id);
+            
+            // 🛡️ Novo RPC (Fase 1.8) para buscar fatura por referência ignorando RLS para o anon
+            const { data: invData, error: invError } = await publicSupabase
+              .rpc('get_public_invoice_by_reference', {
+                p_ref_id: fetchedData.id,
+                p_ref_type: refType
+              });
 
-            if (invLinks && invLinks.length > 0) {
-              const validLinks = invLinks.filter((link: any) => link.invoices);
-              if (validLinks.length > 0) {
-                validLinks.sort((a: any, b: any) => {
-                  const dA = new Date(a.invoices.created_at || 0).getTime();
-                  const dB = new Date(b.invoices.created_at || 0).getTime();
-                  return dB - dA;
-                });
-                const invLink = validLinks[0];
-                const inv = invLink.invoices as any;
+            if (!invError && invData) {
               let parsedNotes: any = {};
-              try { parsedNotes = JSON.parse(inv.notes || '{}'); } catch (e) {}
+              try { parsedNotes = JSON.parse(invData.notes || '{}'); } catch (e) {}
 
-              const baseAmt = Number(inv.total_amount || 0);
-              const discAmt = Number(inv.discount_amount || 0);
-              const shipAmt = Number(inv.shipping_amount || 0);
-              const addAmt = Number(inv.other_additions_amount || 0);
+              const baseAmt = Number(invData.total_amount || 0);
+              const discAmt = Number(invData.discount_amount || 0);
+              const shipAmt = Number(invData.shipping_amount || 0);
+              const addAmt = Number(invData.other_additions_amount || 0);
               const invNet = Math.max(0, baseAmt - discAmt + shipAmt + addAmt);
 
               fetchedData = {
                 ...fetchedData,
-                invoiceId: inv.id,
-                displayId: inv.display_id || fetchedData.displayId,
+                invoiceId: invData.id,
+                displayId: invData.display_id || fetchedData.displayId,
                 netTotal: invNet > 0 ? invNet : baseAmt,
                 totalValue: invNet > 0 ? invNet : baseAmt,
                 total_amount: baseAmt,
                 discount_amount: discAmt,
                 shipping_amount: shipAmt,
                 other_additions_amount: addAmt,
-                gatewayPaymentId: inv.gateway_payment_id || inv.payment_gateway_id || fetchedData.gatewayPaymentId,
-                gatewayPixCode: inv.gateway_pix_code || parsedNotes.gateway_pix_code || fetchedData.gatewayPixCode,
-                gatewayTicketUrl: inv.gateway_ticket_url || parsedNotes.gateway_ticket_url || fetchedData.gatewayTicketUrl,
-                gatewayStatus: inv.gateway_status || fetchedData.gatewayStatus,
-                paymentMethod: inv.payment_method || inv.paymentMethod || fetchedData.paymentMethod
+                gatewayPaymentId: invData.gateway_payment_id || invData.payment_gateway_id || fetchedData.gatewayPaymentId,
+                gatewayPixCode: invData.gateway_pix_code || parsedNotes.gateway_pix_code || fetchedData.gatewayPixCode,
+                gatewayTicketUrl: invData.gateway_ticket_url || parsedNotes.gateway_ticket_url || fetchedData.gatewayTicketUrl,
+                gatewayStatus: invData.gateway_status || fetchedData.gatewayStatus,
+                paymentMethod: invData.payment_method || invData.paymentMethod || fetchedData.paymentMethod
               };
-              }
             }
           } catch (e) {
             console.warn('[PublicCheckoutPage] Erro ao buscar vínculo de fatura:', e);
@@ -228,78 +220,58 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
 
         // Fallback 3: Tenta INVOICES diretamente (Faturas consolidadas)
         if (!fetchedData) {
-          let invData: any = null;
           try {
-            const res = await publicSupabase.from('invoices').select('*').or(`id.eq.${itemId},display_id.eq.${itemId}`).maybeSingle();
-            invData = res.data;
-          } catch (e) {}
+            // 🛡️ RPC criado na Fase 1.4 do plano
+            const { data: checkoutData, error: checkoutError } = await publicSupabase
+              .rpc('get_public_checkout_data', { p_token: itemId, p_type: 'invoice' });
 
-          if (!invData) {
-            try {
-              const res = await supabase.from('invoices').select('*').or(`id.eq.${itemId},display_id.eq.${itemId}`).maybeSingle();
-              invData = res.data;
-            } catch (e) {}
-          }
+            if (!checkoutError && checkoutData && checkoutData.invoice) {
+              const invData = checkoutData.invoice;
+              const refItems = [...(checkoutData.orders || []), ...(checkoutData.quotes || [])];
 
-          if (invData) {
-            let parsedNotes: any = {};
-            try { parsedNotes = JSON.parse(invData.notes || '{}'); } catch (e) {}
+              let parsedNotes: any = {};
+              try { parsedNotes = JSON.parse(invData.notes || '{}'); } catch (e) {}
 
-            let refItems: any[] = [];
-            try {
-              const { data: invItems } = await publicSupabase.from('invoice_items').select('*').eq('invoice_id', invData.id);
-              if (invItems && invItems.length > 0) {
-                const orderIds = invItems.filter((i: any) => i.reference_type === 'ORDER').map((i: any) => i.reference_id);
-                const quoteIds = invItems.filter((i: any) => i.reference_type === 'QUOTE').map((i: any) => i.reference_id);
-                
-                if (orderIds.length > 0) {
-                  const { data: orders } = await publicSupabase.from('orders').select('*').in('id', orderIds);
-                  if (orders) refItems = [...refItems, ...orders];
-                }
-                if (quoteIds.length > 0) {
-                  const { data: quotes } = await publicSupabase.from('quotes').select('*').in('id', quoteIds);
-                  if (quotes) refItems = [...refItems, ...quotes];
+              let invInst = parsedNotes.mpInstallments || parsedNotes.installments || parsedNotes.max_installments || 0;
+              if (!invInst && refItems.length > 0) {
+                const firstWithInst = refItems.find(r => r.form_data?.installments || r.form_data?.mpInstallments || r.approval_metadata?.installments || r.approval_metadata?.mpInstallments);
+                if (firstWithInst) {
+                  invInst = Number(firstWithInst.form_data?.installments || firstWithInst.form_data?.mpInstallments || firstWithInst.approval_metadata?.installments || firstWithInst.approval_metadata?.mpInstallments || 0);
                 }
               }
-            } catch (e) {}
 
-            let invInst = parsedNotes.mpInstallments || parsedNotes.installments || parsedNotes.max_installments || 0;
-            if (!invInst && refItems.length > 0) {
-              const firstWithInst = refItems.find(r => r.form_data?.installments || r.form_data?.mpInstallments || r.approval_metadata?.installments || r.approval_metadata?.mpInstallments);
-              if (firstWithInst) {
-                invInst = Number(firstWithInst.form_data?.installments || firstWithInst.form_data?.mpInstallments || firstWithInst.approval_metadata?.installments || firstWithInst.approval_metadata?.mpInstallments || 0);
-              }
+              const baseAmt = Number(invData.total_amount || 0);
+              const discAmt = Number(invData.discount_amount || 0);
+              const shipAmt = Number(invData.shipping_amount || 0);
+              const addAmt = Number(invData.other_additions_amount || 0);
+              const invNet = Math.max(0, baseAmt - discAmt + shipAmt + addAmt);
+
+              fetchedData = {
+                id: invData.id,
+                type: 'INVOICE',
+                displayId: formatInvoiceDisplayId(invData.display_id || invData.invoice_number || invData.id),
+                tenantId: invData.tenant_id,
+                customerName: invData.customer_name || 'Cliente',
+                customerDocument: invData.customer_document,
+                customerEmail: invData.customer_email,
+                netTotal: invNet > 0 ? invNet : baseAmt,
+                totalValue: invNet > 0 ? invNet : baseAmt,
+                total_amount: baseAmt,
+                discount_amount: discAmt,
+                shipping_amount: shipAmt,
+                other_additions_amount: addAmt,
+                billingStatus: invData.status === 'PAID' ? 'PAID' : 'PENDING',
+                gatewayPaymentId: invData.gateway_payment_id || invData.payment_gateway_id,
+                gatewayPixCode: invData.gateway_pix_code || parsedNotes.gateway_pix_code,
+                gatewayTicketUrl: invData.gateway_ticket_url || parsedNotes.gateway_ticket_url,
+                gatewayStatus: invData.gateway_status,
+                paymentMethod: invData.payment_method || invData.paymentMethod,
+                notes: invData.notes,
+                formData: invData.form_data || { installments: invInst > 0 ? invInst : undefined, mpInstallments: invInst > 0 ? invInst : undefined }
+              };
             }
-
-            const baseAmt = Number(invData.total_amount || 0);
-            const discAmt = Number(invData.discount_amount || 0);
-            const shipAmt = Number(invData.shipping_amount || 0);
-            const addAmt = Number(invData.other_additions_amount || 0);
-            const invNet = Math.max(0, baseAmt - discAmt + shipAmt + addAmt);
-
-            fetchedData = {
-              id: invData.id,
-              type: 'INVOICE',
-              displayId: formatInvoiceDisplayId(invData.display_id || invData.invoice_number || invData.id),
-              tenantId: invData.tenant_id,
-              customerName: invData.customer_name || 'Cliente',
-              customerDocument: invData.customer_document,
-              customerEmail: invData.customer_email,
-              netTotal: invNet > 0 ? invNet : baseAmt,
-              totalValue: invNet > 0 ? invNet : baseAmt,
-              total_amount: baseAmt,
-              discount_amount: discAmt,
-              shipping_amount: shipAmt,
-              other_additions_amount: addAmt,
-              billingStatus: invData.status === 'PAID' ? 'PAID' : 'PENDING',
-              gatewayPaymentId: invData.gateway_payment_id || invData.payment_gateway_id,
-              gatewayPixCode: invData.gateway_pix_code || parsedNotes.gateway_pix_code,
-              gatewayTicketUrl: invData.gateway_ticket_url || parsedNotes.gateway_ticket_url,
-              gatewayStatus: invData.gateway_status,
-              paymentMethod: invData.payment_method || invData.paymentMethod,
-              notes: invData.notes,
-              formData: invData.form_data || { installments: invInst > 0 ? invInst : undefined, mpInstallments: invInst > 0 ? invInst : undefined }
-            };
+          } catch (e) {
+            console.warn('[PublicCheckoutPage] Erro no fallback de INVOICE:', e);
           }
         }
 

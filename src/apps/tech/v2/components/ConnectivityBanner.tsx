@@ -45,7 +45,7 @@ export const ConnectivityBanner: React.FC<ConnectivityBannerProps> = ({
     // Se está sincronizando, mostrar indicador discreto
     if (isSyncing) {
         return (
-            <div className="fixed top-4 right-4 z-[9999]">
+            <div className="fixed top-4 right-4 z-[99999999]">
                 <div className="bg-white border border-slate-200 shadow-none rounded-md px-3 py-1.5 flex items-center gap-2 animate-fade-in">
                     <RefreshCw size={12} className="text-primary-500 animate-spin" />
                     <span className="text-[10px] font-black text-primary-500 uppercase tracking-wide">
@@ -65,7 +65,7 @@ export const ConnectivityBanner: React.FC<ConnectivityBannerProps> = ({
         // Só mostra se sincronizou nos últimos 2 minutos
         if (diffMinutes < 2) {
             return (
-                <div className="fixed top-4 right-4 z-[9999] animate-fade-in">
+                <div className="fixed top-4 right-4 z-[99999999] animate-fade-in">
                     <div className="bg-success-50 border border-success-200 shadow-none rounded-md px-3 py-1.5 flex items-center gap-2">
                         <CheckCircle2 size={12} className="text-success-600" />
                         <span className="text-[10px] font-black text-success-600 uppercase tracking-wide">

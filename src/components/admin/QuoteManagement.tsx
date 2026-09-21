@@ -88,6 +88,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const [viewQuote, setViewQuote] = useState<Quote | null>(null);
     const [isManualSyncing, setIsManualSyncing] = useState(false);
     const [selectedQuoteIds, setSelectedQuoteIds] = useState<string[]>([]);
+    const [isExportingExcel, setIsExportingExcel] = useState(false);
 
     // ── Filter States ─────────────────────────────────────────────
     const [statusFilter, setStatusFilter] = useState('ALL');
@@ -438,10 +439,39 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
     const handleExportExcel = async () => {
         if (selectedQuoteIds.length === 0) return;
+        setIsExportingExcel(true);
 
-        let itemsToExport: Quote[] = [];
-        if (selectedQuoteIds.length > 0) {
-            const localQuotes = pagedQuotes.filter((q: Quote) => selectedQuoteIds.includes(q.id));
+        try {
+            const { supabase } = await import('../../lib/supabase');
+            const { data, error } = await supabase.functions.invoke('export-quotes-excel', {
+                body: { quoteIds: selectedQuoteIds }
+            });
+
+            if (error) throw error;
+            if (!data?.fileData) throw new Error("Falha ao gerar o arquivo Excel na nuvem.");
+
+            const byteCharacters = atob(data.fileData);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `Nexus_Orcamentos_${new Date().getTime()}.xlsx`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.warn('Edge Function indisponível ou falhou, ativando fallback Automático...', err);
+            
+            let itemsToExport: Quote[] = [];
+            if (selectedQuoteIds.length > 0) {
+                const localQuotes = pagedQuotes.filter((q: Quote) => selectedQuoteIds.includes(q.id));
             if (localQuotes.length === selectedQuoteIds.length) {
                 itemsToExport = localQuotes;
             } else {
@@ -556,6 +586,9 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Orçamentos");
         XLSX.writeFile(wb, `Nexus_Orcamentos_${new Date().toISOString().split('T')[0]}.xlsx`);
+        } finally {
+            setIsExportingExcel(false);
+        }
     };
 
     return (
@@ -576,16 +609,20 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
                     <div className="flex items-center gap-2 w-full lg:w-auto justify-end shrink-0">
                         {selectedQuoteIds.length > 0 && (
-                            <div className="hidden sm:flex items-center gap-2 px-3 h-10 bg-slate-900 rounded-xl shadow-lg border border-slate-700">
-                                <div className="flex flex-col pr-2 border-r border-slate-700">
-                                    <span className="text-[8px] font-medium text-slate-400 uppercase leading-none mb-0.5">Sel.</span>
-                                    <span className="text-[11px] font-medium text-white leading-none">{selectedQuoteIds.length}</span>
+                            <div className="hidden sm:flex items-center gap-1.5 px-3 py-2 h-auto bg-slate-900/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl animate-in fade-in slide-in-from-bottom-4 zoom-in-95 w-max">
+                                <div className="flex items-center gap-2 pl-1 pr-3 border-r border-white/10">
+                                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary-500 text-white text-[11px] font-bold shadow-inner">
+                                        {selectedQuoteIds.length}
+                                    </div>
+                                    <span className="text-xs font-medium text-slate-300 tracking-wide">Selecionados</span>
                                 </div>
-                                <button onClick={handleExportExcel} className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500 hover:bg-emerald-400 text-white rounded-lg text-[9px] uppercase transition-all shadow-sm">
-                                    <FileSpreadsheet size={12} /> Excel
+                                <button onClick={handleExportExcel} disabled={isExportingExcel} className="flex items-center gap-2 px-3 py-1.5 text-slate-300 hover:text-emerald-400 hover:bg-white/5 rounded-lg transition-all disabled:opacity-50">
+                                    {isExportingExcel ? <Loader2 size={15} className="animate-spin" /> : <FileSpreadsheet size={15} />}
+                                    <span className="text-xs font-medium">Excel</span>
                                 </button>
-                                <button onClick={() => setSelectedQuoteIds([])} className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all">
-                                    <X size={14} />
+                                <div className="w-px h-5 bg-white/10 mx-1" />
+                                <button onClick={() => setSelectedQuoteIds([])} className="flex items-center justify-center w-8 h-8 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all" title="Limpar Seleção">
+                                    <X size={16} />
                                 </button>
                             </div>
                         )}

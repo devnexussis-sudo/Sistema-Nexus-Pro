@@ -71,6 +71,8 @@ export const TechnicianService = {
             speed: d.speed,
             battery_level: d.battery_level,
             batteryLevel: d.battery_level,
+            device_model: d.device_model,
+            motion_state: d.motion_state,
             jobTitle: d.job_title
         };
     },
@@ -122,19 +124,7 @@ export const TechnicianService = {
 
                 let { data: techData, error } = await query;
 
-                if ((error || !techData || techData.length === 0) && clientToUse === supabase) {
-                    let fbQuery = publicSupabase.from('technicians')
-                        .select('*')
-                        .eq('tenant_id', tenantId)
-                        .order('name')
-                        .limit(100);
-                    if (currentSignal || signal) fbQuery = fbQuery.abortSignal((currentSignal || signal) as AbortSignal);
-                    const fbRes = await fbQuery;
-                    if (!fbRes.error && fbRes.data) {
-                        techData = fbRes.data;
-                        error = null;
-                    }
-                }
+                // Fallback removido por segurança
 
                 if (error) {
                     console.error("Error fetching technicians:", error);
@@ -257,31 +247,7 @@ export const TechnicianService = {
                 console.warn("⚠️ Erro RPC técnicos, usando fallback:", err);
             }
 
-            // 🔄 ESTRATÉGIA 2: Fallback (supabase anon — RLS via public_token ou função pública)
-            try {
-                const { data, error } = await publicSupabase
-                    .from('technicians')
-                    .select('id, name, avatar, tenant_id')
-                    .eq('tenant_id', tenantId)
-                    .eq('active', true)
-                    .limit(100);
-
-                if (error) {
-                    console.error("❌ Erro ao buscar técnicos públicos (fallback):", error);
-                    return [];
-                }
-
-                return (data || []).map(t => ({
-                    ...t,
-                    role: UserRole.TECHNICIAN,
-                    email: '',
-                    active: true,
-                    tenantId: t.tenant_id
-                }));
-            } catch (fallbackErr) {
-                console.error("❌ Erro crítico ao buscar técnicos:", fallbackErr);
-                return [];
-            }
+            // 🔄 Fallback removido por segurança - RPC é o único caminho autorizado
         }
         return [];
     },
@@ -345,6 +311,13 @@ export const TechnicianService = {
                 console.warn("⚠️ Falha na busca prévia de usuários (Discovery):", e);
             }
 
+            // 🔑 Gera ou obtém tech_code único do técnico
+            const techCode = (tech.techCode && tech.techCode.length <= 10 && tech.techCode !== '— gerado ao salvar —')
+                ? tech.techCode
+                : (tech.tech_code && tech.tech_code.length <= 10 && tech.tech_code !== '— gerado ao salvar —')
+                    ? tech.tech_code
+                    : (await _generateUniqueTechCode(tenantId));
+
             if (!userId) {
                 // Provisionamento de novo usuário no Supabase Auth
                 const tempPassword = Math.random().toString(36).slice(-10) + 'A1!'; // Gera senha aleatória segura
@@ -358,7 +331,9 @@ export const TechnicianService = {
                         phone: tech.phone || '',
                         avatar: tech.avatar || '',
                         jobTitle: tech.jobTitle || '',
-                        app_scope: AppScope.MOBILE
+                        app_scope: AppScope.MOBILE,
+                        user_code: techCode,
+                        tech_code: techCode
                     },
                     email_confirm: true
                 });
@@ -383,7 +358,8 @@ export const TechnicianService = {
                 active: tech.active ?? true,
                 tenant_id: tenantId,
                 avatar: tech.avatar || '',
-                app_scope: existingDbUser?.app_scope || tech.appScope || AppScope.MOBILE
+                app_scope: existingDbUser?.app_scope || tech.appScope || AppScope.MOBILE,
+                user_code: techCode
             };
 
             const { error: userError } = await supabase.from('users').upsert([dbUser]);
@@ -393,9 +369,6 @@ export const TechnicianService = {
             }
 
             // 2. Sincronizar com a tabela public.technicians
-            // 🔑 Gera tech_code único
-            const techCode = await _generateUniqueTechCode(tenantId);
-
             const dbTech: any = {
                 id: userId,
                 name: tech.name,

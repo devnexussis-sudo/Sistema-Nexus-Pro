@@ -153,13 +153,16 @@ export const useUserGroups = (enabled = true) => {
 // 👷 TECHNICIANS HOOKS
 // ------------------------------------------------------------------
 
+// ------------------------------------------------------------------
+// 👷 TECHNICIANS HOOKS
+// ------------------------------------------------------------------
+
 export const useTechnicians = (enabled = true) => {
     const tid = DataService.getCurrentTenantId() || 'default';
     return useQuery(['technicians', tid], (signal) => TechnicianService.getAllTechnicians(undefined, signal), {
         enabled: enabled && !!DataService.getCurrentTenantId(),
-        staleTime: 0,
-        refetchOnMount: 'always',
-        keepPreviousData: false
+        staleTime: 1000 * 30, // 30s cache (Realtime atualiza in-place)
+        keepPreviousData: true
     });
 };
 
@@ -171,9 +174,8 @@ export const useCustomers = (enabled = true) => {
     const tid = DataService.getCurrentTenantId() || 'default';
     return useQuery(['customers', tid], (signal) => CustomerService.getCustomers(signal), {
         enabled: enabled && !!DataService.getCurrentTenantId(),
-        staleTime: 0,
-        refetchOnMount: 'always',
-        keepPreviousData: false
+        staleTime: 1000 * 30,
+        keepPreviousData: true
     });
 };
 
@@ -185,9 +187,8 @@ export const useStock = (enabled = true) => {
     const tid = DataService.getCurrentTenantId() || 'default';
     return useQuery(['stock', tid], (signal) => StockService.getStockItems(signal), {
         enabled: enabled && !!DataService.getCurrentTenantId(),
-        staleTime: 0,
-        refetchOnMount: 'always',
-        keepPreviousData: false
+        staleTime: 1000 * 30,
+        keepPreviousData: true
     });
 };
 
@@ -195,9 +196,8 @@ export const useStockCategories = (enabled = true) => {
     const tid = DataService.getCurrentTenantId() || 'default';
     return useQuery(['stock_categories', tid], (signal) => StockService.getCategories(signal), {
         enabled: enabled && !!DataService.getCurrentTenantId(),
-        staleTime: 0,
-        refetchOnMount: 'always',
-        keepPreviousData: false
+        staleTime: 1000 * 60 * 5, // 5 min
+        keepPreviousData: true
     });
 };
 
@@ -209,8 +209,7 @@ export const useCashFlow = (enabled: boolean = true) => {
     const tid = DataService.getCurrentTenantId() || 'default';
     return useQuery(['cash_flow', tid], (signal) => FinancialService.getCashFlow(signal as any), {
         enabled: enabled && !!DataService.getCurrentTenantId(),
-        staleTime: 0,
-        refetchOnMount: 'always'
+        staleTime: 1000 * 30
     });
 };
 
@@ -218,8 +217,7 @@ export const useAccountsPayable = (enabled: boolean = true, filters?: { start?: 
     const tid = DataService.getCurrentTenantId() || 'default';
     return useQuery(['accounts_payable', tid, filters], () => FinancialService.getAccountsPayable(filters), {
         enabled: enabled && !!DataService.getCurrentTenantId(),
-        staleTime: 0,
-        refetchOnMount: 'always'
+        staleTime: 1000 * 30
     });
 };
 
@@ -227,8 +225,7 @@ export const usePayableCategories = (enabled: boolean = true) => {
     const tid = DataService.getCurrentTenantId() || 'default';
     return useQuery(['payable_categories', tid], () => FinancialService.getPayableCategories(), {
         enabled: enabled && !!DataService.getCurrentTenantId(),
-        staleTime: 0,
-        refetchOnMount: 'always'
+        staleTime: 1000 * 60 * 10
     });
 };
 
@@ -240,9 +237,8 @@ export const useContracts = (enabled = true) => {
     const tid = DataService.getCurrentTenantId() || 'default';
     return useQuery(['contracts', tid], (signal) => ContractService.getContracts(signal), {
         enabled: enabled && !!DataService.getCurrentTenantId(),
-        staleTime: 0,
-        refetchOnMount: 'always',
-        keepPreviousData: false
+        staleTime: 1000 * 30,
+        keepPreviousData: true
     });
 };
 
@@ -262,9 +258,8 @@ export const useEquipments = (enabled = true) => {
     const tid = DataService.getCurrentTenantId() || 'default';
     return useQuery(['equipments', tid], (signal) => EquipmentService.getEquipments(signal), {
         enabled: enabled && !!DataService.getCurrentTenantId(),
-        staleTime: 0,
-        refetchOnMount: 'always',
-        keepPreviousData: false
+        staleTime: 1000 * 30,
+        keepPreviousData: true
     });
 };
 
@@ -365,6 +360,24 @@ export const NexusQueryClient = {
         queryClient.updateQueriesData('orders', (oldData: any) => {
             if (!oldData || !Array.isArray(oldData)) return oldData;
             return oldData.map(updater);
+        });
+    },
+    updateTechnicianInPlace: (payload: any) => {
+        if (!payload || !payload.id) return;
+        queryClient.updateQueriesData('technicians', (oldData: any) => {
+            if (!oldData || !Array.isArray(oldData)) return oldData;
+            return oldData.map((t: any) => {
+                if (t.id !== payload.id) return t;
+                return {
+                    ...t,
+                    last_latitude: payload.last_latitude ?? t.last_latitude,
+                    last_longitude: payload.last_longitude ?? t.last_longitude,
+                    last_seen: payload.last_seen ?? t.last_seen,
+                    battery_level: payload.battery_level ?? t.battery_level,
+                    device_model: payload.device_model ?? t.device_model,
+                    motion_state: payload.motion_state ?? t.motion_state,
+                };
+            });
         });
     },
     invalidateTechnicians: () => {

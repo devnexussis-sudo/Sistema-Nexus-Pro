@@ -173,6 +173,9 @@ export const FinancialService = {
     getAccountsPayable: async (filters?: { start?: string, end?: string, status?: string }): Promise<any[]> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
+            // Auto-sync any completed OS commissions before returning payables
+            await FinancialService.syncCommissionsForCompletedOrders().catch(e => console.warn('[Commission Sync Error]', e));
+
             let query = supabase.from('accounts_payable').select('*').eq('tenant_id', tenantId);
             if (filters?.start) query = query.gte('due_date', filters.start);
             if (filters?.end) query = query.lte('due_date', filters.end);
@@ -428,6 +431,246 @@ export const FinancialService = {
         if (isCloudEnabled) {
             const { error } = await supabase.from('payable_categories').delete().eq('id', id);
             if (error) throw error;
+        }
+    },
+
+    // --- Regras de Comissão (Commission Rules) ---
+    getCommissionRules: async (): Promise<any[]> => {
+        const tenantId = getCurrentTenantId();
+        if (isCloudEnabled && tenantId) {
+            const { data, error } = await supabase.from('commission_rules').select('*').eq('tenant_id', tenantId);
+            if (error) throw error;
+            return data.map(d => ({
+                id: d.id,
+                tenantId: d.tenant_id,
+                technicianId: d.technician_id,
+                technicianName: d.technician_name,
+                completedType: d.completed_type,
+                completedValue: Number(d.completed_value),
+                blockedType: d.blocked_type,
+                blockedValue: Number(d.blocked_value),
+                active: d.active
+            }));
+        }
+        return [];
+    },
+
+    upsertCommissionRule: async (rule: any): Promise<void> => {
+        const tenantId = getCurrentTenantId();
+        if (isCloudEnabled && tenantId) {
+            const { error } = await supabase.from('commission_rules').upsert({
+                id: rule.id,
+                tenant_id: tenantId,
+                technician_id: rule.technicianId,
+                technician_name: rule.technicianName,
+                completed_type: rule.completedType,
+                completed_value: rule.completedValue,
+                blocked_type: rule.blockedType,
+                blocked_value: rule.blockedValue,
+                modalities: rule.modalities || [],
+                active: rule.active !== undefined ? rule.active : true,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'tenant_id, technician_id' });
+            
+            if (error) throw error;
+        }
+    },
+
+    deleteCommissionRule: async (id: string): Promise<void> => {
+        if (isCloudEnabled) {
+            const { error } = await supabase.from('commission_rules').delete().eq('id', id);
+            if (error) throw error;
+        }
+    },
+
+    syncCommissionsForCompletedOrders: async (): Promise<void> => {
+        const tenantId = getCurrentTenantId();
+        if (!isCloudEnabled || !tenantId) return;
+
+        try {
+            const { data: rules } = await supabase
+                .from('commission_rules')
+                .select('*')
+                .eq('tenant_id', tenantId)
+                .eq('active', true);
+
+            if (!rules || rules.length === 0) return;
+
+            const { data: orders } = await supabase
+                .from('orders')
+                .select('id, display_id, status, assigned_to, operation_type, form_data, items')
+                .eq('tenant_id', tenantId)
+                .in('status', ['CONCLUÍDO', 'CONCLUIDO', 'completed', 'COMPLETED', 'IMPEDIDO', 'blocked', 'BLOCKED']);
+
+            if (!orders || orders.length === 0) return;
+
+            for (const order of orders) {
+                if (!order.assigned_to) continue;
+                const techRule = rules.find((r: any) => r.technician_id === order.assigned_to);
+                if (!techRule) continue;
+
+                await FinancialService.generateCommission({
+                    id: order.id,
+                    displayId: order.display_id,
+                    status: order.status,
+                    assignedTo: order.assigned_to,
+                    operationType: order.operation_type || (order.form_data as any)?.operationType,
+                    dbFormData: order.form_data,
+                    dbItems: order.items
+                });
+            }
+        } catch (e) {
+            console.warn('[Commission Sync] Error syncing commissions:', e);
+        }
+    },
+
+    generateCommission: async (order: any, technicianName?: string): Promise<void> => {
+        const tenantId = getCurrentTenantId();
+        const techId = order?.assignedTo || order?.assigned_to;
+        if (!isCloudEnabled || !tenantId || !techId) return;
+
+        try {
+            // 1. Check if order status is relevant (accept both English and PT-BR enum values)
+            const rawStatus = String(order.status || '').toLowerCase().trim();
+            const isCompleted = ['completed', 'concluído', 'concluido', 'finalizada', 'finalizado'].includes(rawStatus);
+            const isBlocked = ['blocked', 'impedido', 'impedida'].includes(rawStatus);
+
+            if (!isCompleted && !isBlocked) return;
+
+            // Fetch full order data if necessary
+            let fullOrder = { ...order, assignedTo: techId };
+            if (order.id && (!order.operationType || !order.displayId || !order.totalValue)) {
+                const { data: dbOrder } = await supabase
+                    .from('orders')
+                    .select('id, display_id, status, assigned_to, operation_type, form_data, items')
+                    .eq('id', order.id)
+                    .single();
+                if (dbOrder) {
+                    fullOrder = {
+                        ...fullOrder,
+                        displayId: order.displayId || dbOrder.display_id,
+                        status: order.status || dbOrder.status,
+                        operationType: order.operationType || order.operation_type || dbOrder.operation_type || (dbOrder.form_data as any)?.operationType || '',
+                        dbFormData: dbOrder.form_data,
+                        dbItems: dbOrder.items
+                    };
+                }
+            }
+
+            // Fetch technician name if not provided
+            let techName = technicianName;
+            if (!techName) {
+                const { data: user } = await supabase.from('users').select('name').eq('id', techId).single();
+                if (user) techName = user.name;
+                else techName = 'Técnico Desconhecido';
+            }
+
+            // 2. Fetch the commission rule for the technician
+            const { data: rules } = await supabase
+                .from('commission_rules')
+                .select('*')
+                .eq('tenant_id', tenantId)
+                .eq('technician_id', techId)
+                .eq('active', true)
+                .limit(1);
+
+            if (!rules || rules.length === 0) return; // No rule configured
+            const rule = rules[0];
+
+            // 3. Determine if there's a specific modality rule for the OS operationType
+            let targetRule = {
+                completed_type: rule.completed_type,
+                completed_value: rule.completed_value,
+                blocked_type: rule.blocked_type,
+                blocked_value: rule.blocked_value
+            };
+            const operationType = fullOrder.operationType || fullOrder.operation_type || '';
+            const opTypeNorm = operationType.trim().toLowerCase();
+
+            if (opTypeNorm && rule.modalities && Array.isArray(rule.modalities)) {
+                const specificModality = rule.modalities.find((m: any) => 
+                    (m.operationType || '').trim().toLowerCase() === opTypeNorm
+                );
+                if (specificModality) {
+                    targetRule = {
+                        completed_type: specificModality.completedType,
+                        completed_value: specificModality.completedValue,
+                        blocked_type: specificModality.blockedType,
+                        blocked_value: specificModality.blockedValue
+                    };
+                }
+            }
+
+            // 4. Determine base cost of OS
+            let osCost = Number(fullOrder.totalValue || fullOrder.total_value || 0);
+            if (osCost === 0 && (fullOrder.dbFormData || fullOrder.form_data)) {
+                const fd = (fullOrder.dbFormData || fullOrder.form_data || {}) as Record<string, any>;
+                const formTotal = Number(fd?.totalValue || fd?.price || 0);
+                const rawItems = fullOrder.dbItems || fullOrder.items || fd?.items || [];
+                const itemsList = typeof rawItems === 'string' ? JSON.parse(rawItems) : rawItems;
+                const itemsValue = Array.isArray(itemsList) ? itemsList.reduce((acc: number, i: any) => {
+                    const total = Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0;
+                    return acc + total;
+                }, 0) : 0;
+                osCost = formTotal + itemsValue;
+            }
+
+            // 5. Determine commission amount
+            let amount = 0;
+            if (isCompleted) {
+                if (targetRule.completed_type === 'percent') {
+                    amount = osCost * (Number(targetRule.completed_value) / 100);
+                } else {
+                    amount = Number(targetRule.completed_value);
+                }
+            } else if (isBlocked) {
+                if (targetRule.blocked_type === 'percent') {
+                    amount = osCost * (Number(targetRule.blocked_value) / 100);
+                } else {
+                    amount = Number(targetRule.blocked_value);
+                }
+            }
+
+            if (amount <= 0) return; // No commission to pay
+
+            const displayId = fullOrder.displayId || fullOrder.id?.slice(0, 8).toUpperCase() || '';
+            const statusLabel = isCompleted ? 'Concluída' : 'Impedida';
+            const description = `Comissão OS ${displayId} (${statusLabel})`;
+
+            // 6. Guard against duplicates: Check if payable already exists for this order & technician
+            const { data: existingPayable } = await supabase
+                .from('accounts_payable')
+                .select('id')
+                .eq('tenant_id', tenantId)
+                .eq('description', description)
+                .eq('supplier_name', techName)
+                .limit(1);
+
+            if (existingPayable && existingPayable.length > 0) {
+                console.log(`[Commission] Commission already generated for OS ${displayId}`);
+                return;
+            }
+
+            // 7. Calculate due date (Last day of current month)
+            const today = new Date();
+            const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            const dueDateStr = `${lastDayOfMonth.getFullYear()}-${String(lastDayOfMonth.getMonth() + 1).padStart(2, '0')}-${String(lastDayOfMonth.getDate()).padStart(2, '0')}`;
+
+            // 8. Create account payable
+            await FinancialService.createAccountPayable({
+                description: description,
+                supplierName: techName,
+                category: 'Comissão',
+                amount: amount,
+                status: 'PENDING',
+                dueDate: dueDateStr,
+                paymentMethod: 'Pix',
+                notes: `OS Status: ${fullOrder.status} | Modalidade: ${operationType || 'N/A'} | Custo Base: R$ ${osCost.toFixed(2)} | Regra Aplicada: ${isCompleted ? targetRule.completed_type : targetRule.blocked_type} - ${isCompleted ? targetRule.completed_value : targetRule.blocked_value}`
+            });
+
+            console.log(`[Commission] Successfully generated commission for OS ${displayId} - Tech: ${techName} - R$ ${amount.toFixed(2)}`);
+        } catch (e) {
+            console.warn('[Commission] Error generating commission:', e);
         }
     }
 };

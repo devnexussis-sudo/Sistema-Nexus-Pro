@@ -1,7 +1,7 @@
-
 import { supabase, publicSupabase, ensureValidSession } from '../lib/supabase';
-import { AuthService } from './authService';
-import { StorageService } from './storageService';
+import { logger } from '../lib/logger';
+import { FinancialService } from './financialService';
+import { StockService } from './stockService';
 import { getCurrentTenantId } from '../lib/tenantContext';
 import { CacheManager } from '../lib/cache';
 import { ServiceOrder, OrderStatus, OrderItem, ServiceVisit, VisitStatus, OrderTimelineEvent } from '../types';
@@ -306,18 +306,6 @@ export const OrderService = {
 
                     clearTimeout(timeoutId);
 
-                    if ((error || !data || data.length === 0) && clientToUse === supabase) {
-                        const fbRes = await publicSupabase.from('orders')
-                            .select('*')
-                            .eq('tenant_id', tenantId)
-                            .order('created_at', { ascending: false })
-                            .limit(100);
-                        if (!fbRes.error && fbRes.data) {
-                            data = fbRes.data;
-                            error = null;
-                        }
-                    }
-
                     if (error) {
                         if (error.message?.includes('JWT') ||
                             error.message?.includes('expired') ||
@@ -414,26 +402,6 @@ export const OrderService = {
             let { data, error, count } = await query
                 .order('created_at', { ascending: false })
                 .range(from, to);
-
-            if ((error || !data || data.length === 0) && clientToUse === supabase) {
-                let fbQuery = publicSupabase
-                    .from('orders')
-                    .select('*', { count: 'exact' })
-                    .eq('tenant_id', tenantId);
-
-                if (unusedToken) fbQuery = fbQuery.eq('assigned_to', unusedToken);
-                if (filters?.status && filters.status !== 'ALL' as any) fbQuery = fbQuery.eq('status', filters.status);
-                if (filters?.startDate) fbQuery = fbQuery.gte('scheduled_date', filters.startDate);
-                if (filters?.endDate) fbQuery = fbQuery.lte('scheduled_date', filters.endDate);
-                if (signal) fbQuery = fbQuery.abortSignal(signal);
-
-                const fbRes = await fbQuery.order('created_at', { ascending: false }).range(from, to);
-                if (!fbRes.error && fbRes.data) {
-                    data = fbRes.data;
-                    count = fbRes.count;
-                    error = null;
-                }
-            }
 
             if (error) {
                 console.error("❌ Erro ao buscar ordens paginadas:", error.message);
@@ -661,7 +629,7 @@ export const OrderService = {
             if (tid) {
                 const { data: dbOrder } = await supabase
                     .from('orders')
-                    .select('items, form_data, assigned_to')
+                    .select('items, form_data, assigned_to, display_id, operation_type')
                     .eq('id', id)
                     .eq('tenant_id', tid)
                     .single();
@@ -753,6 +721,24 @@ export const OrderService = {
                     console.log(`ℹ️ [OrderService] OS ${id} finalizada sem valor → sem fila financeira`);
                 }
             }
+            
+            // 💸 COMMISSION AUTO-QUEUE
+            // Generate commission in the background if completed or blocked
+            try {
+                // Pass order data needed by generateCommission
+                const dummyOrderData = {
+                    id: id,
+                    displayId: existingOrderData?.display_id || '',
+                    status: status,
+                    operationType: existingOrderData?.operation_type || (updatePayload.form_data as any)?.operationType || '',
+                    totalValue: (updatePayload.form_data as any)?.totalValue || (updatePayload.form_data as any)?.price || 0,
+                    assignedTo: existingOrderData?.assigned_to
+                };
+                // Fire and forget
+                FinancialService.generateCommission(dummyOrderData).catch(e => console.warn('Commission gen background error:', e));
+            } catch (e) {
+                console.warn('⚠️ [OrderService] Falha ao agendar comissão:', e);
+            }
         }
 
         // 📍 Tratamento Especial para Campos de Fluxo (Extrai de 'data' se vier misturado)
@@ -841,36 +827,7 @@ export const OrderService = {
 
     getPublicOrderById: async (id: string, signal?: AbortSignal, retryCount = 0): Promise<ServiceOrder | null> => {
         if (isCloudEnabled) {
-            // 🚀 Estratégia 0: Tenta via cliente Supabase (autenticado se houver sessão)
-            try {
-                const { data, error } = await supabase.from('orders').select('*').eq('id', id).maybeSingle();
-                if (!error && data) {
-                    return OrderService._mapOrderFromDB(data);
-                }
-            } catch { /* silent */ }
-
-            // 🚀 Estratégia Primária de Alta Performance (Público)
-            try {
-                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ||
-                    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-
-                let query = publicSupabase.from('orders').select('*');
-                if (isUuid) query = query.or(`id.eq.${id},public_token.eq.${id}`);
-                else query = query.eq('id', id);
-
-                if (signal) query = query.abortSignal(signal);
-
-                const { data, error } = await query.single();
-
-                if (!error && data) {
-                    return OrderService._mapOrderFromDB(data);
-                }
-            } catch (err: any) {
-                if (err?.name === 'AbortError') return null;
-                // silencioso para cair nos fallbacks
-            }
-
-            // 🔄 Fallback 1: RPC com JOIN
+            // 🛡️ Estratégia 1: RPC get_public_order_full (SECURITY DEFINER — bypassa RLS, seguro)
             try {
                 let query = publicSupabase.rpc('get_public_order_full', { search_term: id });
                 if (signal) query = query.abortSignal(signal);
@@ -882,11 +839,12 @@ export const OrderService = {
                 }
             } catch (err: any) {
                 if (err?.name === 'AbortError') return null;
+                console.warn('[OrderService] RPC get_public_order_full failed:', err?.message);
             }
 
-            // 🔄 Fallback 2: RPC original
+            // 🛡️ Estratégia 2: RPC get_public_document (SECURITY DEFINER — fallback robusto)
             try {
-                let query = publicSupabase.rpc('get_public_order', { search_term: id });
+                let query = publicSupabase.rpc('get_public_document', { doc_token: id, doc_type: 'order' });
                 if (signal) query = query.abortSignal(signal);
                 const { data, error } = await query;
 
@@ -894,7 +852,17 @@ export const OrderService = {
                     const orderData = Array.isArray(data) ? data[0] : data;
                     if (orderData) return OrderService._mapOrderFromDB(orderData);
                 }
-            } catch { /* erro silent */ }
+            } catch (err: any) {
+                if (err?.name === 'AbortError') return null;
+            }
+
+            // 🛡️ Estratégia 3: Cliente autenticado (admin abrindo em nova aba)
+            try {
+                const { data, error } = await supabase.from('orders').select('*').eq('id', id).maybeSingle();
+                if (!error && data) {
+                    return OrderService._mapOrderFromDB(data);
+                }
+            } catch { /* silent */ }
         }
         return null;
     },

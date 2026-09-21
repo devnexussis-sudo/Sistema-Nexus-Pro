@@ -324,6 +324,8 @@ export interface Technician {
   speed?: number;
   battery_level?: number;
   batteryLevel?: number; // Alias
+  device_model?: string;
+  motion_state?: string;
 }
 
 export interface User {

@@ -354,12 +354,12 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
         <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/50 border border-slate-200/80 overflow-hidden flex flex-col h-full">
 
           {/* Cabeçalho dias da semana */}
-          <div className="grid grid-cols-7 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 shrink-0">
+          <div className="grid grid-cols-7 bg-slate-200/80 backdrop-blur-md border-b-2 border-slate-300 shrink-0">
             {['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'].map((d, i) => (
               <div
                 key={d}
-                className={`py-2 text-center text-[10px] font-semibold tracking-widest uppercase border-r border-slate-300/50 last:border-0 ${
-                  i === 0 || i === 6 ? 'text-slate-500' : 'text-slate-600'
+                className={`py-2 text-center text-xs font-black tracking-widest uppercase border-r border-slate-300 last:border-0 ${
+                  i === 0 || i === 6 ? 'text-slate-600' : 'text-slate-800'
                 }`}
               >
                 {d}
@@ -368,7 +368,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
           </div>
 
           {/* Grid de dias — 6 linhas */}
-          <div className="flex-1 grid grid-cols-7 min-h-0" style={{ gridTemplateRows: 'repeat(6, 1fr)' }}>
+          <div className="flex-1 grid grid-cols-7 min-h-0 border-l border-t border-slate-300/90" style={{ gridTemplateRows: 'repeat(6, 1fr)' }}>
             {days.map((day, idx) => {
               const dayOrders = getOrdersForDay(day);
               const isToday = isDateToday(day);
@@ -380,21 +380,21 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                   key={idx}
                   onClick={() => dayOrders.length > 0 && setSelectedDayData({ day, orders: dayOrders })}
                   className={`
-                    relative flex flex-col border-r border-b border-slate-100 last:border-r-0 transition-colors min-h-0 overflow-hidden
+                    relative flex flex-col border-r border-b border-slate-300/90 transition-colors min-h-0 overflow-hidden
                     ${isCurrentMonth
-                      ? isWeekend ? 'bg-slate-50/60' : 'bg-white'
-                      : 'bg-slate-50/30 opacity-50'}
-                    ${dayOrders.length > 0 ? 'cursor-pointer hover:bg-blue-50/40' : 'cursor-default'}
+                      ? isWeekend ? 'bg-slate-100/70' : 'bg-white'
+                      : 'bg-slate-100/40 opacity-40'}
+                    ${dayOrders.length > 0 ? 'cursor-pointer hover:bg-blue-50/60' : 'cursor-default'}
                   `}
                 >
                   {/* Número do dia */}
                   <div className="flex items-center justify-between px-1.5 pt-1.5 pb-0.5 shrink-0">
                     <div
                       className={`
-                        flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold transition-all shrink-0
+                        flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full text-xs sm:text-sm font-black transition-all shrink-0
                         ${isToday
-                          ? 'bg-[#1c2d4f] text-white shadow-md'
-                          : isCurrentMonth ? 'text-slate-600' : 'text-slate-300'}
+                          ? 'bg-[#1c2d4f] text-white shadow-md ring-2 ring-[#1c2d4f]/20'
+                          : isCurrentMonth ? 'text-slate-900 font-black' : 'text-slate-400 font-bold'}
                       `}
                     >
                       {format(day, 'd')}
@@ -402,42 +402,44 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
 
                     {/* Contador no mobile */}
                     {dayOrders.length > 0 && (
-                      <div className="md:hidden flex items-center justify-center bg-primary-100 text-primary-700 text-[8px] font-semibold w-5 h-5 rounded-full">
+                      <div className="md:hidden flex items-center justify-center bg-[#1c2d4f] text-white text-[9px] font-black w-5 h-5 rounded-full shadow-xs">
                         {dayOrders.length}
                       </div>
                     )}
                   </div>
 
                   {/* Lista de OS — desktop */}
-                  <div className="hidden md:flex flex-col gap-[2px] px-1 pb-1 overflow-y-auto flex-1 min-h-0"
+                  <div className="hidden md:flex flex-col gap-[3px] px-1 pb-1 overflow-y-auto flex-1 min-h-0 custom-scrollbar"
                     style={{ scrollbarWidth: 'none' }}
                   >
                     {dayOrders.map(order => {
                       const color = getStatusHexColor(order.status);
                       const clientName = order.customerName || 'Cliente';
+                      const osNum = order.displayId || (order.id ? order.id.split('-')[0].toUpperCase() : '');
+                      const osLabel = osNum ? `#${osNum} • ${clientName}` : clientName;
                       const formattedTime = order.scheduledTime 
                         ? order.scheduledTime.substring(0, 5).replace(/^0/, '')
                         : '';
                       return (
                         <div
                           key={order.id}
-                          title={`${order.scheduledTime || ''} — ${order.customerName} | ${order.title}`}
-                          className="flex items-center gap-[3px] px-1 py-[2px] rounded hover:bg-slate-100/50 transition-colors"
+                          title={`${order.scheduledTime || ''} — #${osNum} ${order.customerName} | ${order.title}`}
+                          className="flex items-center gap-[4px] px-1.5 py-[3px] rounded-md bg-slate-50/90 hover:bg-slate-200/90 border border-slate-200/90 transition-colors shadow-2xs"
                         >
                           {/* Bolinha status */}
                           <span
-                            className="w-[7px] h-[7px] rounded-full shrink-0"
+                            className="w-[8px] h-[8px] rounded-full shrink-0 shadow-2xs"
                             style={{ backgroundColor: color }}
                           />
                           {/* Hora */}
                           {formattedTime && (
-                            <span className="text-[10px] font-medium text-slate-500 shrink-0 leading-none tracking-tight">
+                            <span className="text-[11px] font-bold text-slate-600 shrink-0 leading-none tracking-tight">
                               {formattedTime}
                             </span>
                           )}
-                          {/* Nome cliente */}
-                          <span className="text-[10px] font-medium text-slate-700/90 truncate leading-none flex-1">
-                            {clientName}
+                          {/* Sufixo OS + Nome cliente */}
+                          <span className="text-[11px] font-bold text-slate-800 truncate leading-none flex-1">
+                            {osLabel}
                           </span>
                         </div>
                       );
@@ -445,8 +447,8 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                   </div>
 
                   {/* Fade overflow */}
-                  {dayOrders.length > 7 && (
-                    <div className="hidden md:block absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-white to-transparent pointer-events-none" />
+                  {dayOrders.length > 5 && (
+                    <div className="hidden md:block absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-white via-white/80 to-transparent pointer-events-none" />
                   )}
                 </div>
               );

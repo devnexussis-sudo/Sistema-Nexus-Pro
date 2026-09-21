@@ -216,7 +216,13 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
                     // 🔒 INTERCEPTADOR GLOBAL DE EXPIRAÇÃO (Big Tech Standard)
                     // Se a API retornar 401 (Unauthorized) e o usuário não estiver na tela de login, o token expirou (Ex: o PC dormiu).
                     // 🛡️ IMPERSONATION GUARD: Não redirecionar durante sessão virtual do Master
-                    if (response.status === 401 && typeof window !== 'undefined' && !window.location.hash.includes('/login') && !(window as any).__NEXUS_IMPERSONATION) {
+                    const isPublicRoute = typeof window !== 'undefined' && 
+                        (window.location.hash.includes('/view-quote/') || 
+                         window.location.hash.includes('/order/view') || 
+                         window.location.hash.includes('/checkout/') || 
+                         window.location.hash.includes('/view/'));
+
+                    if (response.status === 401 && typeof window !== 'undefined' && !window.location.hash.includes('/login') && !isPublicRoute && !(window as any).__NEXUS_IMPERSONATION) {
                         if (isDev) console.error('[Nexus Security] 401 Unauthorized detectado. Forçando logout imediato...');
                         // Dispara SIGNED_OUT para os contextos React limparem a UI
                         window.dispatchEvent(new CustomEvent('NEXUS_AUTH_EVENT', { detail: { event: 'SIGNED_OUT', session: null } }));

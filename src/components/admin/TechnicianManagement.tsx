@@ -6,18 +6,19 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import {
   Plus, Edit2, X, Save, Lock, AtSign, Loader2,
-  Smartphone, Search, Filter, ChevronLeft, Hash, Globe, Monitor
+  Smartphone, Search, Filter, ChevronLeft, Hash, Globe, Monitor, Trash2
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { DataService } from '../../services/dataService';
-import { TechnicianService, formatTechCode } from '../../services/technicianService';
+import { TechnicianService, formatTechCode, generateUniqueUnifiedCode } from '../../services/technicianService';
+import { TenantService } from '../../services/tenantService';
 import { User as UserType, UserRole, OrderStatus } from '../../types';
 import { StatusBadge } from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
 
 export const TechnicianManagement: React.FC = () => {
   const { t } = useI18n();
-  const { canCreate, canEdit } = usePermissions();
+  const { canCreate, canEdit, canDelete, isAdmin } = usePermissions();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isReadOnly, setIsReadOnly] = useState(false);
@@ -27,7 +28,10 @@ export const TechnicianManagement: React.FC = () => {
   const [tenantLimit, setTenantLimit] = useState<number>(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [techToDelete, setTechToDelete] = useState<UserType | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   const [formData, setFormData] = useState<any>({
     name: '', email: '', avatar: '', active: true, phone: '', jobTitle: ''
@@ -207,7 +211,21 @@ export const TechnicianManagement: React.FC = () => {
                       }
                   }
 
+                  // 🔑 Gera código único automático do técnico para exibir no formulário
+                  let autoCode = '';
+                  try {
+                    const tid = currentTenant?.id || localStorage.getItem('nexus_current_tenant') || '';
+                    if (tid) {
+                      autoCode = await generateUniqueUnifiedCode(tid);
+                    }
+                  } catch (codeErr) {
+                    console.warn('⚠️ Falha ao gerar código automático do técnico:', codeErr);
+                  }
+
                   setIsReadOnly(false);
+                  setEditingId(null);
+                  setFormData({ name: '', email: '', active: true, phone: '', jobTitle: '', techCode: autoCode });
+                  setSaveError(null);
                   setIsModalOpen(true);
                 }}
                 className={`h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl whitespace-nowrap text-white ${!canCreate('technicians') ? 'opacity-50 !cursor-not-allowed' : ''}`}
@@ -312,13 +330,30 @@ export const TechnicianManagement: React.FC = () => {
                         <StatusBadge status={t.active ? OrderStatus.COMPLETED : OrderStatus.CANCELED} />
                       </td>
                       <td className="px-4 py-1.5 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
+                        <div className="flex items-center justify-end gap-1.5 transition-all">
                           <button onClick={(e) => {
                             if (!canEdit('technicians')) { e.preventDefault(); alert('Acesso Negado: Você não tem permissão para editar.'); return; }
                             e.stopPropagation();
                             setIsReadOnly(false);
                             setFormData(t); setEditingId(t.id); setIsModalOpen(true);
                           }} className={`p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90 ${!canEdit('technicians') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar Técnico"><Edit2 size={16} /></button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!canDelete('technicians') && !isAdmin) {
+                                alert("Acesso Negado: Você não tem permissão para excluir técnicos.");
+                                return;
+                              }
+                              setTechToDelete(t);
+                            }}
+                            className={`p-2.5 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-90 ${(!canDelete('technicians') && !isAdmin) ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                            title="Excluir Técnico"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </td>
+
                     </tr>
                   );
                   })}
@@ -476,7 +511,7 @@ export const TechnicianManagement: React.FC = () => {
                         <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
                           <Hash size={15} className="text-slate-300 shrink-0" />
                           <span className="font-mono text-sm font-bold text-[#1c2d4f] tracking-[0.2em] flex-1">
-                            {(formData as any).techCode ?? '— gerado ao salvar —'}
+                            {(formData as any).techCode || (formData as any).tech_code || '— gerado ao salvar —'}
                           </span>
                           <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest shrink-0">somente leitura</span>
                         </div>
@@ -526,8 +561,67 @@ export const TechnicianManagement: React.FC = () => {
           </div>, document.body
         )
       }
+
+      {
+        techToDelete && createPortal(
+          <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-200 animate-scale-up space-y-5">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100">
+                  <Trash2 size={24} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Excluir Técnico Permanentemente</h3>
+                  <p className="text-xs font-semibold text-slate-400 mt-0.5">Esta ação apagará o perfil e acessos do técnico</p>
+                </div>
+              </div>
+              
+              <div className="p-4 bg-rose-50/50 rounded-xl border border-rose-100 text-xs text-rose-900 space-y-1">
+                <p className="font-bold">Atenção: Ação Irreversível</p>
+                <p className="text-[11px] text-rose-700 font-medium leading-relaxed">
+                  Você está prestes a remover o técnico <strong>{techToDelete.name}</strong> ({techToDelete.email}) permanentemente do sistema e essa ação é irreversível. Tem certeza de que deseja continuar?
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setTechToDelete(null)}
+                  disabled={isDeleting}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={async () => {
+                    setIsDeleting(true);
+                    try {
+                      await TenantService.deleteTechnician(techToDelete.id);
+                      await loadTechs();
+                      setTechToDelete(null);
+                      alert("✅ Técnico excluído permanentemente com sucesso!");
+                    } catch (err: any) {
+                      alert("Erro ao excluir técnico: " + (err.message || err));
+                    } finally {
+                      setIsDeleting(false);
+                    }
+                  }}
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-rose-600/20 flex items-center gap-2"
+                >
+                  {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                  {isDeleting ? 'Excluindo...' : 'Confirmar Exclusão'}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )
+      }
       </>
       )}
     </div>
   );
 };
+

@@ -411,7 +411,7 @@ const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, onSave, title
 export const UserManagement: React.FC = () => {
   const { t } = useI18n();
   const { refreshUser } = useAuth();
-  const { can } = usePermissions();
+  const { can, canDelete, isAdmin } = usePermissions();
 
   const isMasterMode = window.location.pathname === '/master';
   const {
@@ -438,6 +438,8 @@ export const UserManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [showFilters, setShowFilters] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isReadOnly, setIsReadOnly] = useState(false);
@@ -889,8 +891,23 @@ export const UserManagement: React.FC = () => {
                         <button onClick={(e) => { e.stopPropagation(); setEditingUser(user); setFormData({ ...user, groupIds: user.groupIds || (user.groupId ? [user.groupId] : []) }); setGroupSearch(''); setSaveError(null); setIsReadOnly(false); setIsModalOpen(true); }} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Editar Usuário">
                           <Edit3 size={16} />
                         </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!canDelete('users') && !isAdmin) {
+                              alert("Acesso Negado: Você não tem permissão para excluir usuários.");
+                              return;
+                            }
+                            setUserToDelete(user);
+                          }}
+                          className={`p-2.5 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-90 ${(!canDelete('users') && !isAdmin) ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                          title="Excluir Usuário"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </td>
+
                   </tr>
                 )) : (
                   <tr>
@@ -1486,6 +1503,65 @@ export const UserManagement: React.FC = () => {
           document.body
         )
       }
-    </div >
+
+      {
+        userToDelete && createPortal(
+          <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-200 animate-scale-up space-y-5">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100">
+                  <Trash2 size={24} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Excluir Usuário Permanentemente</h3>
+                  <p className="text-xs font-semibold text-slate-400 mt-0.5">Esta ação apagará todos os acessos do usuário</p>
+                </div>
+              </div>
+              
+              <div className="p-4 bg-rose-50/50 rounded-xl border border-rose-100 text-xs text-rose-900 space-y-1">
+                <p className="font-bold">Atenção: Ação Irreversível</p>
+                <p className="text-[11px] text-rose-700 font-medium leading-relaxed">
+                  Você está prestes a remover <strong>{userToDelete.name}</strong> ({userToDelete.email}) permanentemente do sistema e essa ação é irreversível. Tem certeza de que deseja continuar?
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setUserToDelete(null)}
+                  disabled={isSaving}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={async () => {
+                    setIsSaving(true);
+                    try {
+                      await TenantService.deleteUser(userToDelete.id);
+                      await loadData();
+                      setUserToDelete(null);
+                      alert("✅ Usuário excluído permanentemente com sucesso!");
+                    } catch (err: any) {
+                      alert("Erro ao excluir usuário: " + (err.message || err));
+                    } finally {
+                      setIsSaving(false);
+                    }
+                  }}
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-rose-600/20 flex items-center gap-2"
+                >
+                  {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                  {isSaving ? 'Excluindo...' : 'Confirmar Exclusão'}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )
+      }
+    </div>
   );
 };
+

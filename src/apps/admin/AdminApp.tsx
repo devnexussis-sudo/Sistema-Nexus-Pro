@@ -230,7 +230,11 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                 },
                 (payload) => {
                     console.log('🔄 Realtime: Technician change detected:', payload.eventType);
-                    NexusQueryClient.invalidateTechnicians();
+                    if (payload.eventType === 'UPDATE' && payload.new) {
+                        NexusQueryClient.updateTechnicianInPlace(payload.new);
+                    } else {
+                        NexusQueryClient.invalidateTechnicians();
+                    }
                 }
             )
             .on(
