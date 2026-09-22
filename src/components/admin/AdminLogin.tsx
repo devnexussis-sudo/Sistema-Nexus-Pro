@@ -120,7 +120,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
             {/* LADO ESQUERDO: MARKETING & IMAGEM */}
             <div className="hidden md:flex md:w-[60%] relative overflow-hidden bg-slate-900 border-r border-slate-100">
                 <img
-                    src="https://esrwwaoirlhcptbxtlsu.supabase.co/storage/v1/object/public/Logo%20sistema/Wallpaper%20Duno.jpg"
+                    src="https://esrwwaoirlhcptbxtlsu.supabase.co/storage/v1/object/public/Logo%20sistema/wppdn.jpg"
                     alt="Nexus Office"
                     className="absolute inset-0 w-full h-full object-cover opacity-60"
                 />
@@ -180,7 +180,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                             <form onSubmit={handleSubmit} className="space-y-5">
                                 <div className="space-y-2">
                                     <div className="flex justify-between items-center px-1">
-                                        <label className="text-[10px] font-bold text-slate-500 ml-1">
+                                        <label className="font-poppins text-[11px] font-semibold text-slate-600 ml-1 tracking-wide">
                                             E-mail Administrativo *
                                         </label>
                                     </div>
@@ -197,7 +197,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
 
                                 <div className="space-y-2">
                                     <div className="flex justify-between items-center px-1">
-                                        <label className="text-[10px] font-bold text-slate-500 ml-1">
+                                        <label className="font-poppins text-[11px] font-semibold text-slate-600 ml-1 tracking-wide">
                                             Senha de Acesso *
                                         </label>
                                         <button
@@ -286,7 +286,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                             <form onSubmit={handleForgotPassword} className="space-y-5">
                                 <div className="space-y-2">
                                     <div className="flex justify-between items-center px-1">
-                                        <label className="text-[10px] font-bold text-slate-500 ml-1">
+                                        <label className="font-poppins text-[11px] font-semibold text-slate-600 ml-1 tracking-wide">
                                             E-mail Administrativo *
                                         </label>
                                     </div>
@@ -334,9 +334,9 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                         </div>
 
                         <div className="flex flex-col items-center gap-3">
-                            <div className="flex items-center gap-6 text-slate-300 text-[9px] font-bold uppercase tracking-widest italic">
+                            <div className="flex items-center gap-6 font-poppins text-slate-400 text-[10px] font-medium uppercase tracking-widest">
                                 <span>DUNO v2.0</span>
-                                <span className="w-1.5 h-1.5 rounded-full bg-slate-100"></span>
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>
                                 <span>© 2026</span>
                             </div>
                         </div>
