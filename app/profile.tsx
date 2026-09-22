@@ -331,14 +331,14 @@ export default function ProfileScreen() {
                         <Text style={styles.modalSubtitle}>Escolha a origem da imagem</Text>
                         
                         <Pressable style={styles.modalOption} onPress={() => takeOrPickImage(true)}>
-                            <Ionicons name="camera-outline" size={24} color="#1c2d4f" />
+                            <Ionicons name="camera" size={24} color="#ffffff" />
                             <Text style={styles.modalOptionText}>Câmera</Text>
                         </Pressable>
                         
                         <View style={styles.modalSeparator} />
                         
                         <Pressable style={styles.modalOption} onPress={() => takeOrPickImage(false)}>
-                            <Ionicons name="images-outline" size={24} color="#1c2d4f" />
+                            <Ionicons name="images" size={24} color="#ffffff" />
                             <Text style={styles.modalOptionText}>Galeria</Text>
                         </Pressable>
                         
@@ -533,15 +533,16 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: 16,
-        paddingHorizontal: 12,
+        paddingHorizontal: 16,
         borderRadius: 12,
-        backgroundColor: '#f8fafc',
+        backgroundColor: '#1c2d4f',
+        justifyContent: 'center',
+        gap: 8,
     },
     modalOptionText: {
         fontSize: 16,
-        fontWeight: '600',
-        color: '#1c2d4f',
-        marginLeft: 12,
+        fontWeight: '700',
+        color: '#ffffff',
     },
     modalSeparator: {
         height: 1,

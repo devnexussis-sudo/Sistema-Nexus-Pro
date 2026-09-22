@@ -587,6 +587,8 @@ export default function HomeScreen() {
             value={startDate || new Date()}
             mode="date"
             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            themeVariant="light"
+            textColor="#000000"
             onValueChange={onChangeStartDate}
             onDismiss={() => setShowStartPicker(false)}
             maximumDate={new Date()}
@@ -598,6 +600,8 @@ export default function HomeScreen() {
             value={endDate || new Date()}
             mode="date"
             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            themeVariant="light"
+            textColor="#000000"
             onValueChange={onChangeEndDate}
             onDismiss={() => setShowEndPicker(false)}
             minimumDate={startDate || undefined}
