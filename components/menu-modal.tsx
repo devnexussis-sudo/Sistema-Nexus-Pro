@@ -24,41 +24,33 @@ export function MenuModal({ visible, onClose, hasUnread }: MenuModalProps) {
 
     useEffect(() => {
         const fetchProfile = async () => {
-            // First load from sync cache immediately
             const syncProfile = authService.getProfileSync();
             if (syncProfile) {
                 setUserProfile(syncProfile);
-            }
-
-            // Fallback se não tiver no cache ainda
-            if (!syncProfile) {
-                const { data } = await supabase.auth.getUser();
-                if (data?.user?.id) {
-                    const { data: techProfile } = await supabase.from('technicians').select('name, avatar').eq('id', data.user.id).single();
-                    if (techProfile) {
-                        setUserProfile({
-                            name: techProfile.name || data.user.email?.split('@')[0] || 'Técnico',
-                            avatar: techProfile.avatar
-                        });
-                    } else {
-                        setUserProfile({
-                            name: data.user.email?.split('@')[0] || 'Usuário',
-                            avatar: null
-                        });
-                    }
+                if (!syncProfile.companyName) {
+                    await authService.checkAuthStatus();
+                    setUserProfile(authService.getProfileSync());
                 }
+            } else {
+                await authService.checkAuthStatus();
+                setUserProfile(authService.getProfileSync());
             }
         };
-        fetchProfile();
-    }, [visible]); // Recarrega sempre que o modal abrir
+        if (visible) {
+            fetchProfile();
+        }
+    }, [visible]);
 
     const handleForceSync = async () => {
         setIsSyncing(true);
         try {
-            await syncService.triggerSync(true);
-            Alert.alert(t('menuSync'), 'Sincronização forçada concluída com sucesso!');
+            await Promise.all([
+                syncService.triggerSync(true),
+                new Promise(resolve => setTimeout(resolve, 1500))
+            ]);
+            Alert.alert(t('menuSync'), t('menuSyncSuccess'));
         } catch (error) {
-            Alert.alert(t('menuSync'), 'Ocorreu um erro durante a sincronização.');
+            Alert.alert(t('menuSync'), t('menuSyncError'));
         } finally {
             setIsSyncing(false);
             onClose();
@@ -90,15 +82,6 @@ export function MenuModal({ visible, onClose, hasUnread }: MenuModalProps) {
                 onClose();
                 router.push('/profile');
             }
-        },
-        {
-            title: 'Notificações',
-            icon: 'bell.fill',
-            action: () => {
-                onClose();
-                router.push('/notifications');
-            },
-            badge: hasUnread
         },
         {
             title: t('menuSettings'),
@@ -147,6 +130,9 @@ export function MenuModal({ visible, onClose, hasUnread }: MenuModalProps) {
                             )}
                             <View style={styles.profileInfo}>
                                 <Text style={styles.userName} numberOfLines={1}>{userProfile?.name || t('menuLoading')}</Text>
+                                {userProfile?.companyName && (
+                                    <Text style={styles.userRole} numberOfLines={1}>{userProfile.companyName}</Text>
+                                )}
                             </View>
                         </View>
                     </View>

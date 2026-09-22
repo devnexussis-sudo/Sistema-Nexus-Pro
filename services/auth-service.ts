@@ -24,6 +24,82 @@ class AuthService {
         } catch { }
     }
 
+    private async fetchTechProfile(userId: string, email?: string) {
+        try {
+            // 1. Check technicians by id
+            let { data: techData } = await supabase
+                .from('technicians')
+                .select('id, active, name, avatar, tenant_id')
+                .eq('id', userId)
+                .maybeSingle();
+
+            // 2. Check technicians by user_id
+            if (!techData) {
+                const { data: techByUserId } = await supabase
+                    .from('technicians')
+                    .select('id, active, name, avatar, tenant_id')
+                    .eq('user_id', userId)
+                    .maybeSingle();
+                if (techByUserId) techData = techByUserId;
+            }
+
+            // 3. Check technicians by email
+            if (!techData && email) {
+                const { data: techByEmail } = await supabase
+                    .from('technicians')
+                    .select('id, active, name, avatar, tenant_id')
+                    .eq('email', email.toLowerCase())
+                    .maybeSingle();
+                if (techByEmail) techData = techByEmail;
+            }
+
+            // 4. Check users table by id
+            if (!techData) {
+                const { data: userData } = await supabase
+                    .from('users')
+                    .select('id, name, avatar, avatar_url, role, tenant_id')
+                    .eq('id', userId)
+                    .maybeSingle();
+                if (userData) {
+                    techData = {
+                        id: userData.id,
+                        active: true,
+                        name: userData.name,
+                        avatar: userData.avatar || userData.avatar_url,
+                        tenant_id: userData.tenant_id
+                    };
+                }
+            }
+            
+            let companyName = null;
+            if (techData && techData.tenant_id) {
+                const { data: tenant } = await supabase.from('tenants').select('name').eq('id', techData.tenant_id).maybeSingle();
+                if (tenant) companyName = tenant.name;
+            }
+
+            // 5. Fallback if no record in DB yet (e.g. fresh user metadata)
+            if (!techData) {
+                return {
+                    id: userId,
+                    active: true,
+                    name: email ? email.split('@')[0] : 'Técnico',
+                    avatar: null,
+                    companyName: null,
+                };
+            }
+
+            return { ...techData, companyName };
+        } catch (e) {
+            return {
+                id: userId,
+                active: true,
+                name: email ? email.split('@')[0] : 'Técnico',
+                avatar: null,
+                companyName: null,
+            };
+        }
+    }
+
     async checkAuthStatus(): Promise<boolean> {
         try {
             const { data: { session } } = await supabase.auth.getSession();
@@ -39,23 +115,34 @@ class AuthService {
                     }
                 }
 
-                const { data: techData, error: techError } = await supabase
-                    .from('technicians')
-                    .select('id, active, name, avatar')
-                    .eq('id', session.user.id)
-                    .single();
+                const techData = await this.fetchTechProfile(session.user.id, session.user.email);
 
-                if (techError || !techData || techData.active === false) {
+                if (techData.active === false) {
                     logger.log(`Session terminalized: User ${session.user.email} lost App Access rights.`, 'warn');
                     await this.logout();
                     return false;
                 }
+
+                // 🛡️ APP_SCOPE GUARD — Bloqueia usuários WEB de acessarem o App Móvel
+                try {
+                    const { data: userRow } = await supabase
+                        .from('users')
+                        .select('app_scope')
+                        .eq('id', session.user.id)
+                        .maybeSingle();
+                    if (userRow?.app_scope === 'WEB') {
+                        logger.log(`Session terminalized: User ${session.user.email} has WEB-only scope.`, 'warn');
+                        await this.logout();
+                        return false;
+                    }
+                } catch (e) { /* Continua se a coluna não existir ainda */ }
 
                 // Cache immediately
                 this.cachedProfile = {
                     name: techData.name || session.user.email?.split('@')[0] || 'Técnico',
                     avatar: techData.avatar,
                     email: session.user.email,
+                    companyName: techData.companyName,
                 };
                 AsyncStorage.setItem('@nexus_user_profile', JSON.stringify(this.cachedProfile)).catch(() => {});
 
@@ -99,17 +186,7 @@ class AuthService {
             }
 
             if (data.session) {
-                const { data: techData, error: techError } = await supabase
-                    .from('technicians')
-                    .select('id, active, name, avatar')
-                    .eq('id', data.user.id)
-                    .single();
-
-                if (techError || !techData) {
-                    logger.log(`Login denied: E-mail ${data.user.email} not registered in Technicians tab.`, 'warn');
-                    await this.logout();
-                    return { success: false, errorType: 'NOT_FOUND' };
-                }
+                const techData = await this.fetchTechProfile(data.user.id, data.user.email);
 
                 if (techData.active === false) {
                     logger.log(`Login denied: Technician account is suspended.`, 'warn');
@@ -117,11 +194,26 @@ class AuthService {
                     return { success: false, errorType: 'BLOCKED' };
                 }
 
+                // 🛡️ APP_SCOPE GUARD — Bloqueia usuários WEB de acessarem o App Móvel
+                try {
+                    const { data: userRow } = await supabase
+                        .from('users')
+                        .select('app_scope')
+                        .eq('id', data.user.id)
+                        .maybeSingle();
+                    if (userRow?.app_scope === 'WEB') {
+                        logger.log(`Login denied: User has WEB-only scope.`, 'warn');
+                        await this.logout();
+                        return { success: false, errorType: 'SCOPE_BLOCKED' };
+                    }
+                } catch (e) { /* Continua se a coluna não existir ainda */ }
+
                 // Cache immediately
                 this.cachedProfile = {
                     name: techData.name || data.user.email?.split('@')[0] || 'Técnico',
                     avatar: techData.avatar,
                     email: data.user.email,
+                    companyName: techData.companyName,
                 };
                 AsyncStorage.setItem('@nexus_user_profile', JSON.stringify(this.cachedProfile)).catch(() => {});
                 AsyncStorage.setItem('@nexus_keep_connected', keepConnected ? 'true' : 'false').catch(() => {});
@@ -146,12 +238,16 @@ class AuthService {
 
     async logout(): Promise<void> {
         try {
-            await supabase.auth.signOut();
+            await supabase.auth.signOut().catch(() => {});
             await AsyncStorage.removeItem(AUTH_KEY);
             await AsyncStorage.removeItem('@nexus_user_profile');
             this.isAuthenticated = false;
             this.userId = null;
             this.cachedProfile = null;
+            try {
+                const { appLifecycle } = require('./app-lifecycle');
+                await appLifecycle.destroy();
+            } catch {}
             logger.log('User logged out', 'info');
         } catch (error) {
             logger.log(`Logout failed: ${error}`, 'error');
@@ -161,7 +257,7 @@ class AuthService {
     async resetPassword(email: string): Promise<boolean> {
         try {
             const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase(), {
-                redirectTo: 'https://app.dunoup.com.br/?source=mobile#/reset-password',
+                redirectTo: 'https://app.dunoup.com.br/#/reset-password',
             });
 
             if (error) {
