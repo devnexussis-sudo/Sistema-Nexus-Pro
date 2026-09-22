@@ -203,7 +203,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                                         <button
                                             type="button"
                                             onClick={() => setShowForgotPassword(true)}
-                                            className="text-[10px] font-bold text-primary-600 hover:text-primary-700 hover:underline transition-colors"
+                                            className="font-poppins text-[11px] font-semibold text-primary-600 hover:text-primary-700 hover:underline transition-colors tracking-wide"
                                         >
                                             Esqueci a senha
                                         </button>
