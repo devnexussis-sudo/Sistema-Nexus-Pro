@@ -1,7 +1,7 @@
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { LOCATION_TASK_NAME, startBackgroundLocation, stopBackgroundLocation } from '@/services/location-service';
+import { LOCATION_TASK_NAME, startBackgroundLocation, stopBackgroundLocation, isLocationRunning } from '@/services/location-service';
 import { logger } from '@/services/logger';
 import { syncService } from '@/services/sync-service';
 import { useI18n, Lang } from '@/services/i18n';
@@ -23,7 +23,7 @@ export default function SettingsScreen() {
 
     const checkGpsStatus = async () => {
         try {
-            const isStart = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+            const isStart = await isLocationRunning();
             setIsGpsEnabled(isStart);
         } catch (e) {
             console.error(e);
@@ -100,10 +100,12 @@ export default function SettingsScreen() {
                         </Text>
                     </View>
                     <Switch
-                        trackColor={{ false: '#767577', true: '#1c2d4f' }}
-                        thumbColor={isGpsEnabled ? '#fff' : '#f4f3f4'}
+                        trackColor={{ false: '#cbd5e1', true: '#1c2d4f' }}
+                        thumbColor={isGpsEnabled ? '#ffffff' : '#f8fafc'}
+                        ios_backgroundColor="#cbd5e1"
                         onValueChange={toggleGps}
                         value={isGpsEnabled}
+                        style={{ transform: [{ scaleX: 1.1 }, { scaleY: 1.1 }] }}
                     />
                 </View>
 

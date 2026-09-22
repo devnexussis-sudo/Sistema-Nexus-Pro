@@ -1,6 +1,7 @@
 import * as Location from 'expo-location';
 import * as Battery from 'expo-battery';
 import * as TaskManager from 'expo-task-manager';
+import * as Device from 'expo-device';
 import { Alert, Platform, Linking } from 'react-native';
 import { supabase } from './supabase';
 import { logger } from './logger';
@@ -70,10 +71,13 @@ const sendLocationUpdate = async (
             ? haversine(lastSentLat, lastSentLng, latitude, longitude)
             : Infinity;
 
-        const hasMoved = distFromLast >= MIN_DISTANCE_M;
-        const needsHeartbeat = (now - lastHeartbeatTime) >= HEARTBEAT_MS;
+        const hasMoved = distFromLast >= 50; // 50 metros
+        const motionState = hasMoved ? 'EM MOVIMENTO' : 'PARADO';
+        const needsHeartbeat = (now - lastHeartbeatTime) >= 90000; // 90 segundos
 
         if (!hasMoved && !needsHeartbeat && !options.force) return;
+
+        const deviceModel = Device.modelName || Device.brand || Platform.OS || 'Desconhecido';
 
         // Single UPDATE — no route history INSERT
         const { error } = await supabase
@@ -83,16 +87,24 @@ const sendLocationUpdate = async (
                 last_longitude: longitude,
                 last_seen:      new Date().toISOString(),
                 battery_level:  battery,
+                device_model:   deviceModel,
+                motion_state:   motionState,
             })
             .eq('id', session.user.id);
 
         if (error) {
             logger.log(`[GPS] ❌ Update error: ${JSON.stringify(error)}`, 'error');
         } else {
-            lastSentLat = latitude;
-            lastSentLng = longitude;
+            // Update the anchor ONLY if they actually moved > 50m or it's the very first ping.
+            // This ensures small GPS drifts don't slowly move the anchor and falsely trigger "EM MOVIMENTO"
+            // Wait, actually, if they move 10m every 90s, they walk 50m in 7.5 mins. If we DON'T update the anchor,
+            // they will eventually trigger "EM MOVIMENTO" after 7.5 mins. This is correct!
+            if (hasMoved || lastSentLat === null) {
+                lastSentLat = latitude;
+                lastSentLng = longitude;
+            }
             lastHeartbeatTime = now;
-            logger.log(`[GPS] 📍 Position updated (moved ${distFromLast < Infinity ? distFromLast.toFixed(0) + 'm' : 'first'})`, 'info');
+            logger.log(`[GPS] 📍 Position updated (state: ${motionState}, dist: ${distFromLast < Infinity ? distFromLast.toFixed(0) + 'm' : 'first'})`, 'info');
 
             // Auto Check-in: check proximity to client
             autoCheckinOnNewLocation(latitude, longitude).catch(() => {});
@@ -171,8 +183,8 @@ export const startBackgroundLocation = async () => {
         foregroundSubscription = await Location.watchPositionAsync(
             {
                 accuracy:         Location.Accuracy.High,
-                timeInterval:     30000, // Check every 30s — no need to hammer the DB
-                distanceInterval: 50,    // Only fire when moved 50m
+                timeInterval:     90000, // Check every 90s
+                // distanceInterval removed so it fires continuously on time
             },
             (location) => {
                 const isFirstPing = lastSentLat === null;
@@ -185,8 +197,8 @@ export const startBackgroundLocation = async () => {
             if (TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
                 await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
                     accuracy:            Location.Accuracy.High,
-                    timeInterval:        60000,  // Wake at most every 60s
-                    distanceInterval:    50,     // Wake on 50m movement
+                    timeInterval:        90000,  // Wake every 90s
+                    deferredUpdatesInterval: 90000, // For iOS
                     showsBackgroundLocationIndicator: true,
                     pausesUpdatesAutomatically: false,
                     activityType: Location.ActivityType.Other,
@@ -235,5 +247,14 @@ export const stopBackgroundLocation = async () => {
         logger.log('Serviço GPS parado', 'warn');
     } catch (error) {
         console.warn('[GPS] Stop error:', error);
+    }
+};
+
+export const isLocationRunning = async (): Promise<boolean> => {
+    try {
+        const bgStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME).catch(() => false);
+        return bgStarted || foregroundSubscription !== null;
+    } catch (e) {
+        return foregroundSubscription !== null;
     }
 };
