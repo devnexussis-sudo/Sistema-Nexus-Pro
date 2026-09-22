@@ -120,7 +120,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
             {/* LADO ESQUERDO: MARKETING & IMAGEM */}
             <div className="hidden md:flex md:w-[60%] relative overflow-hidden bg-slate-900 border-r border-slate-100">
                 <img
-                    src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&q=80&w=2070"
+                    src="https://esrwwaoirlhcptbxtlsu.supabase.co/storage/v1/object/public/Logo%20sistema/Wallpaper%20Duno.jpg"
                     alt="Nexus Office"
                     className="absolute inset-0 w-full h-full object-cover opacity-60"
                 />
