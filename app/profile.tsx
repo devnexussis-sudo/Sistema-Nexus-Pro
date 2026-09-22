@@ -5,12 +5,14 @@ import { authService } from '@/services/auth-service';
 import { ImageService } from '@/services/image-service';
 import { supabase } from '@/services/supabase';
 import { syncService } from '@/services/sync-service';
+import { OrderService } from '@/services/order-service';
 import { Ionicons } from '@expo/vector-icons';
 import { decode } from 'base64-arraybuffer';
 import * as FileSystem from 'expo-file-system';
 import { File } from 'expo-file-system';
 import * as LegacyFileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
+import NexusCamera from '@/components/nexus-camera';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Platform, Pressable, StyleSheet, Text, View, TextInput, KeyboardAvoidingView, ScrollView, Modal } from 'react-native';
@@ -20,23 +22,19 @@ export default function ProfileScreen() {
     const router = useRouter();
     const [profileImage, setProfileImage] = useState<string | null>(null);
     const [isAvatarModalVisible, setAvatarModalVisible] = useState(false);
+    const [isNexusCameraVisible, setIsNexusCameraVisible] = useState(false);
     const [loading, setLoading] = useState(true);
     const { t } = useI18n();
     const [user, setUser] = useState({
         name: t('menuLoading'),
         email: '...',
         id: '...',
+        techId: '',
         role: '...',
         jobTitle: '...'
     });
     
-    // Password update state
-    const [isChangingPassword, setIsChangingPassword] = useState(false);
-    const [oldPassword, setOldPassword] = useState('');
-    const [newPassword, setNewPassword] = useState('');
-    const [confirmNewPassword, setConfirmNewPassword] = useState('');
-    const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
-    const [showPasswords, setShowPasswords] = useState(false);
+    const [isSendingReset, setIsSendingReset] = useState(false);
     const [alertConfig, setAlertConfig] = useState({ 
         visible: false, title: '', message: '', icon: 'warning-outline' as any, iconColor: '#ff3b30', buttons: [{ text: 'OK' }] as any[] 
     });
@@ -45,52 +43,22 @@ export default function ProfileScreen() {
         setAlertConfig({ visible: true, title, message, buttons, icon, iconColor });
     };
 
-    const handleUpdatePassword = async () => {
-        if (!oldPassword) {
-            showAlert(t('alertAttention'), t('profilePasswordOldRequired'));
+    const handleSendPasswordReset = async () => {
+        if (!user.email || user.email === '...') {
+            showAlert(t('alertAttention'), t('profileNotAuthenticated'));
             return;
         }
-        if (newPassword !== confirmNewPassword) {
-            showAlert(t('alertAttention'), t('profilePasswordMismatch'));
-            return;
-        }
-
-        if (newPassword.length < 6) {
-            showAlert(t('alertAttention'), t('profilePasswordValidation'));
-            return;
-        }
-        setIsUpdatingPassword(true);
+        setIsSendingReset(true);
         try {
-            // Re-authenticate to ensure old password is correct
-            const { error: signInError } = await supabase.auth.signInWithPassword({
-                email: user.email,
-                password: oldPassword
-            });
-            if (signInError) throw new Error(t('profilePasswordOldIncorrect'));
-
-            const { error } = await supabase.auth.updateUser({ password: newPassword });
-            if (!error) {
-                showAlert(t('alertSuccess'), t('profilePasswordSuccess'), [
-                    {
-                        text: 'OK',
-                        onPress: () => {
-                            setIsChangingPassword(false);
-                            setOldPassword('');
-                            setNewPassword('');
-                            setConfirmNewPassword('');
-                        }
-                    }
-                ], 'checkmark-circle-outline', '#34c759');
-            } else {
-                throw error;
-            }
+            const success = await authService.resetPassword(user.email);
+            if (!success) throw new Error('Falha ao enviar e-mail');
+            showAlert(t('alertSuccess'), t('menuResetPasswordSuccess'), [
+                { text: 'OK' }
+            ], 'checkmark-circle-outline', '#34c759');
         } catch (error: any) {
-            showAlert(t('alertError'), t('profilePasswordError') + error.message);
+            showAlert(t('alertError'), t('menuResetPasswordError'));
         } finally {
-            setIsUpdatingPassword(false);
-            setOldPassword('');
-            setNewPassword('');
-            setConfirmNewPassword('');
+            setIsSendingReset(false);
         }
     };
 
@@ -110,12 +78,31 @@ export default function ProfileScreen() {
 
             console.log('[Profile] Authenticated User ID:', session.user.id);
 
-            // 1. Try fetching from technicians table
-            const { data: techData, error: techError } = await supabase
-                .from('technicians')
-                .select('*')
-                .eq('id', session.user.id)
-                .single();
+            // Multi-strategy search (id, user_id, email, users table)
+            let techData: any = null;
+            const { data: byId } = await supabase.from('technicians').select('*').eq('id', session.user.id).maybeSingle();
+            techData = byId;
+
+            if (!techData) {
+                const { data: byUserId } = await supabase.from('technicians').select('*').eq('user_id', session.user.id).maybeSingle();
+                if (byUserId) techData = byUserId;
+            }
+
+            if (!techData && session.user.email) {
+                const { data: byEmail } = await supabase.from('technicians').select('*').eq('email', session.user.email.toLowerCase()).maybeSingle();
+                if (byEmail) techData = byEmail;
+            }
+
+            if (!techData) {
+                const { data: userData } = await supabase.from('users').select('*').eq('id', session.user.id).maybeSingle();
+                if (userData) {
+                    techData = {
+                        name: userData.name,
+                        job_title: userData.role,
+                        avatar: userData.avatar || userData.avatar_url,
+                    };
+                }
+            }
 
             if (techData) {
                 console.log('[Profile] Technician Record Found:', techData);
@@ -123,6 +110,7 @@ export default function ProfileScreen() {
                     name: techData.name || session.user.email?.split('@')[0] || t('profileTech'),
                     email: session.user.email || '',
                     id: session.user.id,
+                    techId: techData.id || '',
                     role: techData.job_title || t('profileTechRole'),
                     jobTitle: techData.job_title || ''
                 });
@@ -130,12 +118,12 @@ export default function ProfileScreen() {
                 const avatar = techData.avatar || techData.avatar_url;
                 if (avatar) setProfileImage(avatar);
             } else {
-                console.warn('[Profile] No technician record found for this ID:', session.user.id);
-                // Fallback to basic auth data
+                console.warn('[Profile] Using auth fallback profile for ID:', session.user.id);
                 setUser({
-                    name: session.user.user_metadata?.name || t('profileUser'),
+                    name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || t('profileUser'),
                     email: session.user.email || '',
-                    id: session.user.id, // SHOW THE REAL ID so user can debug
+                    id: session.user.id,
+                    techId: '',
                     role: t('profileUserRole'),
                     jobTitle: ''
                 });
@@ -157,81 +145,75 @@ export default function ProfileScreen() {
         setAvatarModalVisible(true);
     };
 
+    const processAvatarUri = async (originalUri: string) => {
+        try {
+            setLoading(true);
+
+            // Obter um nome seguro para a pasta
+            const safeName = user.name ? user.name.replace(/[^a-zA-Z0-9\s]/g, '').trim() || user.id.substring(0, 8) : user.id.substring(0, 8);
+            const folder = `technicians/${safeName}`;
+
+            // Usar OrderService.uploadFile que já tem compressão embutida, streaming otimizado para Android/iOS e proteção contra OOM
+            const publicUrl = await OrderService.uploadFile(originalUri, folder, undefined, 'image/webp');
+            
+            if (!publicUrl) throw new Error('Falha no upload da imagem para a nuvem.');
+
+            const finalUrl = `${publicUrl}?t=${Date.now()}`;
+
+            // 1. Tentar atualizar a tabela technicians
+            if (user.techId) {
+                await supabase.from('technicians').update({ avatar: finalUrl }).eq('id', user.techId);
+            } else {
+                await supabase.from('technicians').update({ avatar: finalUrl }).eq('id', user.id);
+            }
+
+            // 2. Garantia dupla: atualizar a tabela users (fallback importante)
+            await supabase.from('users').update({ avatar: finalUrl, avatar_url: finalUrl }).eq('id', user.id);
+
+            // 3. Garantia tripla: atualizar os metadados do auth
+            await supabase.auth.updateUser({ data: { avatar: finalUrl } });
+
+            setProfileImage(finalUrl);
+            showAlert(t('alertSuccess'), t('profilePhotoSuccess'), [{ text: 'OK' }], 'checkmark-circle-outline', '#34c759');
+            
+        } catch (error: any) {
+            const errorMsg = error?.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+            console.error("Avatar upload error details: " + errorMsg);
+            showAlert(t('alertError'), `${t('profilePhotoError')}\n${errorMsg.slice(0, 150)}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const takeOrPickImage = async (isCamera: boolean) => {
         setAvatarModalVisible(false);
         try {
-            let result;
             if (isCamera) {
                 const permission = await ImagePicker.requestCameraPermissionsAsync();
                 if (permission.status !== "granted") {
                     showAlert(t('alertPermission'), t('profilePhotoPermission'));
                     return;
                 }
-                result = await ImagePicker.launchCameraAsync({
-                    allowsEditing: true,
-                    aspect: [1, 1],
-                    quality: 1, // Let ImageService compress it
-                });
+                // Abre NexusCamera customizada com botões 100% em Português
+                setIsNexusCameraVisible(true);
+                return;
             } else {
-                result = await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ['images'],
-                    allowsEditing: true,
-                    aspect: [1, 1],
-                    quality: 1,
-                });
+                const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (permission.status !== "granted") {
+                    showAlert(t('alertPermission'), t('profilePhotoPermission') || 'Precisamos de permissão para acessar a galeria.');
+                    return;
+                }
             }
 
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images'],
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 1,
+            });
+
             if (!result.canceled && result.assets && result.assets.length > 0) {
-                setLoading(true);
-                const originalUri = result.assets[0].uri;
-
-                // Compress to WebP < 100KB
-                const compressedUri = await ImageService.compressAvatar(originalUri);
-                const fileUri = (compressedUri.startsWith('/') && !compressedUri.startsWith('file://')) ? `file://${compressedUri}` : compressedUri;
-                const base64 = await LegacyFileSystem.readAsStringAsync(fileUri, { encoding: 'base64' });
-
-                if (!base64) throw new Error("Base64 string was empty");
-                const arrayBuffer = decode(base64);
-
-                // Obter um nome seguro para a pasta
-                const safeName = user.name ? user.name.replace(/[^a-zA-Z0-9\s]/g, '').trim() || user.id.substring(0, 8) : user.id.substring(0, 8);
-                const fileName = `technicians/${safeName}/avatar_${Date.now()}.webp`;
-
-                const { data: signData, error: signError } = await supabase.functions.invoke('r2-operations', {
-                    body: { action: 'upload', path: fileName, bucketType: 'private', contentType: 'image/webp' }
-                });
-
-                if (signError || !signData?.signedUrl) throw new Error(signError?.message || 'Erro ao gerar Signed URL');
-
-                const uploadPromise = fetch(signData.signedUrl, {
-                    method: 'PUT',
-                    body: arrayBuffer,
-                    headers: { 'Content-Type': 'image/webp' }
-                });
-                const networkTimeout = new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('NETWORK_TIMEOUT')), 30000));
-                const response = await Promise.race([uploadPromise, networkTimeout]);
-
-                if (!response.ok) throw new Error(`R2 Upload Falhou: ${response.status}`);
-
-                const publicUrl = signData.publicUrl;
-
-                // Appended timestamp to bust cache when updating
-                const finalUrl = `${publicUrl}?t=${Date.now()}`;
-
-                // The panel explicitly expects 'avatar'. The 'avatar_url' column doesn't exist.
-                const { error: updateError } = await supabase
-                    .from('technicians')
-                    .update({
-                        avatar: finalUrl
-                    })
-                    .eq('id', user.id);
-
-                if (updateError) throw updateError;
-
-                if (finalUrl) {
-                    setProfileImage(finalUrl);
-                    showAlert(t('alertSuccess'), t('profilePhotoSuccess'), [{ text: 'OK' }], 'checkmark-circle-outline', '#34c759');
-                }
+                await processAvatarUri(result.assets[0].uri);
             }
         } catch (error: any) {
             // Log with a simple string to avoid crashing native console if it's cyclic
@@ -296,68 +278,24 @@ export default function ProfileScreen() {
                 </View>
             </View>
 
-            <View style={[styles.infoSection, { padding: 0, overflow: 'hidden' }]}>
-                <Pressable
-                    style={{ padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
-                    onPress={() => setIsChangingPassword(!isChangingPassword)}
-                >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                        <Ionicons name="lock-closed" size={20} color="#1c2d4f" />
-                        <Text style={[styles.value, { fontSize: 16 }]}>{t('profileChangePassword')}</Text>
+            <Pressable
+                style={[styles.infoSection, { paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', opacity: isSendingReset ? 0.5 : 1 }]}
+                onPress={handleSendPasswordReset}
+                disabled={isSendingReset}
+            >
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 10 }}>
+                    <Ionicons name="mail-outline" size={22} color="#1c2d4f" />
+                    <View style={{ flex: 1 }}>
+                        <Text style={[styles.value, { fontSize: 15, fontWeight: '600', color: '#1c2d4f' }]}>{t('profileChangePassword')}</Text>
+                        <Text style={{ fontSize: 11, color: '#64748b', marginTop: 2, lineHeight: 15 }}>{t('menuResetPasswordDesc')}</Text>
                     </View>
-                    <Ionicons name={isChangingPassword ? "chevron-up" : "chevron-down"} size={20} color="#1c2d4f" />
-                </Pressable>
-                
-                {isChangingPassword && (
-                    <View style={{ padding: 16, paddingTop: 0, borderTopWidth: 1, borderTopColor: '#f0f0f0' }}>
-                        <Text style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>{t('profilePasswordDisclaimer')}</Text>
-                        <View style={styles.passwordInputContainer}>
-                            <TextInput
-                                style={styles.passwordInputFlexible}
-                                placeholder={t('profileCurrentPassword')}
-                                placeholderTextColor="#94a3b8"
-                                secureTextEntry={!showPasswords}
-                                value={oldPassword}
-                                onChangeText={setOldPassword}
-                            />
-                        </View>
-                        <View style={styles.passwordInputContainer}>
-                            <TextInput
-                                style={styles.passwordInputFlexible}
-                                placeholder={t('profileNewPassword')}
-                                placeholderTextColor="#94a3b8"
-                                secureTextEntry={!showPasswords}
-                                value={newPassword}
-                                onChangeText={setNewPassword}
-                            />
-                            <Pressable onPress={() => setShowPasswords(!showPasswords)} style={styles.eyeIconPressable}>
-                                <Ionicons name={showPasswords ? "eye-off" : "eye"} size={20} color="#94a3b8" />
-                            </Pressable>
-                        </View>
-                        <View style={styles.passwordInputContainer}>
-                            <TextInput
-                                style={styles.passwordInputFlexible}
-                                placeholder={t('profileConfirmPassword')}
-                                placeholderTextColor="#94a3b8"
-                                secureTextEntry={!showPasswords}
-                                value={confirmNewPassword}
-                                onChangeText={setConfirmNewPassword}
-                            />
-                        </View>
-                        <Pressable 
-                            style={[styles.savePasswordBtn, (!oldPassword || !newPassword || !confirmNewPassword || newPassword.length < 8 || isUpdatingPassword) && { opacity: 0.5 }]} 
-                            onPress={handleUpdatePassword}
-                            disabled={!oldPassword || !newPassword || !confirmNewPassword || newPassword.length < 8 || isUpdatingPassword}
-                        >
-                            {isUpdatingPassword ? (
-                                <ActivityIndicator size="small" color="#fff" />
-                            ) : (
-                                <Text style={{ color: '#fff', fontWeight: 'bold' }}>{t('profileSavePassword')}</Text>
-                            )}
-                        </Pressable>
-                    </View>
+                </View>
+                {isSendingReset ? (
+                    <ActivityIndicator size="small" color="#1c2d4f" />
+                ) : (
+                    <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
                 )}
-            </View>
+            </Pressable>
 
             <Pressable
                 style={styles.logoutButton}
@@ -411,6 +349,20 @@ export default function ProfileScreen() {
                 </Pressable>
             </Modal>
             
+            {/* NexusCamera Modal — Câmera customizada 100% em Português */}
+            {isNexusCameraVisible && (
+                <Modal visible={true} transparent={false} animationType="slide" onRequestClose={() => setIsNexusCameraVisible(false)}>
+                    <NexusCamera 
+                        mode="photo"
+                        onClose={() => setIsNexusCameraVisible(false)} 
+                        onPhotoCaptured={(uri) => {
+                            setIsNexusCameraVisible(false);
+                            processAvatarUri(uri);
+                        }} 
+                    />
+                </Modal>
+            )}
+
             <NexusAlert 
                 visible={alertConfig.visible}
                 title={alertConfig.title}
