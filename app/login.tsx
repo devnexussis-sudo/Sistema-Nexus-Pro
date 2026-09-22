@@ -8,7 +8,7 @@ import Checkbox from 'expo-checkbox';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Dimensions } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
@@ -23,6 +23,7 @@ export default function LoginScreen() {
     const [keepConnected, setKeepConnected] = useState(false);
     const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', icon: 'warning-outline' as any, iconColor: '#ff3b30' });
     const { t } = useI18n();
+    const passwordRef = useRef<TextInput>(null);
 
     useEffect(() => {
         const loadSavedData = async () => {
@@ -62,12 +63,16 @@ export default function LoginScreen() {
             } else {
                 await AsyncStorage.removeItem('@nexus_saved_email');
             }
-            // Trigger the AppLifecycle to initialize GPS, Notifications, and Queues right after logging in on a fresh install
+            // Teardown any previous lifecycle state before fresh init
+            await appLifecycle.destroy().catch(() => {});
+            // Trigger the AppLifecycle to initialize GPS, Notifications, and Queues right after logging in
             await appLifecycle.initialize();
             router.replace('/');
         } else {
             if (result.errorType === 'BLOCKED') {
                 showAlert('Alerta!', "Usuário bloqueado pelo admin da empresa.");
+            } else if (result.errorType === 'SCOPE_BLOCKED') {
+                showAlert('Acesso Restrito', "Esta conta é exclusiva do painel web. Para acessar o app, solicite ao administrador a liberação de acesso mobile.", 'shield-outline', '#1c2d4f');
             } else {
                 showAlert('Alerta!', t('loginFailCredentials'));
             }
@@ -137,7 +142,8 @@ const TopBlueBand = () => {
             <ScrollView 
                 contentContainerStyle={styles.scrollContent} 
                 showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="always"
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="interactive"
                 bounces={false}
             >
 
@@ -170,6 +176,9 @@ const TopBlueBand = () => {
                             keyboardType="email-address"
                             autoCapitalize="none"
                             autoCorrect={false}
+                            returnKeyType="next"
+                            blurOnSubmit={false}
+                            onSubmitEditing={() => passwordRef.current?.focus()}
                         />
                     </View>
 
@@ -182,6 +191,9 @@ const TopBlueBand = () => {
                             value={password}
                             onChangeText={setPassword}
                             secureTextEntry={!showPassword}
+                            ref={passwordRef}
+                            returnKeyType="done"
+                            onSubmitEditing={handleLogin}
                         />
                         <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
                             <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#666" />

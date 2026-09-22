@@ -11,12 +11,14 @@ import { syncService } from '@/services/sync-service';
 import { resilientUpload } from '@/services/upload-resilient';
 import { TenantService } from '@/services/tenant-service';
 import { appLifecycle } from '@/services/app-lifecycle';
+import { supabase } from '@/services/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { useI18n } from '@/services/i18n';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { Tabs, useFocusEffect, useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { useGlobalLoading } from '@/contexts/GlobalLoadingContext';
 import NexusCamera from '@/components/nexus-camera';
@@ -24,7 +26,7 @@ import { VoiceTextInput } from '@/components/VoiceTextInput';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import React, { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, SafeAreaView, DeviceEventEmitter } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, Image, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, SafeAreaView, DeviceEventEmitter, useWindowDimensions } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SignatureScreen from 'react-native-signature-canvas';
@@ -46,7 +48,11 @@ export default function ExecuteOSScreen() {
 
     const [order, setOrder] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [isCustomCameraActive, setIsCustomCameraActive] = useState(false);
+    const [cameraConfig, setCameraConfig] = useState<{
+        visible: boolean;
+        mode: 'photo' | 'video';
+        onPhotoCaptured?: (uri: string) => void;
+    }>({ visible: false, mode: 'video' });
     const navigation = useNavigation();
 
     // Multi-equipment forms state
@@ -133,6 +139,26 @@ export default function ExecuteOSScreen() {
     const [viewerVisible, setViewerVisible] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [isUploadingPhoto, setIsUploadingPhoto] = useState<string | null>(null);
+
+    const { width: currentWinWidth, height: currentWinHeight } = useWindowDimensions();
+    const isLandscape = currentWinWidth > currentWinHeight;
+
+    const sw = Dimensions.get('window').width;
+    const sh = Dimensions.get('window').height;
+    const windowWidth = Math.min(sw, sh);
+    const windowHeight = Math.max(sw, sh);
+
+    const videoModeRef = useRef<'basic' | 'hd'>('hd');
+
+    React.useEffect(() => {
+        if (order?.tenantId) {
+            supabase.from('tenants').select('metadata').eq('id', order.tenantId).single().then(({ data }) => {
+                if (data?.metadata?.video_quality === 'basic') {
+                    videoModeRef.current = 'basic';
+                }
+            }).catch((e: Error) => console.warn(e));
+        }
+    }, [order?.tenantId]);
     const [isPartsVisible, setIsPartsVisible] = useState(false);
     const [isPhotoSourceModalVisible, setIsPhotoSourceModalVisible] = useState(false);
     const [isPartSourceModalVisible, setIsPartSourceModalVisible] = useState(false);
@@ -170,10 +196,105 @@ export default function ExecuteOSScreen() {
     const uploadedUrlMapRef = useRef<Map<string, string>>(new Map());
     const hasPendingUploads = pendingUploadCount > 0 || isUploadingExtra || videos.some(v => v.isProcessing) || isUploadingPhoto !== null || isProcessingMedia;
 
-    /** Resolve URI: se tem URL remota no mapa, usa ela; senão mantém a local */
+    /** Resolve URI: se tem URL remota no mapa ou no resilientUpload, usa ela; senão mantém a local */
     const resolvePhotoUri = useCallback((uri: string) => {
-        return uploadedUrlMapRef.current.get(uri) || uri;
+        if (!uri) return uri;
+        const mapVal = uploadedUrlMapRef.current.get(uri);
+        if (mapVal) return mapVal;
+        const resilientUrl = resilientUpload.getCompletedUrl(uri);
+        if (resilientUrl) {
+            uploadedUrlMapRef.current.set(uri, resilientUrl);
+            return resilientUrl;
+        }
+        return uri;
     }, []);
+
+    const isLocalMediaUri = useCallback((uri: any): boolean => {
+        if (typeof uri !== 'string') return false;
+        const s = uri.trim();
+        if (!s) return false;
+        if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:')) return false;
+        return (
+            s.startsWith('file://') ||
+            s.startsWith('/var/') ||
+            s.startsWith('/private/') ||
+            s.includes('/Containers/') ||
+            s.includes('/Library/') ||
+            s.includes('/Caches/') ||
+            s.includes('/Camera/') ||
+            s.includes('/VideoCompressor/') ||
+            s.endsWith('.mov') ||
+            s.endsWith('.mp4') ||
+            s.endsWith('.jpg') ||
+            s.endsWith('.png')
+        );
+    }, []);
+
+    const sanitizeAndUploadFormData = useCallback(async (
+        targetFormData: Record<string, any>,
+        displayFolderId: string,
+        tenantId?: string
+    ): Promise<Record<string, any>> => {
+        const copy = JSON.parse(JSON.stringify(targetFormData));
+
+        const processValue = async (val: any): Promise<any> => {
+            if (Array.isArray(val)) {
+                const result: any[] = [];
+                for (const item of val) {
+                    result.push(await processValue(item));
+                }
+                return result;
+            }
+            if (typeof val === 'string' && isLocalMediaUri(val)) {
+                // 1. Tentar mapa local ou resilientUpload
+                const cached = resolvePhotoUri(val);
+                if (cached && !isLocalMediaUri(cached)) {
+                    return cached;
+                }
+                // 2. Se continua local, faz upload síncrono emergencial agora!
+                try {
+                    const isVideo = val.toLowerCase().endsWith('.mov') || val.toLowerCase().endsWith('.mp4') || val.includes('/videos/') || val.includes('/form_videos/');
+                    const folder = isVideo ? 'videos' : 'form_photos';
+                    const contentType = isVideo ? 'video/mp4' : undefined;
+                    console.log(`[SanitizeUpload] 🚀 Upload síncrono emergencial de mídia local: ${val}`);
+                    const uploadedUrl = await OrderService.uploadFile(val, `orders/${displayFolderId}/${folder}`, tenantId, contentType);
+                    if (uploadedUrl) {
+                        uploadedUrlMapRef.current.set(val, uploadedUrl);
+                        return uploadedUrl;
+                    }
+                } catch (err) {
+                    console.warn('[SanitizeUpload] ⚠️ Falha no upload emergencial:', err);
+                }
+                return val;
+            }
+            if (typeof val === 'string' && val.includes(',')) {
+                const parts = val.split(',').map(s => s.trim()).filter(Boolean);
+                const hasLocal = parts.some(p => isLocalMediaUri(p));
+                if (hasLocal) {
+                    const processed = await Promise.all(parts.map(p => processValue(p)));
+                    return processed.join(',');
+                }
+            }
+            return val;
+        };
+
+        for (const key of Object.keys(copy)) {
+            if (key === 'execution_forms' && typeof copy[key] === 'object') {
+                const ef = copy[key];
+                for (const eqKey of Object.keys(ef)) {
+                    if (ef[eqKey]?.data) {
+                        for (const fId of Object.keys(ef[eqKey].data)) {
+                            ef[eqKey].data[fId] = await processValue(ef[eqKey].data[fId]);
+                        }
+                    }
+                }
+            } else {
+                copy[key] = await processValue(copy[key]);
+            }
+        }
+
+        return copy;
+    }, [isLocalMediaUri, resolvePhotoUri]);
 
 
 
@@ -299,11 +420,20 @@ export default function ExecuteOSScreen() {
         let technicalTemplate: any = null;
         let financialTemplate: any = null;
 
+        const findTemplate = async (formId: string) => {
+            if (!formId || formId === 'f-padrao') return null;
+            if (Array.isArray(allTemplates) && allTemplates.length > 0) {
+                const found = allTemplates.find(t => t.id === formId);
+                if (found) return found;
+            }
+            return await OrderService.getFormTemplate(formId);
+        };
+
         if (eq?.form_id && eq.form_id !== 'f-padrao') {
-            technicalTemplate = await OrderService.getFormTemplate(eq.form_id);
+            technicalTemplate = await findTemplate(eq.form_id);
         }
         if (orderData.formId && orderData.formId !== 'f-padrao' && !technicalTemplate) {
-            technicalTemplate = await OrderService.getFormTemplate(orderData.formId);
+            technicalTemplate = await findTemplate(orderData.formId);
         }
 
         const typeValue = orderData.operationType || orderData.type;
@@ -334,10 +464,10 @@ export default function ExecuteOSScreen() {
 
         if (bestRule) {
             if (!technicalTemplate) {
-                technicalTemplate = await OrderService.getFormTemplate(bestRule.formId);
+                technicalTemplate = await findTemplate(bestRule.formId);
             }
             if (bestRule.financialFormId) {
-                financialTemplate = await OrderService.getFormTemplate(bestRule.financialFormId);
+                financialTemplate = await findTemplate(bestRule.financialFormId);
             }
         }
 
@@ -385,7 +515,7 @@ export default function ExecuteOSScreen() {
 
                     // Carregar config do tenant (Preços & Impedimento)
                     try {
-                        const settings = await TenantService.getSettings(true);
+                        const settings = await TenantService.getSettings(!syncService.isOfflineModeEnabled());
                         if (isActive) {
                             setShowPrice(settings.showStockPrice);
                             setAllowImpediment(settings.allowImpediment);
@@ -465,6 +595,7 @@ export default function ExecuteOSScreen() {
 
                             if (isActive) setFormsConfig(newFormsConfig);
                             if (isActive) setIsLoading(false);
+                            hideLoading();
                             return; // Dado encontrado — não vai para rede
                         }
                         // Sem cache local: cai no fluxo de rede abaixo
@@ -574,7 +705,7 @@ export default function ExecuteOSScreen() {
                                         .from('notifications')
                                         .update({ is_read: true })
                                         .in('id', notifs.map(n => n.id));
-                                    DeviceEventEmitter.emit('refreshNotifications');
+                                    DeviceEventEmitter?.emit?.('refreshNotifications');
                                 }
                             }
                         } catch (err) {
@@ -687,21 +818,72 @@ export default function ExecuteOSScreen() {
         setUsedItems(prev => prev.filter((_, i) => i !== index));
     };
 
+    const processSignatureImage = async (rawSignatureUri: string): Promise<string> => {
+        return new Promise((resolve) => {
+            Image.getSize(
+                rawSignatureUri,
+                async (w, h) => {
+                    try {
+                        if (h > w) {
+                            // Imagem veio em proporção vertical (celular deitado em sistema com viewport vertical).
+                            // Rotaciona 270° (90° + 180°) para que a assinatura fique perfeitamente na horizontal e virada para o lado certo na OS!
+                            const manipulated = await ImageManipulator.manipulateAsync(
+                                rawSignatureUri,
+                                [{ rotate: 270 }],
+                                { compress: 1, format: ImageManipulator.SaveFormat.PNG }
+                            );
+                            resolve(manipulated.uri);
+                        } else {
+                            resolve(rawSignatureUri);
+                        }
+                    } catch (e) {
+                        console.warn('[execute.tsx] Erro ao processar rotação da assinatura:', e);
+                        resolve(rawSignatureUri);
+                    }
+                },
+                () => resolve(rawSignatureUri)
+            );
+        });
+    };
+
     const handleSignature = async (signatureData: string) => {
-        setSignature(signatureData);
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+        const processed = await processSignatureImage(signatureData);
+        setSignature(processed);
+        if (Platform.OS === 'android') {
+            await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+        }
         setSignatureModalVisible(false);
     };
 
     const processPhotoChoice = async (source: 'camera' | 'library', callback: (uris: string[]) => void, limit = 1) => {
         try {
-            const result = source === 'camera'
-                ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'] })
-                : await ImagePicker.launchImageLibraryAsync({ 
-                    mediaTypes: ['images'], 
-                    allowsMultipleSelection: true,
-                    selectionLimit: limit
+            if (source === 'camera') {
+                const permission = await ImagePicker.requestCameraPermissionsAsync();
+                if (permission.status !== "granted") {
+                    Alert.alert(t('alertPermission'), 'Precisamos de permissão para acessar a câmera.');
+                    return;
+                }
+                setCameraConfig({
+                    visible: true,
+                    mode: 'photo',
+                    onPhotoCaptured: (uri) => {
+                        callback([uri]);
+                    }
                 });
+                return;
+            } else {
+                const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (permission.status !== "granted") {
+                    Alert.alert(t('alertPermission'), 'Precisamos de permissão para acessar a galeria de fotos.');
+                    return;
+                }
+            }
+
+            const result = await ImagePicker.launchImageLibraryAsync({ 
+                mediaTypes: ['images'], 
+                allowsMultipleSelection: true,
+                selectionLimit: limit
+            });
 
             if (!result.canceled && result.assets && result.assets.length > 0) {
                 // v5: INSTANT — Envia URIs originais direto para o callback.
@@ -728,8 +910,11 @@ export default function ExecuteOSScreen() {
     };
 
     const handleImpedimentSignature = async (signatureData: string) => {
-        setImpedimentSignature(signatureData);
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+        const processed = await processSignatureImage(signatureData);
+        setImpedimentSignature(processed);
+        if (Platform.OS === 'android') {
+            await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+        }
         setIsImpedimentSignatureVisible(false);
     };
 
@@ -785,7 +970,7 @@ export default function ExecuteOSScreen() {
 
     const handleTakeVideo = async () => {
         setIsVideoSourceModalVisible(false);
-        setIsCustomCameraActive(true);
+        setCameraConfig({ visible: true, mode: 'video' });
     };
 
     const handlePickVideoFromGallery = async () => {
@@ -823,6 +1008,20 @@ export default function ExecuteOSScreen() {
         }
     };
 
+    const ensurePhysicalVideoFile = async (rawUri: string): Promise<{ fileUri: string; isTemp: boolean }> => {
+        try {
+            if (rawUri.startsWith('content://') || !rawUri.startsWith('file://')) {
+                const tempPath = `${FileSystem.cacheDirectory}compress_src_${Date.now()}_${Math.random().toString(36).substring(7)}.mp4`;
+                await FileSystem.copyAsync({ from: rawUri, to: tempPath });
+                return { fileUri: tempPath, isTemp: true };
+            }
+            return { fileUri: rawUri, isTemp: false };
+        } catch (err) {
+            console.warn('[Video] Falha ao criar cópia física da URI:', err);
+            return { fileUri: rawUri, isTemp: false };
+        }
+    };
+
     /**
      * Motor de Compressão H265 Backstage:
      * - Anexa a miniatura IMEDIATAMENTE (dando a sensação de pronto pro usuário)
@@ -831,29 +1030,76 @@ export default function ExecuteOSScreen() {
      */
     const startBackstageVideoProcess = async (rawUri: string, isNativeRecording: boolean = false, bypassLimit: boolean = false) => {
         try {
+            // ── BigTech Compression Profile ──────────────────────────────────
+            // Camada 2: Compressão MANUAL com bitrate EXPLÍCITO
+            // Sem heurísticas. Sem auto-detect. Controle total.
+            const isBasic = videoModeRef.current === 'basic';
+            const compressionProfile = {
+                compressionMethod: 'manual' as const,
+                maxSize: isBasic ? 854 : 1280,
+                bitrate: isBasic ? 250_000 : 450_000, // 250 Kbps basic (~3 MB/min), 450 Kbps HD (~6 MB/min)
+                minimumFileSizeForCompress: 0,
+                progressDivider: 10,
+                extension: '.mp4'
+            };
+
             // 🎯 Suporte a Vídeo em Pergunta de Formulário Dinâmico
             if (videoSourceTarget?.type === 'field' && videoSourceTarget.eqKey && videoSourceTarget.fieldId) {
                 const { eqKey, fieldId } = videoSourceTarget;
                 const uploadKey = `${eqKey}_${fieldId}`;
                 setIsUploadingPhoto(uploadKey);
                 try {
-                    const localUri = rawUri.startsWith('/') ? `file://${rawUri}` : rawUri;
-                    let finalUriToUpload = localUri;
+                    const { fileUri: inputUri, isTemp } = await ensurePhysicalVideoFile(rawUri);
+                    let finalUriToUpload = inputUri;
+
+                    // Medir tamanho original antes da compressão
+                    const origInfo = await FileSystem.getInfoAsync(inputUri);
+                    const origSizeMB = ((origInfo as any).size ?? 0) / 1024 / 1024;
+                    console.log(`[VideoField] 📏 Tamanho original: ${origSizeMB.toFixed(1)} MB`);
+
                     try {
                         const { Video } = require('react-native-compressor');
                         if (Video && Video.compress) {
-                            finalUriToUpload = await Video.compress(localUri, {
-                                compressionMethod: 'manual',
-                                maxSize: 576,
-                                bitrate: 420000
-                            });
+                            console.log(`[VideoField] 🔧 Comprimindo com perfil MANUAL: bitrate=${compressionProfile.bitrate}, maxSize=${compressionProfile.maxSize}`);
+                            finalUriToUpload = await Video.compress(inputUri, compressionProfile);
+
+                            // Camada 3: Validação — verificar se a compressão realmente funcionou
+                            const compInfo = await FileSystem.getInfoAsync(finalUriToUpload);
+                            const compSizeMB = ((compInfo as any).size ?? 0) / 1024 / 1024;
+                            console.log(`[VideoField] ✅ Comprimido: ${origSizeMB.toFixed(1)} MB → ${compSizeMB.toFixed(1)} MB (${Math.round((1 - compSizeMB / origSizeMB) * 100)}% redução)`);
                         }
-                    } catch (err) {
-                        console.log('[VideoField] Compressão nativa ignorada:', err);
+                    } catch (err: any) {
+                        console.error('[VideoField] ❌ FALHA NA COMPRESSÃO:', err?.message || err);
+                        // Camada 1 garante que o vídeo da câmera já tem bitrate baixo (1.5-2.5 Mbps)
+                        // Se veio da galeria, o vídeo será enviado sem compressão
+                    } finally {
+                        if (isTemp && inputUri !== finalUriToUpload) {
+                            FileSystem.deleteAsync(inputUri, { idempotent: true }).catch(() => {});
+                        }
                     }
 
-                    const uploadedUrl = await OrderService.uploadFile(finalUriToUpload, `orders/${order?.displayId || id}/form_videos`, order?.tenantId, 'video/mp4');
-                    const finalUrl = uploadedUrl || finalUriToUpload;
+                    // ── BACKGROUND QUEUE (Offline-First / Resilient Upload) ────────────────
+                    // Salva em disco localmente se estiver offline e agenda upload automático ao reconectar!
+                    const remotePath = `orders/${order?.displayId || id}/form_videos/${Date.now()}_${Math.random().toString(36).slice(2, 6)}.mp4`;
+                    const taskId = await resilientUpload.enqueue(finalUriToUpload, remotePath, 'video/mp4');
+
+                    const finalUrl = finalUriToUpload;
+
+                    // Escutar progresso: se subir online, mapeia a URL pública para a versão web
+                    const unsub = resilientUpload.onProgress(task => {
+                        if (task.id === taskId && task.status === 'completed' && task.resultUrl) {
+                            uploadedUrlMapRef.current.set(finalUriToUpload, task.resultUrl);
+                            uploadedUrlMapRef.current.set(rawUri, task.resultUrl);
+                            unsub();
+                        }
+                    });
+
+                    // Verificar imediatamente se o upload já foi finalizado
+                    const immediateResult = resilientUpload.getCompletedUrl(finalUriToUpload) || resilientUpload.getCompletedUrl(rawUri);
+                    if (immediateResult) {
+                        uploadedUrlMapRef.current.set(finalUriToUpload, immediateResult);
+                        uploadedUrlMapRef.current.set(rawUri, immediateResult);
+                    }
 
                     const existingVal = (formsConfig[eqKey]?.data || {})[fieldId];
                     const currentFieldVideos: string[] = Array.isArray(existingVal)
@@ -904,29 +1150,41 @@ export default function ExecuteOSScreen() {
                 setVideos(prev => prev.map(v => v.uri === localUri ? { ...v, status: 'Enviando vídeo...' } : v));
             }
 
-            let finalUriToUpload = localUri;
+            const { fileUri: inputUri, isTemp } = await ensurePhysicalVideoFile(rawUri);
+            let finalUriToUpload = inputUri;
             
+            // Medir tamanho original antes da compressão
+            const origInfo = await FileSystem.getInfoAsync(inputUri);
+            const origSizeMB = ((origInfo as any).size ?? 0) / 1024 / 1024;
+            console.log(`[Video] 📏 Tamanho original: ${origSizeMB.toFixed(1)} MB`);
+
             try {
-                // Importamos dinamicamente para não quebrar o app no Expo Go (faltam NitroModules)
                 const { Video } = require('react-native-compressor');
                 if (Video && Video.compress) {
+                    console.log(`[Video] 🔧 Comprimindo com perfil MANUAL: bitrate=${compressionProfile.bitrate}, maxSize=${compressionProfile.maxSize}`);
+                    setVideos(prev => prev.map(v => v.uri === localUri ? { ...v, status: 'Comprimindo vídeo...' } : v));
                     const compressedUri = await Video.compress(
-                        localUri, 
-                        {
-                            compressionMethod: 'manual',
-                            maxSize: 576,
-                            bitrate: 420000,
-                            progressDivider: 10
-                        },
+                        inputUri, 
+                        compressionProfile,
                         (progress: number) => {
                             setVideos(prev => prev.map(v => v.uri === localUri ? { ...v, status: `Comprimindo... ${Math.round(progress * 100)}%` } : v));
                         }
                     );
                     finalUriToUpload = compressedUri;
+
+                    // Camada 3: Validação — verificar se a compressão realmente funcionou
+                    const compInfo = await FileSystem.getInfoAsync(finalUriToUpload);
+                    const compSizeMB = ((compInfo as any).size ?? 0) / 1024 / 1024;
+                    console.log(`[Video] ✅ Comprimido: ${origSizeMB.toFixed(1)} MB → ${compSizeMB.toFixed(1)} MB (${Math.round((1 - compSizeMB / origSizeMB) * 100)}% redução)`);
                 }
-            } catch (err) {
-                console.log('[Video] Compressão nativa ignorada (Provavelmente rodando no Expo Go):', err);
-                finalUriToUpload = localUri;
+            } catch (err: any) {
+                console.error('[Video] ❌ FALHA NA COMPRESSÃO:', err?.message || err);
+                finalUriToUpload = inputUri;
+                // Camada 1 garante que o vídeo da câmera já tem bitrate baixo (1.5-2.5 Mbps)
+            } finally {
+                if (isTemp && inputUri !== finalUriToUpload) {
+                    FileSystem.deleteAsync(inputUri, { idempotent: true }).catch(() => {});
+                }
             }
 
             const info = await FileSystem.getInfoAsync(finalUriToUpload);
@@ -1142,15 +1400,31 @@ export default function ExecuteOSScreen() {
                                 }
                             }
                             finalFormData[fieldLabel] = resolvedArray;
-                        } else if (typeof value === 'string' && (value.startsWith('file://') || value.startsWith('content://') || value.startsWith('/'))) {
-                            if (isOffline) {
-                                localPhotosToSync.push(value);
+                        } else if (typeof value === 'string') {
+                            const urls = value.split(',').map(u => u.trim()).filter(Boolean);
+                            const hasLocalFiles = urls.some(u => u.startsWith('file://') || u.startsWith('content://') || u.startsWith('/'));
+                            
+                            if (hasLocalFiles) {
+                                const resolvedArray: string[] = [];
+                                for (let i = 0; i < urls.length; i++) {
+                                    const item = urls[i];
+                                    if (item.startsWith('file://') || item.startsWith('content://') || item.startsWith('/')) {
+                                        if (isOffline) {
+                                            localPhotosToSync.push(item);
+                                            resolvedArray.push(item);
+                                        } else {
+                                            const idx = pendingUploads.length;
+                                            pendingUploads.push({ uri: item });
+                                            uploadFieldRefs.set(idx, { configKey: key, fieldLabel, index: i, type: 'array' });
+                                            resolvedArray.push('__PENDING__');
+                                        }
+                                    } else {
+                                        resolvedArray.push(item);
+                                    }
+                                }
+                                finalFormData[fieldLabel] = resolvedArray;
+                            } else if (value !== undefined && value !== '') {
                                 finalFormData[fieldLabel] = value;
-                            } else {
-                                const idx = pendingUploads.length;
-                                pendingUploads.push({ uri: value });
-                                uploadFieldRefs.set(idx, { configKey: key, fieldLabel, type: 'single' });
-                                finalFormData[fieldLabel] = '__PENDING__';
                             }
                         } else if (value !== undefined && value !== '') {
                             finalFormData[fieldLabel] = value;
@@ -1186,6 +1460,7 @@ export default function ExecuteOSScreen() {
                         extraPhotos,
                         signature,
                         execution_forms: formsConfig,
+                        formData: finalFormData,
                         usedItems,
                         clientName,
                         clientDoc,
@@ -1227,39 +1502,36 @@ export default function ExecuteOSScreen() {
                     console.log('[ExecuteOS] Erro ao atualizar status offline da OS:', e);
                 }
 
-                router.replace({ pathname: '/', params: { filter: 'completed' } });
+                setTimeout(() => {
+                    setIsSubmitting(false);
+                    setTimeout(() => {
+                        router.replace({ pathname: '/', params: { filter: 'completed' } });
+                    }, 100);
+                }, 1500);
             } else {
                 // ─── FASE 2: Upload PARALELO de todos os arquivos locais ───────────
                 const totalUploads = pendingUploads.length;
                 let completedUploads = 0;
 
                 if (totalUploads > 0) {
-                    setSubmitProgress({ current: 0, total: totalUploads, label: `Enviando 0/${totalUploads} fotos...` });
+                    setSubmitProgress({ current: 0, total: totalUploads, label: `Enviando 0/${totalUploads} arquivos...` });
 
-                    // Upload em lotes paralelos de 3 para não sobrecarregar a rede
-                    const BATCH_SIZE = 3;
-                    for (let batch = 0; batch < totalUploads; batch += BATCH_SIZE) {
-                        const batchItems = pendingUploads.slice(batch, batch + BATCH_SIZE);
-                        const batchIndices = batchItems.map((_, j) => batch + j);
-
-                        const results = await Promise.allSettled(
-                            batchItems.map(item =>
-                                OrderService.uploadFile(item.uri, `orders/${order?.displayId || id}/form_photos`, order?.tenantId)
-                            )
-                        );
-
-                        results.forEach((result, j) => {
-                            const globalIdx = batchIndices[j];
-                            const url = result.status === 'fulfilled' ? result.value : null;
-                            pendingUploads[globalIdx].resolvedUrl = url || pendingUploads[globalIdx].uri;
-                            completedUploads++;
-                        });
-
-                        setSubmitProgress({
-                            current: completedUploads,
-                            total: totalUploads,
-                            label: `Enviando ${completedUploads}/${totalUploads} fotos...`
-                        });
+                    for (let i = 0; i < totalUploads; i++) {
+                        const item = pendingUploads[i];
+                        try {
+                            setSubmitProgress({
+                                current: completedUploads,
+                                total: totalUploads,
+                                label: `Enviando arquivo ${completedUploads + 1}/${totalUploads}...`
+                            });
+                            
+                            const url = await OrderService.uploadFile(item.uri, `orders/${order?.displayId || id}/form_photos`, order?.tenantId);
+                            item.resolvedUrl = url || item.uri;
+                        } catch (e) {
+                            console.warn('[Sync] Falha no upload sequencial:', e);
+                            item.resolvedUrl = item.uri;
+                        }
+                        completedUploads++;
                     }
                 }
 
@@ -1295,14 +1567,17 @@ export default function ExecuteOSScreen() {
                 // Salvar metadados dos formulários (nomes reais dos templates) para retroatividade
                 finalFormData['execution_forms'] = formsConfig;
 
+                // Sanitizar e garantir que nenhuma mídia local (file://, /var/mobile/...) vá para a DB
+                const sanitizedFormData = await sanitizeAndUploadFormData(finalFormData, order?.displayId || (id as string), order?.tenantId);
+
                 // Passa tudo já com URLs HTTP para completeOrder — evita re-upload
                 await OrderService.completeOrder(id as string, {
                     technicalReport: combinedReport,
                     partsUsed: '',
                     photos: resolvedExtraPhotos,
-                    videoUrl: videos.map(v => v.uri).join(','),
+                    videoUrl: videos.map(v => resolvePhotoUri(v.uri)).join(','),
                     signature,
-                    formData: finalFormData,
+                    formData: sanitizedFormData,
                     clientName,
                     clientDoc,
                     tenantId: order?.tenantId,
@@ -1313,19 +1588,23 @@ export default function ExecuteOSScreen() {
                 await AsyncStorage.removeItem(`os_cache_${id}`);
 
                 // Navigate directly to completed tab
-                router.replace({ pathname: '/', params: { filter: 'completed' } });
+                setTimeout(() => {
+                    setIsSubmitting(false);
+                    setTimeout(() => {
+                        router.replace({ pathname: '/', params: { filter: 'completed' } });
+                    }, 100);
+                }, 1500);
             }
         } catch (error) {
             console.error(error);
+            setIsSubmitting(false);
+            setSubmitProgress({ current: 0, total: 0, label: '' });
             setAlertConfig({
                 visible: true,
                 title: t('alertError'),
                 message: t('execFailFinish'),
                 buttons: [{ text: 'OK', style: 'default' }]
             });
-        } finally {
-            setIsSubmitting(false);
-            setSubmitProgress({ current: 0, total: 0, label: '' });
         }
     };
 
@@ -1335,20 +1614,24 @@ export default function ExecuteOSScreen() {
     // formulário já preenchidos e bloqueia a OS. Nada se perde.
     const handleBlockFromForm = async () => {
         if (!impedimentReason.trim()) {
-            showValidation(t('alertAttention'), t('execImpedimentRequired'));
+            Alert.alert(t('alertAttention'), t('execImpedimentRequired'));
             return;
         }
 
         if (!clientName.trim()) {
-            showValidation(t('alertAttention'), t('execNameValidationRequired'));
+            Alert.alert(t('alertAttention'), t('execNameValidationRequired'));
             return;
         }
 
         if (!signature) {
-            showValidation(t('alertAttention'), t('execSignatureValidationRequired'));
+            Alert.alert(t('alertAttention'), t('execSignatureValidationRequired'));
             return;
         }
 
+        // FECHAR O MODAL DE IMPEDIMENTO PRIMEIRO PARA EVITAR CRASH NO IOS (Modal sobre Modal)
+        setShowImpedimentForm(false);
+        // Aguardar o SO finalizar o unmount do primeiro modal
+        await new Promise(resolve => setTimeout(resolve, 400));
 
         try {
             setIsBlockingFromForm(true);
@@ -1387,8 +1670,11 @@ export default function ExecuteOSScreen() {
 
                         let value = config.data[field.id];
                         if (value !== undefined && value !== '') {
-                            if (field.type === 'PHOTO' && Array.isArray(value)) {
-                                value = value.map((p: string) => resolvePhotoUri(p)).filter((p: string) => p !== '__PENDING__');
+                            if (Array.isArray(value)) {
+                                value = value.map((p: any) => typeof p === 'string' ? resolvePhotoUri(p) : p).filter((p: any) => p !== '__PENDING__');
+                            } else if (typeof value === 'string') {
+                                value = resolvePhotoUri(value);
+                                if (value === '__PENDING__') value = '';
                             }
                             const indexStr = String(visibleCount).padStart(3, '0');
                             finalFormData[`${fullPrefix}${indexStr}#${field.label}`] = value;
@@ -1408,13 +1694,27 @@ export default function ExecuteOSScreen() {
                 finalFormData['extra_photos'] = extraPhotos;
             }
 
-            // Garante que os templates em si sejam salvos para renderização perfeita no visualizador
-            finalFormData['execution_forms'] = formsConfig;
+            // Garante que os templates e mídias resolvidos sejam salvos para renderização perfeita no visualizador
+            const resolvedFormsConfig = JSON.parse(JSON.stringify(formsConfig));
+            Object.keys(resolvedFormsConfig).forEach(eqKey => {
+                if (resolvedFormsConfig[eqKey]?.data) {
+                    Object.keys(resolvedFormsConfig[eqKey].data).forEach(fId => {
+                        const val = resolvedFormsConfig[eqKey].data[fId];
+                        if (Array.isArray(val)) {
+                            resolvedFormsConfig[eqKey].data[fId] = val.map((p: any) => typeof p === 'string' ? resolvePhotoUri(p) : p);
+                        } else if (typeof val === 'string') {
+                            resolvedFormsConfig[eqKey].data[fId] = resolvePhotoUri(val);
+                        }
+                    });
+                }
+            });
+            finalFormData['execution_forms'] = resolvedFormsConfig;
 
             // 1.5 Sync the extra signature/name to finalized data structure
             // Use specific impediment fields first, fall back to main client fields
             finalFormData['impediment_responsible'] = impedimentResponsibleName || clientName || '';
             finalFormData['impediment_reason'] = impedimentReason.trim();
+            if (impedimentSignature) finalFormData['impediment_signature'] = impedimentSignature;
 
             // Upload the impediment signature if present, otherwise use main client signature
             if (isOffline) {
@@ -1469,7 +1769,12 @@ export default function ExecuteOSScreen() {
                 setImpedimentResponsibleName('');
                 setImpedimentSignature(null);
 
-                router.replace({ pathname: '/', params: { filter: 'blocked' } });
+                setTimeout(() => {
+                    setIsBlockingFromForm(false);
+                    setTimeout(() => {
+                        router.replace({ pathname: '/', params: { filter: 'blocked' } });
+                    }, 100);
+                }, 1500);
                 return;
             }
 
@@ -1520,25 +1825,31 @@ export default function ExecuteOSScreen() {
                         if (!v.uri.startsWith('http')) {
                             const uploaded = await OrderService.uploadFile(v.uri, `orders/${order?.displayId || id}/videos`, order?.tenantId);
                             if (uploaded) uploadedUrls.push(uploaded);
-                            else uploadedUrls.push(v.uri);
+                            // Se upload retornou null, NÃO adiciona URI local — LAST-GATE no OrderService fará upload emergencial
+                            else console.warn(`[ExecuteOS] ⚠️ Upload de vídeo retornou null, será tratado pelo LAST-GATE: ${v.uri.substring(0, 50)}`);
                         } else {
                             uploadedUrls.push(v.uri);
                         }
                     }
-                    finalFormData['video_url'] = uploadedUrls.join(',');
+                    if (uploadedUrls.length > 0) {
+                        finalFormData['video_url'] = uploadedUrls.join(',');
+                    }
                 } catch (e) {
                     console.warn('[ExecuteOS] Falha ao persistir vídeos no impedimento:', e);
-                    finalFormData['video_url'] = videos.map(v => v.uri).join(',');
+                    // NÃO escreve URIs locais como fallback — LAST-GATE no OrderService tratará
                 }
             }
 
 
-            // 3. Bloquear a OS passando todos os dados preenchidos como additionalData
+            // 3. Sanitizar e garantir que nenhuma mídia local (file://, /var/mobile/...) vá para a DB
+            const sanitizedFormData = await sanitizeAndUploadFormData(finalFormData, order?.displayId || (id as string), order?.tenantId);
+
+            // 4. Bloquear a OS passando todos os dados preenchidos como additionalData
             await OrderService.blockOrder(
                 id as string,
                 impedimentReason.trim(),
                 blockPhotoUrls.length > 0 ? blockPhotoUrls : null,
-                { formData: finalFormData, items: usedItems }
+                { formData: sanitizedFormData, items: usedItems }
             );
 
             // 4. Limpar cache local desta OS
@@ -1550,18 +1861,21 @@ export default function ExecuteOSScreen() {
             setImpedimentResponsibleName('');
             setImpedimentSignature(null);
 
-            // Navigate directly to blocked tab
-            router.replace({ pathname: '/', params: { filter: 'blocked' } });
+            setTimeout(() => {
+                setIsBlockingFromForm(false);
+                setTimeout(() => {
+                    router.replace({ pathname: '/', params: { filter: 'blocked' } });
+                }, 100);
+            }, 1500);
         } catch (error) {
             console.error('[ExecuteOS] Error blocking from form:', error);
+            setIsBlockingFromForm(false);
             setAlertConfig({
                 visible: true,
                 title: t('alertError'),
                 message: t('execCouldNotRegister'),
                 buttons: [{ text: 'OK', style: 'default' }]
             });
-        } finally {
-            setIsBlockingFromForm(false);
         }
     };
 
@@ -1572,7 +1886,36 @@ export default function ExecuteOSScreen() {
         }
         
         try {
-            if (source === 'library') {
+            if (source === 'camera') {
+                const permission = await ImagePicker.requestCameraPermissionsAsync();
+                if (permission.status !== "granted") {
+                    Alert.alert(t('alertPermission'), 'Precisamos de permissão para acessar a câmera.');
+                    return;
+                }
+                setCameraConfig({
+                    visible: true,
+                    mode: 'photo',
+                    onPhotoCaptured: async (uri) => {
+                        setMediaProcessingLabel('Carregando...');
+                        setIsProcessingMedia(true);
+                        try {
+                            const { ImageService } = require('@/services/image-service');
+                            const compressed = await ImageService.compressImage(uri);
+                            setImpedimentPhotos(prev => [...prev, compressed]);
+                        } catch {
+                            setImpedimentPhotos(prev => [...prev, uri]);
+                        } finally {
+                            setIsProcessingMedia(false);
+                        }
+                    }
+                });
+                return;
+            } else {
+                const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (permission.status !== "granted") {
+                    Alert.alert(t('alertPermission'), 'Precisamos de permissão para acessar a galeria de fotos.');
+                    return;
+                }
                 setMediaProcessingLabel(t('execOpeningGallery') || 'Abrindo galeria...');
                 setIsProcessingMedia(true);
             }
@@ -1581,13 +1924,11 @@ export default function ExecuteOSScreen() {
                 mediaTypes: ['images'],
                 quality: 0.8,
             };
-            const result = source === 'camera'
-                ? await ImagePicker.launchCameraAsync(options)
-                : await ImagePicker.launchImageLibraryAsync({ 
-                    ...options, 
-                    allowsMultipleSelection: true,
-                    selectionLimit: 10 - impedimentPhotos.length 
-                });
+            const result = await ImagePicker.launchImageLibraryAsync({ 
+                ...options, 
+                allowsMultipleSelection: true,
+                selectionLimit: 10 - impedimentPhotos.length 
+            });
 
             if (!result.canceled && result.assets && result.assets.length > 0) {
                 setMediaProcessingLabel('Carregando...');
@@ -1913,24 +2254,31 @@ export default function ExecuteOSScreen() {
         );
     }
 
-    if (isCustomCameraActive) {
-        return (
-            <Modal visible={true} transparent={false} animationType="slide" onRequestClose={() => setIsCustomCameraActive(false)}>
-                <NexusCamera 
-                    onClose={() => setIsCustomCameraActive(false)} 
-                    onVideoRecorded={(uri) => {
-                        setIsCustomCameraActive(false);
-                        startBackstageVideoProcess(uri, true);
-                    }} 
-                />
-            </Modal>
-        );
-    }
+
 
     return (
-        <KeyboardAvoidingView style={[{ flex: 1 }, styles.container]} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+        <>
+            <KeyboardAvoidingView style={[{ flex: 1 }, styles.container]} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+                {cameraConfig.visible && (
+                <Modal visible={true} transparent={false} animationType="slide" onRequestClose={() => setCameraConfig(prev => ({ ...prev, visible: false }))}>
+                    <NexusCamera 
+                        mode={cameraConfig.mode}
+                        qualityMode={videoModeRef.current}
+                        onClose={() => setCameraConfig(prev => ({ ...prev, visible: false }))} 
+                        onPhotoCaptured={(uri) => {
+                            const cb = cameraConfig.onPhotoCaptured;
+                            setCameraConfig(prev => ({ ...prev, visible: false }));
+                            if (cb) cb(uri);
+                        }}
+                        onVideoRecorded={(uri) => {
+                            setCameraConfig(prev => ({ ...prev, visible: false }));
+                            startBackstageVideoProcess(uri, true);
+                        }} 
+                    />
+                </Modal>
+            )}
 
-            <ScrollView ref={scrollViewRef} style={{ flex: 1 }} contentContainerStyle={styles.content} scrollEnabled={true}>
+            <ScrollView ref={scrollViewRef} style={{ flex: 1 }} contentContainerStyle={styles.content} scrollEnabled={true} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
 
                 {/* PROGRESS BAR */}
                 <View style={styles.progressBarContainer}>
@@ -2370,7 +2718,7 @@ export default function ExecuteOSScreen() {
                     <View style={styles.section}>
                         <Text style={{ fontSize: 14, fontWeight: '900', color: '#1c2d4f', marginBottom: 4 }}>VALIDAÇÃO DO CLIENTE</Text>
                         <Text style={[styles.fieldLabel, { marginTop: 12, marginBottom: 4 }]}>{t('execResponsibleName')}</Text>
-                        <TextInput style={styles.input} placeholder="Quem acompanhou o serviço" value={clientName} onChangeText={setClientName} />
+                        <TextInput style={styles.input} placeholder="Quem acompanhou o serviço" placeholderTextColor="#94a3b8" value={clientName} onChangeText={setClientName} returnKeyType="done" />
 
                         <Text style={[styles.fieldLabel, { marginTop: 24, marginBottom: 8 }]}>{t('execDigitalSignature')}</Text>
                         {signature ? (
@@ -2380,7 +2728,7 @@ export default function ExecuteOSScreen() {
                             </Pressable>
                         ) : (
                             <Pressable style={styles.signaturePlaceholder} onPress={async () => {
-                                await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+                                await ScreenOrientation.unlockAsync().catch(() => {});
                                 setSignatureModalVisible(true);
                             }}>
                                 <Ionicons name="pencil" size={32} color="#666" />
@@ -2427,7 +2775,7 @@ export default function ExecuteOSScreen() {
                         </Pressable>
                     </View>
 
-                    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
+                    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 120 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
                         <View style={styles.impedimentInfoBox}>
                             <Ionicons name="information-circle-outline" size={16} color="#1d4ed8" />
                             <Text style={styles.impedimentInfoText}>
@@ -2578,46 +2926,7 @@ export default function ExecuteOSScreen() {
                             </Pressable>
                         </View>
 
-                        {/* Overlay de progresso durante envio */}
-                        {isSubmitting && (
-                            <Modal transparent animationType="fade" visible={isSubmitting}>
-                                <View style={{ flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
-                                    <View style={{ backgroundColor: '#ffffff', borderRadius: 20, padding: 32, width: '85%', alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12 }}>
-                                        <ActivityIndicator size="large" color="#1c2d4f" style={{ marginBottom: 20 }} />
-                                        <Text style={{ fontSize: 18, fontWeight: '800', color: '#0f172a', marginBottom: 8, textAlign: 'center' }}>
-                                            Finalizando OS
-                                        </Text>
-                                        <Text style={{ fontSize: 14, color: '#475569', textAlign: 'center', marginBottom: 16 }}>
-                                            {submitProgress.label || 'Preparando...'}
-                                        </Text>
-                                        {submitProgress.total > 0 && (
-                                            <View style={{ width: '100%', height: 6, backgroundColor: '#e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
-                                                <View style={{ width: `${Math.round((submitProgress.current / submitProgress.total) * 100)}%`, height: '100%', backgroundColor: '#16a34a', borderRadius: 3 }} />
-                                            </View>
-                                        )}
-                                        {submitProgress.total > 0 && (
-                                            <Text style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>
-                                                {submitProgress.current}/{submitProgress.total} arquivos enviados
-                                            </Text>
-                                        )}
-                                    </View>
-                                </View>
-                            </Modal>
-                        )}
-                        
-                        {/* Overlay de processamento de mídia (Galeria/Fotos) */}
-                        {isProcessingMedia && (
-                            <Modal transparent animationType="fade" visible={isProcessingMedia}>
-                                <View style={{ flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.7)', justifyContent: 'center', alignItems: 'center' }}>
-                                    <View style={{ backgroundColor: '#ffffff', borderRadius: 16, padding: 24, alignItems: 'center', width: '70%' }}>
-                                        <ActivityIndicator size="large" color="#1c2d4f" />
-                                        <Text style={{ marginTop: 16, fontSize: 14, fontWeight: '700', color: '#1c2d4f', textAlign: 'center' }}>
-                                            {mediaProcessingLabel}
-                                        </Text>
-                                    </View>
-                                </View>
-                            </Modal>
-                        )}
+
 
                         {allowImpediment && (
                         <Pressable
@@ -2653,45 +2962,166 @@ export default function ExecuteOSScreen() {
                 )}
             </View>
 
-            {/* Modals */}
-            <Modal visible={isSignatureModalVisible} animationType="slide" onRequestClose={async () => {
-                await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-                setSignatureModalVisible(false);
-            }}>
-                <View style={styles.signatureModalContainer}>
-                    <SignatureScreen ref={signatureRef} onOK={handleSignature}
-                        webStyle={`.m-signature-pad--footer {display: none; margin: 0px;} body,html {width: 100%; height: 100%;}`}
-                    />
-                    <View style={[styles.signatureFooter, { paddingBottom: 16 }]}>
-                        <Pressable onPress={async () => {
-                            await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-                            setSignatureModalVisible(false);
-                        }} style={styles.signatureActionBtn}><Text>{t('execSignatureCancel')}</Text></Pressable>
-                        <Pressable onPress={() => signatureRef.current?.readSignature()} style={[styles.signatureActionBtn, styles.confirmBtn]}><Text style={styles.confirmText}>{t('execSignatureConfirm')}</Text></Pressable>
+            {/* Modals: ASSINATURA CLIENTE */}
+            <Modal 
+                visible={isSignatureModalVisible} 
+                animationType="slide" 
+                supportedOrientations={['portrait', 'portrait-upside-down', 'landscape', 'landscape-left', 'landscape-right']}
+                onRequestClose={async () => {
+                    await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+                    setSignatureModalVisible(false);
+                }}
+            >
+                <SafeAreaView style={styles.signatureModalSafeArea}>
+                    <View style={styles.signatureModalHeader}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <Ionicons name="create-outline" size={24} color="#1c2d4f" />
+                            <Text style={styles.signatureModalTitle}>Assinatura do Responsável</Text>
+                        </View>
+                        <Pressable 
+                            onPress={async () => {
+                                await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+                                setSignatureModalVisible(false);
+                            }}
+                            hitSlop={10}
+                            style={styles.signatureCloseBtn}
+                        >
+                            <Ionicons name="close" size={22} color="#64748b" />
+                        </Pressable>
                     </View>
-                </View>
+
+                    <Text style={styles.signatureModalSubtitle}>
+                        Desenhe a assinatura no campo abaixo (deite o celular para assinar em tela ampla):
+                    </Text>
+
+                    <View style={styles.signatureCanvasWrapper}>
+                        <SignatureScreen 
+                            ref={signatureRef} 
+                            onOK={handleSignature}
+                            webStyle={`
+                                .m-signature-pad { box-shadow: none; border: none; background-color: #ffffff; width: 100%; height: 100%; }
+                                .m-signature-pad--body { border: 2px dashed #94a3b8; border-radius: 12px; background-color: #ffffff; position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+                                .m-signature-pad--footer { display: none; margin: 0px; }
+                                body, html { width: 100%; height: 100%; background-color: #ffffff; margin: 0; padding: 0; overflow: hidden; }
+                            `}
+                            style={{ flex: 1, width: '100%', height: '100%' }}
+                        />
+                    </View>
+
+                    <View style={[
+                        styles.signatureFooter,
+                        {
+                            paddingBottom: Math.max(insets.bottom, 12),
+                            paddingLeft: Math.max(insets.left, 16),
+                            paddingRight: Math.max(insets.right, 16),
+                        }
+                    ]}>
+                        <Pressable 
+                            onPress={async () => {
+                                await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+                                setSignatureModalVisible(false);
+                            }} 
+                            style={styles.signatureCancelBtn}
+                        >
+                            <Text style={styles.signatureCancelBtnText}>{t('execSignatureCancel') || 'Cancelar'}</Text>
+                        </Pressable>
+                        <Pressable 
+                            onPress={() => signatureRef.current?.clearSignature()} 
+                            style={styles.signatureClearBtn}
+                        >
+                            <Ionicons name="refresh-outline" size={18} color="#dc2626" style={{ marginRight: 4 }} />
+                            <Text style={styles.signatureClearBtnText}>{t('execSignatureClear') || 'Limpar'}</Text>
+                        </Pressable>
+                        <Pressable 
+                            onPress={() => signatureRef.current?.readSignature()} 
+                            style={styles.signatureConfirmBtn}
+                        >
+                            <Ionicons name="checkmark" size={20} color="#ffffff" style={{ marginRight: 4 }} />
+                            <Text style={styles.signatureConfirmBtnText}>{t('execSignatureConfirm') || 'Confirmar'}</Text>
+                        </Pressable>
+                    </View>
+                </SafeAreaView>
             </Modal>
 
             {/* MODAL: ASSINATURA IMPEDIMENTO */}
-            <Modal visible={isImpedimentSignatureVisible} animationType="slide" onRequestClose={async () => {
-                await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-                setIsImpedimentSignatureVisible(false);
-            }}>
-                <View style={styles.signatureModalContainer}>
-                    <SignatureScreen
-                        ref={signatureRef}
-                        onOK={handleImpedimentSignature}
-                        webStyle={`.m-signature-pad--footer {display: none; margin: 0px;} body,html {width: 100%; height: 100%;}`}
-                    />
-                    <View style={[styles.signatureFooter, { paddingBottom: 16 }]}>
-                        <Pressable onPress={async () => {
-                            await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-                            setIsImpedimentSignatureVisible(false);
-                        }} style={styles.signatureActionBtn}><Text>{t('execSignatureBack')}</Text></Pressable>
-                        <Pressable onPress={() => signatureRef.current?.clearSignature()} style={styles.signatureActionBtn}><Text>{t('execSignatureClear')}</Text></Pressable>
-                        <Pressable onPress={() => signatureRef.current?.readSignature()} style={[styles.signatureActionBtn, styles.confirmBtn]}><Text style={styles.confirmText}>{t('execSignatureConfirm')}</Text></Pressable>
+            <Modal 
+                visible={isImpedimentSignatureVisible} 
+                animationType="slide" 
+                supportedOrientations={['portrait', 'portrait-upside-down', 'landscape', 'landscape-left', 'landscape-right']}
+                onRequestClose={async () => {
+                    await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+                    setIsImpedimentSignatureVisible(false);
+                }}
+            >
+                <SafeAreaView style={styles.signatureModalSafeArea}>
+                    <View style={styles.signatureModalHeader}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <Ionicons name="shield-outline" size={24} color="#dc2626" />
+                            <Text style={[styles.signatureModalTitle, { color: '#dc2626' }]}>Assinatura de Impedimento</Text>
+                        </View>
+                        <Pressable 
+                            onPress={async () => {
+                                await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+                                setIsImpedimentSignatureVisible(false);
+                            }}
+                            hitSlop={10}
+                            style={styles.signatureCloseBtn}
+                        >
+                            <Ionicons name="close" size={22} color="#64748b" />
+                        </Pressable>
                     </View>
-                </View>
+
+                    <Text style={styles.signatureModalSubtitle}>
+                        Desenhe a assinatura de confirmação do impedimento:
+                    </Text>
+
+                    <View style={styles.signatureCanvasWrapper}>
+                        <SignatureScreen
+                            ref={signatureRef}
+                            onOK={handleImpedimentSignature}
+                            webStyle={`
+                                .m-signature-pad { box-shadow: none; border: none; background-color: #ffffff; width: 100%; height: 100%; }
+                                .m-signature-pad--body { border: 2px dashed #94a3b8; border-radius: 12px; background-color: #ffffff; position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+                                .m-signature-pad--footer { display: none; margin: 0px; }
+                                body, html { width: 100%; height: 100%; background-color: #ffffff; margin: 0; padding: 0; overflow: hidden; }
+                            `}
+                            style={{ flex: 1, width: '100%', height: '100%' }}
+                        />
+                    </View>
+
+                    <View style={[
+                        styles.signatureFooter,
+                        {
+                            paddingBottom: Math.max(insets.bottom, 12),
+                            paddingLeft: Math.max(insets.left, 16),
+                            paddingRight: Math.max(insets.right, 16),
+                        }
+                    ]}>
+                        <Pressable 
+                            onPress={async () => {
+                                await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+                                setIsImpedimentSignatureVisible(false);
+                            }} 
+                            style={styles.signatureCancelBtn}
+                        >
+                            <Text style={styles.signatureCancelBtnText}>{t('execSignatureBack') || 'Voltar'}</Text>
+                        </Pressable>
+                        <Pressable 
+                            onPress={() => signatureRef.current?.clearSignature()} 
+                            style={styles.signatureClearBtn}
+                        >
+                            <Ionicons name="refresh-outline" size={18} color="#dc2626" style={{ marginRight: 4 }} />
+                            <Text style={styles.signatureClearBtnText}>{t('execSignatureClear') || 'Limpar'}</Text>
+                        </Pressable>
+                        <Pressable 
+                            onPress={() => signatureRef.current?.readSignature()} 
+                            style={styles.signatureConfirmBtn}
+                        >
+                            <Ionicons name="checkmark" size={20} color="#ffffff" style={{ marginRight: 4 }} />
+                            <Text style={styles.signatureConfirmBtnText}>{t('execSignatureConfirm') || 'Confirmar'}</Text>
+                        </Pressable>
+                    </View>
+                </SafeAreaView>
             </Modal>
 
 
@@ -2722,6 +3152,7 @@ export default function ExecuteOSScreen() {
                                     placeholder="Pesquisar por nome ou código..."
                                     value={searchQuery}
                                     onChangeText={setSearchQuery}
+                                    returnKeyType="done"
                                 />
                                 {searchQuery.length > 0 && (
                                     <Pressable onPress={() => setSearchQuery('')}>
@@ -2809,10 +3240,8 @@ export default function ExecuteOSScreen() {
 
                                 <TextInput
                                     style={{ fontSize: 32, fontWeight: 'bold', color: '#334155', textAlign: 'center', minWidth: 60 }}
-                                    keyboardType="numeric"
                                     value={qtyToSelect}
-                                    onChangeText={setQtyToSelect}
-                                    autoFocus
+                                    editable={false}
                                 />
 
                                 <Pressable
@@ -3004,7 +3433,9 @@ export default function ExecuteOSScreen() {
                                     if (!photoSourceTarget) return;
                                     const callback = photoSourceTarget.type === 'extra' 
                                         ? uploadExtraPhoto 
-                                        : (uris: string[]) => uploadFieldPhoto(uris, photoSourceTarget.eqKey!, photoSourceTarget.fieldId!);
+                                        : photoSourceTarget.type === 'impediment'
+                                            ? (uris: string[]) => setImpedimentPhotos(prev => [...prev, ...uris].slice(0, 10))
+                                            : (uris: string[]) => uploadFieldPhoto(uris, photoSourceTarget.eqKey!, photoSourceTarget.fieldId!);
                                     
                                     processPhotoChoice('camera', callback);
                                 }}
@@ -3018,10 +3449,12 @@ export default function ExecuteOSScreen() {
                                 onPress={() => {
                                     setIsPhotoSourceModalVisible(false);
                                     if (!photoSourceTarget) return;
-                                    const limit = photoSourceTarget.type === 'extra' ? 10 : 7;
+                                    const limit = photoSourceTarget.type === 'extra' ? 10 : photoSourceTarget.type === 'impediment' ? 10 : 7;
                                     const callback = photoSourceTarget.type === 'extra' 
                                         ? uploadExtraPhoto 
-                                        : (uris: string[]) => uploadFieldPhoto(uris, photoSourceTarget.eqKey!, photoSourceTarget.fieldId!);
+                                        : photoSourceTarget.type === 'impediment'
+                                            ? (uris: string[]) => setImpedimentPhotos(prev => [...prev, ...uris].slice(0, 10))
+                                            : (uris: string[]) => uploadFieldPhoto(uris, photoSourceTarget.eqKey!, photoSourceTarget.fieldId!);
                                     
                                     processPhotoChoice('library', callback, limit);
                                 }}
@@ -3178,6 +3611,59 @@ export default function ExecuteOSScreen() {
             />
 
         </KeyboardAvoidingView>
+
+            {/* Overlay de progresso durante envio */}
+            <Modal transparent={true} visible={isSubmitting} animationType="fade">
+                <View style={{ flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+                    <View style={{ backgroundColor: '#ffffff', borderRadius: 24, padding: 28, width: '90%', maxWidth: 360, alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12 }}>
+                        <ActivityIndicator size="large" color="#1c2d4f" style={{ marginBottom: 16 }} />
+                        <Text style={{ fontSize: 15, fontWeight: '800', color: '#0f172a', marginBottom: 8, textAlign: 'center' }} adjustsFontSizeToFit numberOfLines={2}>
+                            Finalizando OS
+                        </Text>
+                        <Text style={{ fontSize: 13, color: '#475569', textAlign: 'center', marginBottom: 16 }} adjustsFontSizeToFit numberOfLines={3}>
+                            {submitProgress.label || 'Preparando...'}
+                        </Text>
+                        {submitProgress.total > 0 && (
+                            <View style={{ width: '100%', height: 6, backgroundColor: '#e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
+                                <View style={{ width: `${Math.round((submitProgress.current / submitProgress.total) * 100)}%`, height: '100%', backgroundColor: '#16a34a', borderRadius: 3 }} />
+                            </View>
+                        )}
+                        {submitProgress.total > 0 && (
+                            <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 8 }}>
+                                {submitProgress.current}/{submitProgress.total} arquivos enviados
+                            </Text>
+                        )}
+                    </View>
+                </View>
+            </Modal>
+            
+            {/* Overlay de bloqueio/impedimento */}
+            <Modal transparent={true} visible={isBlockingFromForm} animationType="fade">
+                <View style={{ flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+                    <View style={{ backgroundColor: '#ffffff', borderRadius: 24, padding: 28, width: '90%', maxWidth: 360, alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12 }}>
+                        <ActivityIndicator size="large" color="#dc2626" style={{ marginBottom: 16 }} />
+                        <Text style={{ fontSize: 15, fontWeight: '800', color: '#0f172a', marginBottom: 8, textAlign: 'center' }} adjustsFontSizeToFit numberOfLines={2}>
+                            Concluindo impedimento...
+                        </Text>
+                        <Text style={{ fontSize: 13, color: '#475569', textAlign: 'center' }} adjustsFontSizeToFit numberOfLines={3}>
+                            Registrando no sistema
+                        </Text>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Overlay de processamento de mídia (Galeria/Fotos) */}
+            <Modal transparent={true} visible={isProcessingMedia} animationType="fade">
+                <View style={{ flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.7)', justifyContent: 'center', alignItems: 'center' }}>
+                    <View style={{ backgroundColor: '#ffffff', borderRadius: 16, padding: 24, alignItems: 'center', width: '75%', maxWidth: 300 }}>
+                        <ActivityIndicator size="large" color="#1c2d4f" />
+                        <Text style={{ marginTop: 16, fontSize: 14, fontWeight: '700', color: '#1c2d4f', textAlign: 'center' }} adjustsFontSizeToFit numberOfLines={2}>
+                            {mediaProcessingLabel}
+                        </Text>
+                    </View>
+                </View>
+            </Modal>
+        </>
     );
 }
 
@@ -3208,20 +3694,148 @@ const styles = StyleSheet.create({
     clearSignatureText: { color: '#e11d48', fontWeight: '700', marginTop: 8, fontSize: 12 },
     footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#ffffff', padding: 6, borderTopWidth: 1, borderTopColor: '#f1f5f9', shadowColor: '#000', shadowOffset: { width: 0, height: -8 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 12 },
     submitButton: { backgroundColor: '#10b981', paddingVertical: 14, borderRadius: 12, alignItems: 'center', shadowColor: '#10b981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 3 },
-    submitButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '800', letterSpacing: 0.5 },
-    signatureModalContainer: { flex: 1, backgroundColor: '#ffffff', paddingTop: 40 },
-    signatureFooter: { flexDirection: 'row', padding: 16, justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#f1f5f9' },
-    signatureActionBtn: { paddingVertical: 12, paddingHorizontal: 24, borderRadius: 10, backgroundColor: '#f1f5f9' },
-    confirmBtn: { backgroundColor: '#1c2d4f' },
-    confirmText: { color: '#ffffff', fontWeight: 'bold' },
+    signatureModalSafeArea: {
+        flex: 1,
+        backgroundColor: '#ffffff',
+    },
+    signatureModalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingTop: Platform.OS === 'ios' ? 4 : 8,
+        paddingBottom: 6,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f1f5f9',
+    },
+    signatureModalTitle: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: '#1c2d4f',
+    },
+    signatureModalSubtitle: {
+        fontSize: 12,
+        color: '#64748b',
+        paddingHorizontal: 16,
+        paddingTop: 6,
+        paddingBottom: 4,
+    },
+    signatureCloseBtn: {
+        padding: 6,
+        borderRadius: 20,
+        backgroundColor: '#f1f5f9',
+    },
+    signatureCanvasWrapper: {
+        flex: 1,
+        marginHorizontal: 8,
+        marginVertical: 4,
+        borderRadius: 12,
+        overflow: 'hidden',
+        borderWidth: 1.5,
+        borderColor: '#cbd5e1',
+        backgroundColor: '#ffffff',
+    },
+    signatureFooter: {
+        flexDirection: 'row',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        gap: 8,
+        backgroundColor: '#ffffff',
+        borderTopWidth: 1,
+        borderTopColor: '#f1f5f9',
+        alignItems: 'center',
+    },
+    signatureCancelBtn: {
+        flex: 1,
+        paddingVertical: 10,
+        borderRadius: 10,
+        backgroundColor: '#f1f5f9',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    signatureCancelBtnText: {
+        color: '#475569',
+        fontWeight: '700',
+        fontSize: 14,
+    },
+    signatureClearBtn: {
+        flex: 1,
+        flexDirection: 'row',
+        paddingVertical: 10,
+        borderRadius: 10,
+        backgroundColor: '#fee2e2',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    signatureClearBtnText: {
+        color: '#dc2626',
+        fontWeight: '700',
+        fontSize: 14,
+    },
+    signatureConfirmBtn: {
+        flex: 1.4,
+        flexDirection: 'row',
+        paddingVertical: 10,
+        borderRadius: 10,
+        backgroundColor: '#1c2d4f',
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#1c2d4f',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    signatureConfirmBtnText: {
+        color: '#ffffff',
+        fontWeight: '800',
+        fontSize: 14,
+    },
+    signatureLandscapeContainer: {
+        flex: 1,
+        flexDirection: 'row',
+        padding: 12,
+        backgroundColor: '#ffffff',
+        gap: 12,
+    },
+    signatureLandscapeSidebar: {
+        width: 170,
+        justifyContent: 'space-between',
+        paddingRight: 10,
+        borderRightWidth: 1,
+        borderRightColor: '#e2e8f0',
+    },
+    signatureLandscapeTitle: {
+        fontSize: 13,
+        fontWeight: '800',
+        color: '#1c2d4f',
+        flexShrink: 1,
+    },
+    signatureLandscapeSubtitle: {
+        fontSize: 11,
+        color: '#64748b',
+        marginBottom: 8,
+    },
+    signatureLandscapeActions: {
+        gap: 8,
+        marginTop: 'auto',
+    },
+    signatureCanvasWrapperLandscape: {
+        flex: 1,
+        borderRadius: 12,
+        overflow: 'hidden',
+        borderWidth: 1.5,
+        borderColor: '#cbd5e1',
+        backgroundColor: '#ffffff',
+    },
     infoCard: { backgroundColor: '#ffffff', borderRadius: 14, padding: 16, marginBottom: 18, borderLeftWidth: 4, borderLeftColor: '#1c2d4f', shadowColor: '#1c2d4f', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
     infoCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', paddingBottom: 10 },
-    infoCardTitle: { fontSize: 14, fontWeight: '800', color: '#1c2d4f', textTransform: 'uppercase', letterSpacing: 0.5 },
+    infoCardTitle: { fontSize: 13, fontWeight: '800', color: '#1c2d4f', textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 1 },
     infoRow: { marginBottom: 8 },
     infoLabel: { fontSize: 10, fontWeight: '900', color: '#94a3b8', marginBottom: 2, letterSpacing: 0.5 },
-    infoValue: { fontSize: 13, color: '#334155', fontWeight: '500' },
+    infoValue: { fontSize: 13, color: '#334155', fontWeight: '500', flexShrink: 1 },
     infoDivider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 10 },
-    infoValueBold: { fontSize: 14, fontWeight: '800', color: '#1c2d4f' },
+    infoValueBold: { fontSize: 13, fontWeight: '800', color: '#1c2d4f', flexShrink: 1 },
     equipmentGroup: { marginBottom: 18, borderRadius: 14, backgroundColor: '#ffffff', shadowColor: '#1c2d4f', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },
     equipmentHeader: { backgroundColor: '#1c2d4f', padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     equipmentIconWrapper: { backgroundColor: '#ffffff', padding: 4, borderRadius: 6 },
@@ -3263,7 +3877,7 @@ const styles = StyleSheet.create({
     card: { marginBottom: 14, backgroundColor: '#ffffff', borderRadius: 14, shadowColor: '#1c2d4f', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },
     cardHeader: { backgroundColor: '#f8fafc', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
     headerIconBox: { padding: 6, borderRadius: 8 },
-    cardTitle: { fontSize: 14, fontWeight: '700', color: '#334155' },
+    cardTitle: { fontSize: 13, fontWeight: '700', color: '#334155', flexShrink: 1 },
     cardContent: { padding: 16 },
     // ── Video Card Styles ──────────────────────────────────────────────────────
     videoProcessingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 28, backgroundColor: '#f0fdf4', borderRadius: 12, borderWidth: 1, borderColor: '#bbf7d0' },

@@ -1,8 +1,22 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, TextInput, TextInputProps, Pressable, StyleSheet, Animated, Platform, Alert, Text, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View, TextInput, TextInputProps, Pressable, StyleSheet, Animated,
+  Platform, Alert, Text, ActivityIndicator
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Voice, { SpeechResultsEvent, SpeechErrorEvent } from '@react-native-voice/voice';
 import { useI18n } from '@/services/i18n';
+
+// Importação condicional para não quebrar o Expo Go (que não possui módulos nativos customizados compilados)
+let ExpoSpeechRecognitionModule: any = null;
+let useSpeechRecognitionEvent: any = (event: string, callback: any) => {};
+
+try {
+  const Speech = require('expo-speech-recognition');
+  ExpoSpeechRecognitionModule = Speech.ExpoSpeechRecognitionModule;
+  useSpeechRecognitionEvent = Speech.useSpeechRecognitionEvent || useSpeechRecognitionEvent;
+} catch (e) {
+  console.warn("ExpoSpeechRecognition native module not found. Voice typing disabled in this environment.");
+}
 
 interface VoiceTextInputProps extends Omit<TextInputProps, 'onChangeText'> {
   onChangeText: (text: string) => void;
@@ -13,23 +27,20 @@ export const VoiceTextInput: React.FC<VoiceTextInputProps> = ({ onChangeText, va
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const { t, locale } = useI18n();
+  const { locale } = useI18n();
 
-  // Pulse animation for recording state
+  const valueRef = useRef(value);
+  valueRef.current = value;
+  const onChangeTextRef = useRef(onChangeText);
+  onChangeTextRef.current = onChangeText;
+
+  // ── Animação de pulso durante gravação ──
   useEffect(() => {
     if (isRecording) {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.2,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-          })
+          Animated.timing(pulseAnim, { toValue: 1.2, duration: 800, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
         ])
       ).start();
     } else {
@@ -38,85 +49,81 @@ export const VoiceTextInput: React.FC<VoiceTextInputProps> = ({ onChangeText, va
     }
   }, [isRecording, pulseAnim]);
 
-  // Clean up Voice on unmount just in case
-  useEffect(() => {
-    return () => {
-      if (isRecording) {
-        Voice.stop();
-        Voice.destroy().then(Voice.removeAllListeners);
-      }
-    };
-  }, [isRecording]);
+  // ── Eventos do expo-speech-recognition ──
+  useSpeechRecognitionEvent('start', () => {
+    setIsRecording(true);
+    setIsProcessing(false);
+  });
 
-  const attachListeners = useCallback(() => {
-    Voice.onSpeechStart = () => {
-      setIsRecording(true);
-      setIsProcessing(false);
-    };
+  useSpeechRecognitionEvent('end', () => {
+    setIsRecording(false);
+    setIsProcessing(false);
+  });
 
-    Voice.onSpeechRecognized = () => {
-      setIsProcessing(true);
-    };
-
-    Voice.onSpeechEnd = () => {
-      setIsRecording(false);
-      setIsProcessing(false);
-    };
-
-    Voice.onSpeechError = (e: SpeechErrorEvent) => {
-      setIsRecording(false);
-      setIsProcessing(false);
-      // '7' is No match, '6' is speech timeout (normal if they don't speak)
-      if (e.error?.code !== '7' && e.error?.code !== '6') {
-        console.warn('Voice Error:', e.error);
-        Alert.alert('Erro no microfone', `Não foi possível capturar a voz. (${e.error?.message})`);
-      }
-    };
-
-    Voice.onSpeechResults = (e: SpeechResultsEvent) => {
-      if (e.value && e.value.length > 0) {
-        const spokenText = e.value[0]; // Melhor palpite
-        const currentText = value || '';
-        const prefix = currentText.length > 0 && !currentText.endsWith(' ') ? ' ' : '';
-        // Concatena a fala ao texto existente
-        onChangeText(currentText + prefix + spokenText);
-      }
-      setIsRecording(false);
-      setIsProcessing(false);
-    };
+  useSpeechRecognitionEvent('error', (event) => {
+    setIsRecording(false);
+    setIsProcessing(false);
     
-    // onSpeechPartialResults can be used for live preview, but for forms, waiting for the final result is safer
-  }, [value, onChangeText]);
+    const errMsg = event.error || '';
+    const isIgnored = errMsg.includes('no-speech') || errMsg.includes('aborted') || errMsg.includes('network');
+    
+    if (!isIgnored) {
+       console.warn('Voice Error:', event);
+       Alert.alert('Aviso', `Não foi possível entender o áudio. Por favor, tente novamente.\n(Detalhe: ${errMsg})`);
+    }
+  });
 
-  const detachListeners = useCallback(() => {
-    Voice.removeAllListeners();
-  }, []);
+  useSpeechRecognitionEvent('result', (event) => {
+    if (event.results && event.results.length > 0) {
+      // Pega o resultado mais confiável do primeiro item (transcrição final)
+      const transcript = event.results[0]?.transcript || '';
+      
+      if (transcript && event.isFinal) {
+        const currentText = valueRef.current || '';
+        const prefix = currentText.length > 0 && !currentText.endsWith(' ') ? ' ' : '';
+        onChangeTextRef.current(currentText + prefix + transcript);
+      }
+    }
+  });
 
+  // ── Toggle gravação ──
   const toggleRecording = async () => {
-    if (isRecording) {
-      try {
-        await Voice.stop();
-      } catch (e) {
-        console.warn('Error stopping voice', e);
-      }
-    } else {
-      try {
-        // Pre-flight check for permissions could go here if needed
-        detachListeners(); // Clear any global listeners from other inputs
-        attachListeners(); // Bind to THIS specific input
-        
-        // Define o idioma com base na configuração do app
-        let voiceLang = 'pt-BR'; // Padrão
-        const currentLocale = typeof locale === 'string' ? locale.toLowerCase() : '';
-        if (currentLocale.startsWith('en')) voiceLang = 'en-US';
-        else if (currentLocale.startsWith('es')) voiceLang = 'es-ES';
-        else if (currentLocale.startsWith('pt')) voiceLang = 'pt-BR';
+    if (!ExpoSpeechRecognitionModule) {
+      Alert.alert('Funcionalidade Indisponível', 'A digitação por voz requer que o aplicativo seja compilado (não funciona no Expo Go).');
+      return;
+    }
 
-        await Voice.start(voiceLang);
-      } catch (e: any) {
-        console.warn('Error starting voice', e);
-        Alert.alert('Erro', 'Não foi possível iniciar o microfone. Verifique as permissões.');
+    if (isRecording) {
+      ExpoSpeechRecognitionModule.stop();
+      setIsRecording(false);
+      setIsProcessing(false);
+      return;
+    }
+
+    try {
+      // 1. Solicita permissão
+      const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!result.granted) {
+        Alert.alert('Permissão Negada', 'A permissão de acesso ao microfone é necessária para usar a transcrição de voz.');
+        return;
       }
+
+      // 2. Define idioma
+      let voiceLang = 'pt-BR';
+      const currentLocale = typeof locale === 'string' ? locale.toLowerCase() : '';
+      if (currentLocale.startsWith('en')) voiceLang = 'en-US';
+      else if (currentLocale.startsWith('es')) voiceLang = 'es-ES';
+
+      // 3. Inicia reconhecimento de voz
+      ExpoSpeechRecognitionModule.start({ lang: voiceLang });
+    } catch (e: any) {
+      console.warn('Voice start error:', e);
+      setIsRecording(false);
+      setIsProcessing(false);
+      Alert.alert(
+        'Erro ao Iniciar Voz',
+        `Não foi possível iniciar o reconhecimento de voz.\n\n(${e.message || 'Erro interno'})`
+      );
     }
   };
 
@@ -124,16 +131,17 @@ export const VoiceTextInput: React.FC<VoiceTextInputProps> = ({ onChangeText, va
     <View style={styles.container}>
       <TextInput
         style={[
-          styles.input, 
+          styles.input,
           props.multiline && styles.inputMultiline,
-          style // Apply external style directly to TextInput to preserve exact original spacing/margins
+          style
         ]}
         value={value}
         onChangeText={onChangeText}
         placeholderTextColor="#94a3b8"
+        returnKeyType={props.multiline ? "default" : "done"}
         {...props}
       />
-      
+
       <View style={styles.micContainer}>
         {isRecording ? (
           <Pressable onPress={toggleRecording} style={styles.micButtonActive}>
@@ -164,7 +172,7 @@ const styles = StyleSheet.create({
   input: {
     width: '100%',
     padding: 14,
-    paddingRight: 50, // Space for the mic button
+    paddingRight: 50,
     backgroundColor: '#f8fafc',
     borderWidth: 1,
     borderColor: '#e2e8f0',
@@ -175,7 +183,7 @@ const styles = StyleSheet.create({
   inputMultiline: {
     minHeight: 100,
     textAlignVertical: 'top',
-    paddingBottom: 40, // More space at the bottom for multiline mic
+    paddingBottom: 40,
   },
   micContainer: {
     position: 'absolute',
@@ -186,7 +194,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#f1f5f9', // Light Slate for a clean, neutral look
+    backgroundColor: '#f1f5f9',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
