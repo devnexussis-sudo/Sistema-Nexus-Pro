@@ -31,7 +31,7 @@ serve(async (req) => {
         .maybeSingle();
       if (stData) tenantSettings = stData;
     }
-    if (!tenantSettings || !tenantSettings.asaas_api_key) {
+    if (!tenantSettings) {
       const { data: globalSettings } = await supabase
         .from('tenant_asaas_settings')
         .select('*')
@@ -42,6 +42,17 @@ serve(async (req) => {
     }
 
     let ASAAS_API_KEY = tenantSettings?.asaas_api_key?.trim();
+    
+    // BUSCA CHAVE REAL NO COFRE
+    if (tenantSettings?.tenant_id) {
+       const { data: vault } = await supabase
+           .from('tenant_secrets')
+           .select('asaas_api_key')
+           .eq('tenant_id', tenantSettings.tenant_id)
+           .single();
+       if (vault?.asaas_api_key) ASAAS_API_KEY = vault.asaas_api_key.trim();
+    }
+
     if (!ASAAS_API_KEY) {
       ASAAS_API_KEY = (Deno.env.get('ASAAS_API_KEY') || Deno.env.get('ASAAS_ACCESS_TOKEN') || '').trim();
     }

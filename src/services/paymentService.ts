@@ -13,19 +13,24 @@ export const PaymentService = {
     try {
       const { data, error } = await supabase
         .from('tenant_asaas_settings')
-        .select('*')
+        .select('id, tenant_id, asaas_wallet_id, is_active, created_at, updated_at, is_sandbox')
         .eq('tenant_id', tenantId)
         .maybeSingle();
 
       if (!error && data && data.is_active) {
+        // Busca a chave mascarada do Cofre (Vault)
+        const { data: vaultData } = await supabase.rpc('get_integration_status', { p_tenant_id: tenantId });
+        const maskedKey = vaultData?.has_asaas ? (vaultData?.masked_asaas || 'sk_live_********') : '';
+
         return {
           id: data.id,
           tenantId: data.tenant_id,
-          asaasApiKey: data.asaas_api_key,
+          asaasApiKey: maskedKey, // Agora expõe apenas a chave mascarada
           asaasWalletId: data.asaas_wallet_id,
           isActive: data.is_active,
           createdAt: data.created_at,
-          updatedAt: data.updated_at
+          updatedAt: data.updated_at,
+          is_sandbox: data.is_sandbox
         };
       }
     } catch (err) {
@@ -47,7 +52,6 @@ export const PaymentService = {
 
     const payload = {
       tenant_id: tenantId,
-      asaas_api_key: data.asaasApiKey,
       asaas_wallet_id: data.asaasWalletId,
       is_sandbox: data.is_sandbox !== undefined ? data.is_sandbox : true,
       is_active: true,
@@ -55,6 +59,7 @@ export const PaymentService = {
     };
 
     try {
+      // 1. Salva apenas os metadados na tabela normal (sem a chave de API)
       const { error } = await supabase
         .from('tenant_asaas_settings')
         .upsert(payload, { onConflict: 'tenant_id' });
@@ -62,6 +67,15 @@ export const PaymentService = {
       if (error) {
         console.error('[PaymentService] Erro ao salvar configurações do Asaas:', JSON.stringify(error));
         return false;
+      }
+      
+      // 2. Salva a chave REAL no Cofre de Segredos (Vault) via RPC
+      // Só atualiza se o usuário digitou uma nova chave (evita sobrescrever com a mascarada)
+      if (data.asaasApiKey && !data.asaasApiKey.includes('****')) {
+         await supabase.rpc('update_tenant_secrets', { 
+           p_tenant_id: tenantId, 
+           p_asaas_api_key: data.asaasApiKey 
+         });
       }
       
       // 🚀 AUTOMATIZAÇÃO DO WEBHOOK

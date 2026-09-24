@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+.gauge { width: 200px; height: 100px; overflow: hidden; position: relative; }
+.gauge-bg { position: absolute; top: 0; left: 0; width: 200px; height: 200px; border-radius: 50%; border: 20px solid #eee; box-sizing: border-box; }
+.gauge-fill { position: absolute; top: 0; left: 0; width: 200px; height: 200px; border-radius: 50%; border: 20px solid blue; border-bottom-color: transparent; border-right-color: transparent; box-sizing: border-box; transform: rotate(-45deg); }
+</style>
+</head>
+<body>
+<div class="gauge">
+  <div class="gauge-bg"></div>
+  <div class="gauge-fill" style="transform: rotate(calc(-45deg + (90deg * 1.8)))"></div>
+</div>
+</body>
+</html>

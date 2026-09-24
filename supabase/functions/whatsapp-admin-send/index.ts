@@ -152,6 +152,14 @@ serve(async (req: Request) => {
           .eq("id", targetTenantId)
           .single();
         const settings = (tenant?.whatsapp_settings || {}) as Record<string, any>;
+
+        // BUSCA CHAVE REAL NO COFRE
+        const { data: vault } = await supabaseAdmin
+          .from("tenant_secrets")
+          .select("uazapi_token")
+          .eq("tenant_id", targetTenantId)
+          .single();
+        if (vault?.uazapi_token) settings.uazapi_token = vault.uazapi_token;
         await sendWhatsAppMessage(settings, phone_number, initial_message.trim());
       }
 
@@ -176,7 +184,15 @@ serve(async (req: Request) => {
       .eq("id", conv.tenant_id)
       .single();
 
-    const settings = tenant?.whatsapp_settings as Record<string, any>;
+    const settings = (tenant?.whatsapp_settings || {}) as Record<string, any>;
+
+    // BUSCA CHAVE REAL NO COFRE
+    const { data: vault2 } = await supabaseAdmin
+      .from("tenant_secrets")
+      .select("uazapi_token")
+      .eq("tenant_id", conv.tenant_id)
+      .single();
+    if (vault2?.uazapi_token) settings.uazapi_token = vault2.uazapi_token;
 
     // ── Ação: assumir conversa
     if (action === "takeover") {

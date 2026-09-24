@@ -183,31 +183,22 @@ export const SettingsPage: React.FC = () => {
   const [isFetchingServerLogs, setIsFetchingServerLogs] = useState(false);
 
   const fetchServerLogs = async () => {
-    if (!whatsapp.uazapi_url || !whatsapp.uazapi_token) return;
+    // Agora só precisamos verificar se há URL e tenant (não precisamos mais checar o token puro)
+    if (!whatsapp.uazapi_url || !data?.id) return;
     setIsFetchingServerLogs(true);
     try {
-      let baseUrl = whatsapp.uazapi_url.trim();
-      if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-      const token = whatsapp.uazapi_token.trim();
-      const headers = { 
-        'apikey': token,
-        'token': token,
-        'Content-Type': 'application/json'
-      };
-
-      // 1. Fetch main status
-      const statusRes = await fetch(`${baseUrl}/instance/status`, { headers }).catch(() => null);
+      // 1. Fetch main status via Edge Function Segura
+      const { data: statusRes } = await supabase.functions.invoke('whatsapp-admin', {
+        body: { action: 'status', tenantId: data.id }
+      });
+      
       let statusJson: any = null;
-      if (statusRes && statusRes.ok) {
-        statusJson = await statusRes.json().catch(() => null);
+      if (statusRes?.success) {
+        statusJson = statusRes.data;
       }
 
-      // 2. Try fetching server logs / history if available on UAZAPI API
+      // 2. Tenta buscar logs via Edge Function (Ainda não criamos 'logs' lá, então omitimos por enquanto ou deixamos vazio)
       let serverLogsJson: any = null;
-      const logsRes = await fetch(`${baseUrl}/instance/logs`, { headers }).catch(() => null);
-      if (logsRes && logsRes.ok) {
-        serverLogsJson = await logsRes.json().catch(() => null);
-      }
 
       const fetchedEvents: WhatsAppConnectionLog[] = [];
 
@@ -1466,19 +1457,11 @@ export const SettingsPage: React.FC = () => {
                           setWppTestStatus('testing');
                           try {
                             let baseUrl = whatsapp.uazapi_url.trim();
-                            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-                            const token = whatsapp.uazapi_token.trim();
-                            const instanceName = whatsapp.uazapi_instance.trim();
-                            
-                            const headers = { 
-                              'apikey': token,
-                              'token': token,
-                              'Content-Type': 'application/json'
-                            };
-                            
-                            // Na UazapiGO a rota de status é GET /instance/status
-                            const res = await fetch(`${baseUrl}/instance/status`, { headers });
-                            const json = await res.json();
+                            // Edge Function de checagem
+                            const { data: funcRes } = await supabase.functions.invoke('whatsapp-admin', {
+                              body: { action: 'status', tenantId: data.id }
+                            });
+                            const json = funcRes?.data;
                             const connected = json?.connected === true || json?.instance?.status === 'connected' || json?.instance?.state === 'open' || json?.state === 'open' || json?.status === 'connected';
                             
                             const rawReason = json?.lastDisconnectReason || json?.instance?.lastDisconnectReason || json?.reason || json?.error || (connected ? '' : 'instance_disconnected');
@@ -1541,23 +1524,11 @@ export const SettingsPage: React.FC = () => {
                           if (!whatsapp.uazapi_url || !whatsapp.uazapi_token || !whatsapp.uazapi_instance) return;
                           setWppQrCode(null);
                           try {
-                            let baseUrl = whatsapp.uazapi_url.trim();
-                            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-                            const token = whatsapp.uazapi_token.trim();
-                            const instanceName = whatsapp.uazapi_instance.trim();
-                            
-                            const headers = { 
-                              'apikey': token,
-                              'token': token,
-                              'Content-Type': 'application/json'
-                            };
-
-                            // Na UazapiGO a rota de connect é POST e não exige o nome da instância se o token já identifica
-                            const reqUrl = `${baseUrl}/instance/connect`;
-                            console.log('[QR Code] Chamando:', reqUrl);
-                            const res = await fetch(reqUrl, { method: 'POST', headers });
-                            console.log('[QR Code] Status HTTP:', res.status);
-                            const json = await res.json();
+                            // Edge Function (Connect gera o QR)
+                            const { data: funcRes } = await supabase.functions.invoke('whatsapp-admin', {
+                              body: { action: 'connect', tenantId: data.id }
+                            });
+                            const json = funcRes?.data;
                             console.log('[QR Code] Resposta completa:', JSON.stringify(json).substring(0, 200));
 
                             const qrBase64 = json?.instance?.qrcode || json?.qrcode?.base64 || json?.base64 || json?.qrcode || json?.value || null;
@@ -1600,53 +1571,13 @@ export const SettingsPage: React.FC = () => {
                             "Tem certeza que deseja desconectar o WhatsApp atual da API? O número perderá a conexão imediatamente.",
                             async () => {
                               try {
-                                let baseUrl = whatsapp.uazapi_url.trim();
-                                if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-                                const token = whatsapp.uazapi_token.trim();
-                                const instanceName = whatsapp.uazapi_instance.trim();
-                                
-                                const headers = { 
-                                  'apikey': token,
-                                  'token': token,
-                                  'Content-Type': 'application/json'
-                                };
+                                console.log('[Logout] Desconectando via Edge Function...');
+                                const { data: funcRes, error: funcErr } = await supabase.functions.invoke('whatsapp-admin', {
+                                  body: { action: 'logout', tenantId: data.id }
+                                });
 
-                                console.log('[Logout] Desconectando...');
-                                
-                                // 1. Tenta POST /instance/logout (padrão UazapiGO / Uazapi v2)
-                                let res = await fetch(`${baseUrl}/instance/logout`, {
-                                  method: 'POST',
-                                  headers,
-                                }).catch(() => null);
-
-                                // 2. Fallback: DELETE /instance/logout
-                                if (!res || !res.ok) {
-                                  res = await fetch(`${baseUrl}/instance/logout`, {
-                                    method: 'DELETE',
-                                    headers,
-                                  }).catch(() => null);
-                                }
-
-                                // 3. Fallback: POST /instance/disconnect
-                                if (!res || !res.ok) {
-                                  res = await fetch(`${baseUrl}/instance/disconnect`, {
-                                    method: 'POST',
-                                    headers,
-                                  }).catch(() => null);
-                                }
-
-                                // 4. Fallback: DELETE /instance/disconnect
-                                if (!res || !res.ok) {
-                                  res = await fetch(`${baseUrl}/instance/disconnect`, {
-                                    method: 'DELETE',
-                                    headers,
-                                  }).catch(() => null);
-                                }
-
-                                if (!res || !res.ok) {
-                                  const errData = res ? await res.json().catch(() => null) : null;
-                                  const statusStr = res ? ` (Status ${res.status})` : '';
-                                  throw new Error(`O servidor recusou a desconexão${statusStr}. Detalhes: ${JSON.stringify(errData || 'Nenhum')}`);
+                                if (funcErr || !funcRes?.success) {
+                                  throw new Error(`O servidor recusou a desconexão. Detalhes: ${funcErr?.message || funcRes?.message || 'Nenhum'}`);
                                 }
 
                                 showAlert("Sessão desconectada com sucesso!", "success");

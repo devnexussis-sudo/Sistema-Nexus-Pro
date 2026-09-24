@@ -80,8 +80,17 @@ serve(async (req: Request) => {
       throw new Error(`Tenant não encontrado para ID ${newRecord.tenant_id}`);
     }
 
-    const settings = tenant.whatsapp_settings as Record<string, any>;
-    if (!settings || (!settings.uazapi_token && !settings.zapi_instance_token)) {
+    const settings = (tenant.whatsapp_settings || {}) as Record<string, any>;
+    
+    // BUSCA CHAVE REAL NO COFRE
+    const { data: vault } = await supabaseAdmin
+      .from("tenant_secrets")
+      .select("uazapi_token")
+      .eq("tenant_id", newRecord.tenant_id)
+      .single();
+    if (vault?.uazapi_token) settings.uazapi_token = vault.uazapi_token;
+
+    if (!settings.uazapi_token && !settings.zapi_instance_token) {
       return new Response("Skipped: Tenant não possui configurações de WhatsApp ativas", { headers: corsHeaders });
     }
 

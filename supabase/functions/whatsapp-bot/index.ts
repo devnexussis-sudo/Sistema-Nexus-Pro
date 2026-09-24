@@ -550,7 +550,16 @@ serve(async (req: Request) => {
     }
 
     const tenant = tenants[0];
-    const settings = tenant.whatsapp_settings as Record<string, any>;
+    const settings = (tenant.whatsapp_settings || {}) as Record<string, any>;
+    
+    // BUSCA CHAVE REAL NO COFRE
+    const { data: vault } = await supabase
+      .from('tenant_secrets')
+      .select('uazapi_token')
+      .eq('tenant_id', tenant.id)
+      .single();
+    if (vault?.uazapi_token) settings.uazapi_token = vault.uazapi_token;
+
     console.log('[WPP Bot] Tenant:', tenant.company_name, '| bot_enabled:', settings?.bot_enabled);
 
     if (messageId) {

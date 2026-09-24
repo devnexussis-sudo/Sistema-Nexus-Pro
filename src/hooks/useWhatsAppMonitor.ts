@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 
 export function useWhatsAppMonitor(tenant: any | null, isAdmin: boolean) {
     const [isDisconnected, setIsDisconnected] = useState(false);
@@ -20,26 +21,18 @@ export function useWhatsAppMonitor(tenant: any | null, isAdmin: boolean) {
 
         const checkConnection = async () => {
             try {
-                let baseUrl = tenant.whatsapp_settings.uazapi_url.trim();
-                if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-                const token = tenant.whatsapp_settings.uazapi_token.trim();
-                
-                const headers = { 
-                    'apikey': token,
-                    'token': token,
-                    'Content-Type': 'application/json'
-                };
-                
-                // Uses the same logic from SettingsPage
-                const res = await fetch(`${baseUrl}/instance/status`, { headers, method: 'GET' });
-                
-                if (!res.ok) {
+                // Delega a checagem para a Edge Function segura
+                const { data, error: funcErr } = await supabase.functions.invoke('whatsapp-admin', {
+                    body: { action: 'status', tenantId: tenant.id }
+                });
+
+                if (funcErr || !data?.success) {
                     setIsDisconnected(true);
                     setLastCheckTime(new Date());
                     return;
                 }
 
-                const json = await res.json();
+                const json = data.data;
                 const connected = json?.connected === true || 
                                 json?.instance?.status === 'connected' || 
                                 json?.instance?.state === 'open' || 

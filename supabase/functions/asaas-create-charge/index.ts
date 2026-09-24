@@ -34,7 +34,7 @@ serve(async (req) => {
     }
 
     // 2. Fallback: Se não encontrou por tenant_id, busca a primeira configuração ativa no banco
-    if (!tenantSettings || !tenantSettings.asaas_api_key) {
+    if (!tenantSettings) {
       const { data: globalSettings } = await supabase
         .from('tenant_asaas_settings')
         .select('*')
@@ -45,7 +45,7 @@ serve(async (req) => {
     }
 
     // 3. Fallback: Tenta qualquer registro existente na tabela tenant_asaas_settings
-    if (!tenantSettings || !tenantSettings.asaas_api_key) {
+    if (!tenantSettings) {
       const { data: anySettings } = await supabase
         .from('tenant_asaas_settings')
         .select('*')
@@ -56,6 +56,16 @@ serve(async (req) => {
 
     let ASAAS_API_KEY = tenantSettings?.asaas_api_key?.trim();
     
+    // BUSCA CHAVE REAL NO COFRE
+    if (tenantSettings?.tenant_id) {
+       const { data: vault } = await supabase
+           .from('tenant_secrets')
+           .select('asaas_api_key')
+           .eq('tenant_id', tenantSettings.tenant_id)
+           .single();
+       if (vault?.asaas_api_key) ASAAS_API_KEY = vault.asaas_api_key.trim();
+    }
+
     if (!ASAAS_API_KEY) {
         ASAAS_API_KEY = (Deno.env.get('ASAAS_API_KEY') || Deno.env.get('ASAAS_ACCESS_TOKEN') || '').trim();
     }
@@ -287,6 +297,15 @@ serve(async (req) => {
           }
       }
 
+      // ORDENAR E FILTRAR: Priorizar cobranças mais recentes e ignorar canceladas se houver ativas
+      if (paymentsToSync.length > 1) {
+          paymentsToSync.sort((a, b) => new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime());
+          const activePayments = paymentsToSync.filter(p => p.status !== 'DELETED' && p.status !== 'CANCELED');
+          if (activePayments.length > 0) {
+              paymentsToSync = activePayments;
+          }
+      }
+
       if (paymentsToSync.length === 0) {
           const errorMsg = debugAsaasResponse?.errors ? debugAsaasResponse.errors[0].description : 'Nenhum pagamento concluído encontrado para este link ainda.';
           return new Response(JSON.stringify({ 
@@ -392,6 +411,25 @@ serve(async (req) => {
     // ==========================================
     // ROTA DE CRIAÇÃO (Gerar Cobrança)
     // ==========================================
+    
+    // CANCELAMENTO PRÉVIO: Se estamos refaturando, cancelar faturas antigas no Asaas
+    try {
+      if (itemId) {
+         const existingRes = await fetch(ASAAS_API_URL + '/payments?externalReference=' + itemId + '&limit=50', { headers });
+         const existingData = await existingRes.json();
+         if (existingData.data && existingData.data.length > 0) {
+            for (const oldPay of existingData.data) {
+                if (oldPay.status === 'PENDING' || oldPay.status === 'OVERDUE') {
+                    // Cancela cobrança antiga pendente/vencida para evitar links duplicados
+                    await fetch(ASAAS_API_URL + '/payments/' + oldPay.id, { method: 'DELETE', headers });
+                }
+            }
+         }
+      }
+    } catch (e) {
+      console.error('[Asaas] Erro ao tentar cancelar faturas antigas:', e);
+    }
+
     let asaasBillingType = 'UNDEFINED';
     if (paymentMethodType === 'credit_card') asaasBillingType = 'CREDIT_CARD';
     if (paymentMethodType === 'bank_slip' || paymentMethodType === 'boleto') asaasBillingType = 'BOLETO';
@@ -565,7 +603,7 @@ serve(async (req) => {
 
     const responseData = {
       success: true,
-      paymentId: paymentData.installment || paymentData.id,
+      paymentId: (typeof paymentData.installment === 'string' ? paymentData.installment : paymentData.id),
       singlePaymentId: paymentData.id,
       status: paymentData.status || 'PENDING',
       hostedCheckoutUrl: hostedCheckoutUrl,

@@ -477,6 +477,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             .on('postgres_changes', { event: '*', schema: 'public', table: 'invoice_installments' }, handlePaymentUpdate)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_flow' }, handlePaymentUpdate)
             .on('broadcast', { event: 'PAYMENT_APPROVED' }, handlePaymentUpdate)
+            .on('broadcast', { event: 'INVOICE_UPDATED' }, handlePaymentUpdate)
             .subscribe();
 
         let tenantChannel: any = null;
@@ -484,6 +485,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             tenantChannel = supabase
                 .channel(`nexus-realtime-${tenantIdStr}`)
                 .on('broadcast', { event: 'PAYMENT_APPROVED' }, handlePaymentUpdate)
+                .on('broadcast', { event: 'INVOICE_UPDATED' }, handlePaymentUpdate)
                 .subscribe();
         }
 
@@ -610,7 +612,17 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             if (result.success) {
                 showAlert(result.message, 'success');
                 await loadInvoiceInstallments(selectedInvoice.id);
-                loadInvoices();
+                await loadInvoices();
+                
+                // Atualiza o estado local imediatamente para o botão mostrar o link novo
+                setSelectedInvoice((prev: any) => prev ? ({
+                    ...prev,
+                    gateway_ticket_url: result.ticketUrl || result.hostedCheckoutUrl,
+                    ticket_url: result.ticketUrl || result.hostedCheckoutUrl,
+                    gateway_payment_id: result.paymentId,
+                    gateway_pix_code: result.pixCopiaECola || result.qrCodeBase64
+                }) : prev);
+
             } else {
                 showAlert(result.message, 'error');
             }
@@ -1617,7 +1629,16 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     window.open(checkoutUrl, '_blank');
                     showAlert('Fatura criada! O checkout foi aberto em uma nova aba para o cliente preencher o cartão.', 'success');
                     setInvoiceDetailTab('GERAL');
-                    setSelectedInvoice(invoice);
+                    
+                    const updatedInv = {
+                        ...invoice,
+                        gateway_ticket_url: asaasRes.ticketUrl || asaasRes.hostedCheckoutUrl,
+                        ticket_url: asaasRes.ticketUrl || asaasRes.hostedCheckoutUrl,
+                        gateway_payment_id: asaasRes.paymentId,
+                        gateway_pix_code: asaasRes.pixCopiaECola || asaasRes.qrCode
+                    };
+                    setSelectedInvoice(updatedInv);
+                    
                     await loadInvoices();
                     setIsInvoiceDetailModalOpen(true);
                 } else {
