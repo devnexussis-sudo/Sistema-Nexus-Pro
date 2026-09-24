@@ -5,8 +5,123 @@ import {
   ClipboardList, CheckCircle, Clock, AlertCircle, TrendingUp, BarChart3,
   Briefcase, Activity, ShieldAlert, Timer, ArrowRight, Calendar, Zap, Layers, Target, Boxes, PieChart, BarChart,
   Search, Filter, UserCheck, Users, ChevronRight, Gauge, ZapOff, Settings, BellRing, X,
-  RefreshCw, Loader2
+  RefreshCw, Loader2, Maximize2
 } from 'lucide-react';
+
+const HalfMoonGauge = ({ percentage, target, colorClass, gradientId, label, subLabel }: any) => {
+  const radius = 60;
+  const strokeWidth = 12;
+  const cx = radius + strokeWidth;
+  const cy = radius + strokeWidth;
+  const r = radius;
+  const circumference = Math.PI * r;
+  const strokeDashoffset = circumference - (Math.min(percentage, 100) / 100) * circumference;
+  
+  // Calcular posição do marcador da meta
+  const targetRad = Math.PI - (target / 100) * Math.PI;
+  const targetX1 = cx + r * Math.cos(targetRad);
+  const targetY1 = cy - r * Math.sin(targetRad);
+  const targetX2 = cx + (r + 8) * Math.cos(targetRad);
+  const targetY2 = cy - (r + 8) * Math.sin(targetRad);
+
+  return (
+    <div className="relative flex flex-col items-center justify-center mb-1">
+      <svg width={(radius + strokeWidth) * 2} height={radius + strokeWidth + 5} viewBox={`0 0 ${(radius + strokeWidth) * 2} ${radius + strokeWidth + 5}`} className="drop-shadow-lg overflow-visible">
+        <defs>
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="currentColor" className="opacity-40" />
+            <stop offset="100%" stopColor="currentColor" className="opacity-100" />
+          </linearGradient>
+          <filter id={`glow-${gradientId}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
+        {/* Background Arc */}
+        <path
+          d={`M ${strokeWidth} ${cy} A ${r} ${r} 0 0 1 ${cx * 2 - strokeWidth} ${cy}`}
+          fill="none"
+          stroke="rgba(255,255,255,0.15)"
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+        />
+        {/* Progress Arc */}
+        <path
+          d={`M ${strokeWidth} ${cy} A ${r} ${r} 0 0 1 ${cx * 2 - strokeWidth} ${cy}`}
+          fill="none"
+          stroke={`url(#${gradientId})`}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          className={`transition-all duration-1000 ease-out ${colorClass}`}
+          filter={`url(#glow-${gradientId})`}
+        />
+        {/* Target Marker */}
+        <line
+          x1={targetX1} y1={targetY1} x2={targetX2} y2={targetY2}
+          stroke="#fff" strokeWidth="2.5" strokeLinecap="round" className="drop-shadow-md"
+        />
+        {/* Target Text */}
+        <text
+          x={cx + (r + 16) * Math.cos(targetRad)}
+          y={cy - (r + 16) * Math.sin(targetRad)}
+          fill="#fff" fontSize="8" fontWeight="bold" textAnchor="middle" alignmentBaseline="middle"
+          className="drop-shadow-md opacity-80"
+        >
+          {target}%
+        </text>
+      </svg>
+      <div className="absolute bottom-[0px] flex flex-col items-center">
+        <span className="text-[32px] font-black tracking-tighter drop-shadow-md leading-none text-white">{percentage}%</span>
+        <span className="text-[9px] font-bold text-white/80 uppercase tracking-widest mt-1">{label}</span>
+      </div>
+    </div>
+  );
+};
+
+const DonutChart = ({ data, colors, size = 160, strokeWidth = 20, innerLabel, innerValue }: any) => {
+  const center = size / 2;
+  const radius = center - strokeWidth / 2;
+  const circumference = 2 * Math.PI * radius;
+  let accumulatedPercent = 0;
+
+  return (
+    <div className="relative flex items-center justify-center group" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="transform -rotate-90 drop-shadow-lg overflow-visible">
+        {/* Background Circle */}
+        <circle cx={center} cy={center} r={radius} fill="none" stroke="#f1f5f9" strokeWidth={strokeWidth} />
+        {data.map((item: any, i: number) => {
+          if (!item.percentage) return null;
+          const percent = item.percentage / 100;
+          const strokeDasharray = `${percent * circumference} ${circumference}`;
+          const strokeDashoffset = -(accumulatedPercent * circumference);
+          accumulatedPercent += percent;
+          const isFull = percent > 0.99;
+          return (
+            <circle
+              key={i}
+              cx={center}
+              cy={center}
+              r={radius}
+              fill="none"
+              stroke={colors ? (colors[item.status] || '#cbd5e1') : item.color}
+              strokeWidth={strokeWidth}
+              strokeDasharray={strokeDasharray}
+              strokeDashoffset={strokeDashoffset}
+              strokeLinecap={isFull ? "butt" : "round"}
+              className="transition-all duration-1000 ease-out hover:strokeWidth-[24px] cursor-pointer origin-center hover:scale-105"
+            />
+          );
+        })}
+      </svg>
+      <div className="absolute flex flex-col items-center justify-center pointer-events-none transition-transform group-hover:scale-110">
+        <span className="text-3xl font-black text-slate-800 tracking-tighter drop-shadow-sm">{innerValue}</span>
+        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{innerLabel}</span>
+      </div>
+    </div>
+  );
+};
 
 interface AdminOverviewProps {
   orders: ServiceOrder[];
@@ -80,7 +195,10 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
 
   // Cálculos de KPI de Fechamento (Cumulativos: 24h, 36h, 48h)
   const closureKPIs = useMemo(() => {
-    const validScheduledOrders = filteredOrders.filter(o => o.status !== OrderStatus.CANCELED);
+    const validScheduledOrders = filteredOrders.filter(o => {
+      const s = (o.status || '').toUpperCase();
+      return s !== 'CANCELADO' && s !== 'CANCELED';
+    });
     const totalScheduledContext = validScheduledOrders.length;
 
     const completed = validScheduledOrders.filter(o => o.status === OrderStatus.COMPLETED && o.createdAt && o.endDate);
@@ -89,8 +207,6 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
     let within36 = 0;
     let within48 = 0;
     let between24and48 = 0;
-    let over24 = 0;
-    let over48 = 0;
 
     completed.forEach(o => {
       if (!o.createdAt || !o.endDate) return;
@@ -100,9 +216,8 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
         const diffHours = (closed - created) / (1000 * 60 * 60);
 
         if (diffHours <= 24) { within24++; within36++; within48++; }
-        else if (diffHours <= 36) { within36++; within48++; over24++; between24and48++; }
-        else if (diffHours <= 48) { within48++; over24++; between24and48++; }
-        else { over24++; over48++; }
+        else if (diffHours <= 36) { within36++; within48++; between24and48++; }
+        else if (diffHours <= 48) { within48++; between24and48++; }
       } catch (e) {
         console.warn("Nexus Analytics: Erro ao calcular diffHours", e);
       }
@@ -111,10 +226,40 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
     const slaEfficiency24 = totalScheduledContext > 0 ? Math.round((within24 / totalScheduledContext) * 100) : 0;
     const slaEfficiency48 = totalScheduledContext > 0 ? Math.round((within48 / totalScheduledContext) * 100) : 0;
     const between24and48Pct = totalScheduledContext > 0 ? Math.round((between24and48 / totalScheduledContext) * 100) : 0;
-    const over24Percentage = completed.length > 0 ? Math.round((over24 / completed.length) * 100) : 0;
-    const over48Percentage = completed.length > 0 ? Math.round((over48 / completed.length) * 100) : 0;
 
-    return { within24, within36, within48, between24and48, between24and48Pct, over24, over48, over24Percentage, over48Percentage, slaEfficiency24, slaEfficiency48, totalCompleted: completed.length };
+    // ATRASOS ATUAIS (Real-time de fila de atendimento)
+    let currentOver24 = 0;
+    let currentOver48 = 0;
+    const nowMs = new Date().getTime();
+    
+    // Filtra estritamente OSs que estão na fila ativa e que definitivamente não são canceladas ou concluídas
+    const openOrders = validScheduledOrders.filter(o => {
+      const s = (o.status || '').toUpperCase();
+      return ['PENDENTE', 'ATRIBUÍDO', 'EM ANDAMENTO', 'IMPEDIDO'].includes(s) && s !== 'CANCELADO' && s !== 'CONCLUÍDO';
+    });
+    
+    openOrders.forEach(o => {
+        if (!o.createdAt) return;
+        const created = new Date(o.createdAt).getTime();
+        const diffHours = (nowMs - created) / (1000 * 60 * 60);
+        
+        // Se já passou das 48h
+        if (diffHours >= 48) {
+            currentOver48++;
+            currentOver24++;
+        } else if (diffHours >= 24) { // Entre 24h e 48h
+            currentOver24++;
+        }
+    });
+
+    const over24Percentage = openOrders.length > 0 ? Math.round((currentOver24 / openOrders.length) * 100) : 0;
+    const over48Percentage = openOrders.length > 0 ? Math.round((currentOver48 / openOrders.length) * 100) : 0;
+
+    return { 
+      within24, within36, within48, between24and48, between24and48Pct, 
+      over24: currentOver24, over48: currentOver48, over24Percentage, over48Percentage, 
+      slaEfficiency24, slaEfficiency48, totalCompleted: completed.length 
+    };
   }, [filteredOrders]);
 
   // Status breakdown with percentages
@@ -374,102 +519,105 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
       </div>
 
       {/* KPI GRID - DESEMPENHO SLA */}
-      <div className="mb-2">
+      <div className="mb-4">
          <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">Desempenho de SLA</h3>
-         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
+         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5">
 
         {/* KPI: SLA 24H (Vibrant Gradient) */}
-        <div className="bg-gradient-to-br from-indigo-600 to-[#1c2d4f] rounded-2xl p-6 shadow-xl shadow-indigo-900/20 flex flex-col justify-between text-white relative overflow-hidden group">
-          <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl transition-all duration-700 group-hover:bg-white/20" />
-          <div className="flex justify-between items-start relative z-10 w-full mb-4">
+        <div className="bg-gradient-to-br from-indigo-600 via-[#2e3e6b] to-[#1c2d4f] rounded-3xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-indigo-400/20 flex flex-col justify-between text-white relative overflow-hidden group">
+          <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl transition-all duration-700 group-hover:bg-white/20" />
+          <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-indigo-400/20 rounded-full blur-3xl" />
+          
+          <div className="flex justify-between items-start relative z-10 w-full mb-1">
             <div>
-              <p className="text-[11px] font-bold   text-indigo-200">Eficiência SLA (24h)</p>
-              <div className="flex items-baseline gap-2 mt-1.5">
-                <h2 className="text-4xl font-bold tracking-tighter drop-shadow-md">{closureKPIs.slaEfficiency24}%</h2>
-                <span className="text-lg font-bold text-indigo-300/80 tracking-tight">({closureKPIs.within24} OS)</span>
+              <p className="text-[10px] font-black text-indigo-100 uppercase tracking-widest drop-shadow-sm">SLA 24 Horas</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-[10px] font-bold text-indigo-200/80 bg-black/20 px-2 py-0.5 rounded-full backdrop-blur-md border border-white/10">{closureKPIs.within24} OS Fechadas</span>
               </div>
             </div>
-            <div className="flex flex-col items-end gap-2">
-              <div className="p-2.5 bg-white/10 rounded-xl text-indigo-100 backdrop-blur-sm border border-white/20 shadow-inner group-hover:scale-110 transition-transform"><Gauge size={22} /></div>
-              <div className="flex items-center gap-1 bg-white/10 backdrop-blur-sm px-2 py-1 rounded-lg border border-white/20 mt-1 cursor-default hover:bg-white/20 transition-all">
-                <Settings size={10} className="text-indigo-200" />
-                <span className="text-[10px] font-bold text-white px-1">Meta: {slaTarget}%</span>
-              </div>
-            </div>
+            <div className="p-2 bg-white/10 rounded-2xl text-indigo-100 backdrop-blur-md border border-white/20 shadow-inner group-hover:scale-110 group-hover:rotate-12 transition-transform"><Gauge size={18} /></div>
           </div>
-          <div className="mt-4 relative z-10">
-            <div className="flex justify-between items-baseline mb-2">
-              <span className="text-[10px] font-bold text-indigo-200">🎯 Meta: {slaTarget}%</span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${closureKPIs.slaEfficiency24 >= slaTarget ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}>
-                ✓ Atingido: {closureKPIs.slaEfficiency24}% ({closureKPIs.within24} OS)
-              </span>
-            </div>
-            <div className="w-full h-2 bg-indigo-900/50 rounded-full overflow-hidden border border-indigo-400/20">
-              <div
-                className={`h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(255,255,255,0.4)] ${closureKPIs.slaEfficiency24 >= slaTarget ? 'bg-gradient-to-r from-emerald-400 to-emerald-300' : 'bg-gradient-to-r from-rose-400 to-rose-300'}`}
-                style={{ width: `${Math.min(closureKPIs.slaEfficiency24, 100)}%` }}>
-              </div>
-            </div>
+
+          <div className="mt-3 relative z-10 flex justify-center py-1">
+            <HalfMoonGauge 
+              percentage={closureKPIs.slaEfficiency24} 
+              target={slaTarget} 
+              colorClass="text-emerald-400" 
+              gradientId="grad24" 
+              label="Eficiência" 
+            />
+          </div>
+
+          <div className="mt-1 relative z-10 bg-black/10 rounded-xl p-2.5 backdrop-blur-sm border border-white/5 flex justify-between items-center">
+             <span className="text-[9px] font-bold text-indigo-200 uppercase flex items-center gap-1"><Target size={10}/> Meta Acordada</span>
+             <span className="text-[10px] font-black text-white">{slaTarget}%</span>
           </div>
         </div>
 
         {/* KPI: SLA 48H (Emerald Gradient) */}
-        <div className="bg-gradient-to-br from-emerald-500 to-teal-700 rounded-2xl p-6 shadow-xl shadow-emerald-900/20 flex flex-col justify-between text-white relative overflow-hidden group">
-          <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl transition-all duration-700 group-hover:bg-white/20" />
-          <div className="flex justify-between items-start relative z-10 w-full mb-4">
+        <div className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-800 rounded-3xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-emerald-400/20 flex flex-col justify-between text-white relative overflow-hidden group">
+          <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl transition-all duration-700 group-hover:bg-white/20" />
+          <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-emerald-400/20 rounded-full blur-3xl" />
+          
+          <div className="flex justify-between items-start relative z-10 w-full mb-1">
             <div>
-              <p className="text-[11px] font-bold text-emerald-100">Eficiência SLA (Até 48h)</p>
-              <div className="flex items-baseline gap-2 mt-1.5">
-                <h2 className="text-4xl font-bold tracking-tighter drop-shadow-md">{closureKPIs.slaEfficiency48}%</h2>
-                <span className="text-lg font-bold text-emerald-300/80 tracking-tight">({closureKPIs.within48} OS)</span>
+              <p className="text-[10px] font-black text-emerald-100 uppercase tracking-widest drop-shadow-sm">SLA 48 Horas</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-[10px] font-bold text-emerald-200/80 bg-black/20 px-2 py-0.5 rounded-full backdrop-blur-md border border-white/10">{closureKPIs.within48} OS Fechadas</span>
               </div>
             </div>
-            <div className="flex flex-col items-end gap-2">
-              <div className="p-2.5 bg-white/10 rounded-xl text-emerald-100 backdrop-blur-sm border border-white/20 shadow-inner group-hover:scale-110 transition-transform"><Target size={22} /></div>
-              <div className="flex items-center gap-1 bg-white/10 backdrop-blur-sm px-2 py-1 rounded-lg border border-white/20 mt-1 cursor-default hover:bg-white/20 transition-all">
-                <Settings size={10} className="text-emerald-200" />
-                <span className="text-[10px] font-bold text-white px-1">Meta: {sla48Target}%</span>
-              </div>
-            </div>
+            <div className="p-2 bg-white/10 rounded-2xl text-emerald-100 backdrop-blur-md border border-white/20 shadow-inner group-hover:scale-110 group-hover:rotate-12 transition-transform"><CheckCircle size={18} /></div>
           </div>
-          <div className="mt-4 relative z-10">
-            <div className="flex justify-between items-baseline mb-2">
-              <span className="text-[10px] font-bold text-emerald-100">🎯 Meta: {sla48Target}%</span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${closureKPIs.slaEfficiency48 >= sla48Target ? 'bg-white/20 text-white' : 'bg-rose-500/40 text-rose-100'}`}>
-                ✓ Atingido: {closureKPIs.slaEfficiency48}% ({closureKPIs.within48} OS)
-              </span>
-            </div>
-            <div className="w-full h-2 bg-emerald-900/50 rounded-full overflow-hidden border border-emerald-400/20">
-              <div
-                className={`h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(255,255,255,0.4)] ${closureKPIs.slaEfficiency48 >= sla48Target ? 'bg-white' : 'bg-rose-300'}`}
-                style={{ width: `${Math.min(closureKPIs.slaEfficiency48, 100)}%` }}>
-              </div>
-            </div>
+
+          <div className="mt-3 relative z-10 flex justify-center py-1">
+            <HalfMoonGauge 
+              percentage={closureKPIs.slaEfficiency48} 
+              target={sla48Target} 
+              colorClass="text-emerald-200" 
+              gradientId="grad48" 
+              label="Acumulado" 
+            />
+          </div>
+
+          <div className="mt-1 relative z-10 bg-black/10 rounded-xl p-2.5 backdrop-blur-sm border border-white/5 flex justify-between items-center">
+             <span className="text-[9px] font-bold text-emerald-200 uppercase flex items-center gap-1"><Target size={10}/> Meta Global</span>
+             <span className="text-[10px] font-black text-white">{sla48Target}%</span>
           </div>
         </div>
 
         {/* KPI: FORA DO PRAZO (Atrasos) */}
-        <div className="bg-gradient-to-br from-red-600 to-rose-900 rounded-2xl p-6 shadow-xl shadow-red-900/20 flex flex-col justify-between text-white relative overflow-hidden group">
-          <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white/10 rounded-full blur-2xl transition-all duration-700 group-hover:bg-white/20" />
-          <div className="flex justify-between items-start relative z-10 w-full mb-4">
+        <div className="bg-gradient-to-br from-red-600 via-rose-700 to-rose-900 rounded-3xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-red-400/20 flex flex-col justify-between text-white relative overflow-hidden group">
+          <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white/10 rounded-full blur-3xl transition-all duration-700 group-hover:bg-white/20" />
+          <div className="absolute -top-10 -right-10 w-32 h-32 bg-red-400/20 rounded-full blur-3xl" />
+          
+          <div className="flex justify-between items-start relative z-10 w-full mb-1">
             <div>
-              <p className="text-[11px] font-bold text-red-200">Atrasos SLA (Fora do Prazo)</p>
-              <div className="flex items-baseline gap-2 mt-1.5">
-                <h2 className="text-4xl font-bold tracking-tighter drop-shadow-md">{closureKPIs.over24}</h2>
-                <span className="text-[10px] font-bold text-red-300 tracking-tight">OS em atraso</span>
+              <p className="text-[10px] font-black text-red-100 uppercase tracking-widest drop-shadow-sm">Atrasos (SLA Quebrado)</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-[10px] font-bold text-red-200/80 bg-black/20 px-2 py-0.5 rounded-full backdrop-blur-md border border-white/10">Atenção Imediata</span>
               </div>
             </div>
-            <div className="p-2.5 bg-white/10 rounded-xl text-red-100 backdrop-blur-sm border border-white/20 shadow-inner group-hover:scale-110 transition-transform"><AlertCircle size={22} /></div>
+            <div className="p-2 bg-white/10 rounded-2xl text-red-100 backdrop-blur-md border border-white/20 shadow-inner group-hover:scale-110 group-hover:-rotate-12 transition-transform"><AlertCircle size={18} /></div>
           </div>
-          <div className="mt-4 relative z-10">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-black/20 backdrop-blur-sm rounded-xl p-3 border border-red-400/20 shadow-sm">
-                <span className="block text-[9px] font-bold text-red-200   mb-1">&gt; 24h</span>
-                <p className="text-sm font-bold text-white">{closureKPIs.over24} <span className="text-[10px] text-red-200 font-normal">({closureKPIs.over24Percentage}%)</span></p>
+
+          <div className="mt-3 relative z-10 flex flex-col items-center py-2">
+            <h2 className="text-[52px] font-black tracking-tighter drop-shadow-xl leading-none text-white">{closureKPIs.over24}</h2>
+            <span className="text-[11px] font-bold text-red-200 mt-1 tracking-widest uppercase">OS Vencidas</span>
+          </div>
+
+          <div className="mt-auto relative z-10 grid grid-cols-2 gap-2">
+            <div className="bg-black/20 backdrop-blur-md rounded-xl p-2.5 border border-white/10 flex flex-col items-center justify-center">
+              <span className="text-[9px] font-bold text-red-200 mb-1 uppercase tracking-wider">&gt; 24h</span>
+              <div className="flex items-baseline gap-1">
+                <span className="text-lg font-black text-white">{closureKPIs.over24}</span>
+                <span className="text-[9px] text-red-300 font-bold">({closureKPIs.over24Percentage}%)</span>
               </div>
-              <div className="bg-black/20 backdrop-blur-sm rounded-xl p-3 border border-red-400/20 shadow-sm">
-                <span className="block text-[9px] font-bold text-red-200   mb-1">&gt; 48h</span>
-                <p className="text-sm font-bold text-white">{closureKPIs.over48} <span className="text-[10px] text-red-200 font-normal">({closureKPIs.over48Percentage}%)</span></p>
+            </div>
+            <div className="bg-black/30 backdrop-blur-md rounded-xl p-2.5 border border-red-500/30 flex flex-col items-center justify-center">
+              <span className="text-[9px] font-bold text-rose-300 mb-1 uppercase tracking-wider">&gt; 48h (Crítico)</span>
+              <div className="flex items-baseline gap-1">
+                <span className="text-lg font-black text-rose-100">{closureKPIs.over48}</span>
+                <span className="text-[9px] text-rose-300 font-bold">({closureKPIs.over48Percentage}%)</span>
               </div>
             </div>
           </div>
@@ -564,7 +712,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
             </div>
           </div>
 
-          <div className="flex items-end justify-between gap-2 sm:gap-4 md:gap-6 h-[155px] px-2 pt-6 border-b-2 border-slate-200 relative z-10 mt-auto">
+          <div className="flex items-end justify-between gap-2 sm:gap-4 md:gap-6 h-[180px] px-2 pt-6 border-b border-slate-200 relative z-10 mt-auto pb-0">
             {statusData.map(s => {
               const heightPercentage = total > 0 ? (s.count / total) * 100 : 0;
               const hasData = s.count > 0;
@@ -579,21 +727,21 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
                   {/* The Bar */}
                   <div className="w-full relative flex flex-col items-center justify-end h-full">
                     {hasData && (
-                      <span className="text-[10px] font-bold text-slate-600 mb-2 opacity-0 group-hover:opacity-100 group-hover:-translate-y-1 transition-all">{s.count}</span>
+                      <span className="text-[11px] font-black text-slate-700 mb-2 opacity-0 group-hover:opacity-100 group-hover:-translate-y-1 transition-all drop-shadow-sm">{s.count}</span>
                     )}
                     <div
-                      className="w-full max-w-[64px] rounded-t-xl shadow-sm transition-all duration-[800ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:brightness-110 group-hover:shadow-lg relative overflow-hidden"
+                      className="w-full max-w-[64px] rounded-t-xl shadow-sm transition-all duration-[800ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:brightness-110 group-hover:shadow-[0_0_20px_rgba(0,0,0,0.15)] relative overflow-hidden"
                       style={{
                         height: hasData ? `${Math.max(heightPercentage, 4)}%` : '4px',
-                        background: `linear-gradient(180deg, ${pieColors[s.status]} 0%, ${pieColors[s.status]}dd 100%)`,
-                        boxShadow: hasData ? `0 0 20px ${pieColors[s.status]}40` : 'none',
+                        background: `linear-gradient(180deg, ${pieColors[s.status]} 0%, ${pieColors[s.status]}bb 100%)`,
+                        boxShadow: hasData ? `0 -4px 15px ${pieColors[s.status]}40` : 'none',
                       }}
                     >
-                      <div className="absolute inset-0 w-full h-full bg-gradient-to-b from-white/20 to-transparent pointer-events-none"></div>
+                      <div className="absolute inset-0 w-full h-full bg-[linear-gradient(180deg,rgba(255,255,255,0.4)_0%,transparent_100%)] pointer-events-none"></div>
                     </div>
                   </div>
-                  <div className="flex flex-col items-center gap-1 text-center min-h-[44px] mt-3">
-                    <span className="text-[10px] font-bold text-slate-500  tracking-tighter leading-tight w-20 line-clamp-2 group-hover:text-slate-900 transition-colors">{s.status}</span>
+                  <div className="flex flex-col items-center gap-1 text-center min-h-[44px] mt-4">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider leading-tight w-20 line-clamp-2 group-hover:text-slate-900 transition-colors">{s.status}</span>
                   </div>
                 </div>
               )
@@ -601,14 +749,14 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
           </div>
 
           {/* Legenda */}
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mt-4 relative z-10 w-full max-w-4xl mx-auto">
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mt-6 relative z-10 w-full mx-auto">
             {statusData.map(s => (
-              <div key={s.status} className="flex justify-between items-center p-2.5 rounded-xl bg-white border border-slate-200 hover:border-slate-300 transition-all shadow-sm hover:shadow-md group cursor-default">
+              <div key={s.status} className="flex justify-between items-center p-3 rounded-2xl bg-white border border-slate-100 hover:border-slate-300 transition-all shadow-[0_2px_10px_rgb(0,0,0,0.02)] hover:shadow-[0_8px_20px_rgb(0,0,0,0.06)] group cursor-default">
                 <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: pieColors[s.status], boxShadow: `0 0 8px ${pieColors[s.status]}80` }} />
-                  <span className="text-[9px] font-bold text-slate-400  truncate max-w-[60px]">{s.status}</span>
+                  <div className="w-3 h-3 rounded-full shadow-sm border border-black/5" style={{ backgroundColor: pieColors[s.status], boxShadow: `0 0 10px ${pieColors[s.status]}80` }} />
+                  <span className="text-[10px] font-bold text-slate-500 truncate max-w-[60px]">{s.status}</span>
                 </div>
-                <p className="text-sm font-bold text-slate-800 leading-none">{s.count}</p>
+                <p className="text-sm font-black text-slate-800 leading-none">{s.count}</p>
               </div>
             ))}
           </div>
@@ -616,48 +764,64 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* PIE CHART */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6 flex flex-col justify-between items-center shadow-lg shadow-slate-200/50 h-full">
-          <div className="w-full text-center">
-            <h4 className="text-[10px] font-bold text-slate-400  tracking-[0.15em] mb-6">Resumo de Qualidade</h4>
+        {/* DONUT CHART: RESUMO DE QUALIDADE */}
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 flex flex-col justify-between items-center shadow-[0_8px_30px_rgb(0,0,0,0.04)] h-full hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all">
+          <div className="w-full text-center mb-4">
+            <h4 className="text-[11px] font-black text-slate-400 tracking-[0.2em] uppercase">Resumo de Qualidade</h4>
           </div>
-          <div className="w-40 h-40 rounded-full relative border-[8px] border-slate-50 shadow-inner group transition-transform duration-500 hover:scale-105" style={{ background: getPieGradient() }}>
-            <div className="absolute inset-3.5 bg-white rounded-full flex flex-col items-center justify-center shadow-md border border-slate-200">
-              <p className="text-2xl font-bold text-slate-900 leading-none">{(statusData.find(s => s.status === OrderStatus.COMPLETED)?.percentage || 0)}%</p>
-              <p className="text-[9px] font-bold text-emerald-600  mt-1.5 ">Resolvido</p>
-            </div>
+          
+          <div className="flex-1 flex items-center justify-center py-4">
+            <DonutChart 
+              data={statusData} 
+              colors={pieColors} 
+              size={180} 
+              strokeWidth={24}
+              innerLabel="Resolvido"
+              innerValue={`${statusData.find(s => s.status === OrderStatus.COMPLETED)?.percentage || 0}%`}
+            />
           </div>
-          <div className="mt-8 space-y-3 w-full">
-            <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 ">
-              <span>Finalizadas com Sucesso</span>
-              <span className="text-slate-900">{statusData.find(s => s.status === OrderStatus.COMPLETED)?.count}</span>
+
+          <div className="mt-4 w-full bg-slate-50 rounded-2xl p-4 border border-slate-100">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Fechadas com Sucesso</span>
+              <span className="text-lg font-black text-slate-800">{statusData.find(s => s.status === OrderStatus.COMPLETED)?.count || 0}</span>
             </div>
-            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${(statusData.find(s => s.status === OrderStatus.COMPLETED)?.percentage || 0)}%` }} />
+            <div className="w-full h-2 bg-slate-200/50 rounded-full overflow-hidden shadow-inner">
+              <div 
+                className="h-full bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]" 
+                style={{ width: `${(statusData.find(s => s.status === OrderStatus.COMPLETED)?.percentage || 0)}%` }} 
+              />
             </div>
           </div>
         </div>
 
-        {/* OPERATION DISTRIBUTION PIE CHART */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6 flex flex-col items-center shadow-lg shadow-slate-200/50 relative overflow-hidden h-full">
-          <div className="w-full text-center">
-            <h4 className="text-[10px] font-bold text-slate-400  tracking-[0.15em] mb-6">Tipos de Modalidade</h4>
+        {/* DONUT CHART: TIPOS DE MODALIDADE */}
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 flex flex-col items-center shadow-[0_8px_30px_rgb(0,0,0,0.04)] h-full hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all">
+          <div className="w-full text-center mb-4">
+            <h4 className="text-[11px] font-black text-slate-400 tracking-[0.2em] uppercase">Distribuição Operacional</h4>
           </div>
-          <div className="w-36 h-36 rounded-full relative border-[8px] border-slate-50 shadow-sm group transition-transform duration-500 hover:scale-105 shrink-0" style={{ background: getOperationGradient() }}>
-            <div className="absolute inset-4 bg-white rounded-full flex flex-col items-center justify-center shadow-lg shadow-slate-200/50 border border-slate-200 z-10 transition-transform group-hover:scale-110">
-              <PieChart size={18} className="text-slate-300 mb-1" />
-            </div>
+          
+          <div className="flex-1 flex items-center justify-center py-4 shrink-0">
+            <DonutChart 
+              data={operationData} 
+              colors={null} // Uses item.color
+              size={180} 
+              strokeWidth={24}
+              innerLabel="Tipos"
+              innerValue={operationData.length}
+            />
           </div>
-          <div className="mt-6 space-y-2 w-full max-h-[140px] overflow-y-auto custom-scrollbar pr-1 flex-1">
+
+          <div className="mt-4 w-full max-h-[140px] overflow-y-auto custom-scrollbar pr-1 flex-1">
             {operationData.map(o => (
-              <div key={o.type} className="flex justify-between items-center text-[10px] font-bold  p-2 border border-slate-100 rounded-lg hover:bg-slate-50 transition-colors cursor-default group/op">
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: o.color }} />
-                  <span className="text-slate-500 group-hover/op:text-slate-800 truncate max-w-[120px]" title={o.type}>{o.type}</span>
+              <div key={o.type} className="flex justify-between items-center text-[11px] font-bold p-2.5 mb-1.5 border border-slate-100 bg-slate-50/50 rounded-xl hover:bg-slate-100 transition-colors cursor-default group/op">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: o.color }} />
+                  <span className="text-slate-600 group-hover/op:text-slate-900 truncate max-w-[120px]" title={o.type}>{o.type}</span>
                 </div>
                 <div className="text-right flex items-center gap-2">
-                  <span className="text-slate-900">{o.count}</span>
-                  <span className="text-[8px] font-bold text-slate-400 bg-slate-100 px-1 py-0.5 rounded leading-none w-8 text-center">{o.percentage}%</span>
+                  <span className="text-sm font-black text-slate-800">{o.count}</span>
+                  <span className="text-[9px] font-black text-slate-500 bg-white px-1.5 py-0.5 rounded shadow-sm border border-slate-200">{o.percentage}%</span>
                 </div>
               </div>
             ))}

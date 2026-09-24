@@ -706,14 +706,15 @@ export const WhatsAppInbox: React.FC = () => {
   // Helper para disparar atualização imediata na badge do menu
   const triggerNavUpdate = () => window.dispatchEvent(new Event('whatsapp_state_changed'));
 
-  // ── Carregar conversas (sem limite artificial, preservando histórico completo) ──
-  const fetchConversations = useCallback(async (silent = false) => {
+  // ── 🔧 OTIMIZAÇÃO EGRESS: Carregar conversas (busca conversa única por ID quando via Realtime) ──
+  const fetchConversations = useCallback(async (silent = false, singleId?: string) => {
     if (isOptimisticPending.current) return; // Não sobresscrever estado otimista com dados velhos do DB
     
-    const { data } = await supabase
+    let query = supabase
       .from('whatsapp_conversations')
-      .select('*, customers(name, document), users(name)')
-      .order('last_message_at', { ascending: false });
+      .select('*, customers(name, document), users(name)');
+    if (singleId) query = query.eq('id', singleId);
+    const { data } = await query.order('last_message_at', { ascending: false });
     if (data) {
       setConversations(prev => {
         // Detectar novas mensagens para tocar som/notificações
@@ -787,29 +788,50 @@ export const WhatsAppInbox: React.FC = () => {
 
           return { ...updated, history: mergedHistory };
         });
+
+        // 🔧 OTIMIZAÇÃO EGRESS: Para fetch de conversa única (via Realtime), mergear no array existente
+        if (singleId && next.length > 0) {
+          const updatedConv = next[0];
+          const existsInPrev = prev.some(c => c.id === updatedConv.id);
+          const merged = existsInPrev
+            ? prev.map(c => c.id === updatedConv.id ? updatedConv : c)
+            : [updatedConv, ...prev];
+          return merged.sort((a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime());
+        }
+
         return next;
       });
     }
     if (!silent) setLoading(false);
   }, [currentUserId]);
 
-  // ── Realtime subscription + polling fallback ─────────────────────────────
+  // ── 🔧 OTIMIZAÇÃO EGRESS: Realtime granular + polling leve ──────────────
   useEffect(() => {
     fetchConversations();
 
-    // POLLING: Fallback de 30s se o Realtime piscar — com Realtime conectado, as atualizações são push instantâneas
-    const pollInterval = setInterval(() => fetchConversations(true), 30000);
+    // POLLING: Fallback leve a cada 120s (era 30s) — segurança contra desconexão Realtime
+    const pollInterval = setInterval(() => fetchConversations(true), 120_000);
 
-    // REALTIME: atualiza ainda mais rápido quando funcionar
+    // REALTIME: busca APENAS a conversa alterada (não recarrega todas)
     const channel = supabase
       .channel('whatsapp-inbox-v4')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'whatsapp_conversations',
-      }, () => {
-        // Quando chega evento realtime, recarregar imediatamente
-        fetchConversations(true);
+      }, (payload: any) => {
+        const changedId = payload.new?.id || payload.old?.id;
+        if (payload.eventType === 'DELETE' && changedId) {
+          setConversations(prev => prev.filter(c => c.id !== changedId));
+          triggerNavUpdate();
+          return;
+        }
+        // 🔧 Busca apenas a conversa alterada (1 req leve) em vez de todas (era N reqs pesadas)
+        if (changedId) {
+          fetchConversations(true, changedId);
+        } else {
+          fetchConversations(true);
+        }
       })
       .subscribe((status) => {
         console.log('[Realtime] Status:', status);

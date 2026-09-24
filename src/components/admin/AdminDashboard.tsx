@@ -997,7 +997,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const preservedHistory = Array.isArray(selectedOrder.formData?.impediment_history)
         ? selectedOrder.formData.impediment_history
         : [];
-
+      
       const freshOrder: ServiceOrder = {
         ...selectedOrder,
         status: OrderStatus.ASSIGNED,
@@ -1010,6 +1010,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         videoUrl: undefined,
       };
       setSelectedOrder(freshOrder);
+
+      if (isEditing) {
+        setIsEditing(false);
+        setEditDraft({});
+      }
 
       // Força recarregamento da query `orders` via usePagedOrders
       await ordersRefetch();
@@ -1729,6 +1734,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 {!isEditing && (
                   <>
+                    {/* Botão Atalho Nova Visita quando Impedida */}
+                    {selectedOrder.status === OrderStatus.BLOCKED && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={(e) => {
+                          if (!canEdit('orders')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                          setActiveTab('visits');
+                          setShowNewVisitForm(true);
+                        }}
+                        className={`h-9 px-2 sm:px-4 gap-1.5 bg-indigo-600 hover:bg-indigo-700 shadow-sm ${!canEdit('orders') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                      >
+                        <Plus size={14} /> <span className="hidden sm:inline">Nova Visita</span>
+                      </Button>
+                    )}
                     {/* Botão de Edição Explícito */}
                     {selectedOrder.status !== OrderStatus.COMPLETED && selectedOrder.status !== OrderStatus.CANCELED && (
                       <Button

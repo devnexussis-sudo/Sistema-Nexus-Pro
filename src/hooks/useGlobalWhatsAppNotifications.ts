@@ -116,8 +116,63 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
   useEffect(() => {
     if (!isAdmin && !currentUserId) return;
 
+    const processConversation = (conv: any, isInitial: boolean) => {
+      const lastMsgTimestamp = conv.last_message_at || null;
+      const prev = previousConversationsRef.current[conv.id];
+
+      // Atualiza o cache local
+      previousConversationsRef.current[conv.id] = {
+        lastMsgTimestamp,
+        state: conv.state,
+        assigned: conv.assigned_agent_id
+      };
+
+      if (isInitial) return 0;
+
+      const isNewToMe = !prev;
+      const hasNewMsg = prev && lastMsgTimestamp && prev.lastMsgTimestamp && lastMsgTimestamp !== prev.lastMsgTimestamp;
+      const assignedToMe = conv.assigned_agent_id === currentUserId && prev?.assigned !== currentUserId && currentUserId !== null && conv.state === 'HUMAN_ACTIVE';
+      const askedForHuman = conv.state === 'WAITING_HUMAN' && prev?.state !== 'WAITING_HUMAN';
+
+      if (isNewToMe || hasNewMsg || assignedToMe || askedForHuman) {
+        const justAskedForHuman = askedForHuman || (isNewToMe && conv.state === 'WAITING_HUMAN');
+        const userMsgWhileHuman = hasNewMsg && (conv.state === 'WAITING_HUMAN' || conv.state === 'HUMAN_ACTIVE');
+        const justAssignedToMe = assignedToMe;
+
+        let shouldNotify = false;
+        if (justAssignedToMe) {
+          shouldNotify = true;
+        } else if (justAskedForHuman) {
+          shouldNotify = true;
+        } else if (userMsgWhileHuman) {
+          if (conv.assigned_agent_id) {
+            shouldNotify = (conv.assigned_agent_id === currentUserId);
+          } else {
+            shouldNotify = true;
+          }
+        }
+
+        if (shouldNotify) {
+          const isWhatsAppPage = window.location.pathname.includes('/admin/whatsapp');
+          
+          if (!isWhatsAppPage) {
+            playBloop();
+            flashTitle();
+            
+            if (justAssignedToMe) {
+              sendBrowserNotification('💬 Chat Transferido!', `Um atendimento foi transferido para você.`);
+            } else if (justAskedForHuman || userMsgWhileHuman) {
+              sendBrowserNotification('💬 Duno WhatsApp', `${conv.phone_number || 'Cliente'}: Nova mensagem.`);
+            }
+            return 1; // 1 novo alerta
+          }
+        }
+      }
+      return 0;
+    };
+
     const checkConversations = async () => {
-      // Pega conversas esperando humano ou ativas comigo (apenas metadados leves, sem coluna history)
+      // 🔧 OTIMIZAÇÃO: Snapshot inicial apenas, Realtime cuida do resto sem HTTP
       const { data } = await supabase
         .from('whatsapp_conversations')
         .select('id, state, last_message_at, assigned_agent_id, phone_number')
@@ -125,68 +180,11 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
 
       if (!data) return;
 
-      const currentMap: Record<string, any> = {};
       let incomingAlerts = 0;
-      
       data.forEach(conv => {
-        const lastMsgTimestamp = conv.last_message_at || null;
-        
-        currentMap[conv.id] = {
-          lastMsgTimestamp,
-          state: conv.state,
-          assigned: conv.assigned_agent_id
-        };
-
-        const prev = previousConversationsRef.current[conv.id];
-        
-        // Avalia notificações apenas se não for a carga inicial
-        if (!isInitialLoad.current) {
-          const isNewToMe = !prev; // Conversa nova que acabou de cair na fila ou ser atribuída
-          const hasNewMsg = prev && lastMsgTimestamp && prev.lastMsgTimestamp && lastMsgTimestamp !== prev.lastMsgTimestamp;
-          const assignedToMe = conv.assigned_agent_id === currentUserId && prev?.assigned !== currentUserId && currentUserId !== null && conv.state === 'HUMAN_ACTIVE';
-          const askedForHuman = conv.state === 'WAITING_HUMAN' && prev?.state !== 'WAITING_HUMAN';
-
-          if (isNewToMe || hasNewMsg || assignedToMe || askedForHuman) {
-              const justAskedForHuman = askedForHuman || (isNewToMe && conv.state === 'WAITING_HUMAN');
-              const userMsgWhileHuman = hasNewMsg && (conv.state === 'WAITING_HUMAN' || conv.state === 'HUMAN_ACTIVE');
-              const justAssignedToMe = assignedToMe;
-
-              // ── REGRA DE QUEM RECEBE A NOTIFICAÇÃO ──
-              let shouldNotify = false;
-              if (justAssignedToMe) {
-                 shouldNotify = true;
-              } else if (justAskedForHuman) {
-                 shouldNotify = true; // "aguardando interacao humana deve cair pra todos"
-              } else if (userMsgWhileHuman) {
-                 if (conv.assigned_agent_id) {
-                     // Se a conversa já tem dono, só apita para ele
-                     shouldNotify = (conv.assigned_agent_id === currentUserId);
-                 } else {
-                     // Se está solta na fila, apita para todos
-                     shouldNotify = true;
-                 }
-              }
-
-              if (shouldNotify) {
-                const isWhatsAppPage = window.location.pathname.includes('/admin/whatsapp');
-                
-                if (!isWhatsAppPage) {
-                  playBloop();
-                  flashTitle();
-                  incomingAlerts++;
-                }
-                
-                if (justAssignedToMe) {
-                  sendBrowserNotification('💬 Chat Transferido!', `Um atendimento foi transferido para você.`);
-                } else if (justAskedForHuman || userMsgWhileHuman) {
-                  sendBrowserNotification('💬 Duno WhatsApp', `${conv.phone_number}: Nova mensagem do cliente.`);
-                }
-              }
-          }
-        }
+        incomingAlerts += processConversation(conv, isInitialLoad.current);
       });
 
-      previousConversationsRef.current = currentMap;
       isInitialLoad.current = false;
       
       if (incomingAlerts > 0) {
@@ -194,18 +192,30 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
       }
     };
 
-    // Chamada inicial
+    // Chamada inicial (HTTP Snapshot)
     checkConversations();
 
-    // ⚡ Realtime Push Listener: Atualiza instantaneamente ao ocorrer eventos
+    // ⚡ Realtime Push Listener: Atualiza instantaneamente com payload (sem HTTP req!)
     const channel = supabase
       .channel(`global_wa_notifs_${currentUserId || 'all'}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'whatsapp_conversations'
-      }, () => {
-        checkConversations();
+      }, (payload) => {
+        // 🔧 OTIMIZAÇÃO: Intercepta o evento em tempo real e não faz re-fetch
+        if (payload.new && payload.new.id) {
+          // Ignora mensagens que não são para mim ou que não estão aguardando
+          const isWaiting = payload.new.state === 'WAITING_HUMAN';
+          const isActiveMine = payload.new.state === 'HUMAN_ACTIVE' && payload.new.assigned_agent_id === currentUserId;
+          
+          if (isWaiting || isActiveMine) {
+            const alerts = processConversation(payload.new, false);
+            if (alerts > 0) {
+              setAlertCount(prev => prev + alerts);
+            }
+          }
+        }
       })
       .subscribe();
 

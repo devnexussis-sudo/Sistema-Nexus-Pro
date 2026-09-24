@@ -217,95 +217,127 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     // 📡 Monitoramento Global da Conexão do WhatsApp
     const { isDisconnected: isWppDisconnected } = useWhatsAppMonitor(tenant, isAdmin);
 
-    // Buscar contador de WhatsApp aguardando humano
+    // 🔧 OTIMIZAÇÃO: Buscar contador de WhatsApp via Realtime + fetch leve (SEM history)
     useEffect(() => {
         if (!isAdmin) return;
+        const currentTenantId = tenant?.id || user?.tenantId || SessionStorage.get('current_tenant');
+        if (!currentTenantId) {
+            setWhatsappWaitingCount(0);
+            return;
+        }
+
         const fetchWACount = async () => {
-            const currentTenantId = tenant?.id || user?.tenantId || SessionStorage.get('current_tenant');
-            if (!currentTenantId) {
-                setWhatsappWaitingCount(0);
-                return;
-            }
-
-            // 1. Contar conversas na fila da empresa ativa
-            const { count: waitingCount } = await supabase
-                .from('whatsapp_conversations')
-                .select('*', { count: 'exact', head: true })
-                .eq('tenant_id', currentTenantId)
-                .eq('state', 'WAITING_HUMAN');
-                
-            // 2. Contar conversas já atribuídas a MIM onde o cliente mandou a última mensagem
-            let myUnread = 0;
-            if (user?.id) {
-                const { data: myConversations } = await supabase
+            try {
+                // 1. HEAD-only count para WAITING_HUMAN (zero payload)
+                const { count: waitingCount } = await supabase
                     .from('whatsapp_conversations')
-                    .select('id, history')
+                    .select('id', { count: 'exact', head: true })
                     .eq('tenant_id', currentTenantId)
-                    .eq('state', 'HUMAN_ACTIVE')
-                    .eq('assigned_agent_id', user.id);
-                    
-                let receipts: Record<string, string> = {};
-                try {
-                    const receiptsStr = localStorage.getItem('wa_read_receipts');
-                    if (receiptsStr) receipts = JSON.parse(receiptsStr);
-                } catch(e) {}
+                    .eq('state', 'WAITING_HUMAN');
 
-                if (myConversations) {
-                    myConversations.forEach(conv => {
-                        const history = conv.history as any[];
-                        if (history && history.length > 0) {
-                            const lastMsg = history[history.length - 1];
-                            const isMyMessage = lastMsg.role === 'agent' && lastMsg.agent_id === user.id;
-                            if (!isMyMessage) {
-                                const readAtStr = receipts[conv.id];
-                                const msgTime = lastMsg.timestamp ? new Date(lastMsg.timestamp) : new Date(0);
-                                const readTime = readAtStr ? new Date(readAtStr) : new Date(0);
-                                
-                                if (!readAtStr || msgTime > readTime) {
-                                    myUnread++;
-                                }
+                // 2. Contar conversas atribuídas a MIM usando last_message_at (SEM buscar history)
+                let myUnread = 0;
+                if (user?.id) {
+                    const { data: myConversations } = await supabase
+                        .from('whatsapp_conversations')
+                        .select('id, last_message_at')
+                        .eq('tenant_id', currentTenantId)
+                        .eq('state', 'HUMAN_ACTIVE')
+                        .eq('assigned_agent_id', user.id);
+
+                    let receipts: Record<string, string> = {};
+                    try {
+                        const receiptsStr = localStorage.getItem('wa_read_receipts');
+                        if (receiptsStr) receipts = JSON.parse(receiptsStr);
+                    } catch(e) {}
+
+                    if (myConversations) {
+                        myConversations.forEach(conv => {
+                            const readAtStr = receipts[conv.id];
+                            const msgTime = conv.last_message_at ? new Date(conv.last_message_at) : new Date(0);
+                            const readTime = readAtStr ? new Date(readAtStr) : new Date(0);
+                            if (!readAtStr || msgTime > readTime) {
+                                myUnread++;
                             }
-                        }
-                    });
+                        });
+                    }
                 }
+
+                setWhatsappWaitingCount((waitingCount || 0) + myUnread);
+            } catch (e) {
+                console.warn('[AdminLayout] Erro leve ao contar WA:', e);
             }
-            
-            setWhatsappWaitingCount((waitingCount || 0) + myUnread);
         };
+
+        // Fetch inicial (snapshot)
         fetchWACount();
-        const interval = setInterval(fetchWACount, 5000); // atualiza o menu a cada 5s
-        
+
+        // 📡 Realtime: re-conta apenas quando o estado de uma conversa muda
+        const waChannel = supabase
+            .channel(`wa-badge-count-${currentTenantId}`)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'whatsapp_conversations', filter: `tenant_id=eq.${currentTenantId}` },
+                () => { fetchWACount(); }
+            )
+            .subscribe();
+
+        // Fallback: polling leve a cada 120s (era 5s) — segurança contra desconexão Realtime
+        const interval = setInterval(fetchWACount, 120_000);
+
         window.addEventListener('whatsapp_state_changed', fetchWACount);
         window.addEventListener('wa_read_receipts_changed', fetchWACount);
-        
+
         return () => {
             clearInterval(interval);
+            supabase.removeChannel(waChannel);
             window.removeEventListener('whatsapp_state_changed', fetchWACount);
             window.removeEventListener('wa_read_receipts_changed', fetchWACount);
         };
-    }, [isAdmin, alertCount, user?.id, tenant?.id, user?.tenantId]);
+    }, [isAdmin, user?.id, tenant?.id, user?.tenantId]);
 
-    // Buscar contador de solicitações pendentes por empresa (tenant_id)
+    // 🔧 OTIMIZAÇÃO: Buscar contador de solicitações via Realtime + fetch leve
     useEffect(() => {
         if (!isAdmin) return;
-        const fetchSolicitacoesCount = async () => {
-            const currentTenantId = tenant?.id || user?.tenantId || SessionStorage.get('current_tenant');
-            if (!currentTenantId) {
-                setSolicitacoesCount(0);
-                return;
-            }
+        const currentTenantId = tenant?.id || user?.tenantId || SessionStorage.get('current_tenant');
+        if (!currentTenantId) {
+            setSolicitacoesCount(0);
+            return;
+        }
 
-            const { count } = await supabase
-                .from('whatsapp_service_requests')
-                .select('*', { count: 'exact', head: true })
-                .eq('tenant_id', currentTenantId)
-                .eq('status', 'PENDING');
-            setSolicitacoesCount(count || 0);
+        const fetchSolicitacoesCount = async () => {
+            try {
+                const { count } = await supabase
+                    .from('whatsapp_service_requests')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('tenant_id', currentTenantId)
+                    .eq('status', 'PENDING');
+                setSolicitacoesCount(count || 0);
+            } catch (e) {
+                console.warn('[AdminLayout] Erro leve ao contar solicitações:', e);
+            }
         };
+
+        // Fetch inicial
         fetchSolicitacoesCount();
-        const interval = setInterval(fetchSolicitacoesCount, 5000); // atualiza o menu a cada 5s
-        
-        return () => clearInterval(interval);
+
+        // 📡 Realtime: re-conta quando status muda
+        const solChannel = supabase
+            .channel(`sol-badge-count-${currentTenantId}`)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'whatsapp_service_requests', filter: `tenant_id=eq.${currentTenantId}` },
+                () => { fetchSolicitacoesCount(); }
+            )
+            .subscribe();
+
+        // Fallback: polling a cada 120s (era 5s)
+        const interval = setInterval(fetchSolicitacoesCount, 120_000);
+
+        return () => {
+            clearInterval(interval);
+            supabase.removeChannel(solChannel);
+        };
     }, [isAdmin, tenant?.id, user?.tenantId]);
 
     // Fecha sidebar mobile ao navegar
