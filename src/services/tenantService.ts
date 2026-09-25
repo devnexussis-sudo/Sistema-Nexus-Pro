@@ -1,6 +1,6 @@
 
 import { CacheManager } from '../lib/cache';
-import { adminAuthProxy, supabase, publicSupabase } from '../lib/supabase';
+import { adminAuthProxy, supabase, publicSupabase, ensureValidSession } from '../lib/supabase';
 import { getCurrentTenantId } from '../lib/tenantContext';
 import { User, UserGroup, UserRole, AppScope, ADMIN_PERMISSIONS } from '../types';
 import type { DbTenant, DbTenantInsert, DbTenantStats, DbUser, DbUserGroup } from '../types/database';
