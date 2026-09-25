@@ -140,6 +140,7 @@ export const PaymentService = {
     customerName?: string;
     customerEmail?: string;
     customerDocument?: string;
+    customerId?: string;
     installments?: number;
     expiresAt?: string;
   }): Promise<{ success: boolean; paymentId?: string; pixCopiaECola?: string; qrCode?: string; qrCodeBase64?: string; ticketUrl?: string; hostedCheckoutUrl?: string; status?: string; message?: string }> {

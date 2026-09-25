@@ -570,23 +570,71 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         setIsInvoiceDetailModalOpen(true);
     };
 
+    // =========================================================================
+    // 🏗️ UTILITY: Resolução centralizada de cliente para faturamento
+    // Single Source of Truth — busca por ID → CPF/CNPJ → Nome
+    // Retorna o cliente validado ou um erro claro e acionável.
+    // =========================================================================
+    const resolveCustomerForBilling = async (params: {
+        customerId?: string;
+        customerName?: string;
+        customerDocument?: string;
+    }): Promise<{ customer: any; error?: string }> => {
+        const { customerId, customerName, customerDocument } = params;
+
+        // 1. Busca por ID (chave primária — mais confiável)
+        if (customerId) {
+            let found = customers.find(c => c.id === customerId);
+            if (!found) {
+                const { data } = await supabase.from('customers').select('*').eq('id', customerId).maybeSingle();
+                if (data) found = data;
+            }
+            if (found) {
+                const doc = (found.document || found.cpf || found.cnpj || '')?.toString().replace(/\D/g, '');
+                if (!doc) return { customer: found, error: `Cliente "${found.name}" não possui CPF/CNPJ cadastrado. Atualize o cadastro do cliente antes de faturar.` };
+                return { customer: found };
+            }
+        }
+
+        // 2. Busca por CPF/CNPJ
+        if (customerDocument) {
+            const cleanDoc = customerDocument.toString().replace(/\D/g, '');
+            if (cleanDoc) {
+                const found = customers.find(c => {
+                    const cDoc = (c.document || c.cpf || c.cnpj || '').toString().replace(/\D/g, '');
+                    return cDoc && cDoc === cleanDoc;
+                });
+                if (found) return { customer: found };
+            }
+        }
+
+        // 3. Busca por nome (último recurso)
+        if (customerName) {
+            const found = customers.find(c => c.name?.toLowerCase().trim() === customerName.toLowerCase().trim());
+            if (found) {
+                const doc = (found.document || found.cpf || found.cnpj || '')?.toString().replace(/\D/g, '');
+                if (!doc) return { customer: found, error: `Cliente "${found.name}" não possui CPF/CNPJ cadastrado. Atualize o cadastro do cliente antes de faturar.` };
+                return { customer: found };
+            }
+        }
+
+        return { customer: null, error: 'Cliente não encontrado. Vincule um cliente válido ao item antes de faturar.' };
+    };
+
     const handleGenerateInstallments = async () => {
         if (!selectedInvoice) return;
         setGeneratingInstallments(true);
         try {
-            // Busca dados completos do cliente para enviar endereço ao MP
-            let custData: any = null;
-            if (selectedInvoice.customer_id) {
-                const { data } = await supabase
-                    .from('customers')
-                    .select('*')
-                    .eq('id', selectedInvoice.customer_id)
-                    .maybeSingle();
-                custData = data;
-            }
-            // Fallback: procura nos clientes carregados em memória
-            if (!custData) {
-                custData = customers.find(c => c.id === selectedInvoice.customer_id);
+            // Pre-flight: Resolução centralizada do cliente
+            const { customer: billingCustomer, error: custError } = await resolveCustomerForBilling({
+                customerId: selectedInvoice.customer_id,
+                customerName: selectedInvoice.customer_name,
+                customerDocument: selectedInvoice.customer_document,
+            });
+            if (custError || !billingCustomer) {
+                showAlert(custError || 'Cliente não encontrado.', 'error');
+                setGeneratingInstallments(false);
+                return;
             }
 
             const liquidAmount = Math.max(
@@ -603,9 +651,10 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 displayId: selectedInvoice.display_id,
                 amount: liquidAmount > 0 ? liquidAmount : selectedInvoice.total_amount,
                 paymentMethodType: 'boleto',
-                customerName: selectedInvoice.customer_name,
-                customerDocument: selectedInvoice.customer_document,
-                customerEmail: custData?.email,
+                customerName: billingCustomer.name,
+                customerDocument: billingCustomer.document || billingCustomer.cpf || billingCustomer.cnpj,
+                customerId: billingCustomer.id,
+                customerEmail: billingCustomer.email,
                 installments: installmentCount
             });
 
@@ -1536,34 +1585,40 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 // PIX é estritamente à vista (1x). Boleto usa installmentCount. Cartão usa installments.
                 const finalInstallments = asaasMethod === 'pix' ? 1 : (asaasMethod === 'credit_card' ? (installments || 1) : (installmentCount || 1));
 
+                // Pre-flight: Validação obrigatória de CPF/CNPJ antes de chamar o gateway
+                const resolvedDoc = customerDoc || fullCust?.document || (fullCust as any)?.cpf || (fullCust as any)?.cnpj;
+                if (!resolvedDoc || !resolvedDoc.toString().replace(/\D/g, '')) {
+                    showAlert(`Cliente "${fullCust?.name || invoice.customer_name}" não possui CPF/CNPJ cadastrado. Atualize o cadastro do cliente antes de faturar via gateway.`, 'error');
+                    setIsProcessing(false);
+                    return;
+                }
+
                 let asaasRes: any = { success: true, paymentId: '', pixCopiaECola: '', qrCode: '', ticketUrl: '', hostedCheckoutUrl: '' };
 
-                // Agora geramos para todos os métodos (inclusive Checkouts do Cartão de Crédito)
-                if (true) {
-                    asaasRes = await PaymentService.createAsaasCharge({
-                        itemType: 'INVOICE',
-                        itemId: invoice.id,
-                        displayId: invoice.display_id,
-                        title: selectedIds.length === 1 ? (firstItem?.title || 'Fatura') : `Fatura (${selectedIds.length} Itens)`,
-                        amount: finalAmount,
-                        customerName: invoice.customer_name,
-                        customerDocument: invoice.customer_document,
-                        customerZip: fullCust?.zip || (fullCust as any)?.cep,
-                        customerStreet: fullCust?.address || (fullCust as any)?.street,
-                        customerNumber: fullCust?.number,
-                        customerNeighborhood: fullCust?.neighborhood,
-                        customerCity: fullCust?.city,
-                        customerState: fullCust?.state,
-                        paymentMethodType: asaasMethod,
-                        installments: finalInstallments,
-                        tenantId: currentTenantId
-                    });
+                asaasRes = await PaymentService.createAsaasCharge({
+                    itemType: 'INVOICE',
+                    itemId: invoice.id,
+                    displayId: invoice.display_id,
+                    title: selectedIds.length === 1 ? (firstItem?.title || 'Fatura') : `Fatura (${selectedIds.length} Itens)`,
+                    amount: finalAmount,
+                    customerName: fullCust?.name || invoice.customer_name,
+                    customerDocument: resolvedDoc,
+                    customerId: fullCust?.id || invoice.customer_id,
+                    customerZip: fullCust?.zip || (fullCust as any)?.cep,
+                    customerStreet: fullCust?.address || (fullCust as any)?.street,
+                    customerNumber: fullCust?.number,
+                    customerNeighborhood: fullCust?.neighborhood,
+                    customerCity: fullCust?.city,
+                    customerState: fullCust?.state,
+                    paymentMethodType: asaasMethod,
+                    installments: finalInstallments,
+                    tenantId: currentTenantId
+                });
 
-                    if (!asaasRes.success) {
-                        showAlert(`Erro ao gerar fatura no Asaas: ${asaasRes.message || asaasRes.error}`, 'error');
-                        setIsProcessing(false);
-                        return;
-                    }
+                if (!asaasRes.success) {
+                    showAlert(`Erro ao gerar fatura no Asaas: ${asaasRes.message || asaasRes.error}`, 'error');
+                    setIsProcessing(false);
+                    return;
                 }
 
                 const notesObj = {
