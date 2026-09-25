@@ -1066,8 +1066,8 @@ export const TenantService = {
                 target_tenants: notification.targetTenants && notification.targetTenants.length > 0 ? notification.targetTenants : null,
                 target_roles: notification.targetRoles && notification.targetRoles.length > 0 ? notification.targetRoles : null,
                 action_label: notification.actionLabel ? notification.actionLabel.trim() : null,
-                action_url: notification.actionUrl ? notification.actionUrl.trim() : null,
-                expires_at: notification.expiresAt ? new Date(notification.expiresAt).toISOString() : null
+                action_url: notification.actionUrl ? notification.actionUrl.trim() : null
+                // Note: expires_at column does not exist in the database schema
             };
 
             // Remove null/undefined optional properties so we don't send columns that might not exist
@@ -1159,38 +1159,21 @@ export const TenantService = {
 
                 let rawNotifications: any[] = [];
 
-                // Attempt 1: Query with expires_at filter on authenticated client
+                // Attempt 1: Simple select without expires_at filter (since column does not exist)
                 try {
                     const { data, error } = await supabase
                         .from('system_notifications')
                         .select('*')
-                        .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
                         .order('created_at', { ascending: false })
                         .limit(50);
 
                     if (!error && data && data.length > 0) {
                         rawNotifications = data;
                     } else if (error) {
-                        console.warn('[TenantService] ⚠️ Query auth with expires_at warning:', error.message);
+                        console.warn('[TenantService] ⚠️ Query auth warning:', error.message);
                     }
                 } catch (e) { /* fallback */ }
 
-                // Attempt 2: Simple select without expires_at filter (in case column is missing or PostgREST error)
-                if (rawNotifications.length === 0) {
-                    try {
-                        const { data, error } = await supabase
-                            .from('system_notifications')
-                            .select('*')
-                            .order('created_at', { ascending: false })
-                            .limit(50);
-
-                        if (!error && data && data.length > 0) {
-                            rawNotifications = data;
-                        } else if (error) {
-                            console.warn('[TenantService] ⚠️ Query auth simple warning:', error.message);
-                        }
-                    } catch (e) { /* fallback */ }
-                }
 
                 // Attempt 3: PublicSupabase (anon client) fallback if authenticated client returned empty or failed due to RLS
                 if (rawNotifications.length === 0) {

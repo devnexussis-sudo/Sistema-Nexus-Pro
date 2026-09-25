@@ -494,8 +494,24 @@ if (typeof window !== 'undefined') {
 }
 
 // ---------------------------------------------------------------
-// ensureValidSession — Passiva, sem briga de lock
+// ensureValidSession — Aguarda sessão com timeout (Big Tech Standard)
+//
+// Race condition eliminada: em vez de retornar false instantaneamente
+// quando o SDK ainda não emitiu SIGNED_IN, espera até 3s com polling
+// de 100ms. Se a sessão não chegar no prazo, retorna false.
 // ---------------------------------------------------------------
 export async function ensureValidSession(): Promise<boolean> {
+    if (globalSessionOk) return true;
+
+    // Espera até 3s pela sessão (cobre o tempo do INITIAL_SESSION / SIGNED_IN)
+    const MAX_WAIT_MS = 3000;
+    const POLL_INTERVAL_MS = 100;
+    let waited = 0;
+
+    while (!globalSessionOk && waited < MAX_WAIT_MS) {
+        await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+        waited += POLL_INTERVAL_MS;
+    }
+
     return globalSessionOk;
 }
