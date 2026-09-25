@@ -501,17 +501,26 @@ if (typeof window !== 'undefined') {
 // de 100ms. Se a sessão não chegar no prazo, retorna false.
 // ---------------------------------------------------------------
 export async function ensureValidSession(): Promise<boolean> {
-    if (globalSessionOk) return true;
+    const checkSession = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return false;
+        // Considera válido se não tiver data de expiração ou se expirar no futuro
+        const isExpired = session.expires_at ? (session.expires_at * 1000 <= Date.now()) : false;
+        return !isExpired;
+    };
 
-    // Espera até 3s pela sessão (cobre o tempo do INITIAL_SESSION / SIGNED_IN)
+    if (await checkSession()) return true;
+
+    // Espera até 3s pela sessão (cobre o tempo do INITIAL_SESSION / SIGNED_IN ou refresh)
     const MAX_WAIT_MS = 3000;
-    const POLL_INTERVAL_MS = 100;
+    const POLL_INTERVAL_MS = 200;
     let waited = 0;
 
-    while (!globalSessionOk && waited < MAX_WAIT_MS) {
+    while (waited < MAX_WAIT_MS) {
         await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
         waited += POLL_INTERVAL_MS;
+        if (await checkSession()) return true;
     }
 
-    return globalSessionOk;
+    return false;
 }
