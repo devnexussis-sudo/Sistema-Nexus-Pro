@@ -1141,6 +1141,12 @@ export const TenantService = {
     getSystemNotifications: async (userId: string, tenantId?: string, userRole?: string): Promise<any[]> => {
         if (isCloudEnabled) {
             try {
+                // Wait for the session to be ready before querying authenticated endpoints
+                const sessionOk = await ensureValidSession();
+                if (!sessionOk) {
+                    console.warn('[TenantService] ⚠️ Cannot fetch notifications: session invalid.');
+                    return [];
+                }
                 let dbReadIds: string[] = [];
                 try {
                     const { data: readRecords } = await supabase.from('system_notification_reads').select('notification_id').eq('user_id', userId);
