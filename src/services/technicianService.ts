@@ -85,13 +85,15 @@ export const TechnicianService = {
             }
             if (!tenantId || tenantId === 'default' || tenantId === 'null') {
                 try {
-                    const { data: { session } } = await supabase.auth.getSession();
+                    const sessionRes = await supabase.auth.getSession();
+                    const session = sessionRes?.data?.session;
                     tenantId = session?.user?.user_metadata?.tenantId || session?.user?.user_metadata?.tenant_id;
                 } catch (e) {}
             }
             if (!tenantId || tenantId === 'default' || tenantId === 'null') {
                 try {
-                    const { data: { session } } = await supabase.auth.getSession();
+                    const sessionRes = await supabase.auth.getSession();
+                    const session = sessionRes?.data?.session;
                     if (session?.user?.id) {
                         const { data: dbUser } = await supabase.from('users').select('tenant_id').eq('id', session.user.id).maybeSingle();
                         if (dbUser?.tenant_id) tenantId = dbUser.tenant_id;
@@ -122,12 +124,22 @@ export const TechnicianService = {
                     query = query.abortSignal((currentSignal || signal) as AbortSignal);
                 }
 
-                let { data: techData, error } = await query;
+                let techData: any[] = [];
+                let error: any = null;
 
-                // Fallback removido por segurança
+                try {
+                    const queryRes = await query;
+                    if (queryRes) {
+                        techData = queryRes.data || [];
+                        error = queryRes.error;
+                    }
+                } catch (qErr: any) {
+                    if (qErr?.name !== 'AbortError') {
+                        console.warn("⚠️ Non-fatal notice querying technicians:", qErr?.message || qErr);
+                    }
+                }
 
                 if (error) {
-                    console.error("Error fetching technicians:", error);
                     techData = [];
                 }
 
@@ -198,9 +210,9 @@ export const TechnicianService = {
                                 avatar: u.avatar || '',
                                 tech_code: formatTechCode(u.id),
                                 tenant_id: tenantId
-                            }]);
+                            }], { onConflict: 'id', ignoreDuplicates: true });
                         } catch (upsertErr) {
-                            console.warn("⚠️ Non-fatal tech upsert warning:", upsertErr);
+                            // Silencioso em caso de conflitos não críticos no upsert sintético
                         }
                     }
                 }

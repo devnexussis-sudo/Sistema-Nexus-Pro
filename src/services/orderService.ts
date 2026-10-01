@@ -321,9 +321,7 @@ export const OrderService = {
                         throw error;
                     }
 
-                    if (data && data.length > 0) {
-                        console.log('🔍 DEBUG_DB_COLUMNS: Banco retornou as colunas:', Object.keys(data[0]));
-                    }
+
                     const mapped = (data || []).map(d => OrderService._mapOrderFromDB(d));
 
                     localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(mapped));

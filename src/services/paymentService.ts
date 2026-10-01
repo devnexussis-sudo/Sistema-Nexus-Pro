@@ -143,7 +143,7 @@ export const PaymentService = {
     customerId?: string;
     installments?: number;
     expiresAt?: string;
-  }): Promise<{ success: boolean; paymentId?: string; pixCopiaECola?: string; qrCode?: string; qrCodeBase64?: string; ticketUrl?: string; hostedCheckoutUrl?: string; status?: string; message?: string }> {
+  }): Promise<{ success: boolean; paymentId?: string; pixCopiaECola?: string; qrCode?: string; qrCodeBase64?: string; ticketUrl?: string; hostedCheckoutUrl?: string; status?: string; invoiceNumber?: string; message?: string }> {
     const tenantId = getCurrentTenantId();
     if (!tenantId) {
       return { success: false, message: 'Nenhum tenant selecionado' };
@@ -169,7 +169,8 @@ export const PaymentService = {
         qrCodeBase64: edgeData.qrCodeBase64,
         ticketUrl: edgeData.ticketUrl,
         hostedCheckoutUrl: edgeData.hostedCheckoutUrl,
-        status: edgeData.status
+        status: edgeData.status,
+        invoiceNumber: edgeData.invoiceNumber || undefined,
       };
     } catch (err: any) {
       console.error('Erro no createAsaasCharge:', err);
@@ -211,7 +212,7 @@ export const PaymentService = {
   /**
    * Sincroniza o status de um boleto/pix consultando o Asaas
    */
-  async syncInstallment(paymentId: string | null | undefined, tenantId?: string, referenceId?: string, referenceType?: 'INVOICE' | 'ORDER' | 'QUOTE'): Promise<{ success: boolean; message?: string; newStatus?: string }> {
+  async syncInstallment(paymentId: string | null | undefined, tenantId?: string, referenceId?: string, referenceType?: 'INVOICE' | 'ORDER' | 'QUOTE'): Promise<{ success: boolean; message?: string; newStatus?: string; invoiceNumber?: string }> {
     const tid = tenantId || getCurrentTenantId();
     if (!tid) return { success: false, message: 'Nenhum tenant selecionado' };
 
@@ -248,7 +249,8 @@ export const PaymentService = {
       return { 
         success: true, 
         message: edgeData.message || `Status no Asaas: ${statusText}`, 
-        newStatus: edgeData.newStatus || 'PENDING' 
+        newStatus: edgeData.newStatus || 'PENDING',
+        invoiceNumber: edgeData.invoiceNumber || undefined,
       };
     } catch (err: any) {
       console.error('Erro no syncInstallment:', err);

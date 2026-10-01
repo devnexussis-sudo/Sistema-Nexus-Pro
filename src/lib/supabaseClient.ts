@@ -143,6 +143,7 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
         detectSessionInUrl: true,           // Habilitado para captura automática de links de recuperação e auth
         flowType: 'pkce',                   // Arquitetura moderna Pkce
         storage: customStorage,
+        lock: nexusLock,
     },
 
     realtime: {
@@ -289,7 +290,8 @@ export const supabaseDiagnostics = {
         isExpired: boolean;
         uid: string | null;
     }> => {
-        const { data: { session } } = await supabase.auth.getSession();
+        const sessionRes = await supabase.auth.getSession();
+        const session = sessionRes?.data?.session;
         const expiresAt = session?.expires_at ? session.expires_at * 1000 : null;
         return {
             hasSession: !!session,
@@ -400,7 +402,9 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
             }
 
             // ── Step 3: Leitura passiva da sessão (sem bater no servidor) ──
-            const { data: { session }, error } = await supabase.auth.getSession();
+            const sessionRes = await supabase.auth.getSession();
+            const session = sessionRes?.data?.session;
+            const error = sessionRes?.error;
             if (error && isDev) console.warn('[Nexus Recovery] getSession error:', error.message);
 
             // ── Step 4: Notifica camadas superiores ──
@@ -502,7 +506,8 @@ if (typeof window !== 'undefined') {
 // ---------------------------------------------------------------
 export async function ensureValidSession(): Promise<boolean> {
     const checkSession = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
+        const sessionRes = await supabase.auth.getSession();
+        const session = sessionRes?.data?.session;
         if (!session) return false;
         // Considera válido se não tiver data de expiração ou se expirar no futuro
         const isExpired = session.expires_at ? (session.expires_at * 1000 <= Date.now()) : false;

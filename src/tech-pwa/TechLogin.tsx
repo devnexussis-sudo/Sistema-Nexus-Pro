@@ -16,7 +16,14 @@ export const TechLogin: React.FC<TechLoginProps> = ({ onLogin }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-    const [rememberMe, setRememberMe] = useState(true);
+    const [rememberMe, setRememberMe] = useState<boolean>(() => {
+        return localStorage.getItem('nexus_tech_remember_preference') !== 'false';
+    });
+
+    const handleRememberMeToggle = (checked: boolean) => {
+        setRememberMe(checked);
+        localStorage.setItem('nexus_tech_remember_preference', checked ? 'true' : 'false');
+    };
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
     const [isInstallable, setIsInstallable] = useState(false);
     const [isIOS, setIsIOS] = useState(false);
@@ -178,7 +185,7 @@ export const TechLogin: React.FC<TechLoginProps> = ({ onLogin }) => {
                                             type="checkbox"
                                             className="sr-only"
                                             checked={rememberMe}
-                                            onChange={(e) => setRememberMe(e.target.checked)}
+                                            onChange={(e) => handleRememberMeToggle(e.target.checked)}
                                         />
                                         <div className={`w-5 h-5 rounded-lg border-2 transition-all duration-300 flex items-center justify-center ${rememberMe ? 'bg-emerald-600 border-emerald-600' : 'bg-white/5 border-white/10'}`}>
                                             {rememberMe && (

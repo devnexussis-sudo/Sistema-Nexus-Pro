@@ -528,15 +528,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   }, [pagedOrders, selectedOrder, isEditing]);
 
-  // 📡 Realtime Local (Garante atualização na listagem de Atividades instantaneamente)
+  // 📡 Realtime Local (Only INSERT/DELETE — UPDATE is handled globally by AdminApp via updateOrderInPlace)
   useEffect(() => {
     const tenantIdStr = tenant?.id || '';
     if (!tenantIdStr) return;
 
     const channelName = `admin-orders-rt-${tenantIdStr}`;
     const handleOrderChange = (payload: any) => {
-        console.log('⚡ [AdminDashboard Realtime] Mudança na OS detectada:', payload.eventType);
-        ordersRefetch();
+        // AdminApp already handles UPDATE via updateOrderInPlace → cache updates in-place.
+        // Only refetch on INSERT or DELETE (new OS created or removed).
+        if (payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
+            console.log('⚡ [AdminDashboard Realtime] OS INSERT/DELETE detectado — refetch.');
+            ordersRefetch();
+        }
     };
 
     const channel = supabase.channel(channelName)

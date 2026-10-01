@@ -25,39 +25,32 @@ class TelemetrySystem {
 
     constructor() {
         this.hijackConsole();
-        this.logInternal('🚀 Telemetry Engine v2.5 Online');
     }
 
     private hijackConsole() {
         const self = this;
 
+        // BigTech Standard: Silence all non-error console outputs in the browser.
+        // Logs are recorded in memory for diagnostic export (NexusTelemetry.downloadLogs()).
         console.log = function (...args: any[]) {
             self.capture('log', args);
-            // Em produção, silenciamos log comum a menos que tenha a tag [SYSTEM] ou [Supabase]
-            const shouldShow = !self.isProduction ||
-                (typeof args[0] === 'string' && (args[0].includes('[SYSTEM]') || args[0].includes('[Supabase')));
-            if (shouldShow) self.originalConsole.log(...args);
         };
 
         console.info = function (...args: any[]) {
             self.capture('info', args);
-            if (!self.isProduction) self.originalConsole.info(...args);
         };
 
         console.debug = function (...args: any[]) {
             self.capture('debug', args);
-            if (!self.isProduction) self.originalConsole.debug(...args);
         };
 
         console.warn = function (...args: any[]) {
             self.capture('warn', args);
-            // Avisos SEMPRE aparecem no console nativo para facilitar debug remoto
-            self.originalConsole.warn(...args);
         };
 
         console.error = function (...args: any[]) {
             self.capture('error', args);
-            // Erros SEMPRE aparecem no console nativo
+            // Critical unhandled errors remain visible in native console
             self.originalConsole.error(...args);
         };
     }
@@ -89,7 +82,7 @@ class TelemetrySystem {
     }
 
     private logInternal(msg: string) {
-        this.originalConsole.log(`%c[Telemetry] ${msg}`, 'color: #3b82f6; font-weight: bold');
+        this.capture('info', [`[Telemetry] ${msg}`]);
     }
 
     public getRecentLogs() {

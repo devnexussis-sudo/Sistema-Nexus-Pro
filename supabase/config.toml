@@ -141,3 +141,9 @@ verify_jwt = true
 
 [functions.whatsapp-admin-send]
 verify_jwt = true
+
+[functions.asaas-webhook]
+verify_jwt = false
+
+[functions.asaas-create-charge]
+verify_jwt = true

@@ -13,7 +13,9 @@ interface AdminLoginProps {
 export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [keepLoggedIn, setKeepLoggedIn] = useState(false);
+    const [keepLoggedIn, setKeepLoggedIn] = useState<boolean>(() => {
+        return localStorage.getItem('nexus_remember_me_preference') !== 'false';
+    });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -35,6 +37,11 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
 
     const [showForgotPassword, setShowForgotPassword] = useState(false);
     const [resetEmailSent, setResetEmailSent] = useState(false);
+
+    const handleKeepLoggedInToggle = (checked: boolean) => {
+        setKeepLoggedIn(checked);
+        localStorage.setItem('nexus_remember_me_preference', checked ? 'true' : 'false');
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -234,7 +241,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                                             type="checkbox"
                                             id="keep-logged"
                                             checked={keepLoggedIn}
-                                            onChange={(e) => setKeepLoggedIn(e.target.checked)}
+                                            onChange={(e) => handleKeepLoggedInToggle(e.target.checked)}
                                             className="sr-only peer"
                                         />
                                         <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1c2d4f] group-hover:bg-slate-300"></div>

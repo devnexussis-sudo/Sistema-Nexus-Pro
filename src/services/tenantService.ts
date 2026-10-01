@@ -1079,7 +1079,6 @@ export const TenantService = {
 
             console.log('[TenantService] 🚀 Inserting system notification:', fullPayload);
 
-            // Strategy 1: Direct table insert with authenticated client (supabase)
             try {
                 const { data, error } = await supabase
                     .from('system_notifications')
@@ -1091,23 +1090,8 @@ export const TenantService = {
                     console.log('[TenantService] ✅ Notification inserted via authenticated client:', data.id);
                     return data;
                 }
-                if (error) console.warn('[TenantService] Insert via authenticated client warning:', error.message);
-            } catch (e) { /* fallback */ }
 
-            // Strategy 2: Direct table insert with anon client (publicSupabase)
-            try {
-                const { data, error } = await publicSupabase
-                    .from('system_notifications')
-                    .insert([fullPayload])
-                    .select()
-                    .single();
-
-                if (!error && data) {
-                    console.log('[TenantService] ✅ Notification inserted via anon client:', data.id);
-                    return data;
-                }
-
-                // If error is missing column (schema cache mismatch), strip non-core columns and insert
+                // If error is missing column (schema cache mismatch), strip non-core columns and retry
                 if (error && error.message?.includes('Could not find')) {
                     console.warn('[TenantService] ⚠️ Schema mismatch in system_notifications. Retrying with core columns:', error.message);
                     const corePayload: Record<string, any> = {
@@ -1120,7 +1104,7 @@ export const TenantService = {
                         corePayload.target_tenants = notification.targetTenants;
                     }
 
-                    const { data: fallbackData, error: fallbackError } = await publicSupabase
+                    const { data: fallbackData, error: fallbackError } = await supabase
                         .from('system_notifications')
                         .insert([corePayload])
                         .select()
@@ -1131,7 +1115,7 @@ export const TenantService = {
                 }
                 if (error) throw error;
             } catch (e: any) {
-                console.error('[TenantService] ❌ Insert failed on both clients:', e.message || e);
+                console.error('[TenantService] ❌ Notification insert failed:', e.message || e);
                 throw e;
             }
         }
@@ -1165,7 +1149,7 @@ export const TenantService = {
 
                 let rawNotifications: any[] = [];
 
-                // Attempt 1: Simple select without expires_at filter (since column does not exist)
+                // Attempt: Authenticated select query
                 try {
                     const { data, error } = await supabase
                         .from('system_notifications')
@@ -1173,29 +1157,12 @@ export const TenantService = {
                         .order('created_at', { ascending: false })
                         .limit(50);
 
-                    if (!error && data && data.length > 0) {
+                    if (!error && data) {
                         rawNotifications = data;
                     } else if (error) {
-                        console.warn('[TenantService] ⚠️ Query auth warning:', error.message);
+                        console.warn('[TenantService] ⚠️ System notifications query error:', error.message);
                     }
                 } catch (e) { /* fallback */ }
-
-
-                // Attempt 3: PublicSupabase (anon client) fallback if authenticated client returned empty or failed due to RLS
-                if (rawNotifications.length === 0) {
-                    try {
-                        const { data, error } = await publicSupabase
-                            .from('system_notifications')
-                            .select('*')
-                            .order('created_at', { ascending: false })
-                            .limit(50);
-
-                        if (!error && data) {
-                            console.log('[TenantService] ✅ Loaded notifications via publicSupabase (anon):', data.length);
-                            rawNotifications = data;
-                        }
-                    } catch (e) { /* fallback */ }
-                }
 
                 // Helper para parsear arrays de forma resiliente
                 const parseArray = (field: any): string[] => {
@@ -1313,7 +1280,10 @@ export const TenantService = {
     getMasterNotificationStats: async (): Promise<any[]> => {
         if (isCloudEnabled) {
             try {
-                const { data: notifications, error } = await publicSupabase
+                const sessionOk = await ensureValidSession();
+                if (!sessionOk) return [];
+
+                const { data: notifications, error } = await supabase
                     .from('system_notifications')
                     .select('*')
                     .order('created_at', { ascending: false })
@@ -1323,7 +1293,7 @@ export const TenantService = {
                 if (!notifications || notifications.length === 0) return [];
 
                 const notificationIds = notifications.map(n => n.id);
-                const { data: readsData } = await publicSupabase
+                const { data: readsData } = await supabase
                     .from('system_notification_reads')
                     .select('notification_id')
                     .in('notification_id', notificationIds);
@@ -1362,7 +1332,10 @@ export const TenantService = {
         if (!isCloudEnabled || !notificationId) return [];
 
         try {
-            const { data: rawReads, error } = await publicSupabase
+            const sessionOk = await ensureValidSession();
+            if (!sessionOk) return [];
+
+            const { data: rawReads, error } = await supabase
                 .from('system_notification_reads')
                 .select('user_id, read_at')
                 .eq('notification_id', notificationId)
@@ -1371,7 +1344,7 @@ export const TenantService = {
             if (error || !rawReads || rawReads.length === 0) return [];
 
             const userIds = rawReads.map(r => r.user_id);
-            const { data: usersData } = await publicSupabase
+            const { data: usersData } = await supabase
                 .from('users')
                 .select('id, name, email, role, tenant_id')
                 .in('id', userIds);
@@ -1379,7 +1352,7 @@ export const TenantService = {
             const tenantIds = Array.from(new Set((usersData || []).map(u => u.tenant_id).filter(Boolean)));
             let tenantMap: Record<string, string> = {};
             if (tenantIds.length > 0) {
-                const { data: tenantsData } = await publicSupabase
+                const { data: tenantsData } = await supabase
                     .from('tenants')
                     .select('id, name, company_name')
                     .in('id', tenantIds);
@@ -1414,9 +1387,12 @@ export const TenantService = {
 
     revokeSystemNotification: async (notificationId: string): Promise<void> => {
         if (isCloudEnabled) {
+            const sessionOk = await ensureValidSession();
+            if (!sessionOk) throw new Error('Sessão inválida para revogar comunicado');
+
             // 1. Tenta via RPC com SECURITY DEFINER (para bypassar RLS do Master)
             try {
-                const { error: rpcError } = await publicSupabase.rpc('revoke_system_notification', {
+                const { error: rpcError } = await supabase.rpc('revoke_system_notification', {
                     p_notification_id: notificationId
                 });
 
@@ -1429,14 +1405,14 @@ export const TenantService = {
             }
 
             try {
-                await publicSupabase
+                await supabase
                     .from('system_notification_reads')
                     .delete()
                     .eq('notification_id', notificationId);
             } catch (_e) {}
 
             // 3. Apaga a notificação física no Supabase
-            const { error } = await publicSupabase
+            const { error } = await supabase
                 .from('system_notifications')
                 .delete()
                 .eq('id', notificationId);

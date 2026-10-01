@@ -406,8 +406,67 @@ export const NexusQueryClient = {
         queryClient.invalidateQueries('contracts');
         CacheManager.invalidate('contracts');
     },
+    updateQuoteInPlace: (payload: any) => {
+        if (!payload || !payload.id) return;
+        const updater = (q: any) => {
+            if (q.id !== payload.id) return q;
+
+            let rejectionReason = payload.rejection_reason || q.rejectionReason;
+            if (!rejectionReason && payload.approval_metadata?.rejection_reason) {
+                rejectionReason = payload.approval_metadata.rejection_reason;
+            }
+
+            return {
+                ...q,
+                displayId: payload.display_id ?? q.displayId,
+                status: payload.status ?? q.status,
+                billingStatus: payload.billing_status ?? q.billingStatus,
+                customerName: payload.customer_name ?? q.customerName,
+                customerAddress: payload.customer_address ?? q.customerAddress,
+                customerDocument: payload.customer_document ?? q.customerDocument,
+                title: payload.title ?? q.title,
+                description: payload.description ?? q.description,
+                items: typeof payload.items === 'string' ? JSON.parse(payload.items) : (payload.items ?? q.items),
+                totalValue: payload.total_value ?? payload.total_amount ?? q.totalValue,
+                notes: payload.notes ?? q.notes,
+                rejectionReason,
+                validUntil: payload.valid_until ?? q.validUntil,
+                linkedOrderId: payload.linked_order_id ?? q.linkedOrderId,
+                updatedAt: payload.updated_at ?? q.updatedAt,
+                createdAt: payload.created_at ?? q.createdAt,
+                publicToken: payload.public_token ?? q.publicToken,
+                approvedByName: payload.approved_by_name ?? q.approvedByName,
+                approvalDocument: payload.approval_document ?? q.approvalDocument,
+                approvalSignature: payload.approval_signature ?? q.approvalSignature,
+                approvedAt: payload.approved_at ?? q.approvedAt,
+                paymentMethod: payload.payment_method ?? q.paymentMethod,
+                installments: payload.installments ?? q.installments,
+                paymentNotes: payload.payment_notes ?? q.paymentNotes,
+                paidAt: payload.paid_at ?? q.paidAt,
+                discount: payload.discount !== undefined ? Number(payload.discount) : q.discount,
+                discountType: payload.discount_type ?? q.discountType,
+                gatewayProvider: payload.gateway_provider ?? q.gatewayProvider,
+                gatewayPaymentId: payload.gateway_payment_id ?? q.gatewayPaymentId,
+                gatewayPixCode: payload.gateway_pix_code ?? q.gatewayPixCode,
+                gatewayQrCodeUrl: payload.gateway_qr_code_url ?? q.gatewayQrCodeUrl,
+                gatewayTicketUrl: payload.gateway_ticket_url ?? q.gatewayTicketUrl,
+                gatewayStatus: payload.gateway_status ?? q.gatewayStatus,
+            };
+        };
+
+        queryClient.updateQueriesData('quotes_paged', (oldData: any) => {
+            if (!oldData || !oldData.data || !Array.isArray(oldData.data)) return oldData;
+            return { ...oldData, data: oldData.data.map(updater) };
+        });
+
+        queryClient.updateQueriesData('quotes', (oldData: any) => {
+            if (!oldData || !Array.isArray(oldData)) return oldData;
+            return oldData.map(updater);
+        });
+    },
     invalidateQuotes: () => {
         queryClient.invalidateQueries('quotes');
+        queryClient.invalidateQueries('quotes_paged');
         CacheManager.invalidate('quotes');
     },
     invalidateEquipments: () => {

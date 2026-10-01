@@ -16,6 +16,7 @@ import { DataService } from '../../services/dataService';
 import { StorageService } from '../../services/storageService';
 import XLSX from 'xlsx-js-style';
 import { NexusQueryClient } from '../../hooks/nexusHooks';
+import { CacheManager } from '../../lib/cache';
 import { usePermissions } from '../../hooks/usePermissions';
 import { PaymentAuditModal } from './PaymentAuditModal';
 import { supabase } from '../../lib/supabase';
@@ -23,6 +24,22 @@ import { PaymentService } from '../../services/paymentService';
 import { AccountsPayableTab } from './AccountsPayableTab';
 import { CashFlowTab } from './CashFlowTab';
 import { CommissionsTab } from './CommissionsTab';
+
+const getInitialFinancialState = <T,>(key: string, fallback: T): T => {
+    if (typeof window === 'undefined' || !key) return fallback;
+    try {
+        const inMem = CacheManager.get<T>(key);
+        if (inMem !== null && inMem !== undefined) return inMem;
+
+        const stored = localStorage.getItem(key);
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            CacheManager.set(key, parsed, CacheManager.TTL.MEDIUM);
+            return parsed;
+        }
+    } catch (e) {}
+    return fallback;
+};
 import { InvoiceReceiptTemplate } from './InvoiceReceiptTemplate';
 import { formatInvoiceDisplayId } from '../../utils/invoiceUtils';
 
@@ -181,6 +198,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         if (!s) return 'Pendente';
         const map: Record<string, string> = {
             'PAID': 'Pago /\nLiquidado',
+            'PARTIALLY_PAID': 'Parcialmente\nPago',
             'RECEIVED': 'Recebido /\nPago',
             'CONFIRMED': 'Confirmado /\nPago',
             'ANTICIPATED': 'Antecipado /\nLiquidado',
@@ -217,7 +235,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         if (s === 'OVERDUE') {
             return { bg: 'bg-rose-50 text-rose-700 border-rose-200', dot: 'bg-rose-500 animate-pulse' };
         }
-        if (s === 'BILLED' || s === 'FATURADO') {
+        if (s === 'BILLED' || s === 'FATURADO' || s === 'PARTIALLY_PAID') {
             return { bg: 'bg-sky-50 text-sky-700 border-sky-200', dot: 'bg-sky-500' };
         }
         return { bg: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500 animate-pulse' };
@@ -274,47 +292,68 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const tenantIdStr = tenant?.id || '';
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [spinningInvoiceId, setSpinningInvoiceId] = useState<string | null>(null);
-    const [invoices, setInvoices] = useState<any[]>([]);
-    const [invoiceItems, setInvoiceItems] = useState<any[]>([]);
-    const [allUsers, setAllUsers] = useState<any[]>([]);
+    const [invoices, setInvoices] = useState<any[]>(() => getInitialFinancialState(`nexus_invoices_${tenantIdStr}`, []));
+    const [invoiceItems, setInvoiceItems] = useState<any[]>(() => getInitialFinancialState(`nexus_invoice_items_${tenantIdStr}`, []));
+    const [allUsers, setAllUsers] = useState<any[]>(() => getInitialFinancialState(`nexus_all_users`, []));
     const [receivablesView, setReceivablesView] = useState<'items' | 'invoices'>('items');
+
+    useEffect(() => {
+        if (tenantIdStr && invoices.length === 0) {
+            const cachedInv = getInitialFinancialState<any[]>(`nexus_invoices_${tenantIdStr}`, []);
+            const cachedItms = getInitialFinancialState<any[]>(`nexus_invoice_items_${tenantIdStr}`, []);
+            const cachedNfse = getInitialFinancialState<Record<string, any>>(`nexus_nfse_map_${tenantIdStr}`, {});
+            if (cachedInv.length > 0) setInvoices(cachedInv);
+            if (cachedItms.length > 0) setInvoiceItems(cachedItms);
+            if (Object.keys(cachedNfse).length > 0) setNfseDataMap(cachedNfse);
+        }
+    }, [tenantIdStr]);
 
     const loadInvoices = async () => {
         if (!tenantIdStr) return;
         try {
-            const { data: inv } = await supabase.from('invoices').select('*').eq('tenant_id', tenantIdStr).order('created_at', { ascending: false });
-            if (inv) setInvoices(inv);
+            const [invRes, itmsRes, usersRes, nfseRes] = await Promise.all([
+                supabase.from('invoices').select('*').eq('tenant_id', tenantIdStr).order('created_at', { ascending: false }),
+                supabase.from('invoice_items').select('*').eq('tenant_id', tenantIdStr),
+                supabase.from('users').select('id, name'),
+                supabase.from('invoice_nfse').select('invoice_id, status, nfse_number, pdf_url, xml_url, asaas_nfse_id, error_message').eq('tenant_id', tenantIdStr).then(res => res, () => ({ data: null, error: null }))
+            ]);
+
+            const freshInvoices = invRes.data || [];
+            const freshInvoiceItems = itmsRes.data || [];
+            const freshUsers = usersRes.data || [];
             
-            const { data: itms } = await supabase.from('invoice_items').select('*').eq('tenant_id', tenantIdStr);
-            if (itms) setInvoiceItems(itms);
-
-            const { data: usersData } = await supabase.from('users').select('id, name');
-            if (usersData) setAllUsers(usersData);
-
-            // Load NFS-e data
-            try {
-                const { data: nfseRecords } = await supabase
-                    .from('invoice_nfse')
-                    .select('invoice_id, status, nfse_number, pdf_url, xml_url, asaas_nfse_id, error_message')
-                    .eq('tenant_id', tenantIdStr);
-                if (nfseRecords && nfseRecords.length > 0) {
-                    const map: Record<string, any> = {};
-                    nfseRecords.forEach((rec: any) => {
-                        map[rec.invoice_id] = {
-                            status: rec.status,
-                            pdfUrl: rec.pdf_url,
-                            xmlUrl: rec.xml_url,
-                            number: rec.nfse_number,
-                            asaas_nfse_id: rec.asaas_nfse_id,
-                            error_message: rec.error_message
-                        };
-                    });
-                    setNfseDataMap(map);
-                }
-            } catch (nfseErr) {
-                // Table may not exist yet — silently ignore
-                console.warn('[NFS-e] Erro ao carregar dados de NFS-e (tabela pode não existir ainda):', nfseErr);
+            const freshNfseMap: Record<string, any> = {};
+            if (nfseRes?.data && Array.isArray(nfseRes.data) && nfseRes.data.length > 0) {
+                nfseRes.data.forEach((rec: any) => {
+                    freshNfseMap[rec.invoice_id] = {
+                        status: rec.status,
+                        pdfUrl: rec.pdf_url,
+                        xmlUrl: rec.xml_url,
+                        number: rec.nfse_number,
+                        asaas_nfse_id: rec.asaas_nfse_id,
+                        error_message: rec.error_message
+                    };
+                });
             }
+
+            CacheManager.set(`nexus_invoices_${tenantIdStr}`, freshInvoices, CacheManager.TTL.MEDIUM);
+            CacheManager.set(`nexus_invoice_items_${tenantIdStr}`, freshInvoiceItems, CacheManager.TTL.MEDIUM);
+            CacheManager.set(`nexus_all_users`, freshUsers, CacheManager.TTL.MEDIUM);
+            CacheManager.set(`nexus_nfse_map_${tenantIdStr}`, freshNfseMap, CacheManager.TTL.MEDIUM);
+
+            try {
+                localStorage.setItem(`nexus_invoices_${tenantIdStr}`, JSON.stringify(freshInvoices));
+                localStorage.setItem(`nexus_invoice_items_${tenantIdStr}`, JSON.stringify(freshInvoiceItems));
+                localStorage.setItem(`nexus_all_users`, JSON.stringify(freshUsers));
+                localStorage.setItem(`nexus_nfse_map_${tenantIdStr}`, JSON.stringify(freshNfseMap));
+            } catch (e) {}
+
+            flushSync(() => {
+                setInvoices(freshInvoices);
+                setInvoiceItems(freshInvoiceItems);
+                setAllUsers(freshUsers);
+                setNfseDataMap(freshNfseMap);
+            });
         } catch (e) {
             console.error('Error loading invoices or users', e);
         }
@@ -460,52 +499,68 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         return { label: 'Pix', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200/80 font-bold' };
     };
 
-    // Supabase Realtime & BroadcastChannel: Atualização instantânea na tela assim que o pagamento for liquidado
+    // ⚡ Realtime Event-Driven Sync (0ms egress inteligente, 0 polling)
     useEffect(() => {
-        const handlePaymentUpdate = () => {
-            console.log('⚡ [Realtime Financial] Pagamento/Mudança financeira detectada!');
+        if (!tenantIdStr) return;
+
+        const handlePaymentUpdate = (e?: any) => {
+            console.log('⚡ [Realtime Financial] Pagamento/Mudança financeira detectada via Webhook/Realtime!', e);
+            const updatedId = e?.detail?.id || e?.payload?.invoiceId || e?.new?.id || e?.new?.invoice_id;
+            if (updatedId) {
+                setSpinningInvoiceId(updatedId);
+                setTimeout(() => setSpinningInvoiceId(null), 2000);
+            }
             onRefresh();
             loadInvoices();
-            window.dispatchEvent(new Event('refresh_invoices'));
         };
 
+        // ⚡ CRITICAL: Channel name MUST be unique per component.
         const channel = supabase
-            .channel('realtime_financial_dashboard_gateway')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, handlePaymentUpdate)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'quotes' }, handlePaymentUpdate)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, handlePaymentUpdate)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'invoice_installments' }, handlePaymentUpdate)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_flow' }, handlePaymentUpdate)
+            .channel(`financial-realtime-${tenantIdStr}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices', filter: `tenant_id=eq.${tenantIdStr}` }, handlePaymentUpdate)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'invoice_installments', filter: `tenant_id=eq.${tenantIdStr}` }, handlePaymentUpdate)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_flow', filter: `tenant_id=eq.${tenantIdStr}` }, handlePaymentUpdate)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `tenant_id=eq.${tenantIdStr}` }, handlePaymentUpdate)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'quotes', filter: `tenant_id=eq.${tenantIdStr}` }, handlePaymentUpdate)
             .on('broadcast', { event: 'PAYMENT_APPROVED' }, handlePaymentUpdate)
             .on('broadcast', { event: 'INVOICE_UPDATED' }, handlePaymentUpdate)
-            .subscribe();
-
-        let tenantChannel: any = null;
-        if (tenantIdStr) {
-            tenantChannel = supabase
-                .channel(`nexus-realtime-${tenantIdStr}`)
-                .on('broadcast', { event: 'PAYMENT_APPROVED' }, handlePaymentUpdate)
-                .on('broadcast', { event: 'INVOICE_UPDATED' }, handlePaymentUpdate)
-                .subscribe();
-        }
+            .subscribe((status) => {
+                console.log(`[FinancialDashboard] 📡 Realtime channel status: ${status}`);
+            });
 
         let bc: BroadcastChannel | null = null;
         try {
             bc = new BroadcastChannel('nexus_payment_sync');
             bc.onmessage = (msg) => {
-                if (msg.data?.type === 'PAYMENT_APPROVED') {
-                    console.log('⚡ [BroadcastChannel] Pagamento aprovado em outra aba!');
+                if (msg.data?.type === 'PAYMENT_APPROVED' || msg.data?.type === 'INVOICE_UPDATED') {
                     handlePaymentUpdate();
                 }
             };
         } catch (e) {}
 
+        const windowHandler = (e: any) => handlePaymentUpdate(e);
+        window.addEventListener('refresh_invoices', windowHandler);
+
         return () => {
             supabase.removeChannel(channel);
-            if (tenantChannel) supabase.removeChannel(tenantChannel);
             if (bc) bc.close();
+            window.removeEventListener('refresh_invoices', windowHandler);
         };
     }, [tenantIdStr, onRefresh]);
+
+    // ⚡ Auto-refresh: Recarrega dados do banco para refletir alterações vindas do webhook Asaas.
+    // NÃO chama syncInstallment aqui — o status só muda via webhook real do Asaas, nunca via polling.
+    useEffect(() => {
+        const hasPending = invoices.some(inv => inv.status === 'PENDING' || inv.status === 'BILLED');
+        if (!hasPending) return;
+
+        const interval = setInterval(() => {
+            loadInvoices();
+            onRefresh();
+        }, 30000);
+
+        return () => clearInterval(interval);
+    }, [invoices, tenantIdStr, onRefresh]);
 
     const handleCancelInvoice = async () => {
         if (!cancelInvoiceModal.invoice) return;
@@ -590,9 +645,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 if (data) found = data;
             }
             if (found) {
-                const doc = (found.document || found.cpf || found.cnpj || '')?.toString().replace(/\D/g, '');
-                if (!doc) return { customer: found, error: `Cliente "${found.name}" não possui CPF/CNPJ cadastrado. Atualize o cadastro do cliente antes de faturar.` };
-                return { customer: found };
+                const doc = (found.document || found.cpf || found.cnpj || customerDocument || '')?.toString().replace(/\D/g, '');
+                if (!doc) return { customer: found, error: `Cliente "${found.name}" não possui CPF/CNPJ cadastrado. Acesse o menu Clientes para cadastrar o CPF/CNPJ do cliente antes de faturar via gateway.` };
+                return { customer: { ...found, document: doc } };
             }
         }
 
@@ -612,9 +667,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         if (customerName) {
             const found = customers.find(c => c.name?.toLowerCase().trim() === customerName.toLowerCase().trim());
             if (found) {
-                const doc = (found.document || found.cpf || found.cnpj || '')?.toString().replace(/\D/g, '');
-                if (!doc) return { customer: found, error: `Cliente "${found.name}" não possui CPF/CNPJ cadastrado. Atualize o cadastro do cliente antes de faturar.` };
-                return { customer: found };
+                const doc = (found.document || found.cpf || found.cnpj || customerDocument || '')?.toString().replace(/\D/g, '');
+                if (!doc) return { customer: found, error: `Cliente "${found.name}" não possui CPF/CNPJ cadastrado. Acesse o menu Clientes para cadastrar o CPF/CNPJ do cliente antes de faturar via gateway.` };
+                return { customer: { ...found, document: doc } };
             }
         }
 
@@ -736,58 +791,10 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     };
 
     useEffect(() => {
-        const handler = (e: any) => { 
-            const updatedId = e.detail?.id;
-            if (updatedId) {
-                setSpinningInvoiceId(updatedId);
-                setTimeout(() => setSpinningInvoiceId(null), 2000);
-            }
-            if (mainTab === 'RECEIVABLES') loadInvoices(); 
-        };
-        window.addEventListener('refresh_invoices', handler);
-        
         if (mainTab === 'RECEIVABLES') {
             loadInvoices();
         }
-        
-        return () => window.removeEventListener('refresh_invoices', handler);
-    }, [tenantIdStr, mainTab, isRefreshing]);
-
-    // Polling automático inteligente e verificação de NFS-e pendentes em background
-    useEffect(() => {
-        if (mainTab !== 'RECEIVABLES' || !tenantIdStr) return;
-
-        const intervalId = setInterval(() => {
-            loadInvoices();
-
-            // Se existirem notas pendentes (SCHEDULED ou SYNCHRONIZED), consulta status no Asaas em background
-            if (nfseDataMap) {
-                Object.entries(nfseDataMap).forEach(([invoiceId, nfse]) => {
-                    if (nfse && (nfse.status === 'SCHEDULED' || nfse.status === 'SYNCHRONIZED')) {
-                        PaymentService.checkNfseStatus(invoiceId, nfse.asaas_nfse_id, tenantIdStr)
-                            .then((res) => {
-                                if (res.success && res.nfse && res.nfse.status !== nfse.status) {
-                                    setNfseDataMap(prev => ({
-                                        ...prev,
-                                        [invoiceId]: {
-                                            status: res.nfse.status,
-                                            pdfUrl: res.nfse.pdfUrl,
-                                            xmlUrl: res.nfse.xmlUrl,
-                                            number: res.nfse.number,
-                                            asaas_nfse_id: res.nfse.id
-                                        }
-                                    }));
-                                    loadInvoices();
-                                }
-                            })
-                            .catch(() => {});
-                    }
-                });
-            }
-        }, 60000); // 60s fallback — atualizações imediatas são tratadas via Supabase Realtime
-
-        return () => clearInterval(intervalId);
-    }, [mainTab, tenantIdStr, nfseDataMap]);
+    }, [tenantIdStr, mainTab]);
 
     // Recarrega as parcelas automaticamente quando ocorre um evento realtime
     useEffect(() => {
@@ -956,8 +963,6 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 return true;
             })
             .map(q => {
-                const isLinkedInvPaid = invoiceItems.some(invItem => invItem.reference_id === q.id && invoices.some(inv => inv.id === invItem.invoice_id && (inv.status === 'PAID' || inv.gateway_status === 'approved')));
-                const isPaid = (q.billingStatus || '').toUpperCase() === 'PAID' || (q as any).gateway_status === 'approved' || isLinkedInvPaid;
                 const itemsGross = q.items?.reduce((acc: number, i: any) => acc + (Number(i.total) || 0), 0) || 0;
                 const storedVal = Number(q.totalValue) || 0;
                 
@@ -989,6 +994,15 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 netValue = Math.round(netValue * 100) / 100;
 
                 const linkedInv = invoices.find(inv => invoiceItems.some(invItem => invItem.reference_id === q.id && invItem.invoice_id === inv.id)) || null;
+                const isLinkedInvPaid = linkedInv && (linkedInv.status === 'PAID' || linkedInv.status === 'RECEIVED' || linkedInv.status === 'CONFIRMED' || linkedInv.gateway_status === 'approved');
+                const isPaid = (q.billingStatus || '').toUpperCase() === 'PAID' || (q as any).gateway_status === 'approved' || isLinkedInvPaid;
+
+                let itemStatus = isPaid ? 'PAID' : (q.billingStatus || 'PENDING').toUpperCase();
+                if (!isPaid && linkedInv) {
+                    if (linkedInv.status === 'OVERDUE') itemStatus = 'OVERDUE';
+                    else if (linkedInv.status === 'CANCELED') itemStatus = 'CANCELED';
+                    else if (linkedInv.status === 'BILLED' || linkedInv.status === 'FATURADO' || linkedInv.status === 'PENDING') itemStatus = 'BILLED';
+                }
 
                 const fullCustQ = customers.find(c => c.id === (q as any).customer_id || c.id === (q as any).customerId || c.name?.toLowerCase().trim() === q.customerName?.toLowerCase().trim());
                 const actualCustomerNameQ = fullCustQ?.name || q.customerName;
@@ -1010,7 +1024,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     grossValue,
                     discountAmount,
                     netValue,
-                    status: isPaid ? 'PAID' : (q.billingStatus || 'PENDING').toUpperCase(),
+                    status: itemStatus,
                     original: q,
                     billingDiscount: discVal,
                     billingDiscountType: discType,
@@ -1088,9 +1102,16 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 netValue = Math.round(netValue * 100) / 100;
 
                 const techObj = techs.find(t => t.id === order.assignedTo);
-                const isLinkedInvPaid = invoiceItems.some(invItem => invItem.reference_id === order.id && invoices.some(inv => inv.id === invItem.invoice_id && (inv.status === 'PAID' || inv.gateway_status === 'approved')));
-                const isPaid = (order.billingStatus || '').toUpperCase() === 'PAID' || (order as any).gateway_status === 'approved' || isLinkedInvPaid;
                 const linkedInv = invoices.find(inv => invoiceItems.some(invItem => invItem.reference_id === order.id && invItem.invoice_id === inv.id)) || null;
+                const isLinkedInvPaid = linkedInv && (linkedInv.status === 'PAID' || linkedInv.status === 'RECEIVED' || linkedInv.status === 'CONFIRMED' || linkedInv.gateway_status === 'approved');
+                const isPaid = (order.billingStatus || '').toUpperCase() === 'PAID' || (order as any).gateway_status === 'approved' || isLinkedInvPaid;
+
+                let itemStatus = isPaid ? 'PAID' : (order.billingStatus || 'PENDING').toUpperCase();
+                if (!isPaid && linkedInv) {
+                    if (linkedInv.status === 'OVERDUE') itemStatus = 'OVERDUE';
+                    else if (linkedInv.status === 'CANCELED') itemStatus = 'CANCELED';
+                    else if (linkedInv.status === 'BILLED' || linkedInv.status === 'FATURADO' || linkedInv.status === 'PENDING') itemStatus = 'BILLED';
+                }
 
                 const fullCustO = customers.find(c => c.id === (order as any).customer_id || c.id === (order as any).customerId || c.name?.toLowerCase().trim() === order.customerName?.toLowerCase().trim());
                 const actualCustomerNameO = fullCustO?.name || order.customerName;
@@ -1112,7 +1133,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     grossValue,
                     discountAmount,
                     netValue,
-                    status: isPaid ? 'PAID' : (order.billingStatus || 'PENDING').toUpperCase(),
+                    status: itemStatus,
                     original: order,
                     billingDiscount: discVal,
                     billingDiscountType: discType,
@@ -1414,18 +1435,38 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             const targetCustomerName = firstItem?.customerName || firstItem?.original?.customer_name || firstItem?.original?.customerName || '';
             const targetCustomerDoc = (firstItem as any)?.customerDocument || firstItem?.original?.customer_document || firstItem?.original?.customerDocument || '';
 
-            // Busca hierárquica: por ID → por CPF/CNPJ → por nome → cria um objeto sintético com os dados disponíveis
+            // Busca hierárquica: por ID → por CPF/CNPJ → por nome → busca direta no Supabase DB
             let fullCust: any = customers.find(c => c.id === targetCustomerId);
             if (!fullCust && targetCustomerDoc) {
                 const cleanDoc = targetCustomerDoc.toString().replace(/\D/g, '');
                 fullCust = customers.find(c => {
-                    const cDoc = ((c as any).document || (c as any).cpf || (c as any).cnpj || '').toString().replace(/\D/g, '');
+                    const cDoc = ((c as any).document || (c as any).cpf || (c as any).cnpj || (c as any).document_number || (c as any).cpf_cnpj || '').toString().replace(/\D/g, '');
                     return cDoc && cDoc === cleanDoc;
                 });
             }
             if (!fullCust && targetCustomerName) {
                 fullCust = customers.find(c => c.name?.toLowerCase().trim() === targetCustomerName.toLowerCase().trim());
             }
+
+            // Fallback assíncrono direto no banco de dados Supabase se não achou ou se está sem documento no estado local
+            const hasLocalDoc = fullCust && ((fullCust as any).document || (fullCust as any).cpf || (fullCust as any).cnpj || (fullCust as any).document_number || (fullCust as any).cpf_cnpj);
+            if (!hasLocalDoc && (targetCustomerId || targetCustomerName)) {
+                try {
+                    let dbQuery = supabase.from('customers').select('*');
+                    if (targetCustomerId) {
+                        dbQuery = dbQuery.eq('id', targetCustomerId);
+                    } else if (targetCustomerName) {
+                        dbQuery = dbQuery.ilike('name', targetCustomerName.trim());
+                    }
+                    const { data: dbCustomer } = await dbQuery.maybeSingle();
+                    if (dbCustomer) {
+                        fullCust = dbCustomer;
+                    }
+                } catch (dbErr) {
+                    console.warn('[FinancialDashboard] Erro ao buscar cliente no banco:', dbErr);
+                }
+            }
+
             // Fallback sintético: usa os dados que já estão no item para não bloquear o faturamento
             if (!fullCust && targetCustomerName) {
                 fullCust = {
@@ -1443,7 +1484,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 return;
             }
 
-            const customerDoc = (firstItem as any)?.customerDocument || fullCust?.document || (fullCust as any)?.cpf || (fullCust as any)?.cnpj || firstItem?.original?.customer_document || firstItem?.original?.customerDocument;
+            const customerDoc = (firstItem as any)?.customerDocument || fullCust?.document || (fullCust as any)?.cpf || (fullCust as any)?.cnpj || (fullCust as any)?.document_number || (fullCust as any)?.cpf_cnpj || firstItem?.original?.customer_document || firstItem?.original?.customerDocument;
             
             const invoiceStatus = isMpIntegrationTriggered ? 'PENDING' : 'PAID';
 
@@ -1586,9 +1627,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 const finalInstallments = asaasMethod === 'pix' ? 1 : (asaasMethod === 'credit_card' ? (installments || 1) : (installmentCount || 1));
 
                 // Pre-flight: Validação obrigatória de CPF/CNPJ antes de chamar o gateway
-                const resolvedDoc = customerDoc || fullCust?.document || (fullCust as any)?.cpf || (fullCust as any)?.cnpj;
+                const resolvedDoc = customerDoc || fullCust?.document || (fullCust as any)?.cpf || (fullCust as any)?.cnpj || (fullCust as any)?.document_number || (fullCust as any)?.cpf_cnpj || (invoice as any)?.customer_document || (firstItem?.original as any)?.customerDocument;
                 if (!resolvedDoc || !resolvedDoc.toString().replace(/\D/g, '')) {
-                    showAlert(`Cliente "${fullCust?.name || invoice.customer_name}" não possui CPF/CNPJ cadastrado. Atualize o cadastro do cliente antes de faturar via gateway.`, 'error');
+                    showAlert(`Cliente "${fullCust?.name || invoice.customer_name}" não possui CPF/CNPJ cadastrado. Acesse o menu Clientes para cadastrar o CPF/CNPJ antes de faturar via gateway.`, 'error');
                     setIsProcessing(false);
                     return;
                 }
@@ -1604,12 +1645,12 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     customerName: fullCust?.name || invoice.customer_name,
                     customerDocument: resolvedDoc,
                     customerId: fullCust?.id || invoice.customer_id,
-                    customerZip: fullCust?.zip || (fullCust as any)?.cep,
-                    customerStreet: fullCust?.address || (fullCust as any)?.street,
-                    customerNumber: fullCust?.number,
-                    customerNeighborhood: fullCust?.neighborhood,
-                    customerCity: fullCust?.city,
-                    customerState: fullCust?.state,
+                    customerZip: fullCust?.zip_code || fullCust?.zip || (fullCust as any)?.cep || (fullCust as any)?.postal_code || (fullCust as any)?.postalCode,
+                    address: fullCust?.address || (fullCust as any)?.street || (fullCust as any)?.logradouro,
+                    addressNumber: fullCust?.number || (fullCust as any)?.address_number || (fullCust as any)?.numero,
+                    province: fullCust?.neighborhood || (fullCust as any)?.bairro || (fullCust as any)?.province,
+                    customerCity: fullCust?.city || (fullCust as any)?.cidade,
+                    customerState: fullCust?.state || (fullCust as any)?.uf || (fullCust as any)?.estado,
                     paymentMethodType: asaasMethod,
                     installments: finalInstallments,
                     tenantId: currentTenantId
@@ -1633,10 +1674,14 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     hasInstallments: finalInstallments > 1
                 };
                 
-                await supabase.from('invoices').update({ 
+                const invoiceUpdatePayload: any = { 
                     payment_gateway_id: asaasRes.paymentId,
                     notes: JSON.stringify(notesObj)
-                }).eq('id', invoice.id);
+                };
+                if (asaasRes.invoiceNumber) {
+                    invoiceUpdatePayload.invoice_number = asaasRes.invoiceNumber;
+                }
+                await supabase.from('invoices').update(invoiceUpdatePayload).eq('id', invoice.id);
 
                 for (const id of selectedIds) {
                     const rawItem = allItems.find(i => i.id === id);
@@ -2896,8 +2941,9 @@ ${container.innerHTML}
                                     <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Fatura</th>
                                     <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Cliente</th>
                                     <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap text-center">Forma de Pagamento</th>
-                                    <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Data Emissão</th>
-                                    <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Data Pagamento</th>
+                                    <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Emissão</th>
+                                    <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Vencimento</th>
+                                    <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Pagamento</th>
                                     <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right whitespace-nowrap">Valor Total</th>
                                     <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center whitespace-nowrap">Status</th>
                                     <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center whitespace-nowrap">Ações</th>
@@ -2906,7 +2952,7 @@ ${container.innerHTML}
                             <tbody className="divide-y divide-slate-100">
                                 {paginatedInvoices.length === 0 ? (
                                     <tr>
-                                        <td colSpan={8} className="py-12 text-center text-slate-500 text-sm">
+                                        <td colSpan={9} className="py-12 text-center text-slate-500 text-sm">
                                             {invoices.length === 0 ? 'Nenhuma fatura gerada até o momento.' : 'Nenhuma fatura encontrada com os filtros atuais.'}
                                         </td>
                                     </tr>
@@ -2933,11 +2979,21 @@ ${container.innerHTML}
                                                         <span className="text-[10px] text-slate-500 font-mono font-medium ml-6">
                                                             Nº {inv.invoice_number}
                                                         </span>
-                                                    ) : (inv.gateway_payment_id || inv.payment_gateway_id) ? (
-                                                        <span className="text-[9px] text-slate-400 font-mono font-medium ml-6 truncate max-w-[120px] inline-block" title={`ID Gateway: ${inv.gateway_payment_id || inv.payment_gateway_id}`}>
-                                                            ID: {(inv.gateway_payment_id || inv.payment_gateway_id).startsWith('pay_') ? (inv.gateway_payment_id || inv.payment_gateway_id).replace('pay_', '') : (inv.gateway_payment_id || inv.payment_gateway_id)}
-                                                        </span>
-                                                    ) : null}
+                                                    ) : (() => {
+                                                        const gwId = inv.gateway_payment_id || inv.payment_gateway_id || '';
+                                                        const isAsaasId = gwId.startsWith('pay_') || gwId.startsWith('inst_') || gwId.startsWith('chk_') || gwId.startsWith('link_');
+                                                        if (isAsaasId) {
+                                                            return (
+                                                                <span className="text-[9px] text-slate-400 font-mono font-medium ml-6 truncate max-w-[120px] inline-block" title={`ID Gateway: ${gwId}`}>
+                                                                    ID: {gwId.startsWith('pay_') ? gwId.replace('pay_', '') : gwId}
+                                                                </span>
+                                                            );
+                                                        }
+                                                        if (gwId) {
+                                                            return <span className="text-[9px] text-amber-500 font-medium ml-6">⏳ Aguardando Asaas</span>;
+                                                        }
+                                                        return null;
+                                                    })()}
                                                 </div>
                                             </td>
                                             <td className="py-3 px-4">
@@ -2956,11 +3012,14 @@ ${container.innerHTML}
                                                     );
                                                 })()}
                                             </td>
-                                            <td className="py-3 px-4 text-xs text-slate-600 whitespace-nowrap">
+                                            <td className="py-3 px-4 text-xs text-slate-500 whitespace-nowrap">
                                                 {new Date(inv.created_at).toLocaleDateString('pt-BR')}
                                             </td>
+                                            <td className="py-3 px-4 text-xs text-slate-600 whitespace-nowrap font-medium">
+                                                {inv.due_date ? new Date(inv.due_date + 'T12:00:00').toLocaleDateString('pt-BR') : <span className="text-slate-400 font-normal">—</span>}
+                                            </td>
                                             <td className="py-3 px-4 text-xs font-semibold text-slate-700 whitespace-nowrap">
-                                                {inv.paid_at ? new Date(inv.paid_at).toLocaleDateString('pt-BR') : <span className="text-slate-400 font-normal">—</span>}
+                                                {inv.paid_at ? new Date(inv.paid_at).toLocaleDateString('pt-BR', inv.paid_at.includes('T00:00:00') ? { timeZone: 'UTC' } : undefined) : <span className="text-slate-400 font-normal">—</span>}
                                             </td>
                                             <td className="py-3 px-4 text-right whitespace-nowrap">
                                                 <span className="text-sm font-bold text-emerald-600">
@@ -2986,13 +3045,30 @@ ${container.innerHTML}
                                                             if (checkingInvoiceId === inv.id) return;
                                                             const rawMpId = inv.gateway_payment_id || inv.payment_gateway_id;
                                                             
+                                                            console.warn('🔍 [SYNC DEBUG] Iniciando sync para:', {
+                                                                invoiceId: inv.id,
+                                                                displayId: inv.display_id,
+                                                                rawMpId,
+                                                                gateway_payment_id: inv.gateway_payment_id,
+                                                                payment_gateway_id: inv.payment_gateway_id,
+                                                                currentStatus: inv.status,
+                                                                tenantId: tenantIdStr,
+                                                            });
+                                                            
                                                             setCheckingInvoiceId(inv.id);
                                                             try {
-                                                                const res = await PaymentService.syncInstallment(rawMpId, undefined, inv.id, 'INVOICE');
+                                                                const res = await PaymentService.syncInstallment(rawMpId, tenantIdStr, inv.id, 'INVOICE');
+                                                                
+                                                                console.warn('🔍 [SYNC DEBUG] Resposta do Asaas:', JSON.stringify(res, null, 2));
                                                                 
                                                                 // Atualização otimista na tela (Faturas)
                                                                 if (res.success && res.newStatus) {
-                                                                    setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: res.newStatus, gateway_status: res.newStatus === 'PAID' ? 'approved' : 'pending' } : i));
+                                                                    setInvoices(prev => prev.map(i => i.id === inv.id ? { 
+                                                                        ...i, 
+                                                                        status: res.newStatus, 
+                                                                        gateway_status: res.newStatus === 'PAID' ? 'approved' : 'pending',
+                                                                        invoice_number: res.invoiceNumber || i.invoice_number
+                                                                    } : i));
                                                                 }
                                                                 
                                                                 await loadInvoices();
@@ -3002,7 +3078,7 @@ ${container.innerHTML}
                                                                     showAlert(`A Fatura ${inv.display_id} consta como PAGA / LIQUIDADA no Asaas.`, 'success');
                                                                 } else {
                                                                     const statusPT = translateStatusToPT(res.newStatus || 'PENDING');
-                                                                    showAlert(`A Fatura ${inv.display_id} consta como ${statusPT.toUpperCase()} no Asaas.`, 'info');
+                                                                    showAlert(`${inv.display_id}: ${statusPT.toUpperCase()} no Asaas. (GW: ${rawMpId?.substring(0, 15) || 'vazio'}) — ${res.message || ''}`, 'info');
                                                                 }
                                                             } catch (err: any) {
                                                                 showAlert(`Erro ao consultar Asaas: ${err.message}`, 'error');
@@ -4102,64 +4178,70 @@ ${container.innerHTML}
                                             </div>
                                         )}
 
-                                        {/* Vencimento e Parcelamento Boleto */}
-                                        {paymentMethod === 'Boleto' && (
-                                            <div className="mt-5 pt-5 border-t border-slate-100 animate-in fade-in space-y-4">
-                                                <div>
-                                                    <h4 className="text-[10px] font-semibold tracking-widest uppercase text-slate-400 mb-2">Opções de Parcelamento</h4>
-                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                                        <div>
-                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Nº de Parcelas (Boletos)</label>
-                                                            <input 
-                                                                type="number" 
-                                                                min={1} 
-                                                                max={12} 
-                                                                value={installmentCount} 
-                                                                onChange={e => setInstallmentCount(Number(e.target.value))} 
-                                                                className="w-full px-3 py-2 text-sm font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#009EE3]/20 focus:border-[#009EE3] transition-all"
-                                                            />
-                                                        </div>
-                                                        {installmentCount > 1 ? (
+                                        {/* Vencimento e Parcelamento */}
+                                        <div className="mt-5 pt-5 border-t border-slate-100 animate-in fade-in space-y-4">
+                                            <div>
+                                                <h4 className="text-[10px] font-semibold tracking-widest uppercase text-slate-400 mb-2">
+                                                    {paymentMethod === 'Boleto' ? 'Vencimento e Parcelamento' : 'Data de Vencimento'}
+                                                </h4>
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                    {paymentMethod === 'Boleto' && (
+                                                        <>
                                                             <div>
-                                                                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Intervalo (Dias)</label>
-                                                                <select 
-                                                                    value={installmentInterval} 
-                                                                    onChange={e => setInstallmentInterval(Number(e.target.value))}
-                                                                    className="w-full px-3 py-2 text-sm font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#009EE3]/20 focus:border-[#009EE3] transition-all appearance-none"
-                                                                >
-                                                                    <option value={15}>A cada 15 dias</option>
-                                                                    <option value={30}>A cada 30 dias</option>
-                                                                    <option value={60}>A cada 60 dias</option>
-                                                                </select>
+                                                                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Nº de Parcelas (Boletos)</label>
+                                                                <input 
+                                                                    type="number" 
+                                                                    min={1} 
+                                                                    max={12} 
+                                                                    value={installmentCount} 
+                                                                    onChange={e => setInstallmentCount(Number(e.target.value))} 
+                                                                    className="w-full px-3 py-2 text-sm font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#009EE3]/20 focus:border-[#009EE3] transition-all"
+                                                                />
                                                             </div>
-                                                        ) : <div className="hidden md:block"></div>}
-                                                        <div>
-                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                                                                {installmentCount > 1 ? 'Vencimento da 1ª Parcela' : 'Vencimento do Boleto'}
-                                                            </label>
-                                                            <input
-                                                                type="date"
-                                                                value={boletoDueDate || (selectedItem?.dueDate ? selectedItem.dueDate.split('T')[0] : new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])}
-                                                                onChange={e => setBoletoDueDate(e.target.value)}
-                                                                className="w-full px-3 py-2 text-sm font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#009EE3]/20 focus:border-[#009EE3] transition-all"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    {installmentCount > 1 && (
-                                                        <div className="mt-3 p-3 bg-sky-50 border border-sky-100 rounded-lg text-xs text-sky-800 flex items-center gap-2">
-                                                            <Calculator size={14} className="shrink-0" />
-                                                            <span>
-                                                                Serão gerados <strong>{installmentCount} boletos</strong> de 
-                                                                <strong> {formatCurrency(
-                                                                    Math.max(0, (selectedTotal) - (billingDiscountType === 'percent' ? ((selectedTotal) * billingDiscount / 100) : billingDiscount)) / installmentCount
-                                                                )}</strong> cada.
-                                                            </span>
-                                                        </div>
+                                                            {installmentCount > 1 ? (
+                                                                <div>
+                                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Intervalo (Dias)</label>
+                                                                    <select 
+                                                                        value={installmentInterval} 
+                                                                        onChange={e => setInstallmentInterval(Number(e.target.value))}
+                                                                        className="w-full px-3 py-2 text-sm font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#009EE3]/20 focus:border-[#009EE3] transition-all appearance-none"
+                                                                    >
+                                                                        <option value={15}>A cada 15 dias</option>
+                                                                        <option value={30}>A cada 30 dias</option>
+                                                                        <option value={60}>A cada 60 dias</option>
+                                                                    </select>
+                                                                </div>
+                                                            ) : <div className="hidden md:block"></div>}
+                                                        </>
                                                     )}
+                                                    
+                                                    {/* Vencimento Global */}
+                                                    <div>
+                                                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                                                            {paymentMethod === 'Boleto' && installmentCount > 1 ? 'Vencimento da 1ª Parcela' : 'Vencimento da Fatura'}
+                                                        </label>
+                                                        <input
+                                                            type="date"
+                                                            value={boletoDueDate || (selectedItem?.dueDate ? selectedItem.dueDate.split('T')[0] : new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])}
+                                                            onChange={e => setBoletoDueDate(e.target.value)}
+                                                            className="w-full px-3 py-2 text-sm font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#009EE3]/20 focus:border-[#009EE3] transition-all"
+                                                        />
+                                                    </div>
                                                 </div>
+                                                
+                                                {paymentMethod === 'Boleto' && installmentCount > 1 && (
+                                                    <div className="mt-3 p-3 bg-sky-50 border border-sky-100 rounded-lg text-xs text-sky-800 flex items-center gap-2">
+                                                        <Calculator size={14} className="shrink-0" />
+                                                        <span>
+                                                            Serão gerados <strong>{installmentCount} boletos</strong> de 
+                                                            <strong> {formatCurrency(
+                                                                Math.max(0, (selectedTotal) - (billingDiscountType === 'percent' ? ((selectedTotal) * billingDiscount / 100) : billingDiscount)) / installmentCount
+                                                            )}</strong> cada.
+                                                        </span>
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
+                                        </div>
 
                                         {/* Informação do PIX (Sempre à vista) */}
                                         {paymentMethod === 'Pix' && (
@@ -4908,19 +4990,27 @@ ${container.innerHTML}
                                                             {(() => {
                                                                 const rawAsaasId = selectedInvoice.gateway_payment_id || selectedInvoice.payment_gateway_id;
                                                                 const friendlyInvoiceNum = selectedInvoice.invoice_number || selectedInvoice.asaas_invoice_number || (selectedInvoice.notes ? (selectedInvoice.notes.match(/fatura[^\d]*(\d+)/i)?.[1]) : null);
+                                                                const isRealAsaasId = rawAsaasId && (rawAsaasId.startsWith('pay_') || rawAsaasId.startsWith('inst_') || rawAsaasId.startsWith('chk_') || rawAsaasId.startsWith('link_'));
 
                                                                 return (
                                                                     <div className="space-y-1.5 pt-1">
-                                                                        {friendlyInvoiceNum && (
-                                                                            <div className="flex items-center justify-between bg-slate-50 p-2 rounded-xl border border-slate-200 text-xs font-mono">
-                                                                                <span className="text-slate-600 font-bold">Nº Fatura Asaas:</span>
+                                                                        <div className="flex items-center justify-between bg-slate-50 p-2 rounded-xl border border-slate-200 text-xs font-mono">
+                                                                            <span className="text-slate-600 font-bold">Nº Fatura Asaas:</span>
+                                                                            {friendlyInvoiceNum ? (
                                                                                 <span className="font-extrabold text-slate-900 select-all">{friendlyInvoiceNum}</span>
-                                                                            </div>
-                                                                        )}
-                                                                        {rawAsaasId ? (
+                                                                            ) : (
+                                                                                <span className="font-semibold text-amber-500 text-[11px]">⏳ Atribuído após confirmação</span>
+                                                                            )}
+                                                                        </div>
+                                                                        {isRealAsaasId ? (
                                                                             <div className="flex items-center justify-between bg-slate-50 p-2 rounded-xl border border-slate-200 text-xs font-mono">
                                                                                 <span className="text-slate-600 font-bold">ID Transação ASAAS:</span>
                                                                                 <span className="font-extrabold text-[#009EE3] select-all">#{rawAsaasId}</span>
+                                                                            </div>
+                                                                        ) : rawAsaasId ? (
+                                                                            <div className="flex items-center justify-between bg-slate-50 p-2 rounded-xl border border-slate-200 text-xs font-mono">
+                                                                                <span className="text-slate-600 font-bold">ID Checkout ASAAS:</span>
+                                                                                <span className="font-bold text-slate-500 select-all text-[10px] truncate max-w-[180px]" title={rawAsaasId}>{rawAsaasId.substring(0, 12)}...</span>
                                                                             </div>
                                                                         ) : (
                                                                             <p className="text-[11px] text-slate-400 italic">
@@ -5329,6 +5419,14 @@ ${container.innerHTML}
                                                             const statusPT = translateStatusToPT(res.newStatus || 'PENDING');
                                                             await loadInvoiceInstallments(selectedInvoice.id);
                                                             await loadInvoices();
+                                                            // Atualizar selectedInvoice para refletir status e invoice_number imediatamente no modal
+                                                            if (res.newStatus || res.invoiceNumber) {
+                                                                setSelectedInvoice((prev: any) => prev ? ({
+                                                                    ...prev,
+                                                                    status: res.newStatus || prev.status,
+                                                                    invoice_number: res.invoiceNumber || prev.invoice_number,
+                                                                }) : prev);
+                                                            }
                                                             successMessage = `Todas as ${invoiceInstallmentsList.length || 1} parcelas foram sincronizadas! Status: ${statusPT}`;
                                                         } catch (err: any) {
                                                             errorMessage = err?.message || 'Erro ao sincronizar parcelas';
@@ -5544,29 +5642,31 @@ ${container.innerHTML}
                             </div>
 
                             <div className="flex items-center gap-2.5">
-                                {/* Botão Abrir Mercado Pago */}
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        const asaasUrl = 
-                                            selectedInvoice.gateway_ticket_url || 
-                                            selectedInvoice.ticket_url || 
-                                            selectedInvoice.gateway_invoice_url || 
-                                            selectedInvoice.invoice_url || 
-                                            (invoiceInstallmentsList && invoiceInstallmentsList.find(i => i.gateway_ticket_url)?.gateway_ticket_url);
+                                {/* Botão Abrir Asaas Checkout */}
+                                {selectedInvoice.status !== 'PAID' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const asaasUrl = 
+                                                selectedInvoice.gateway_ticket_url || 
+                                                selectedInvoice.ticket_url || 
+                                                selectedInvoice.gateway_invoice_url || 
+                                                selectedInvoice.invoice_url || 
+                                                (invoiceInstallmentsList && invoiceInstallmentsList.find(i => i.gateway_ticket_url)?.gateway_ticket_url);
 
-                                        if (asaasUrl) {
-                                            window.open(asaasUrl, '_blank');
-                                        } else {
-                                            const checkoutUrl = `${window.location.origin}/#/checkout/invoice/${selectedInvoice.id}`;
-                                            window.open(checkoutUrl, '_blank');
-                                        }
-                                    }}
-                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm cursor-pointer"
-                                >
-                                    <ExternalLink size={15} /> 
-                                    Ver Cobrança Asaas
-                                </button>
+                                            if (asaasUrl) {
+                                                window.open(asaasUrl, '_blank');
+                                            } else {
+                                                const checkoutUrl = `${window.location.origin}/#/checkout/invoice/${selectedInvoice.id}`;
+                                                window.open(checkoutUrl, '_blank');
+                                            }
+                                        }}
+                                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm cursor-pointer"
+                                    >
+                                        <ExternalLink size={15} /> 
+                                        Ver Cobrança Asaas
+                                    </button>
+                                )}
 
                                 {/* Botão Refaturar */}
                                 {selectedInvoice.status !== 'PAID' && (

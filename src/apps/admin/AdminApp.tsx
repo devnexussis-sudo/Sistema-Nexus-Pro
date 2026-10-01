@@ -204,7 +204,11 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                 },
                 (payload) => {
                     console.log('🔄 Realtime: Quote change detected:', payload.eventType);
-                    NexusQueryClient.invalidateQuotes();
+                    if (payload.eventType === 'UPDATE' && payload.new) {
+                        NexusQueryClient.updateQuoteInPlace(payload.new);
+                    } else {
+                        NexusQueryClient.invalidateQuotes();
+                    }
                 }
             )
             .on(
@@ -329,6 +333,10 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                 console.log('⚡ [AdminApp Realtime] Invoice Updated via Broadcast:', payload);
                 const invId = payload.payload?.invoiceId;
                 window.dispatchEvent(new CustomEvent('refresh_invoices', { detail: { id: invId } }));
+                NexusQueryClient.invalidateOrders();
+                NexusQueryClient.invalidateQuotes();
+                NexusQueryClient.invalidateFinancials();
+                fetchGlobalData();
             })
             .subscribe((status) => {
                 console.log(`[AdminApp] 📡 Realtime Status: ${status}`);
@@ -338,7 +346,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
             console.log('[AdminApp] 📡 Finalizando Realtime');
             supabase.removeChannel(channel);
         };
-    }, [auth.user]);
+    }, [auth.user?.id, auth.user?.tenantId]);
 
     // 0. Dashboard Optimization (Edge Function)
     const { data: dashSummary, isLoading: summaryLoading } = useDashboardSummary(!!auth.isAuthenticated && isDashboard);
