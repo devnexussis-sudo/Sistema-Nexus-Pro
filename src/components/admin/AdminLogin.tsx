@@ -4,6 +4,7 @@ import { Input } from '../ui/Input';
 import { Mail, Lock, Shield, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { DataService } from '../../services/dataService';
 import { User } from '../../types';
+import LoginBg from '../../../assets/Wallpaper-login-page.jpeg';
 
 interface AdminLoginProps {
     onLogin: (user: User, keepLoggedIn: boolean) => void;
@@ -127,7 +128,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
             {/* LADO ESQUERDO: MARKETING & IMAGEM */}
             <div className="hidden md:flex md:w-[60%] relative overflow-hidden bg-slate-900 border-r border-slate-100">
                 <img
-                    src="https://esrwwaoirlhcptbxtlsu.supabase.co/storage/v1/object/public/Logo%20sistema/wppdn.jpg"
+                    src={LoginBg}
                     alt="Nexus Office"
                     className="absolute inset-0 w-full h-full object-cover opacity-60"
                 />
