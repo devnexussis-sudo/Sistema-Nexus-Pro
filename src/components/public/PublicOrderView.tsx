@@ -536,13 +536,24 @@ const VisitCard: React.FC<{
 
           {/* Assinatura Digital da Visita */}
           {(() => {
-            const sigKey = Object.keys(visitData).find(k => k.toLowerCase().includes('assinatura') && typeof visitData[k] === 'string' && visitData[k].startsWith('http'));
-            const sigNameKey = Object.keys(visitData).find(k => k.toLowerCase().includes('assinatura') && k.toLowerCase().includes('nome'));
-            const sigDocKey = Object.keys(visitData).find(k => k.toLowerCase().includes('assinatura') && (k.toLowerCase().includes('documento') || k.toLowerCase().includes('cpf')));
+            const sigKey = Object.keys(visitData).find(k => {
+              const lk = k.toLowerCase();
+              return (lk.includes('assinatura') || lk.includes('signature')) && 
+                typeof visitData[k] === 'string' && 
+                (visitData[k].startsWith('http') || visitData[k].startsWith('data:image'));
+            });
+            const sigNameKey = Object.keys(visitData).find(k => {
+              const lk = k.toLowerCase();
+              return ((lk.includes('assinatura') || lk.includes('signature') || lk.includes('client')) && lk.includes('nome')) || lk === 'clientname';
+            });
+            const sigDocKey = Object.keys(visitData).find(k => {
+              const lk = k.toLowerCase();
+              return ((lk.includes('assinatura') || lk.includes('signature') || lk.includes('client')) && (lk.includes('documento') || lk.includes('cpf'))) || lk === 'clientdoc';
+            });
             
-            const sigUrl = sigKey ? visitData[sigKey] : null;
-            const sigName = sigNameKey ? visitData[sigNameKey] : (visitData.signatureName || '');
-            const sigDoc = sigDocKey ? visitData[sigDocKey] : (visitData.signatureDoc || '');
+            const sigUrl = visitData.signature || visitData.signature_url || visitData.client_signature_url || (sigKey ? visitData[sigKey] : null);
+            const sigName = visitData.clientName || visitData.signatureName || (sigNameKey ? visitData[sigNameKey] : '');
+            const sigDoc = visitData.clientDoc || visitData.signatureDoc || (sigDocKey ? visitData[sigDocKey] : '');
 
             if (!sigUrl) return null;
 
@@ -1037,7 +1048,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
     // Mescla dados estruturados de todas as visitas (prioridade para a mais recente)
     orderVisits.forEach(v => {
-      const vFd = getFormData(v.formData);
+      const vFd = getFormData(v.form_data || v.formData);
       Object.assign(merged, vFd);
     });
 
@@ -1057,34 +1068,88 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   const signatureInfo = React.useMemo(() => {
     if (!order) return { signature: null, name: null, doc: null };
 
-    // 🎯 PRIORIDADE: order.signature (nível raiz) ou mapeamentos diretos no formData
-    const signature = (order as any).signature || 
+    const getFormData = (fd: any) => {
+      if (!fd) return {};
+      return typeof fd === 'string' ? (() => { try { return JSON.parse(fd); } catch { return {}; } })() : fd;
+    };
+
+    const rawOrderFd = getFormData(order.formData);
+
+    // 🎯 PRIORIDADE: order.signature (nível raiz) ou mapeamentos diretos no formData ou em visitas
+    let signature = (order as any).signature || 
       (order as any).client_signature_url || 
-      formDataPrint.impediment_signature || 
+      (order as any).signature_url || 
+      rawOrderFd.signature || 
+      rawOrderFd.signature_url || 
+      rawOrderFd.client_signature_url || 
       formDataPrint.signature || 
+      formDataPrint.signature_url || 
+      formDataPrint.client_signature_url || 
+      formDataPrint.impediment_signature || 
       findNormalizedField('assinaturadocliente', formDataPrint) || 
-      findNormalizedField('assinatura', formDataPrint);
+      findNormalizedField('assinatura', formDataPrint) ||
+      findNormalizedField('signature', formDataPrint);
 
     // 🎯 Nome: Prio no digitado no app, depois mapeamentos directos e normalizados
-    const name = (order as any).signatureName || 
+    let name = (order as any).signatureName || 
       (order as any).client_signature_name || 
-      formDataPrint.impediment_responsible || 
-      formDataPrint.signatureName || 
+      rawOrderFd.clientName || 
+      rawOrderFd.signatureName || 
+      rawOrderFd.client_signature_name || 
       formDataPrint.clientName || 
+      formDataPrint.signatureName || 
+      formDataPrint.client_signature_name || 
+      formDataPrint.impediment_responsible || 
       findNormalizedField('assinaturadoclientenome', formDataPrint) || 
       findNormalizedField('responsavelpelorecebi', formDataPrint) || 
       findNormalizedField('responsavel', formDataPrint) ||
+      findNormalizedField('clientname', formDataPrint) ||
       findNormalizedField('nome', formDataPrint);
 
-    const doc = (order as any).signatureDoc || 
+    let doc = (order as any).signatureDoc || 
       (order as any).signature_doc || 
+      rawOrderFd.clientDoc || 
+      rawOrderFd.signatureDoc || 
+      rawOrderFd.signature_doc || 
+      formDataPrint.clientDoc || 
       formDataPrint.signatureDoc || 
-      formDataPrint.clientDoc ||
+      formDataPrint.signature_doc || 
       findNormalizedField('assinaturadoclientecpf', formDataPrint) || 
+      findNormalizedField('clientdoc', formDataPrint) ||
       findNormalizedField('cpf', formDataPrint);
 
+    // 🛡️ FALLBACK ROBUSTO: Se ainda não encontrou, inspeciona diretamente as visitas da OS
+    if ((!signature || !name || !doc) && orderVisits && orderVisits.length > 0) {
+      for (const v of [...orderVisits].reverse()) {
+        const vFd = getFormData(v.form_data || v.formData);
+        if (!signature) {
+          signature = vFd.signature || 
+            vFd.signature_url || 
+            vFd.client_signature_url || 
+            vFd.impediment_signature || 
+            findNormalizedField('assinatura', vFd) || 
+            findNormalizedField('signature', vFd);
+        }
+        if (!name) {
+          name = vFd.clientName || 
+            vFd.signatureName || 
+            vFd.client_signature_name || 
+            vFd.impediment_responsible || 
+            findNormalizedField('responsavel', vFd) || 
+            findNormalizedField('nome', vFd);
+        }
+        if (!doc) {
+          doc = vFd.clientDoc || 
+            vFd.signatureDoc || 
+            vFd.signature_doc || 
+            findNormalizedField('cpf', vFd);
+        }
+        if (signature && name && doc) break;
+      }
+    }
+
     return { signature, name, doc };
-  }, [order, formDataPrint]);
+  }, [order, formDataPrint, orderVisits]);
 
   // Busca templates de formulários para garantir a ORDEM das perguntas
   React.useEffect(() => {
@@ -2126,11 +2191,22 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
                     {/* Assinatura da Visita */}
                     {(() => {
-                      const sigKey = Object.keys(vFd).find(k => k.toLowerCase().includes('assinatura') && typeof vFd[k] === 'string' && vFd[k].startsWith('http'));
-                      const sigNameKey = Object.keys(vFd).find(k => k.toLowerCase().includes('assinatura') && k.toLowerCase().includes('nome'));
-                      const sigDocKey = Object.keys(vFd).find(k => k.toLowerCase().includes('assinatura') && (k.toLowerCase().includes('documento') || k.toLowerCase().includes('cpf')));
+                      const sigKey = Object.keys(vFd).find(k => {
+                        const lk = k.toLowerCase();
+                        return (lk.includes('assinatura') || lk.includes('signature')) && 
+                          typeof vFd[k] === 'string' && 
+                          (vFd[k].startsWith('http') || vFd[k].startsWith('data:image'));
+                      });
+                      const sigNameKey = Object.keys(vFd).find(k => {
+                        const lk = k.toLowerCase();
+                        return ((lk.includes('assinatura') || lk.includes('signature') || lk.includes('client')) && lk.includes('nome')) || lk === 'clientname';
+                      });
+                      const sigDocKey = Object.keys(vFd).find(k => {
+                        const lk = k.toLowerCase();
+                        return ((lk.includes('assinatura') || lk.includes('signature') || lk.includes('client')) && (lk.includes('documento') || lk.includes('cpf'))) || lk === 'clientdoc';
+                      });
                       
-                      const sigUrl = sigKey ? vFd[sigKey] : null;
+                      const sigUrl = vFd.signature || vFd.signature_url || vFd.client_signature_url || (sigKey ? vFd[sigKey] : null);
                       if (!sigUrl) return null;
                       
                       return (
