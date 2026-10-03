@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { DataService } from '../../services/dataService';
 import { NexusQueryClient, useTenant } from '../../hooks/nexusHooks';
 import SessionStorage from '../../lib/sessionStorage';
+import { supabase } from '../../lib/supabaseClient';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import {

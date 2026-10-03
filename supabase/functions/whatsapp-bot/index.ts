@@ -971,12 +971,53 @@ serve(async (req: Request) => {
     const existingConv = existingConvs?.[0] || null;
 
     let conversation: Conversation;
+    const INACTIVITY_TIMEOUT_MS = 12 * 60 * 60 * 1000; // 12 horas de inatividade
+    const nowTime = Date.now();
 
     if (existingConv) {
       conversation = existingConv as Conversation;
 
-      if (conversation.state === 'RESOLVED') {
+      const lastMsgTime = conversation.last_message_at
+        ? new Date(conversation.last_message_at).getTime()
+        : 0;
+      const isInactiveExpired = (nowTime - lastMsgTime) > INACTIVITY_TIMEOUT_MS;
+      const wasResolved = conversation.state === 'RESOLVED' || conversation.state === 'CLOSED';
+
+      if (isInactiveExpired || wasResolved) {
+        console.log(
+          `[WPP Bot] 🕒 Sessão anterior expirada/encerrada (inativo > 12h: ${isInactiveExpired}, estado anterior: ${conversation.state}). Reiniciando atendimento com novas saudações.`,
+        );
+
+        // Se expirou por inatividade e ainda estava aberto (com robô ou humano), registra no histórico dedicado
+        if (isInactiveExpired && !wasResolved) {
+          try {
+            await supabase.from('whatsapp_messages').insert({
+              conversation_id: conversation.id,
+              tenant_id: tenant.id,
+              role: 'system',
+              content: 'Atendimento encerrado automaticamente por inatividade (12h sem interação).',
+              type: 'text',
+              is_from_me: true,
+              created_at: new Date(lastMsgTime + INACTIVITY_TIMEOUT_MS).toISOString(),
+            });
+          } catch (insertErr) {
+            console.warn('[WPP Bot] Erro ao registrar encerramento por inatividade:', insertErr);
+          }
+        }
+
+        // Reseta o estado ativo para GREETING, remove atendente humano anterior e limpa o histórico da sessão ativa
         conversation.state = 'GREETING';
+        conversation.assigned_agent_id = null;
+        conversation.history = [];
+
+        await supabase
+          .from('whatsapp_conversations')
+          .update({
+            state: 'GREETING',
+            assigned_agent_id: null,
+            history: [],
+          })
+          .eq('id', conversation.id);
       }
     } else {
       const { data: newConv, error: createErr } = await supabase

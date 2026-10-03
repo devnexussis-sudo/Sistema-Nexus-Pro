@@ -341,8 +341,9 @@ serve(async (req: Request) => {
       await supabaseAdmin
         .from("whatsapp_conversations")
         .update({
-          state: "GREETING",
+          state: "RESOLVED",
           assigned_agent_id: null,
+          history: [],
           last_message_at: new Date().toISOString(),
         })
         .eq("id", conversation_id);

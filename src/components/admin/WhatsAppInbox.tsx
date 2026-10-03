@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw, X, BellRing, Bell, Volume2, ArrowRight, ArrowLeft, ChevronLeft, ChevronRight, Sticker, FileVideo, Paperclip, Mic, FileText, Download, AlertCircle, Plus, Search, Loader2, CheckCircle2, ExternalLink, Images } from 'lucide-react';
+import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw, X, BellRing, Bell, Volume2, ArrowRight, ArrowLeft, ChevronLeft, ChevronRight, Sticker, FileVideo, Paperclip, Mic, FileText, Download, AlertCircle, Plus, Search, Loader2, CheckCircle2, ExternalLink, Images, Clock } from 'lucide-react';
 import { Customer } from '../../types';
 import { getCurrentTenantId } from '../../lib/tenantContext';
 
@@ -21,7 +21,7 @@ function parseMessageMedia(content: string) {
 }
 
 interface Message {
-  role: 'bot' | 'user' | 'agent';
+  role: 'bot' | 'user' | 'agent' | 'system';
   content: string;
   timestamp: string;
   agent_id?: string;
@@ -1507,7 +1507,7 @@ export const WhatsAppInbox: React.FC = () => {
                       {lastMsg && (
                         <p className={`text-xs truncate w-full ${isUnread ? 'text-emerald-600 font-semibold' : 'text-slate-500'}`}>
                           {isUnread && <span className="mr-1 text-[8px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full animate-pulse">NOVA</span>}
-                          {lastMsg.role === 'bot' ? '🤖' : lastMsg.role === 'agent' ? '👤' : '💬'} {formatLastMessagePreview(lastMsg.content).substring(0, 60)}
+                          {lastMsg.role === 'bot' ? '🤖' : lastMsg.role === 'agent' ? '👤' : lastMsg.role === 'system' ? '⏱️' : '💬'} {formatLastMessagePreview(lastMsg.content).substring(0, 60)}
                         </p>
                       )}
                     </div>
@@ -1734,6 +1734,16 @@ export const WhatsAppInbox: React.FC = () => {
               return groupedList.map((item, gIdx) => {
                 if (item.type === 'single') {
                   const msg = item.message;
+                  if (msg.role === 'system') {
+                    return (
+                      <div key={`single-${item.originalIndex}`} className="flex justify-center my-3 w-full">
+                        <div className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-medium px-4 py-1.5 rounded-full shadow-xs border border-slate-200 dark:border-slate-700/60 flex items-center gap-1.5 text-center">
+                          <Clock size={12} className="text-slate-400 shrink-0" />
+                          <span>{msg.content}</span>
+                        </div>
+                      </div>
+                    );
+                  }
                   const isFromMe = msg.role === 'agent' || msg.role === 'bot';
                   return (
                     <div key={`single-${item.originalIndex}`} className={`flex gap-2 items-end ${isFromMe ? 'justify-end' : 'justify-start'}`}>

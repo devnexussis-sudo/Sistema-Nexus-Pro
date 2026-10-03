@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
-  AlertCircle, AlertTriangle, CheckCircle2, ChevronRight, ClipboardCheck, Clock,
+  AlertCircle, AlertTriangle, CheckCircle2, CheckCheck, ChevronRight, ClipboardCheck, Clock,
   MessageCircle, Phone, RefreshCw, Search, User as UserIcon, X, XCircle, Eye, FileText, Package, Edit3, Save, Shield, Cpu, Filter, Calendar
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -22,10 +22,12 @@ interface ServiceRequest {
   equipment_serial: string | null;
   equipment_name: string | null;
   problem_description: string;
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  status: 'PENDING' | 'ACCEPTED' | 'RESOLVED' | 'REJECTED';
   rejection_reason?: string | null;
+  resolution_notes?: string | null;
   created_at: string;
   accepted_at: string | null;
+  resolved_at?: string | null;
   order_id: string | null;
 }
 
@@ -57,7 +59,7 @@ interface TriageState {
   loading: boolean;
 }
 
-type FilterType = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'ALL';
+type FilterType = 'ALL' | 'PENDING' | 'ACCEPTED' | 'RESOLVED' | 'REJECTED';
 
 const formatPhone = (p: string) => {
   if (!p) return '—';
@@ -110,6 +112,10 @@ export const SolicitacoesPage: React.FC = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [editingRejectId, setEditingRejectId] = useState<string | null>(null);
   const [editingRejectReason, setEditingRejectReason] = useState('');
+  const [resolveId, setResolveId] = useState<string | null>(null);
+  const [resolveNotes, setResolveNotes] = useState('');
+  const [editingResolveId, setEditingResolveId] = useState<string | null>(null);
+  const [editingResolveNotes, setEditingResolveNotes] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [triage, setTriage] = useState<TriageState>({ customerFound: false, customerData: null, equipmentFound: false, equipmentData: null, orderDisplayId: null, loading: false });
   const realtimeRef = useRef<any>(null);
@@ -370,6 +376,71 @@ export const SolicitacoesPage: React.FC = () => {
     }
   };
 
+  const handleResolveDirectly = async () => {
+    if (!resolveId) return;
+    setActionLoading(resolveId);
+    const now = new Date().toISOString();
+    const notes = resolveNotes.trim() || null;
+    try {
+      const { error } = await supabase.from('whatsapp_service_requests').update({
+        status: 'RESOLVED',
+        resolved_at: now,
+        accepted_at: now,
+        resolution_notes: notes
+      }).eq('id', resolveId);
+
+      if (error) {
+        console.warn('[Solicitacoes] Falha ao atualizar para RESOLVED, acionando fallback compatível:', error);
+        await supabase.from('whatsapp_service_requests').update({
+          status: 'ACCEPTED',
+          accepted_at: now,
+          rejection_reason: notes ? `[RESOLVIDA SEM O.S.] ${notes}` : '[RESOLVIDA SEM O.S.]'
+        }).eq('id', resolveId);
+      }
+
+      setRequests(prev => prev.map(r => r.id === resolveId ? {
+        ...r,
+        status: 'RESOLVED',
+        resolved_at: now,
+        accepted_at: now,
+        resolution_notes: notes
+      } : r));
+
+      if (viewingReq && viewingReq.id === resolveId) {
+        setViewingReq(prev => prev ? {
+          ...prev,
+          status: 'RESOLVED',
+          resolved_at: now,
+          accepted_at: now,
+          resolution_notes: notes
+        } : null);
+      }
+    } finally {
+      setActionLoading(null);
+      setResolveId(null);
+      setResolveNotes('');
+    }
+  };
+
+  const handleSaveResolutionNotes = async () => {
+    if (!editingResolveId) return;
+    setActionLoading(editingResolveId);
+    try {
+      const newNotes = editingResolveNotes.trim() || null;
+      await supabase.from('whatsapp_service_requests').update({
+        resolution_notes: newNotes
+      }).eq('id', editingResolveId);
+      
+      setRequests(prev => prev.map(r => r.id === editingResolveId ? { ...r, resolution_notes: newNotes } : r));
+      if (viewingReq && viewingReq.id === editingResolveId) {
+        setViewingReq({ ...viewingReq, resolution_notes: newNotes });
+      }
+      setEditingResolveId(null);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleSaveRejectionReason = async () => {
     if (!editingRejectId) return;
     setActionLoading(editingRejectId);
@@ -391,7 +462,8 @@ export const SolicitacoesPage: React.FC = () => {
 
   const StatusBadge = ({ status }: { status: string }) => {
     if (status === 'PENDING') return <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-600 border border-amber-200 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider"><Clock size={10} /> Pendente</span>;
-    if (status === 'ACCEPTED') return <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider"><CheckCircle2 size={10} /> Aceita</span>;
+    if (status === 'ACCEPTED') return <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider"><CheckCircle2 size={10} /> Aceita (O.S.)</span>;
+    if (status === 'RESOLVED') return <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider"><CheckCheck size={10} /> Resolvida</span>;
     if (status === 'REJECTED') return <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-600 border border-rose-200 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider"><XCircle size={10} /> Rejeitada</span>;
     return null;
   };
@@ -403,8 +475,8 @@ export const SolicitacoesPage: React.FC = () => {
     if (viewingReq?.id === req.id) {
       return triage.customerFound && triage.equipmentFound && !triage.loading;
     }
-    // For table row: only check customer_id as quick check
-    return !!req.customer_id;
+    // For table row: quick check
+    return true;
   };
 
 
@@ -570,20 +642,21 @@ export const SolicitacoesPage: React.FC = () => {
                 <div className="flex flex-col gap-1 lg:col-span-2">
                     <label className="text-[9px] text-slate-400 uppercase tracking-wider px-1">Status</label>
                     <div className="flex bg-white border border-[#1c2d4f]/20 rounded-lg h-9 p-0.5 gap-0.5 shadow-sm">
-                        {(['ALL', 'PENDING', 'ACCEPTED', 'REJECTED'] as FilterType[]).map(opt => (
+                        {(['ALL', 'PENDING', 'ACCEPTED', 'RESOLVED', 'REJECTED'] as FilterType[]).map(opt => (
                             <button
                                 key={opt}
                                 onClick={() => { setFilter(opt); setCurrentPage(1); }}
                                 className={`flex-1 rounded-md text-[8px] font-medium uppercase tracking-wide transition-all whitespace-nowrap px-1 relative ${filter === opt
                                     ? opt === 'PENDING' ? 'bg-amber-500 text-white shadow-sm'
-                                    : opt === 'ACCEPTED' ? 'bg-emerald-500 text-white shadow-sm'
+                                    : opt === 'ACCEPTED' ? 'bg-blue-600 text-white shadow-sm'
+                                    : opt === 'RESOLVED' ? 'bg-emerald-600 text-white shadow-sm'
                                     : opt === 'REJECTED' ? 'bg-rose-500 text-white shadow-sm'
                                     : 'bg-[#1c2d4f] text-white shadow-sm'
                                     : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
                                     }`}
                             >
                                 <div className="flex items-center justify-center gap-1">
-                                  {opt === 'ALL' ? 'Todos' : opt === 'PENDING' ? 'Pendentes' : opt === 'ACCEPTED' ? 'Aceitas' : 'Rejeitadas'}
+                                  {opt === 'ALL' ? 'Todos' : opt === 'PENDING' ? 'Pendentes' : opt === 'ACCEPTED' ? 'Com O.S.' : opt === 'RESOLVED' ? 'Resolvidas' : 'Rejeitadas'}
                                   {opt === 'PENDING' && pendingCount > 0 && (
                                      <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${filter === opt ? 'bg-white text-amber-600' : 'bg-amber-400 text-white'}`}>{pendingCount}</span>
                                   )}
@@ -641,6 +714,10 @@ export const SolicitacoesPage: React.FC = () => {
                     <td className="px-3 py-2 whitespace-nowrap">
                       {req.order_id ? (
                         <OSNumberCell orderId={req.order_id} tenantId={req.tenant_id} />
+                      ) : req.status === 'RESOLVED' ? (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          Sem O.S. (Direto)
+                        </span>
                       ) : (
                         <span className="text-[11px] text-slate-400 font-medium">—</span>
                       )}
@@ -670,7 +747,7 @@ export const SolicitacoesPage: React.FC = () => {
                     </td>
                     <td className="px-3 py-2 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       {isPending ? (
-                        <div className="flex items-center justify-center gap-1 transition-opacity opacity-90 group-hover:opacity-100">
+                        <div className="flex items-center justify-center gap-1.5 transition-opacity opacity-90 group-hover:opacity-100">
                           <button
                             onClick={() => navigate('/admin/whatsapp', { state: { selectedConvId: req.conversation_id } })}
                             className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg border border-transparent hover:border-blue-200 transition-colors"
@@ -678,13 +755,31 @@ export const SolicitacoesPage: React.FC = () => {
                           >
                             <MessageCircle size={15} />
                           </button>
+
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleAccept(req); }}
+                            disabled={isActing}
+                            className="px-2 py-1 flex items-center gap-1 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-300 text-[10px] font-bold uppercase transition-all shadow-xs"
+                            title="Aceitar e Abrir O.S."
+                          >
+                            <CheckCircle2 size={13} className="text-emerald-600" /> Abrir O.S.
+                          </button>
+
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setResolveId(req.id); setResolveNotes(''); }}
+                            disabled={isActing}
+                            className="px-2 py-1 flex items-center gap-1 text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-lg border border-teal-300 text-[10px] font-bold uppercase transition-all shadow-xs"
+                            title="Dar como Resolvida (Sem abrir O.S.)"
+                          >
+                            <CheckCheck size={13} className="text-teal-600" /> Resolver
+                          </button>
                           
                           <button
                             onClick={() => setViewingReq(req)}
-                            className="px-2 py-1 flex items-center gap-1 text-amber-700 bg-amber-50 rounded-lg border border-amber-200 text-[10px] font-bold uppercase hover:bg-amber-100 transition-colors"
+                            className="p-1.5 text-amber-700 hover:bg-amber-50 rounded-lg border border-transparent hover:border-amber-200 transition-colors"
                             title="Triar e Verificar Cadastros"
                           >
-                            <AlertTriangle size={13} className="text-amber-500" /> Triagem
+                            <AlertTriangle size={15} className="text-amber-500" />
                           </button>
                           
                           <button
@@ -758,6 +853,11 @@ export const SolicitacoesPage: React.FC = () => {
                         #{req.id.substring(0, 6).toUpperCase()}
                       </span>
                       {req.order_id && <OSNumberCell orderId={req.order_id} tenantId={req.tenant_id} />}
+                      {req.status === 'RESOLVED' && (
+                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                          Sem O.S.
+                        </span>
+                      )}
                     </div>
                     <StatusBadge status={req.status} />
                   </div>
@@ -792,22 +892,39 @@ export const SolicitacoesPage: React.FC = () => {
                   </p>
 
                   {/* Actions Bar */}
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1.5 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => navigate('/admin/whatsapp', { state: { selectedConvId: req.conversation_id } })}
-                      className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl text-[10px] font-bold flex items-center gap-1.5 border border-blue-200"
+                      className="px-2.5 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl text-[10px] font-bold flex items-center gap-1 border border-blue-200"
                     >
-                      <MessageCircle size={13} /> Chat WhatsApp
+                      <MessageCircle size={13} /> WhatsApp
                     </button>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                       {isPending ? (
                         <>
                           <button
-                            onClick={() => setViewingReq(req)}
-                            className="px-3 py-1.5 bg-amber-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm active:scale-95"
+                            onClick={(e) => { e.stopPropagation(); handleAccept(req); }}
+                            disabled={isActing}
+                            className="px-2.5 py-1.5 bg-emerald-500 text-white hover:bg-emerald-600 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-xs active:scale-95"
+                            title="Aceitar e Abrir O.S."
                           >
-                            <AlertTriangle size={12} /> Triagem
+                            <CheckCircle2 size={12} /> O.S.
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setResolveId(req.id); setResolveNotes(''); }}
+                            disabled={isActing}
+                            className="px-2.5 py-1.5 bg-teal-600 text-white hover:bg-teal-700 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-xs active:scale-95"
+                            title="Dar como Resolvida"
+                          >
+                            <CheckCheck size={12} /> Resolver
+                          </button>
+                          <button
+                            onClick={() => setViewingReq(req)}
+                            className="p-1.5 text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-xl border border-amber-200"
+                            title="Triagem"
+                          >
+                            <AlertTriangle size={14} />
                           </button>
                           <button
                             onClick={() => { setRejectId(req.id); setRejectReason(''); }}
@@ -815,7 +932,7 @@ export const SolicitacoesPage: React.FC = () => {
                             className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-xl border border-rose-200"
                             title="Rejeitar"
                           >
-                            <XCircle size={15} />
+                            <XCircle size={14} />
                           </button>
                         </>
                       ) : (
@@ -890,6 +1007,72 @@ export const SolicitacoesPage: React.FC = () => {
               </button>
               <button
                 onClick={() => { setRejectId(null); setRejectReason(''); }}
+                className="px-5 py-2.5 bg-slate-100 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-200 transition-all"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Resolve Modal */}
+      {resolveId && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 border border-slate-100 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center text-teal-600">
+                <CheckCheck size={22} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Dar Solicitação como Resolvida</h3>
+                <p className="text-xs text-slate-400">Finaliza o chamado sem gerar uma Ordem de Serviço.</p>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="text-xs font-bold text-slate-500 block mb-1.5">
+                Resumo da Resolução / Observação (opcional)
+              </label>
+              <textarea
+                value={resolveNotes}
+                onChange={e => setResolveNotes(e.target.value)}
+                placeholder="Ex: Dúvida tirada pelo WhatsApp; cliente orientado; problema resolvido com sucesso..."
+                rows={3}
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 outline-none focus:ring-2 focus:ring-teal-100 focus:border-teal-400 transition-all resize-none"
+              />
+
+              {/* Quick Tags */}
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                {[
+                  'Dúvida sanada no WhatsApp',
+                  'Orientação operacional realizada',
+                  'Atendimento balcão concluído',
+                  'Equipamento funcionando normalmente'
+                ].map(tag => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => setResolveNotes(prev => prev ? `${prev}. ${tag}` : tag)}
+                    className="text-[10px] font-medium bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-600 px-2 py-1 rounded-md border border-slate-200 transition-colors"
+                  >
+                    + {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleResolveDirectly}
+                disabled={actionLoading === resolveId}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-teal-600 text-white text-xs font-bold rounded-xl hover:bg-teal-700 disabled:opacity-50 transition-all shadow-md shadow-teal-600/20"
+              >
+                {actionLoading === resolveId ? <RefreshCw size={13} className="animate-spin" /> : <CheckCheck size={14} />} Confirmar Resolução
+              </button>
+              <button
+                onClick={() => { setResolveId(null); setResolveNotes(''); }}
                 className="px-5 py-2.5 bg-slate-100 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-200 transition-all"
               >
                 Cancelar
@@ -987,6 +1170,63 @@ export const SolicitacoesPage: React.FC = () => {
 
               {/* Triage Blockers — shown for PENDING requests with missing registrations */}
               {renderTriageBlockers()}
+
+              {/* Resolution Notes (if resolved without OS) */}
+              {viewingReq.status === 'RESOLVED' && (
+                <div className="bg-emerald-50 p-5 rounded-xl border border-emerald-200 shadow-sm">
+                  <h3 className="text-xs font-bold text-emerald-900 mb-2 flex items-center justify-between uppercase tracking-wide">
+                    <span className="flex items-center gap-2"><CheckCheck size={16} className="text-emerald-600" /> Atendimento Concluído (Sem O.S.)</span>
+                    {!editingResolveId && (
+                      <button 
+                        onClick={() => { setEditingResolveId(viewingReq.id); setEditingResolveNotes(viewingReq.resolution_notes || ''); }}
+                        className="text-emerald-700 hover:bg-emerald-100 p-1.5 rounded transition-colors"
+                        title="Editar ou Adicionar Observação"
+                      >
+                        <Edit3 size={14} />
+                      </button>
+                    )}
+                  </h3>
+                  
+                  {editingResolveId === viewingReq.id ? (
+                    <div className="mt-3 animate-in fade-in">
+                      <textarea
+                        value={editingResolveNotes}
+                        onChange={e => setEditingResolveNotes(e.target.value)}
+                        placeholder="Descreva como o atendimento foi resolvido..."
+                        rows={3}
+                        className="w-full px-3 py-2.5 bg-white border border-emerald-200 rounded-xl text-sm text-slate-700 outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all resize-none mb-3"
+                      />
+                      <div className="flex gap-2 justify-end">
+                        <button 
+                          onClick={() => setEditingResolveId(null)} 
+                          className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-emerald-100 rounded-lg transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                        <button 
+                          onClick={handleSaveResolutionNotes}
+                          disabled={actionLoading === viewingReq.id}
+                          className="px-4 py-2 text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg disabled:opacity-50 flex items-center gap-2 transition-colors shadow-sm"
+                        >
+                          {actionLoading === viewingReq.id ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />} 
+                          Salvar Observação
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-sm text-emerald-900 font-medium">
+                        {viewingReq.resolution_notes || <span className="italic text-emerald-600/70">Atendimento finalizado com êxito diretamente no canal de atendimento. Clique no lápis acima para adicionar uma nota.</span>}
+                      </p>
+                      {viewingReq.resolved_at && (
+                        <p className="text-[10px] text-emerald-600 mt-2 font-mono">
+                          Resolvido em: {formatDateDisplay(viewingReq.resolved_at)}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Rejection Reason (if rejected) */}
               {viewingReq.status === 'REJECTED' && (
@@ -1239,29 +1479,44 @@ export const SolicitacoesPage: React.FC = () => {
 
             {/* Modal Footer (Actions for PENDING) */}
             {viewingReq.status === 'PENDING' && (
-              <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
+              <div className="px-6 py-4 border-t border-slate-100 bg-white flex flex-wrap justify-between items-center gap-3 shrink-0">
                 <button
                   onClick={() => { setRejectId(viewingReq.id); setRejectReason(''); setViewingReq(null); }}
-                  className="px-5 py-2.5 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl text-xs font-bold uppercase transition-all flex items-center gap-2"
+                  className="px-4 py-2.5 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl text-xs font-bold uppercase transition-all flex items-center gap-2"
                 >
                   <XCircle size={16} /> Rejeitar
                 </button>
-                {triage.loading ? (
-                  <div className="px-5 py-2.5 text-slate-500 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold uppercase flex items-center gap-2">
-                    <RefreshCw size={14} className="animate-spin" /> Verificando...
-                  </div>
-                ) : triage.customerFound && triage.equipmentFound ? (
+
+                <div className="flex items-center gap-2">
                   <button
-                    onClick={() => { setViewingReq(null); handleAccept(viewingReq); }}
-                    className="px-6 py-2.5 text-white bg-emerald-500 hover:bg-emerald-600 border border-emerald-600 rounded-xl shadow-md shadow-emerald-500/20 text-xs font-bold uppercase transition-all flex items-center gap-2"
+                    onClick={() => { setResolveId(viewingReq.id); setResolveNotes(''); setViewingReq(null); }}
+                    className="px-5 py-2.5 text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-300 rounded-xl text-xs font-bold uppercase transition-all flex items-center gap-2 shadow-xs"
+                    title="Dar como resolvida sem abrir Ordem de Serviço"
                   >
-                    <CheckCircle2 size={16} /> Aceitar e Abrir OS
+                    <CheckCheck size={16} /> Dar como Resolvida
                   </button>
-                ) : (
-                  <div className="px-5 py-2.5 text-slate-500 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold uppercase flex items-center gap-2 cursor-not-allowed opacity-80" title="Regularize os cadastros pendentes acima antes de aceitar.">
-                    <AlertTriangle size={16} className="text-amber-500" /> Regularize os Cadastros
-                  </div>
-                )}
+
+                  {triage.loading ? (
+                    <div className="px-5 py-2.5 text-slate-500 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold uppercase flex items-center gap-2">
+                      <RefreshCw size={14} className="animate-spin" /> Verificando...
+                    </div>
+                  ) : triage.customerFound && triage.equipmentFound ? (
+                    <button
+                      onClick={() => { setViewingReq(null); handleAccept(viewingReq); }}
+                      className="px-6 py-2.5 text-white bg-emerald-500 hover:bg-emerald-600 border border-emerald-600 rounded-xl shadow-md shadow-emerald-500/20 text-xs font-bold uppercase transition-all flex items-center gap-2"
+                    >
+                      <CheckCircle2 size={16} /> Aceitar e Abrir OS
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { setViewingReq(null); handleAccept(viewingReq); }}
+                      className="px-5 py-2.5 text-white bg-emerald-600 hover:bg-emerald-700 border border-emerald-700 rounded-xl text-xs font-bold uppercase flex items-center gap-2 shadow-sm"
+                      title="Abrir modal de OS para vincular ou cadastrar cliente"
+                    >
+                      <CheckCircle2 size={16} /> Abrir OS (Pré-Preenchida)
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
