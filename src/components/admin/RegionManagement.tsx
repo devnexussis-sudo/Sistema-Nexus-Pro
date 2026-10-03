@@ -8,7 +8,7 @@ import { getRegions, createRegion, updateRegion, deleteRegion } from '../../serv
 import { Region } from '../../types/region';
 import { RegionModal } from './RegionModal';
 import { Button } from '../ui/Button';
-import { Check, X, Search, Loader2, Filter, ChevronDown } from 'lucide-react';
+import { Check, X, Search, Loader2, Filter, ChevronDown, Satellite } from 'lucide-react';
 import { TechnicianService } from '../../services/technicianService';
 import { SearchableSelect } from '../common/SearchableSelect';
 
@@ -205,6 +205,7 @@ export const RegionManagement: React.FC = () => {
   const [citySearch, setCitySearch] = useState('');
   const [isSearchingCity, setIsSearchingCity] = useState(false);
   const [mapCenter, setMapCenter] = useState<{ lat: number, lng: number } | null>(null);
+  const [mapType, setMapType] = useState<'DEFAULT' | 'SATELLITE'>('DEFAULT');
 
   const [techFilter, setTechFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -386,6 +387,20 @@ export const RegionManagement: React.FC = () => {
             </button>
           </form>
 
+          <button
+            type="button"
+            onClick={() => setMapType(prev => prev === 'DEFAULT' ? 'SATELLITE' : 'DEFAULT')}
+            className={`h-10 px-3 rounded-xl border flex items-center gap-1.5 text-xs font-semibold transition-all shadow-sm ${
+              mapType === 'SATELLITE'
+                ? 'bg-[#1c2d4f] text-white border-[#1c2d4f]'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+            }`}
+            title="Alternar entre visualização de Ruas e Satélite do Google Maps"
+          >
+            <Satellite size={15} />
+            <span className="hidden sm:inline">{mapType === 'SATELLITE' ? 'Satélite' : 'Mapa'}</span>
+          </button>
+
           <Button onClick={() => { setEditingRegion(null); setShowModal(true); }} className="h-10">
             Criar Nova Região
           </Button>
@@ -483,7 +498,14 @@ export const RegionManagement: React.FC = () => {
         <MapContainer center={[-23.55052, -46.63331]} zoom={12} style={{ height: '100%', width: '100%' }}>
           <MapFlyToCenter center={mapCenter} />
           <MapBoundsFitter regions={filteredRegions} fitTrigger={techFilter} />
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          <TileLayer
+            attribution="&copy; Google Maps"
+            url={mapType === 'SATELLITE' 
+              ? "https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" 
+              : "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"}
+            subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
+            maxZoom={20}
+          />
 
           <FeatureGroup>
             {filteredRegions.map(r => {

@@ -5,9 +5,9 @@
 // -------------------------------------------------------------------
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { Image } from 'https://deno.land/x/imagescript@1.2.15/mod.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { PutObjectCommand, S3Client } from 'npm:@aws-sdk/client-s3@3.370.0';
-import { Image } from 'https://deno.land/x/imagescript@1.2.15/mod.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -158,11 +158,11 @@ function extractMediaUrl(payload: any): { type: string; url: string; thumbnail?:
     .toLowerCase();
   const mime = String(
     payload.message?.content?.mimetype ||
-      payload.message?.mimetype ||
-      payload.mimetype ||
-      payload.data?.mimetype ||
-      payload.content?.mimetype ||
-      '',
+    payload.message?.mimetype ||
+    payload.mimetype ||
+    payload.data?.mimetype ||
+    payload.content?.mimetype ||
+    '',
   ).toLowerCase();
 
   const imageMsg = msgData.imageMessage;
@@ -551,7 +551,7 @@ serve(async (req: Request) => {
 
     const tenant = tenants[0];
     const settings = (tenant.whatsapp_settings || {}) as Record<string, any>;
-    
+
     // BUSCA CHAVE REAL NO COFRE
     const { data: vault } = await supabase
       .from('tenant_secrets')
@@ -584,11 +584,11 @@ serve(async (req: Request) => {
     const typeStr = String(msgType).toLowerCase();
     const mimeStr = String(
       payload.message?.content?.mimetype ||
-        payload.message?.mimetype ||
-        payload.mimetype ||
-        payload.data?.mimetype ||
-        payload.content?.mimetype ||
-        '',
+      payload.message?.mimetype ||
+      payload.mimetype ||
+      payload.data?.mimetype ||
+      payload.content?.mimetype ||
+      '',
     ).toLowerCase();
 
     const waLastMsgType = String(payload.chat?.wa_lastMessageType || '').toLowerCase();
@@ -676,8 +676,8 @@ serve(async (req: Request) => {
       let fileExt = (hasImage || isUazapiImage)
         ? 'webp'
         : (hasAudio || isUazapiAudio)
-        ? 'ogg'
-        : 'pdf';
+          ? 'ogg'
+          : 'pdf';
       let audioExceededSize = false;
 
       // 🚫 BLOQUEAR VIDEOS COMPLETAMENTE: nao baixa e nao salva no R2
@@ -726,7 +726,7 @@ serve(async (req: Request) => {
               const bytes = new Uint8Array(binaryString.length);
               for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
               fileBuffer = bytes;
-            } catch (e) {}
+            } catch (e) { }
           }
         }
 
@@ -735,8 +735,7 @@ serve(async (req: Request) => {
           const MAX_AUDIO_BYTES = 2 * 1024 * 1024; // 2 MB strict limit
           if (fileBuffer && fileBuffer.length > MAX_AUDIO_BYTES) {
             console.warn(
-              `[WPP Bot] ⚠️ Audio excedeu 2MB (${
-                (fileBuffer.length / (1024 * 1024)).toFixed(2)
+              `[WPP Bot] ⚠️ Audio excedeu 2MB (${(fileBuffer.length / (1024 * 1024)).toFixed(2)
               }MB). Upload cancelado.`,
             );
             audioExceededSize = true;
@@ -773,8 +772,7 @@ serve(async (req: Request) => {
               fileBuffer = encoded;
               fileExt = 'webp';
               console.log(
-                `[WPP Bot] Imagem recebida comprimida para R2: ${
-                  (fileBuffer.length / 1024).toFixed(1)
+                `[WPP Bot] Imagem recebida comprimida para R2: ${(fileBuffer.length / 1024).toFixed(1)
                 }KB`,
               );
             } catch (e) {
@@ -801,14 +799,13 @@ serve(async (req: Request) => {
               });
 
               const d = new Date();
-              const dateFolder = `${d.getFullYear()}_${String(d.getMonth() + 1).padStart(2, '0')}_${
-                String(d.getDate()).padStart(2, '0')
-              }`;
+              const dateFolder = `${d.getFullYear()}_${String(d.getMonth() + 1).padStart(2, '0')}_${String(d.getDate()).padStart(2, '0')
+                }`;
               const folderName = (hasImage || isUazapiImage)
                 ? 'imagens'
                 : (hasAudio || isUazapiAudio)
-                ? 'audios'
-                : 'documentos';
+                  ? 'audios'
+                  : 'documentos';
               const fileName = crypto.randomUUID() + '.' + fileExt;
 
               const r2Path =
@@ -1195,11 +1192,9 @@ serve(async (req: Request) => {
           tenant_id: tenant.id,
           tenant_name: tenant.trading_name || tenant.company_name,
           tenant_cnpj: tenant.cnpj || tenant.document || '',
-          tenant_address: `${tenant.street || ''}, ${tenant.number || ''} ${
-            tenant.complement || ''
-          } - ${tenant.neighborhood || ''}, ${tenant.city || ''} - ${tenant.state || ''}, CEP: ${
-            tenant.cep || ''
-          }`.replace(/,\s*,/g, ',').replace(/\s+/g, ' ').trim(),
+          tenant_address: `${tenant.street || ''}, ${tenant.number || ''} ${tenant.complement || ''
+            } - ${tenant.neighborhood || ''}, ${tenant.city || ''} - ${tenant.state || ''}, CEP: ${tenant.cep || ''
+            }`.replace(/,\s*,/g, ',').replace(/\s+/g, ' ').trim(),
           settings,
           conversation,
           user_message: formattedUserMsg,

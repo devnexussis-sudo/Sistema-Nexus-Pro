@@ -289,11 +289,9 @@ export const TechnicianMap: React.FC = () => {
     });
 
     const tileLayerUrl = mapType === 'SATELLITE'
-        ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-        : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
-    const tileAttribution = mapType === 'SATELLITE'
-        ? "Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community"
-        : "&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors";
+        ? "https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
+        : "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}";
+    const tileAttribution = "&copy; Google Maps";
 
 
     return (
@@ -439,7 +437,12 @@ export const TechnicianMap: React.FC = () => {
                     className="nexus-map"
                     ref={setMapInstance}
                 >
-                    <TileLayer attribution={tileAttribution} url={tileLayerUrl} />
+                    <TileLayer
+                        attribution={tileAttribution}
+                        url={tileLayerUrl}
+                        subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
+                        maxZoom={20}
+                    />
 
                     {/* --- ORDERS RENDERING --- */}
                     <MarkerClusterGroup
