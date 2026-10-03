@@ -1037,7 +1037,6 @@ serve(async (req: Request) => {
       conversation = newConv as Conversation;
     }
 
-    const nowTime = Date.now();
     const lastUserMsg = [...conversation.history].reverse().find((m) => m.role === 'user');
     if (lastUserMsg && !isMedia) {
       const lastTime = new Date(lastUserMsg.timestamp).getTime();
