@@ -171,27 +171,7 @@ export class OrderService {
 
             const fileName = `${finalFolder}/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`.replace(/\/+/g, '/');
 
-            // 2. Obter os dados base64 (Lidando com arquivos locais ou Data URIs de assinatura)
-            let base64: string;
-
-            if (processUri.startsWith('data:')) {
-                console.log(`[OrderService] 📝 Processando Data URI (Assinatura)...`);
-                base64 = processUri.split(',')[1];
-            } else {
-                const fileUri = (processUri.startsWith('/') && !processUri.startsWith('file://')) ? `file://${processUri}` : processUri;
-                base64 = await LegacyFileSystem.readAsStringAsync(fileUri, { encoding: 'base64' });
-            }
-
-            if (!base64 || base64.length === 0) {
-                console.error(`[OrderService] ❌ Erro: Base64 vazio para URI: ${processUri.substring(0, 50)}...`);
-                return null;
-            }
-
-            // 3. Converter base64 para ArrayBuffer usando decode importado
-            const arrayBuffer = decode(base64);
-            console.log(`[OrderService] 📦 Buffer criado: ${(arrayBuffer.byteLength / 1024).toFixed(1)} KB para ${fileName}`);
-
-            // 4. Upload para o Cloudflare R2 via Edge Function
+            // 2. Obter Signed URL da Edge Function r2-operations
             const { data: signData, error: signError } = await supabase.functions.invoke('r2-operations', {
                 body: { action: 'upload', path: fileName, bucketType: 'private', contentType: finalContentType }
             });
@@ -202,26 +182,45 @@ export class OrderService {
                 return null;
             }
 
-            const uploadPromise = fetch(signData.signedUrl, {
-                method: 'PUT',
-                body: arrayBuffer,
-                headers: {
-                    'Content-Type': finalContentType
-                }
-            });
+            // 3. Upload por Streaming (Evita estouro de memória Base64 OOM em vídeos e fotos pesadas)
+            let isSuccess = false;
 
-            const networkTimeout = new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('NETWORK_TIMEOUT_60S')), 60000));
-            const response = await Promise.race([uploadPromise, networkTimeout]);
+            if (processUri.startsWith('data:')) {
+                console.log(`[OrderService] 📝 Processando Data URI (Assinatura)...`);
+                const base64 = processUri.split(',')[1];
+                const arrayBuffer = decode(base64);
+                const uploadPromise = fetch(signData.signedUrl, {
+                    method: 'PUT',
+                    body: arrayBuffer,
+                    headers: { 'Content-Type': finalContentType }
+                });
+                const networkTimeout = new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('NETWORK_TIMEOUT_60S')), 60000));
+                const response = await Promise.race([uploadPromise, networkTimeout]);
+                isSuccess = response.ok;
+            } else {
+                const fileUri = (processUri.startsWith('/') && !processUri.startsWith('file://')) ? `file://${processUri}` : processUri;
+                console.log(`[OrderService] 🚀 Streaming direto do disco para R2 (zero OOM): ${fileUri}`);
+                
+                const uploadResult = await LegacyFileSystem.uploadAsync(signData.signedUrl, fileUri, {
+                    httpMethod: 'PUT',
+                    uploadType: LegacyFileSystem.FileSystemUploadType.BINARY_CONTENT,
+                    headers: {
+                        'Content-Type': finalContentType
+                    }
+                });
 
-            if (!response.ok) {
-                console.error(`[OrderService] ❌ Erro no R2 Upload: ${response.status} ${response.statusText}`);
-                logger.log(`R2 Upload failed: ${response.status}`, 'error');
+                isSuccess = uploadResult.status >= 200 && uploadResult.status < 300;
+            }
+
+            if (!isSuccess) {
+                console.error(`[OrderService] ❌ Erro no R2 Upload Stream`);
+                logger.log(`R2 Upload stream failed`, 'error');
                 return null;
             }
 
             console.log(`[OrderService/R2] ✅ Upload concluído com sucesso: ${fileName}`);
 
-            // 5. Gerar URL Pública — vem diretamente da Edge Function r2-operations
+            // 4. Gerar URL Pública — vem diretamente da Edge Function r2-operations
             const publicUrl = signData.publicUrl;
 
             console.log(`[OrderService/R2] 🔗 URL Gerada: ${publicUrl}`);
@@ -231,6 +230,127 @@ export class OrderService {
             logger.log(`Upload exception: ${error}`, 'error');
             return null;
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 🛡️ LAST-GATE SANITIZER — NUNCA permite URIs locais irem para o Supabase
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Verifica se uma string é um URI local de dispositivo (file://, /var/mobile/, etc.)
+     * que NÃO deve jamais ser salva no banco de dados.
+     */
+    private static isLocalUri(val: any): boolean {
+        if (typeof val !== 'string') return false;
+        const s = val.trim();
+        if (!s) return false;
+        if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:')) return false;
+        return (
+            s.startsWith('file://') ||
+            s.startsWith('/var/') ||
+            s.startsWith('/private/') ||
+            s.includes('/Containers/') ||
+            s.includes('/Library/') ||
+            s.includes('/Caches/') ||
+            s.includes('/Camera/') ||
+            s.includes('/VideoCompressor/') ||
+            s.includes('/ExponentExperienceData/') ||
+            s.endsWith('.mov') ||
+            s.endsWith('.mp4') ||
+            s.endsWith('.jpg') ||
+            s.endsWith('.png') ||
+            s.endsWith('.webp')
+        );
+    }
+
+    /**
+     * Sanitiza uma string de vídeo URL (pode conter múltiplas URIs separadas por vírgula).
+     * Faz upload emergencial de qualquer URI local restante para R2.
+     * Retorna null se nenhuma URI válida restou.
+     */
+    private static async sanitizeVideoUrl(videoUrl: string | null | undefined, orderId: string, tenantId?: string): Promise<string | null> {
+        if (!videoUrl || typeof videoUrl !== 'string') return null;
+        const parts = videoUrl.split(',').map(s => s.trim()).filter(Boolean);
+        if (parts.length === 0) return null;
+
+        const resolved: string[] = [];
+        for (const part of parts) {
+            if (!this.isLocalUri(part)) {
+                resolved.push(part);
+                continue;
+            }
+            // Upload emergencial de último recurso
+            try {
+                console.log(`[OrderService/LAST-GATE] 🚨 Upload emergencial de vídeo local: ${part.substring(0, 60)}...`);
+                const url = await this.uploadFile(part, `orders/${orderId}/videos`, tenantId, 'video/mp4');
+                if (url) {
+                    resolved.push(url);
+                    console.log(`[OrderService/LAST-GATE] ✅ Vídeo salvo em R2: ${url.substring(0, 60)}...`);
+                } else {
+                    console.warn(`[OrderService/LAST-GATE] ⚠️ Upload retornou null, descartando URI local: ${part.substring(0, 60)}`);
+                }
+            } catch (err) {
+                console.error(`[OrderService/LAST-GATE] ❌ Falha fatal no upload emergencial:`, err);
+                // NÃO adiciona a URI local — melhor perder o vídeo do que poluir o DB
+            }
+        }
+        return resolved.length > 0 ? resolved.join(',') : null;
+    }
+
+    /**
+     * Sanitiza recursivamente qualquer valor de formData, fazendo upload emergencial de URIs locais.
+     * Funciona com strings, arrays e objetos aninhados.
+     */
+    private static async deepSanitizeFormData(data: any, orderId: string, tenantId?: string): Promise<any> {
+        if (data === null || data === undefined) return data;
+
+        if (Array.isArray(data)) {
+            const result: any[] = [];
+            for (const item of data) {
+                result.push(await this.deepSanitizeFormData(item, orderId, tenantId));
+            }
+            return result;
+        }
+
+        if (typeof data === 'string') {
+            // Se a string contiver vírgula, processar cada parte separadamente (evita bypass de "http://..., file://...")
+            if (data.includes(',')) {
+                const parts = data.split(',').map(s => s.trim()).filter(Boolean);
+                const sanitizedParts: string[] = [];
+                for (const part of parts) {
+                    const sanitizedPart = await this.deepSanitizeFormData(part, orderId, tenantId);
+                    if (sanitizedPart) {
+                        sanitizedParts.push(sanitizedPart);
+                    }
+                }
+                return sanitizedParts.join(', ');
+            }
+
+            if (!this.isLocalUri(data)) return data;
+            // Tentar upload emergencial para a parte única
+            try {
+                const isVideo = data.toLowerCase().endsWith('.mov') || data.toLowerCase().endsWith('.mp4') || data.includes('/videos/') || data.includes('/form_videos/');
+                const folder = isVideo ? 'videos' : 'form_photos';
+                const contentType = isVideo ? 'video/mp4' : undefined;
+                console.log(`[OrderService/LAST-GATE] 🚨 Upload emergencial de mídia: ${data.substring(0, 60)}...`);
+                const url = await this.uploadFile(data, `orders/${orderId}/${folder}`, tenantId, contentType);
+                if (url) return url;
+            } catch (err) {
+                console.error(`[OrderService/LAST-GATE] ❌ Falha no upload emergencial:`, err);
+            }
+            // Se chegou aqui, remove a URI local — jamais vai pro DB
+            return '';
+        }
+
+        if (typeof data === 'object') {
+            const result: Record<string, any> = {};
+            for (const key of Object.keys(data)) {
+                result[key] = await this.deepSanitizeFormData(data[key], orderId, tenantId);
+            }
+            return result;
+        }
+
+        return data;
     }
 
     /**
@@ -406,7 +526,7 @@ export class OrderService {
             technicalReport: details.technical_report || details.technicalReport || '',
             partsUsed: details.parts_used || details.partsUsed || '',
             photos: details.photos || [],
-            signature: dbOrder.signature_url
+            signature: dbOrder.client_signature_url || dbOrder.signature_url || details.signature || details.signature_url
         } : undefined;
 
         // Auto-format ID for display
@@ -603,10 +723,10 @@ export class OrderService {
 
             const statsMap: Record<string, number> = { all: 0, pending: 0 };
 
-            // Stats counting with dynamic date columns
+            // Stats counting with dynamic date columns (No mobile app, SEMPRE filtra por assigned_to = userId)
             const dbStatsPromises = Object.entries(STATUS_GROUPS_DB).map(async ([key, statuses]) => {
                 let q = supabase.from('orders').select('*', { count: 'exact', head: true });
-                if (!isAdmin) q = q.eq('assigned_to', userId);
+                q = q.eq('assigned_to', userId);
                 q = q.in('status', statuses);
                 const dateCol = getDateCol(key);
                 const sDate = getStartDateStr(dateCol);
@@ -621,7 +741,7 @@ export class OrderService {
 
             // "All" Stat always uses scheduled_date as base index
             let allQuery = supabase.from('orders').select('*', { count: 'exact', head: true });
-            if (!isAdmin) allQuery = allQuery.eq('assigned_to', userId);
+            allQuery = allQuery.eq('assigned_to', userId);
             const allSDate = getStartDateStr('scheduled_date');
             const allEDate = getEndDateStr('scheduled_date');
             if (allSDate) allQuery = allQuery.gte('scheduled_date', allSDate);
@@ -637,7 +757,7 @@ export class OrderService {
 
             // "Pending" Stat uses scheduled_date
             let pendingCountQuery = supabase.from('orders').select('status');
-            if (!isAdmin) pendingCountQuery = pendingCountQuery.eq('assigned_to', userId);
+            pendingCountQuery = pendingCountQuery.eq('assigned_to', userId);
             const pSDate = getStartDateStr('scheduled_date');
             const pEDate = getEndDateStr('scheduled_date');
             if (pSDate) pendingCountQuery = pendingCountQuery.gte('scheduled_date', pSDate);
@@ -655,9 +775,9 @@ export class OrderService {
                 ).length;
             }
 
-            // 🛠️ Main Data Query
+            // 🛠️ Main Data Query (Mobile App: Estritamente O.S. atribuídas ao usuário logado)
             let query = supabase.from('orders').select('*, customers(*), service_visits(count)', { count: 'exact' });
-            if (!isAdmin) query = query.eq('assigned_to', userId);
+            query = query.eq('assigned_to', userId);
 
             const activeDateCol = getDateCol(statusFilter);
             const mainSDate = getStartDateStr(activeDateCol);
@@ -733,12 +853,7 @@ export class OrderService {
 
             return await CacheService.fetcher(cacheKey, async () => {
                 let query = supabase.from('orders').select('*, customers(*), service_visits(count)');
-                const { data: userProfile } = await supabase.from('users').select('role').eq('id', userId).single();
-                const isAdmin = userProfile?.role === 'ADMIN' || userProfile?.role === 'MANAGER';
-
-                if (!isAdmin) {
-                    query = query.eq('assigned_to', userId);
-                }
+                query = query.eq('assigned_to', userId);
 
                 const { data, error } = await query
                     .gte('scheduled_date', startDate)
@@ -789,8 +904,16 @@ export class OrderService {
             // 2. Upload Signature
             let signatureUrl = null;
             if (details.signature) {
-                const url = await this.uploadFile(details.signature, `orders/${id}/signatures`, details.tenantId);
-                if (url) signatureUrl = url;
+                if (details.signature.startsWith('http://') || details.signature.startsWith('https://')) {
+                    signatureUrl = details.signature;
+                } else {
+                    const url = await this.uploadFile(details.signature, `orders/${id}/signatures`, details.tenantId);
+                    if (url) {
+                        signatureUrl = url;
+                    } else if (details.signature.startsWith('data:image')) {
+                        signatureUrl = details.signature;
+                    }
+                }
             }
 
             // Fetch current DB order to preserve existing form_data and items context
@@ -855,6 +978,11 @@ export class OrderService {
             const formTotal = Number((currentFormData as any)?.totalValue || (currentFormData as any)?.price || 0);
             const totalOrderValue = itemsValue + formTotal;
 
+            // 🛡️ LAST-GATE: Sanitizar video_url e formData antes de gravar no DB
+            const sanitizedVideoUrl = await OrderService.sanitizeVideoUrl(details.videoUrl, id, details.tenantId);
+            const sanitizedFormDataForDB = await OrderService.deepSanitizeFormData(details.formData || {}, id, details.tenantId);
+            const sanitizedUploadedPhotos = await OrderService.deepSanitizeFormData(uploadedPhotos, id, details.tenantId);
+
             const updateData: any = {
                 status: 'CONCLUÍDO',
                 end_date: new Date().toISOString(),
@@ -862,16 +990,21 @@ export class OrderService {
                     ...currentFormData,
                     technicalReport: details.technicalReport,
                     partsUsed: details.partsUsed,
-                    photos: uploadedPhotos,
+                    photos: sanitizedUploadedPhotos,
                     completedAt: new Date().toISOString(),
                     clientName: details.clientName,
                     clientDoc: details.clientDoc,
+                    signature: signatureUrl,
+                    signature_url: signatureUrl,
                     items: finalItems,
-                    ...(details.formData || {})
+                    ...sanitizedFormDataForDB
                 },
                 items: finalItems, // Save items structured list
                 signature_url: signatureUrl,
-                video_url: details.videoUrl || null,
+                client_signature_url: signatureUrl,
+                client_signature_name: details.clientName || undefined,
+                client_signed_at: new Date().toISOString(),
+                video_url: sanitizedVideoUrl,
                 billing_status: totalOrderValue > 0 ? 'PENDING' : undefined
             };
 
@@ -892,14 +1025,14 @@ export class OrderService {
                             departure_time: new Date().toISOString(),
                             updated_at: new Date().toISOString(),
                             form_data: {
-                                ...(details.formData || {}),
+                                ...sanitizedFormDataForDB,
                                 technical_report: details.technicalReport,
                                 parts_used: details.partsUsed,
-                                extra_photos: uploadedPhotos,
+                                extra_photos: sanitizedUploadedPhotos,
                                 signature: signatureUrl,
                                 clientName: details.clientName,
                                 clientDoc: details.clientDoc,
-                                video_url: details.videoUrl || null,
+                                video_url: sanitizedVideoUrl,
                                 completedAt: new Date().toISOString(),
                                 items: details.items || [],
                             }
@@ -914,6 +1047,9 @@ export class OrderService {
 
             // Ping milestone
             await this.pingMilestoneLocation();
+
+            // Trigger commission generation in background
+            this.generateCommissionForOrder(id, 'CONCLUÍDO').catch(err => logger.log(`Commission error: ${err}`, 'warn'));
 
             logger.log(`Order ${id} completed successfully`, 'info');
 
@@ -955,14 +1091,19 @@ export class OrderService {
 
             // 2. ATUALIZAÇÃO DE STATUS DA OS E ANEXOS NO FORM DATA
             const currentFormData = order?.form_data || {};
+
+            // 🛡️ LAST-GATE: Sanitizar TODOS os dados de formulário antes de gravar no DB
+            const sanitizedAdditionalFormData = await OrderService.deepSanitizeFormData(additionalData?.formData || {}, id, order?.tenant_id);
             
             const updatePayload: any = {
                 status: 'IMPEDIDO',
                 form_data: {
                     ...currentFormData,
-                    ...(additionalData?.formData || {}),
+                    ...sanitizedAdditionalFormData,
                     blockReason: reason,
                     blockPhotoUrls: blockPhotoUrls || null,
+                    block_photo_urls: blockPhotoUrls || null,
+                    blockPhotoUrl: blockPhotoUrls && blockPhotoUrls.length > 0 ? blockPhotoUrls[0] : null,
                     blockedAt: new Date().toISOString(),
                 }
             };
@@ -978,31 +1119,174 @@ export class OrderService {
 
             if (error) throw error;
 
-            // 3. ATUALIZAÇÃO DA VISITA — salva form_data completo
-            if (userData?.user?.id && currentVisit?.id) {
-                await supabase.from('service_visits')
-                    .update({
+            // 3. ATUALIZAÇÃO OU CRIAÇÃO DA VISITA — salva form_data completo e garante histórico de visita
+            if (userData?.user?.id) {
+                const visitFormData = {
+                    ...sanitizedAdditionalFormData,
+                    blockReason: reason,
+                    blockPhotoUrls: blockPhotoUrls || null,
+                    block_photo_urls: blockPhotoUrls || null,
+                    blockPhotoUrl: blockPhotoUrls && blockPhotoUrls.length > 0 ? blockPhotoUrls[0] : null,
+                    blockedAt: new Date().toISOString(),
+                };
+
+                if (currentVisit?.id) {
+                    await supabase.from('service_visits')
+                        .update({
+                            status: 'blocked',
+                            impediment_reason: reason,
+                            departure_time: new Date().toISOString(),
+                            form_data: visitFormData
+                        })
+                        .eq('id', currentVisit.id);
+                } else {
+                    // Criar visita impedida caso não existisse visita em andamento (ex: impedimento antes de iniciar a OS)
+                    const { count } = await supabase.from('service_visits')
+                        .select('id', { count: 'exact', head: true })
+                        .eq('order_id', id);
+
+                    const visitNumber = (count || 0) + 1;
+                    await supabase.from('service_visits').insert({
+                        tenant_id: order?.tenant_id,
+                        order_id: id,
+                        technician_id: userData.user.id,
+                        visit_number: visitNumber,
                         status: 'blocked',
                         impediment_reason: reason,
                         departure_time: new Date().toISOString(),
-                        form_data: {
-                            ...(additionalData?.formData || {}),
-                            blockReason: reason,
-                            blockPhotoUrls: blockPhotoUrls || null,
-                            blockedAt: new Date().toISOString(),
-                        }
-                    })
-                    .eq('id', currentVisit.id);
+                        form_data: visitFormData
+                    });
+                }
             }
 
             // Ping milestone
             await this.pingMilestoneLocation();
+
+            // Trigger commission generation in background
+            this.generateCommissionForOrder(id, 'IMPEDIDO').catch(err => logger.log(`Commission error: ${err}`, 'warn'));
 
             logger.log(`Order ${id} blocked structurally`, 'info');
 
         } catch (error) {
             logger.log(`Error blocking order: ${error}`, 'error');
             throw error;
+        }
+    }
+
+    public static async generateCommissionForOrder(orderId: string, status: string): Promise<void> {
+        try {
+            const { data: order } = await supabase
+                .from('orders')
+                .select('id, tenant_id, display_id, assigned_to, operation_type, form_data, items')
+                .eq('id', orderId)
+                .single();
+
+            if (!order || !order.tenant_id || !order.assigned_to) return;
+
+            // Fetch technician name
+            const { data: user } = await supabase.from('users').select('name').eq('id', order.assigned_to).single();
+            const techName = user?.name || 'Técnico';
+
+            // Fetch active commission rule for technician
+            const { data: rules } = await supabase
+                .from('commission_rules')
+                .select('*')
+                .eq('tenant_id', order.tenant_id)
+                .eq('technician_id', order.assigned_to)
+                .eq('active', true)
+                .limit(1);
+
+            if (!rules || rules.length === 0) return;
+            const rule = rules[0];
+
+            let targetRule = {
+                completed_type: rule.completed_type,
+                completed_value: rule.completed_value,
+                blocked_type: rule.blocked_type,
+                blocked_value: rule.blocked_value
+            };
+
+            const opType = (order.operation_type || (order.form_data as any)?.operationType || '').trim().toLowerCase();
+            if (opType && rule.modalities && Array.isArray(rule.modalities)) {
+                const specificModality = rule.modalities.find((m: any) => 
+                    (m.operationType || '').trim().toLowerCase() === opType
+                );
+                if (specificModality) {
+                    targetRule = {
+                        completed_type: specificModality.completedType,
+                        completed_value: specificModality.completedValue,
+                        blocked_type: specificModality.blockedType,
+                        blocked_value: specificModality.blockedValue
+                    };
+                }
+            }
+
+            const normStatus = status.toLowerCase();
+            const isCompleted = ['completed', 'concluído', 'concluido', 'finalizada', 'finalizado'].includes(normStatus);
+            const isBlocked = ['blocked', 'impedido', 'impedida'].includes(normStatus);
+
+            if (!isCompleted && !isBlocked) return;
+
+            // Base OS cost
+            const fd = (order.form_data || {}) as Record<string, any>;
+            const formTotal = Number(fd?.totalValue || fd?.price || 0);
+            const rawItems = order.items ? (typeof order.items === 'string' ? JSON.parse(order.items) : order.items) : (fd?.items || []);
+            const itemsValue = Array.isArray(rawItems) ? rawItems.reduce((acc: number, i: any) => {
+                const total = Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0;
+                return acc + total;
+            }, 0) : 0;
+            const osCost = formTotal + itemsValue;
+
+            let amount = 0;
+            if (isCompleted) {
+                if (targetRule.completed_type === 'percent') {
+                    amount = osCost * (Number(targetRule.completed_value) / 100);
+                } else {
+                    amount = Number(targetRule.completed_value);
+                }
+            } else if (isBlocked) {
+                if (targetRule.blocked_type === 'percent') {
+                    amount = osCost * (Number(targetRule.blocked_value) / 100);
+                } else {
+                    amount = Number(targetRule.blocked_value);
+                }
+            }
+
+            if (amount <= 0) return;
+
+            const displayId = order.display_id || orderId.slice(0, 8).toUpperCase();
+            const statusLabel = isCompleted ? 'Concluída' : 'Impedida';
+            const description = `Comissão OS ${displayId} (${statusLabel})`;
+
+            // Guard against duplicates
+            const { data: existing } = await supabase
+                .from('accounts_payable')
+                .select('id')
+                .eq('tenant_id', order.tenant_id)
+                .eq('description', description)
+                .eq('supplier_name', techName)
+                .limit(1);
+
+            if (existing && existing.length > 0) return;
+
+            const today = new Date();
+            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            const dueDateStr = `${lastDay.getFullYear()}-${String(lastDay.getMonth() + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+
+            await supabase.from('accounts_payable').insert({
+                tenant_id: order.tenant_id,
+                description: description,
+                supplier_name: techName,
+                category: 'Comissão',
+                amount: amount,
+                status: 'PENDING',
+                due_date: dueDateStr,
+                payment_method: 'Pix',
+                notes: `OS Status: ${status} | Modalidade: ${order.operation_type || 'N/A'} | Custo Base: R$ ${osCost.toFixed(2)}`
+            });
+            logger.log(`Generated commission R$ ${amount.toFixed(2)} for order ${displayId}`, 'info');
+        } catch (e) {
+            logger.log(`Error generating commission for mobile order ${orderId}: ${e}`, 'warn');
         }
     }
 
@@ -1237,6 +1521,20 @@ export class OrderService {
     }
 
     static async getFormTemplate(formId: string): Promise<FormTemplate | null> {
+        if (!formId) return null;
+        try {
+            const raw = await AsyncStorage.getItem(DISK_CACHE_FORM_TEMPLATES);
+            if (raw) {
+                const templates: FormTemplate[] = JSON.parse(raw);
+                const found = templates.find(t => t.id === formId);
+                if (found) return found;
+            }
+        } catch (_) { }
+
+        if (syncService.isOfflineModeEnabled()) {
+            return null;
+        }
+
         try {
             const { data, error } = await supabase
                 .from('form_templates')
@@ -1260,6 +1558,15 @@ export class OrderService {
                 fields: schema.fields || []
             };
         } catch (error) {
+            // Tentar cache de disco em caso de falha de rede
+            try {
+                const raw = await AsyncStorage.getItem(DISK_CACHE_FORM_TEMPLATES);
+                if (raw) {
+                    const templates: FormTemplate[] = JSON.parse(raw);
+                    const found = templates.find(t => t.id === formId);
+                    if (found) return found;
+                }
+            } catch (_) { }
             logger.log(`Exception fetching form template: ${error}`, 'error');
             return null;
         }
