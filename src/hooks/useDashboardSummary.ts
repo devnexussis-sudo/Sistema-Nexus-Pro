@@ -8,8 +8,12 @@ import { CustomerService } from '../services/customerService';
 
 export const useDashboardSummary = (enabled = true) => {
     const [data, setData] = useState<any>(null);
-    const [isLoading, setIsLoading] = useState(false);
+    // Inicia como loading quando habilitado para que o fallback client-side
+    // não dispare no primeiro render (antes do effect rodar).
+    const [isLoading, setIsLoading] = useState(enabled);
     const [error, setError] = useState<any>(null);
+    // 🛡️ EGRESS GUARD: só libera o fallback (queries diretas) se a Edge Function falhar.
+    const [hasFailed, setHasFailed] = useState(false);
 
     useEffect(() => {
         let isMounted = true;
@@ -21,7 +25,7 @@ export const useDashboardSummary = (enabled = true) => {
             try {
                 const sessionOk = await ensureValidSession();
                 if (!sessionOk) {
-                    if (isMounted) setIsLoading(false);
+                    if (isMounted) { setIsLoading(false); setHasFailed(true); }
                     return;
                 }
 
@@ -51,10 +55,11 @@ export const useDashboardSummary = (enabled = true) => {
                         serviceTypes: r.serviceTypes || [],
                         activationRules: r.activationRules || []
                     });
+                    setHasFailed(false);
                 }
             } catch (err) {
                 console.warn('[DashboardSummary] ⚠️ Edge function falhou silenciosamente (CORS out/timeout):', err);
-                if (isMounted) setError(null);
+                if (isMounted) { setError(null); setHasFailed(true); }
             } finally {
                 if (isMounted) setIsLoading(false);
             }
@@ -65,5 +70,5 @@ export const useDashboardSummary = (enabled = true) => {
         return () => { isMounted = false; };
     }, [enabled]);
 
-    return { data, isLoading, error };
+    return { data, isLoading, error, hasFailed };
 };

@@ -2448,18 +2448,32 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
         
-        /* 🛡️ Nexus Fix: Força a rolagem no Link Público */
-        html, body {
-            overflow: auto !important;
-            height: auto !important;
-            min-height: 100vh !important;
+        /* 🛡️ Nexus Fix: Força a rolagem no Link Público (apenas em tela, para não quebrar a impressão) */
+        @media screen {
+            html, body {
+                overflow: auto !important;
+                height: auto !important;
+                min-height: 100vh !important;
+            }
         }
 
         .public-view-wrapper, .public-view-wrapper * {
             font-family: 'Poppins', sans-serif !important;
         }
+
+        .print-only-layout {
+            display: none !important;
+        }
+        @media print {
+            .print-only-layout {
+                display: block !important;
+            }
+            .web-only-layout {
+                display: none !important;
+            }
+        }
       `}</style>
-      <div className="hidden print:!block">
+      <div className="print-only-layout">
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
           @media print {
@@ -2471,6 +2485,9 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               margin: 0 !important;
               padding: 0 !important;
               background: white !important;
+              height: auto !important;
+              min-height: auto !important;
+              overflow: visible !important;
             }
             .print-section {
               break-inside: auto;
@@ -2493,7 +2510,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         `}</style>
         <PrintLayout />
       </div>
-      <div className="min-h-screen bg-slate-50 font-poppins selection:bg-[#1c2d4f]/10 print:hidden">
+      <div className="web-only-layout min-h-screen bg-slate-50 font-poppins selection:bg-[#1c2d4f]/10">
         {/* ── TOP ACCENT BAR ── */}
         <div className="h-1 w-full bg-gradient-to-r from-[#1c2d4f] via-[#3e5b99] to-[#1c2d4f]" />
 

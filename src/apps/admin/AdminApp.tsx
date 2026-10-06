@@ -349,20 +349,27 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     }, [auth.user?.id, auth.user?.tenantId]);
 
     // 0. Dashboard Optimization (Edge Function)
-    const { data: dashSummary, isLoading: summaryLoading } = useDashboardSummary(!!auth.isAuthenticated && isDashboard);
+    const { data: dashSummary, isLoading: summaryLoading, hasFailed: summaryFailed } = useDashboardSummary(!!auth.isAuthenticated && isDashboard);
+
+    // 🛡️ EGRESS GUARD: o fallback client-side só roda se a Edge Function FALHAR.
+    // Antes, `!dashSummary` era true enquanto a Edge Function carregava, então
+    // TODO login baixava o dashboard duas vezes (Edge Function + queries diretas).
+    const dashFallback = isDashboard && !dashSummary && summaryFailed;
 
     // 1. Dashboard Light Fetch (Desativado se Edge Function habilitada, ou mantido fallback)
-    const { data: statsOrders = [], isLoading: statsLoading } = useOrdersStats(!!auth.isAuthenticated && isDashboard && !dashSummary, overviewDateRange.start, overviewDateRange.end);
+    const { data: statsOrders = [], isLoading: statsLoading } = useOrdersStats(!!auth.isAuthenticated && dashFallback, overviewDateRange.start, overviewDateRange.end);
 
-    // 2. Full Orders Fetch (Only when needed)
-    const needsFullOrders = isOrdersView || isCalendar || isFinancial || isQuotes;
+    // 2. Full Orders Fetch (Apenas quando estritamente necessário para agregações completas no Calendário ou Financeiro)
+    // 🛡️ EGRESS GUARD: Atividades (/orders) e Orçamentos (/quotes) usam paginação server-side
+    // direta (usePagedOrders / usePagedQuotes com range de 20 itens), não baixam mais 100 OSs pesadas no container.
+    const needsFullOrders = isCalendar || isFinancial;
     const { data: fullOrders = [], isLoading: oLoading, refetch: oRefetch } = useOrders(!!auth.isAuthenticated && needsFullOrders);
 
     // Other entities fetching logic (Fallback se a Edge Function falhar no LAN)
-    const needsContracts = isContracts || (isDashboard && !dashSummary);
-    const needsQuotes = isQuotes || isFinancial;
-    const needsTechs = isTechs || isOrdersView || isMap || isCalendar || isFinancial || isContracts || (isDashboard && !dashSummary);
-    const needsCustomers = isCustomers || isOrdersView || isQuotes || isContracts || isEquipments || isCalendar || (isDashboard && !dashSummary);
+    const needsContracts = isContracts || dashFallback;
+    const needsQuotes = isFinancial; // Orçamentos (/quotes) usa usePagedQuotes internamente
+    const needsTechs = isTechs || isOrdersView || isMap || isCalendar || isFinancial || isContracts || dashFallback;
+    const needsCustomers = isCustomers || isOrdersView || isQuotes || isContracts || isEquipments || isCalendar || dashFallback;
     const needsEquipments = isEquipments || isContracts || isCustomers;
     const needsStock = isStock || isQuotes;
     const needsUsers = isUsers;
@@ -426,7 +433,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
         >
             <Routes>
                 <Route path="/" element={
-                    <RouteGuard isLoading={isDashboard && summaryLoading && statsLoading && !dashSummary && statsOrders.length === 0}>
+                    <RouteGuard isLoading={isDashboard && (summaryLoading || statsLoading) && !dashSummary && statsOrders.length === 0}>
                         <AdminOverview
                             orders={dashSummary?.orders || statsOrders}
                             contracts={dashSummary?.contracts || contracts}
@@ -441,7 +448,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                 } />
                 <Route path="/orders" element={
                     <PermissionGuard requiredMenu="orders">
-                        <RouteGuard isLoading={oLoading && fullOrders.length === 0}>
+                        <RouteGuard isLoading={false}>
                             <AdminDashboard techs={techs} customers={customers} startDate={activitiesDateRange.start} endDate={activitiesDateRange.end} onDateChange={(start, end) => handleDateValidation(start, end, setActivitiesDateRange)} onUpdateOrders={fetchGlobalData} onEditOrder={async (o) => { await DataService.updateOrder(o); await NexusQueryClient.invalidateOrders(); await oRefetch(); }} onCreateOrder={async (o) => { const created = await DataService.createOrder(o as any); await NexusQueryClient.invalidateOrders(); await oRefetch(); return created; }} />
                         </RouteGuard>
                     </PermissionGuard>
@@ -455,7 +462,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                 } />
                 <Route path="/quotes" element={
                     <PermissionGuard requiredMenu="quotes">
-                        <RouteGuard isLoading={(qLoading && quotes.length === 0) || (oLoading && fullOrders.length === 0)}>
+                        <RouteGuard isLoading={false}>
                             <QuoteManagement quotes={quotes} customers={customers} orders={fullOrders} stockItems={stockItems} onUpdateQuotes={fetchGlobalData} onEditQuote={async (q) => { await DataService.updateQuote(q); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onCreateQuote={async (q) => { await DataService.createQuote(q); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onDeleteQuote={async (id) => { await DataService.deleteQuote(id); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onCreateOrder={async (o) => { await DataService.createOrder(o as any); await NexusQueryClient.invalidateOrders(); await oRefetch(); }} />
                         </RouteGuard>
                     </PermissionGuard>

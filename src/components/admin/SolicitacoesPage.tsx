@@ -129,7 +129,8 @@ export const SolicitacoesPage: React.FC = () => {
         .from('whatsapp_service_requests')
         .select('*')
         .eq('tenant_id', tid)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(100);
       if (data) setRequests(data as ServiceRequest[]);
     } finally {
       if (!silent) setLoading(false);

@@ -46,30 +46,31 @@ serve(async (req) => {
             )
         }
 
-        // Parallel data fetching for Dashboard
+        // 🛡️ EGRESS GUARD — Projeção de colunas (somente o que o AdminOverview consome).
+        // ANTES: select('*') em 9 tabelas → orders.form_data (assinaturas/fotos base64),
+        // avatares, templates de formulário etc. trafegavam a cada login (PostgREST egress).
+        // users/userGroups/forms/serviceTypes/activationRules NÃO são lidos pelo front
+        // a partir deste endpoint → não são mais buscados (resposta mantém o mesmo shape).
         const [
             { data: orders },
             { data: technicians },
             { data: customers },
-            { data: users },
-            { data: userGroups },
-            { data: forms },
-            { data: serviceTypes },
-            { data: rules },
             { data: contracts }
         ] = await Promise.all([
-            // Limit orders to prevent massive payloads, ideally we should filter by date/status
-            // but preserving the original logic which just fetches all (or recent 500)
-            supabaseClient.from('orders').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(500),
-            supabaseClient.from('technicians').select('*').eq('tenant_id', tenantId),
-            supabaseClient.from('customers').select('*').eq('tenant_id', tenantId),
-            supabaseClient.from('users').select('*').eq('tenant_id', tenantId),
-            supabaseClient.from('user_groups').select('*').eq('tenant_id', tenantId),
-            supabaseClient.from('forms').select('*').eq('tenant_id', tenantId),
-            supabaseClient.from('service_types').select('*').eq('tenant_id', tenantId),
-            supabaseClient.from('activation_rules').select('*').eq('tenant_id', tenantId),
+            supabaseClient.from('orders')
+                .select('id, tenant_id, display_id, created_at, scheduled_date, status, assigned_to, end_date, customer_name, title, operation_type')
+                .eq('tenant_id', tenantId)
+                .order('created_at', { ascending: false })
+                .limit(500),
+            supabaseClient.from('technicians').select('id, tenant_id, name, active').eq('tenant_id', tenantId),
+            supabaseClient.from('customers').select('id, tenant_id, name, active').eq('tenant_id', tenantId),
             supabaseClient.from('contracts').select('*').eq('tenant_id', tenantId)
         ]);
+        const users: any[] = [];
+        const userGroups: any[] = [];
+        const forms: any[] = [];
+        const serviceTypes: any[] = [];
+        const rules: any[] = [];
 
         return new Response(
             JSON.stringify({

@@ -452,12 +452,25 @@ export type { SupabaseClient };
 export let globalSession: any | null = null;
 export let globalSessionOk = false;
 
+// 🛡️ EGRESS GUARD: identidade para a qual o cache atual pertence.
+// O supabase-js re-emite SIGNED_IN ao recuperar foco/visibilidade da aba
+// (mesmo usuário). Sem esta guarda, cada foco disparava um purge global
+// e TODAS as queries montadas re-baixavam do PostgREST.
+let lastCacheIdentity: string | null = null;
+
 if (typeof window !== 'undefined') {
     supabase.auth.onAuthStateChange((event, session) => {
         globalSession = session;
         globalSessionOk = !!session;
 
         if (isDev) console.log(`[Auth Singleton] 🔑 Event: ${event} | hasSession: ${globalSessionOk}`);
+
+        const currentIdentity: string | null = session?.user?.id ?? null;
+        if (event === 'INITIAL_SESSION') {
+            // Boot: o cache em disco pertence a esta identidade (comportamento original: sem purge aqui)
+            lastCacheIdentity = currentIdentity;
+        }
+        const identityChanged = currentIdentity !== lastCacheIdentity;
 
         // ── BIG TECH CACHE PURGE PATTERN ─────────────────────────────────────
         // Na troca de identidade (login/logout), todo cache de dados precisa ser
@@ -469,7 +482,8 @@ if (typeof window !== 'undefined') {
         // 1. In-memory CacheManager (src/lib/cache.ts)
         // 2. In-memory queryCache (src/hooks/useQuery.ts) via evento global
         // 3. localStorage NEXUS_CACHE_* entries
-        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+        if (event === 'SIGNED_OUT' || (event === 'SIGNED_IN' && identityChanged)) {
+            lastCacheIdentity = currentIdentity;
             // Clear in-memory app cache
             CacheManager.clear();
 

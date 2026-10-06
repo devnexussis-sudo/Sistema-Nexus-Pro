@@ -809,8 +809,14 @@ export const WhatsAppInbox: React.FC = () => {
   useEffect(() => {
     fetchConversations();
 
-    // POLLING: Fallback leve a cada 120s (era 30s) — segurança contra desconexão Realtime
-    const pollInterval = setInterval(() => fetchConversations(true), 120_000);
+    // 🛡️ EGRESS GUARD: o polling só roda quando o Realtime NÃO está saudável.
+    // Antes, a cada 120s baixava TODAS as conversas com o `history` JSON completo,
+    // mesmo com o WebSocket entregando tudo em tempo real.
+    let isRealtimeHealthy = false;
+    let hadDisconnect = false;
+    const pollInterval = setInterval(() => {
+      if (!isRealtimeHealthy) fetchConversations(true);
+    }, 120_000);
 
     // REALTIME: busca APENAS a conversa alterada (não recarrega todas)
     const channel = supabase
@@ -835,7 +841,15 @@ export const WhatsAppInbox: React.FC = () => {
       })
       .subscribe((status) => {
         console.log('[Realtime] Status:', status);
-        setRealtimeOk(status === 'SUBSCRIBED');
+        const ok = status === 'SUBSCRIBED';
+        if (ok && hadDisconnect) {
+          // Reconectou após queda: 1 sincronização de recuperação (eventos perdidos)
+          hadDisconnect = false;
+          fetchConversations(true);
+        }
+        if (!ok && isRealtimeHealthy) hadDisconnect = true;
+        isRealtimeHealthy = ok;
+        setRealtimeOk(ok);
       });
 
     return () => {

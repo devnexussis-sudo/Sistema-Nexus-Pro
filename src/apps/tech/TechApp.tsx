@@ -20,6 +20,9 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
     const [isFetchingData, setIsFetchingData] = useState(false);
     const fetchInProgressRef = useRef(false);
     const mountedRef = useRef(false);
+    // Ref espelho para checar relevância de eventos Realtime sem re-assinar o canal
+    const ordersRef = useRef<ServiceOrder[]>([]);
+    ordersRef.current = orders;
 
     // Load cache imediato ao montar (UI instantânea)
     useEffect(() => {
@@ -83,16 +86,35 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
         if (!auth.isAuthenticated || !auth.user?.id) return;
 
         let channel: any = null;
+        let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
         const setupRealtime = async () => {
             try {
                 const { supabase } = await import('../../lib/supabase');
-                channel = supabase
-                    .channel(`tech-ord-${auth.user?.id}`)
-                    .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+                const myId = auth.user?.id;
+                const tid = DataService.getCurrentTenantId();
+                const tenantFilter = tid && tid !== 'default' ? { filter: `tenant_id=eq.${tid}` } : {};
+
+                // 🛡️ EGRESS GUARD: só re-busca se a OS for do técnico (ou estiver na lista dele),
+                // e agrupa rajadas de eventos em um único fetch.
+                const onOrderChange = (payload: any) => {
+                    const changedId = payload?.new?.id || payload?.old?.id;
+                    const isMine = payload?.new?.assigned_to === myId;
+                    const isInMyList = !!changedId && ordersRef.current.some(o => o.id === changedId);
+                    if (!isMine && !isInMyList) return;
+                    if (debounceTimer) clearTimeout(debounceTimer);
+                    debounceTimer = setTimeout(() => {
                         // Faz um refresh silencioso mantendo a página atual
                         fetchTechData(currentPage, true);
-                    })
+                    }, 800);
+                };
+
+                channel = supabase
+                    .channel(`tech-ord-${myId}`)
+                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders', ...tenantFilter }, onOrderChange)
+                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', ...tenantFilter }, onOrderChange)
+                    // DELETE: payload contém apenas PK (sem tenant_id), por isso sem filtro de coluna
+                    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'orders' }, onOrderChange)
                     .subscribe();
             } catch (e) {
                 console.error('[TechApp] Realtime Setup Error:', e);
@@ -102,6 +124,7 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
         setupRealtime();
 
         return () => {
+            if (debounceTimer) clearTimeout(debounceTimer);
             if (channel) {
                 import('../../lib/supabase').then(({ supabase }) => {
                     supabase.removeChannel(channel);

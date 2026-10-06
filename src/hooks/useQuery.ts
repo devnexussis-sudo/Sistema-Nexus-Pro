@@ -224,10 +224,14 @@ export function useQuery<T>(
         const handleInvalidation = (e: any) => {
             const targetKey = e.detail?.key;
             const updatedInPlace = e.detail?.updatedInPlace;
+            // 🛡️ EGRESS GUARD: queries desabilitadas (rota inativa) NÃO re-buscam na invalidação.
+            // O cache já foi marcado como stale/limpo; quando a query for habilitada,
+            // o efeito [key, enabled] dispara fetchData() e busca dados frescos.
+            const shouldRefetch = () => isMounted.current && enabledRef.current;
             if (targetKey === '*') {
                 // Full cache purge requested (e.g. on auth change) — clear ALL in-memory entries
                 queryCache.clear();
-                setTimeout(() => { if (isMounted.current) fetchData(true); }, 50);
+                setTimeout(() => { if (shouldRefetch()) fetchData(true); }, 50);
             } else if (!targetKey || key.startsWith(targetKey)) {
                 if (updatedInPlace) {
                     const cached = queryCache.get(key);
@@ -236,20 +240,25 @@ export function useQuery<T>(
                         previousData.current = cached.data;
                     }
                 } else {
-                    setTimeout(() => { if (isMounted.current) fetchData(true); }, 50);
+                    setTimeout(() => { if (shouldRefetch()) fetchData(true); }, 50);
                 }
             }
         };
 
+        const handleFocus = () => { if (refetchOnWindowFocus && isMounted.current) fetchData(); };
+        const handleOnline = () => { if (refetchOnReconnect && isMounted.current) fetchData(); };
+
         window.addEventListener('NEXUS_QUERY_INVALIDATE', handleInvalidation);
-        window.addEventListener('focus', () => { if (refetchOnWindowFocus && isMounted.current) fetchData(); });
-        window.addEventListener('online', () => { if (refetchOnReconnect && isMounted.current) fetchData(); });
+        window.addEventListener('focus', handleFocus);
+        window.addEventListener('online', handleOnline);
 
         return () => {
             isMounted.current = false;
             isFetchingRef.current = false;
             if (abortControllerRef.current) abortControllerRef.current.abort('Component unmounted');
             window.removeEventListener('NEXUS_QUERY_INVALIDATE', handleInvalidation);
+            window.removeEventListener('focus', handleFocus);
+            window.removeEventListener('online', handleOnline);
         };
     }, [key, enabled, keepPreviousData]);
 
