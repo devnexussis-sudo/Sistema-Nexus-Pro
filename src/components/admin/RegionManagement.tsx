@@ -202,6 +202,12 @@ export const RegionManagement: React.FC = () => {
   const [pendingRegion, setPendingRegion] = useState<Region | null>(null);
   const [reshapeRegionId, setReshapeRegionId] = useState<string | null>(null);
 
+  // Ref para garantir que listeners de clique do Leaflet sempre acessem o estado mais atual da região
+  const regionsRef = useRef<Region[]>(regions);
+  useEffect(() => {
+    regionsRef.current = regions;
+  }, [regions]);
+
   const [citySearch, setCitySearch] = useState('');
   const [isSearchingCity, setIsSearchingCity] = useState(false);
   const [mapCenter, setMapCenter] = useState<{ lat: number, lng: number } | null>(null);
@@ -288,8 +294,16 @@ export const RegionManagement: React.FC = () => {
 
   const handleSave = async (region: Region) => {
     if (region.id) {
-      await updateRegion(region.id, region);
-      fetchRegions();
+      // Atualização otimista imediata na interface
+      setRegions(prev => prev.map(r => r.id === region.id ? { ...r, ...region } : r));
+      try {
+        await updateRegion(region.id, region);
+      } catch (err: any) {
+        console.error('Erro ao atualizar região:', err);
+        alert('Erro ao salvar região no servidor: ' + (err?.message || 'Erro desconhecido.'));
+      } finally {
+        await fetchRegions();
+      }
     } else {
       setPendingRegion(region);
       setTimeout(() => {
@@ -298,6 +312,7 @@ export const RegionManagement: React.FC = () => {
       }, 500);
     }
     setShowModal(false);
+    setEditingRegion(null);
   };
 
   const handleDelete = async (id: string) => {
@@ -518,18 +533,19 @@ export const RegionManagement: React.FC = () => {
 
               return (
                 <GeoJSON
-                  key={r.id}
+                  key={`${r.id}-${r.is_active ? 'active' : 'inactive'}-${r.color}`}
                   data={geoData as any}
                   pathOptions={{
                     color: r.color,
                     weight: r.is_active ? 2 : 1,
-                    fillOpacity: r.is_active ? 0.3 : 0.1,
-                    dashArray: r.is_active ? undefined : '5, 5'
+                    fillOpacity: r.is_active ? 0.3 : 0.08,
+                    dashArray: r.is_active ? undefined : '6, 6'
                   }}
                   onEachFeature={(feature, layer) => {
                     if (!isReshapingMode) {
                       layer.on('click', () => {
-                        setEditingRegion(r);
+                        const current = regionsRef.current.find(item => item.id === r.id) || r;
+                        setEditingRegion(current);
                         setShowModal(true);
                       });
                     }
@@ -538,7 +554,7 @@ export const RegionManagement: React.FC = () => {
                       layer.bindTooltip(`${r.name} - ${areaStr}${!r.is_active ? ' (Inativa)' : ''}`, { 
                         permanent: true, 
                         direction: 'center', 
-                        className: `bg-white/90 border-0 shadow-sm rounded-lg text-[10px] font-bold ${!r.is_active ? 'text-slate-400' : 'text-slate-800'}` 
+                        className: `bg-white/90 border-0 shadow-sm rounded-lg text-[10px] font-bold ${!r.is_active ? 'text-slate-400 opacity-75' : 'text-slate-800'}` 
                       });
                     }
                   }}

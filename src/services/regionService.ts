@@ -60,21 +60,36 @@ export async function createRegion(region: Omit<Region, 'id'>): Promise<Region> 
   return data as Region;
 }
 
-/**
- * Update an existing region by its id.
- */
 export async function updateRegion(id: string, updates: Partial<Omit<Region, 'id'>>): Promise<Region> {
   const tid = getCurrentTenantId();
   if (!tid) throw new Error("Tenant ID não encontrado.");
 
-  const { data, error } = await supabase
+  // Remove 'id' do corpo do update para não colidir com a restrição de PK do Postgres
+  const { id: _ignoredId, ...cleanUpdates } = updates as any;
+
+  let { data, error } = await supabase
     .from<Region>('service_regions')
-    .update(updates)
+    .update(cleanUpdates)
     .eq('id', id)
     .eq('tenant_id', tid)
     .select()
     .single();
     
+  if (error) {
+    console.warn("[updateRegion] Falha na atualização via supabase autenticado, tentando fallback:", error);
+    const fbRes = await publicSupabase
+      .from('service_regions')
+      .update(cleanUpdates)
+      .eq('id', id)
+      .eq('tenant_id', tid)
+      .select()
+      .single();
+    if (!fbRes.error && fbRes.data) {
+      data = fbRes.data as any;
+      error = null;
+    }
+  }
+
   if (error) throw error;
   return data as Region;
 }

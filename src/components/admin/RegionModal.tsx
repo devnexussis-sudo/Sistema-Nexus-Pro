@@ -63,7 +63,7 @@ export const RegionModal: React.FC<RegionModalProps> = ({ region, onClose, onSav
       setName(region.name);
       setDescription(region.description ?? "");
       setColor(region.color);
-      setIsActive(region.is_active);
+      setIsActive(region.is_active !== false);
       setSelectedTechIds(region.technician_ids || []);
     } else {
       setName("");
@@ -82,7 +82,7 @@ export const RegionModal: React.FC<RegionModalProps> = ({ region, onClose, onSav
       name,
       description: description || undefined,
       color,
-      is_active: isActive,
+      is_active: Boolean(isActive),
       technician_ids: selectedTechIds,
       polygon_geojson: region?.polygon_geojson ?? null,
     };
@@ -183,13 +183,19 @@ export const RegionModal: React.FC<RegionModalProps> = ({ region, onClose, onSav
                   <button
                     type="button"
                     onClick={() => setIsActive(!isActive)}
-                    className={`w-full flex justify-center items-center py-2.5 rounded-xl text-xs font-bold transition-all border ${
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all border shadow-sm ${
                       isActive 
-                      ? 'bg-emerald-50 text-emerald-600 border-emerald-200' 
-                      : 'bg-slate-50 text-slate-400 border-slate-200'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100/70' 
+                      : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100/70'
                     }`}
                   >
-                    {isActive ? "Região Ativa" : "Região Inativa"}
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                      <span>{isActive ? "Região Ativa" : "Região Inativa"}</span>
+                    </div>
+                    <span className="text-[10px] font-semibold underline opacity-85">
+                      {isActive ? "Desativar" : "Reativar"}
+                    </span>
                   </button>
                 </div>
               </div>
