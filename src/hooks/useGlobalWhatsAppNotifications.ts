@@ -106,9 +106,18 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
   const isInitialLoad = useRef(true);
   const [alertCount, setAlertCount] = useState(0);
 
+  // Helper para detectar se o usuário está na tela do WhatsApp (suporta HashRouter e BrowserRouter)
+  const checkIsWhatsAppPage = () => {
+    return pathname.includes('/whatsapp') || 
+      (typeof window !== 'undefined' && (
+        window.location.hash.includes('/whatsapp') || 
+        window.location.pathname.includes('/whatsapp')
+      ));
+  };
+
   // Limpa o contador se o usuário estiver na tela do WhatsApp
   useEffect(() => {
-    if (pathname.includes('/admin/whatsapp')) {
+    if (checkIsWhatsAppPage()) {
       setAlertCount(0);
     }
   }, [pathname]);
@@ -129,16 +138,22 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
 
       if (isInitial) return 0;
 
+      // 🛡️ ENTRADA VS SAÍDA: Somente considera nova mensagem se for genuinamente do cliente (entrada)
+      const history = Array.isArray(conv.history) ? conv.history : [];
+      const lastMsg = history.length > 0 ? history[history.length - 1] : null;
+      const isIncomingFromCustomer = !!lastMsg && lastMsg.role === 'user' && !lastMsg.is_from_me && !lastMsg.agent_id;
+
       const isNewToMe = !prev;
       const hasNewMsg = prev && lastMsgTimestamp && prev.lastMsgTimestamp && lastMsgTimestamp !== prev.lastMsgTimestamp;
       const assignedToMe = conv.assigned_agent_id === currentUserId && prev?.assigned !== currentUserId && currentUserId !== null && conv.state === 'HUMAN_ACTIVE';
       const askedForHuman = conv.state === 'WAITING_HUMAN' && prev?.state !== 'WAITING_HUMAN';
 
-      if (isNewToMe || hasNewMsg || assignedToMe || askedForHuman) {
-        const justAskedForHuman = askedForHuman || (isNewToMe && conv.state === 'WAITING_HUMAN');
-        const userMsgWhileHuman = hasNewMsg && (conv.state === 'WAITING_HUMAN' || conv.state === 'HUMAN_ACTIVE');
-        const justAssignedToMe = assignedToMe;
+      // Mensagem em conversa humana: EXIGE que o evento seja de entrada (do cliente)
+      const userMsgWhileHuman = hasNewMsg && isIncomingFromCustomer && (conv.state === 'WAITING_HUMAN' || conv.state === 'HUMAN_ACTIVE');
+      const justAskedForHuman = askedForHuman || (isNewToMe && conv.state === 'WAITING_HUMAN' && isIncomingFromCustomer);
+      const justAssignedToMe = assignedToMe;
 
+      if (justAssignedToMe || justAskedForHuman || userMsgWhileHuman) {
         let shouldNotify = false;
         if (justAssignedToMe) {
           shouldNotify = true;
@@ -153,8 +168,9 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
         }
 
         if (shouldNotify) {
-          const isWhatsAppPage = window.location.pathname.includes('/admin/whatsapp');
+          const isWhatsAppPage = checkIsWhatsAppPage();
           
+          // Se já está na tela do WhatsApp, o WhatsAppInbox cuida dos avisos locais
           if (!isWhatsAppPage) {
             playBloop();
             flashTitle();
@@ -162,7 +178,8 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
             if (justAssignedToMe) {
               sendBrowserNotification('💬 Chat Transferido!', `Um atendimento foi transferido para você.`);
             } else if (justAskedForHuman || userMsgWhileHuman) {
-              sendBrowserNotification('💬 Duno WhatsApp', `${conv.phone_number || 'Cliente'}: Nova mensagem.`);
+              const preview = lastMsg?.content ? String(lastMsg.content).substring(0, 60) : 'Nova mensagem.';
+              sendBrowserNotification('💬 Duno WhatsApp', `${conv.phone_number || 'Cliente'}: ${preview}`);
             }
             return 1; // 1 novo alerta
           }
@@ -175,7 +192,7 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
       // 🔧 OTIMIZAÇÃO: Snapshot inicial apenas, Realtime cuida do resto sem HTTP
       const { data } = await supabase
         .from('whatsapp_conversations')
-        .select('id, state, last_message_at, assigned_agent_id, phone_number')
+        .select('id, state, last_message_at, assigned_agent_id, phone_number, history')
         .or(`state.eq.WAITING_HUMAN,and(state.eq.HUMAN_ACTIVE,assigned_agent_id.eq.${currentUserId})`);
 
       if (!data) return;

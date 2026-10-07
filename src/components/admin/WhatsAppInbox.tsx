@@ -243,7 +243,18 @@ export const WhatsAppInbox: React.FC = () => {
   const selectedIdRef = useRef<string | null>(null);
   const isOptimisticPending = useRef(false);
   const actionInitiatedConvId = useRef<string | null>(null);
-  const stickerRef = useRef<HTMLDivElement>(null);
+  const outgoingActionConvIds = useRef<Map<string, number>>(new Map());
+
+  // 🛡️ ENTRADA VS SAÍDA: Registra ação de saída iniciada pelo agente para evitar falsos alertas sonoros/visuais
+  const markOutgoingAction = (convId: string) => {
+    outgoingActionConvIds.current.set(convId, Date.now());
+    actionInitiatedConvId.current = convId;
+    setTimeout(() => {
+      if (actionInitiatedConvId.current === convId) {
+        actionInitiatedConvId.current = null;
+      }
+    }, 6000);
+  };
 
   // ── Modal de Nova Conversa ──
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
@@ -483,6 +494,9 @@ export const WhatsAppInbox: React.FC = () => {
         }
       }
 
+      if (targetConvId) {
+        markOutgoingAction(targetConvId);
+      }
       setIsNewChatOpen(false);
       triggerNavUpdate();
       await fetchConversations(true);
@@ -745,18 +759,31 @@ export const WhatsAppInbox: React.FC = () => {
           // ✨ Garantir ordem estritamente cronológica para evitar balões fora de ordem
           mergedHistory = mergedHistory.sort((a: Message, b: Message) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
-          const newMsgs = serverHistoryLen > (prev.find(c => c.id === updated.id)?.history?.length || 0)
-            ? (updated.history || []).slice(prev.find(c => c.id === updated.id)?.history?.length || 0)
-            : [];
+          // 🛡️ ENTRADA VS SAÍDA: Identificar se o evento é estritamente de entrada (cliente) ou de saída (agente)
+          const isOutgoingAction = actionInitiatedConvId.current === updated.id || 
+            ((Date.now() - (outgoingActionConvIds.current.get(updated.id) || 0)) < 8000);
+
+          const serverHistory = updated.history || [];
+          const lastServerMsg = serverHistory.length > 0 ? serverHistory[serverHistory.length - 1] : null;
+
+          // Só é mensagem de entrada se a última mensagem do histórico for comprovadamente do cliente (não de agente/bot)
+          const isLastMsgFromUser = !!lastServerMsg && lastServerMsg.role === 'user' && !lastServerMsg.is_from_me && !lastServerMsg.agent_id;
+
+          // Comparar timestamps para garantir que é uma mensagem que acabou de chegar do cliente
+          const existingUserMsgs = (existing.history || []).filter(m => m.role === 'user' && !m.is_from_me && !m.agent_id);
+          const lastExistingUserMsg = existingUserMsgs.length > 0 ? existingUserMsgs[existingUserMsgs.length - 1] : null;
+          const serverUserMsgs = serverHistory.filter(m => m.role === 'user' && !m.is_from_me && !m.agent_id);
+          const lastServerUserMsg = serverUserMsgs.length > 0 ? serverUserMsgs[serverUserMsgs.length - 1] : null;
+
+          const hasNewUserMsg = !isOutgoingAction && isLastMsgFromUser && !!lastServerUserMsg && (
+            !lastExistingUserMsg ||
+            new Date(lastServerUserMsg.timestamp).getTime() > new Date(lastExistingUserMsg.timestamp).getTime()
+          );
+
+          const justAskedForHuman = !isOutgoingAction && updated.state === 'WAITING_HUMAN' && existing.state !== 'WAITING_HUMAN';
+          const userMsgWhileHuman = hasNewUserMsg && (updated.state === 'WAITING_HUMAN' || updated.state === 'HUMAN_ACTIVE');
           
-          const hasUserMsg = newMsgs.some((m: Message) => m.role === 'user');
-          
-          const justAskedForHuman = updated.state === 'WAITING_HUMAN' && existing.state !== 'WAITING_HUMAN';
-          const userMsgWhileHuman = hasUserMsg && (updated.state === 'WAITING_HUMAN' || updated.state === 'HUMAN_ACTIVE');
-          
-          // Se fui eu que iniciei a ação, não devo receber notificação de que foi transferido para mim
-          const isMyOwnAction = actionInitiatedConvId.current === updated.id;
-          const justAssignedToMe = !isMyOwnAction && updated.assigned_agent_id === currentUserId && existing.assigned_agent_id !== currentUserId && currentUserId !== null && updated.state === 'HUMAN_ACTIVE';
+          const justAssignedToMe = !isOutgoingAction && updated.assigned_agent_id === currentUserId && existing.assigned_agent_id !== currentUserId && currentUserId !== null && updated.state === 'HUMAN_ACTIVE';
 
           let shouldNotify = false;
           if (justAssignedToMe) {
@@ -778,7 +805,7 @@ export const WhatsAppInbox: React.FC = () => {
               sendBrowserNotification('💬 Chat Transferido!', `Um atendimento foi transferido para você.`);
               setToast('⚠️ Uma conversa foi transferida para você!');
             } else {
-              const previewMsg = newMsgs.find(m => m.role === 'user')?.content || 'Cliente solicitou atendimento.';
+              const previewMsg = lastServerUserMsg?.content || 'Cliente enviou uma mensagem.';
               const preview = formatLastMessagePreview(previewMsg).substring(0, 60);
               sendBrowserNotification('💬 Duno WhatsApp', `${updated.phone_number}: ${preview}`);
               setToast(justAskedForHuman ? '⚠️ Cliente pediu atendimento humano!' : '💬 Nova mensagem do cliente!');
@@ -884,6 +911,7 @@ export const WhatsAppInbox: React.FC = () => {
 
   const handleTakeover = async () => {
     if (!selected) return;
+    markOutgoingAction(selected.id);
     setSendingAction('takeover');
     isOptimisticPending.current = true;
     actionInitiatedConvId.current = selected.id;
@@ -908,6 +936,7 @@ export const WhatsAppInbox: React.FC = () => {
 
   const handleReturnToBot = async () => {
     if (!selected) return;
+    markOutgoingAction(selected.id);
     setSendingAction('return_to_bot');
     isOptimisticPending.current = true;
     const optimisticMsg: Message = {
@@ -923,6 +952,7 @@ export const WhatsAppInbox: React.FC = () => {
 
   const handleCloseConversation = async () => {
     if (!selected) return;
+    markOutgoingAction(selected.id);
     setSendingAction('close');
     isOptimisticPending.current = true;
     const optimisticMsg: Message = {
@@ -943,6 +973,7 @@ export const WhatsAppInbox: React.FC = () => {
   
   const handleResetBot = async () => {
     if (!selected) return;
+    markOutgoingAction(selected.id);
     setShowResetConfirm(false);
     setSendingAction('reset');
     isOptimisticPending.current = true;
@@ -955,6 +986,7 @@ export const WhatsAppInbox: React.FC = () => {
 
   const handleTransfer = async (targetUserId: string) => {
     if (!selected) return;
+    markOutgoingAction(selected.id);
     setSendingAction('transfer');
     isOptimisticPending.current = true;
     actionInitiatedConvId.current = selected.id;
@@ -984,6 +1016,7 @@ export const WhatsAppInbox: React.FC = () => {
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selected || !currentUserId) return;
+    markOutgoingAction(selected.id);
     
     if (file.size > 50 * 1024 * 1024) {
       alert("O arquivo não pode ter mais de 50 MB.");
@@ -1123,6 +1156,7 @@ export const WhatsAppInbox: React.FC = () => {
 
   const handleSend = () => {
     if (!message.trim() || !selected || sendingAction !== null) return;
+    markOutgoingAction(selected.id);
     const txt = message;
     setMessage('');
 
@@ -1158,6 +1192,7 @@ export const WhatsAppInbox: React.FC = () => {
 
   const handleSendSticker = async (url: string) => {
     if (!selected) return;
+    markOutgoingAction(selected.id);
     setSendingAction('sticker');
     setShowStickers(false);
 
