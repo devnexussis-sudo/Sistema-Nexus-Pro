@@ -1402,7 +1402,7 @@ export const WhatsAppInbox: React.FC = () => {
       )}
 
       {/* ── Coluna esquerda: lista de conversas ── */}
-      <div className={`${selected ? 'hidden md:flex' : 'flex'} w-full md:w-[380px] lg:w-[420px] xl:w-[460px] flex-shrink-0 bg-white border-r border-slate-200/90 flex-col overflow-hidden transition-all duration-200`}>
+      <div className={`${selected ? 'hidden md:flex' : 'flex'} w-full md:w-[340px] lg:w-[360px] xl:w-[375px] flex-shrink-0 bg-white border-r border-slate-200/90 flex-col overflow-hidden transition-all duration-200`}>
         <div className="p-3 border-b border-gray-50">
           <div className="flex items-center justify-between gap-2 mb-3">
             <div className="flex items-center gap-2">
@@ -1619,7 +1619,7 @@ export const WhatsAppInbox: React.FC = () => {
                       window.dispatchEvent(new Event('whatsapp_state_changed'));
                     } catch (e) {}
                   }}
-                  className={`w-full min-w-[340px] text-left p-3.5 border-b border-slate-100 transition-all cursor-pointer ${
+                  className={`w-full min-w-[280px] text-left p-3 border-b border-slate-100 transition-all cursor-pointer ${
                     isSelected 
                       ? 'bg-slate-100/90 border-l-4 border-l-[#1c2d4f] shadow-xs' 
                       : isUnread 
@@ -1627,21 +1627,21 @@ export const WhatsAppInbox: React.FC = () => {
                       : 'hover:bg-slate-50/80'
                   }`}
                 >
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-2.5">
                     {/* Zendesk Customer Initials Avatar with status badge */}
-                    <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200/90 flex items-center justify-center text-slate-700 font-bold text-xs flex-shrink-0 relative shadow-2xs mt-0.5">
-                      {customerName ? customerName.charAt(0).toUpperCase() : <User size={14} className="text-slate-500" />}
+                    <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200/90 flex items-center justify-center text-slate-700 font-bold text-xs flex-shrink-0 relative shadow-2xs mt-0.5">
+                      {customerName ? customerName.charAt(0).toUpperCase() : <User size={13} className="text-slate-500" />}
                       <span className={`w-2.5 h-2.5 rounded-full absolute -bottom-0.5 -right-0.5 ring-2 ring-white ${stateInfo.dot}`} />
                     </div>
 
                     <div className="flex-1 min-w-0">
                       {/* Linha 1: Nome do cliente + Data formatada */}
-                      <div className="flex items-center justify-between gap-2 mb-0.5">
-                        <p className={`text-[12.5px] font-bold truncate ${isUnread ? 'text-emerald-900' : 'text-slate-900'}`} title={customerName || conv.phone_number}>
+                      <div className="flex items-center justify-between gap-1.5 mb-0.5">
+                        <p className={`text-[12px] font-bold truncate ${isUnread ? 'text-emerald-900' : 'text-slate-900'}`} title={customerName || conv.phone_number}>
                           {customerName || formatPhone(conv.phone_number)}
                         </p>
                         <span 
-                          className="text-[10px] text-slate-500 font-semibold flex-shrink-0 tracking-tight whitespace-nowrap bg-slate-100/90 px-2 py-0.5 rounded-md border border-slate-200/60" 
+                          className="text-[10px] text-slate-500 font-semibold flex-shrink-0 tracking-tight whitespace-nowrap bg-slate-100/90 px-1.5 py-0.5 rounded border border-slate-200/60" 
                           title={formatFullDateTime(conv.last_message_at)}
                         >
                           {formatConversationListDate(conv.last_message_at)}
@@ -1649,11 +1649,11 @@ export const WhatsAppInbox: React.FC = () => {
                       </div>
 
                       {/* Linha 2: Telefone + Atendente / Status */}
-                      <div className="flex items-center justify-between gap-2 text-[10.5px] mb-1">
+                      <div className="flex items-center justify-between gap-1 text-[10.5px] mb-1">
                         <span className="text-slate-500 font-mono font-medium truncate" title={formatPhone(conv.phone_number)}>
                           {formatPhone(conv.phone_number)}
                         </span>
-                        <span className={`font-semibold shrink-0 truncate max-w-[180px] ${stateInfo.color}`}>
+                        <span className={`font-semibold shrink-0 truncate max-w-[130px] ${stateInfo.color}`}>
                           {conv.state === 'HUMAN_ACTIVE' && conv.users?.name 
                             ? `👤 ${conv.users.name.split(' ')[0]}` 
                             : conv.state === 'RESOLVED' && conv.users?.name 
@@ -1664,12 +1664,12 @@ export const WhatsAppInbox: React.FC = () => {
 
                       {/* Linha 3: Prévia da última mensagem */}
                       {lastMsg && (
-                        <p className={`text-[11.5px] truncate w-full leading-relaxed ${isUnread ? 'text-emerald-800 font-semibold' : 'text-slate-500'}`}>
-                          {isUnread && <span className="mr-1.5 text-[8.5px] bg-emerald-500 text-white px-1.5 py-0.2 rounded-full font-bold inline-block">NOVA</span>}
+                        <p className={`text-[11px] truncate w-full leading-relaxed ${isUnread ? 'text-emerald-800 font-semibold' : 'text-slate-500'}`}>
+                          {isUnread && <span className="mr-1 text-[8.5px] bg-emerald-500 text-white px-1.5 py-0.2 rounded-full font-bold inline-block">NOVA</span>}
                           <span className="opacity-70 mr-1">
                             {lastMsg.role === 'bot' ? '🤖' : lastMsg.role === 'agent' ? '👤' : lastMsg.role === 'system' ? '⏱️' : '💬'}
                           </span>
-                          {formatLastMessagePreview(lastMsg.content).substring(0, 85)}
+                          {formatLastMessagePreview(lastMsg.content).substring(0, 65)}
                         </p>
                       )}
                     </div>
