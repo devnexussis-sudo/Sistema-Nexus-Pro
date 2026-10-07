@@ -5,6 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { Navigation, MapPin, Clock, RefreshCw, Calendar, Search, Map as MapIcon, Layers, Satellite, Users, ClipboardList, X, ChevronDown, ChevronUp, Filter, ExternalLink } from 'lucide-react';
 import { DataService } from '../../services/dataService';
+import { supabase } from '../../lib/supabase';
 import { CacheManager } from '../../lib/cache';
 import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -126,20 +127,9 @@ export const TechnicianMap: React.FC = () => {
 
 
     useEffect(() => {
-        // Initial load
+        // Carga inicial
         loadTechnicians();
         loadOrders();
-
-        let interval: any;
-        if (isAutoRefresh) {
-            console.log('[Map] Auto-refresh habilitado: Atualizando mapa e todos os status a cada 20 segundos');
-            // Refresh silencioso imediato ao ligar o modo Live
-            handleRefresh(true);
-
-            interval = setInterval(() => {
-                handleRefresh(true);
-            }, 20000); // 20 segundos
-        }
 
         const timer = setTimeout(() => {
             if (mapInstance) {
@@ -148,20 +138,88 @@ export const TechnicianMap: React.FC = () => {
         }, 500);
 
         return () => {
-            if (interval) clearInterval(interval);
             clearTimeout(timer);
         };
-    }, [mapInstance, isAutoRefresh]);
+    }, [mapInstance]);
+
+    // 📡 Realtime: sincronização contínua via WebSocket sem polling periódico
+    useEffect(() => {
+        const tenantId = DataService.getCurrentTenantId();
+        if (!tenantId) return;
+
+        const channel = supabase
+            .channel(`map-live-${tenantId}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'technicians',
+                filter: `tenant_id=eq.${tenantId}`
+            }, (payload: any) => {
+                if (payload.eventType === 'UPDATE' && payload.new) {
+                    setTechnicians(prev => prev.map(t => t.id === payload.new.id ? { ...t, ...payload.new } : t));
+                } else {
+                    loadTechnicians();
+                }
+                setLastUpdated(new Date());
+            })
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'orders',
+                filter: `tenant_id=eq.${tenantId}`
+            }, () => {
+                loadOrders();
+                setLastUpdated(new Date());
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []);
 
     const loadOrders = async () => {
         try {
+            const tenantId = DataService.getCurrentTenantId();
+            if (!tenantId) return;
+
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 12000);
-            const ords = await DataService.getOrders();
-            const custs = await DataService.getCustomers();
+
+            // 🛡️ EGRESS GUARD: Busca apenas colunas necessárias para o mapa (sem JSONs pesados de form_data/assinaturas)
+            const [ordersRes, custsRes] = await Promise.all([
+                supabase
+                    .from('orders')
+                    .select('id, display_id, title, status, assigned_to, customer_id, customer_name, scheduled_date, scheduled_time, created_at')
+                    .eq('tenant_id', tenantId)
+                    .order('created_at', { ascending: false })
+                    .limit(100)
+                    .abortSignal(controller.signal),
+                supabase
+                    .from('customers')
+                    .select('id, name, latitude, longitude')
+                    .eq('tenant_id', tenantId)
+                    .not('latitude', 'is', null)
+                    .limit(200)
+                    .abortSignal(controller.signal)
+            ]);
+
             clearTimeout(timeoutId);
-            setOrders(ords);
-            setCustomers(custs);
+            if (ordersRes.data) {
+                setOrders(ordersRes.data.map((d: any) => ({
+                    id: d.id,
+                    displayId: d.display_id,
+                    title: d.title,
+                    status: d.status,
+                    assignedTo: d.assigned_to,
+                    customerId: d.customer_id,
+                    customerName: d.customer_name,
+                    scheduledDate: d.scheduled_date,
+                    scheduledTime: d.scheduled_time,
+                    createdAt: d.created_at,
+                })));
+            }
+            if (custsRes.data) setCustomers(custsRes.data);
         } catch (error: any) {
             if (error?.name !== 'AbortError') {
                 console.error('[Map] Erro ao carregar OS:', error);
@@ -171,11 +229,22 @@ export const TechnicianMap: React.FC = () => {
 
     const loadTechnicians = async () => {
         try {
+            const tenantId = DataService.getCurrentTenantId();
+            if (!tenantId) return;
+
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 12000);
-            const techs = await DataService.getAllTechnicians(null, null, true);
+
+            const { data } = await supabase
+                .from('technicians')
+                .select('id, name, email, avatar, last_latitude, last_longitude, last_seen, active, speed, battery_level, device_model, motion_state')
+                .eq('tenant_id', tenantId)
+                .order('name')
+                .limit(100)
+                .abortSignal(controller.signal);
+
             clearTimeout(timeoutId);
-            setTechnicians(techs);
+            if (data) setTechnicians(data);
         } catch (error: any) {
             if (error?.name !== 'AbortError') {
                 console.error('[Map] Erro ao carregar técnicos:', error);
@@ -190,14 +259,6 @@ export const TechnicianMap: React.FC = () => {
         }, 15000);
 
         try {
-            const tenantId = DataService.getCurrentTenantId();
-            if (tenantId) {
-                // Invalida ambos os caches para garantir dados frescos no mapa global
-                CacheManager.invalidate(`techs_${tenantId}`);
-                CacheManager.invalidate(`orders_${tenantId}`);
-                CacheManager.invalidate(`customers_${tenantId}`);
-            }
-
             await Promise.all([
                 loadTechnicians(),
                 loadOrders()

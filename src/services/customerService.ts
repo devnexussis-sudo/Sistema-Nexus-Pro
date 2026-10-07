@@ -50,7 +50,7 @@ export const CustomerService = {
 
             return CacheManager.deduplicate(cacheKey, async (currentSignal) => {
                 let query = clientToUse.from('customers')
-                    .select('*')
+                    .select('id, tenant_id, type, name, document, email, phone, whatsapp, zip, state, city, address, number, complement, neighborhood, latitude, longitude, active')
                     .eq('tenant_id', tenantId)
                     .order('name')
                     .limit(100);

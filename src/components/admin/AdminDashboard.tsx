@@ -454,6 +454,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setShowNewVisitForm(false);
         setEditingVisitId(null);
         setEquipments([]);
+
+        // 🛡️ EGRESS GUARD: Lazy-load do formData completo e assinaturas apenas para a OS selecionada
+        import('../../services/orderService').then(({ OrderService }) => {
+          OrderService.getPublicOrderById(selectedOrder.id).then(fullOrder => {
+            if (fullOrder && fullOrder.id === selectedOrder.id) {
+              setSelectedOrder(prev => prev && prev.id === fullOrder.id ? { ...prev, ...fullOrder } : prev);
+            }
+          });
+        });
       }
 
       // Busca os técnicos/visitas da OS via RPC secundário
@@ -469,9 +478,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         .then(({ data }) => {
           if (data) setOrderImpediments(data);
         });
-
-      // Busca Orçamentos para aba de vínculos
-      DataService.getQuotes().then(q => setQuotes(q || []));
 
       // Busca o template para mapear IDs para Labels no checklist
       if (selectedOrder.formId) {
@@ -494,6 +500,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setEquipments([]);
     }
   }, [selectedOrder]);
+
+  // 🛡️ EGRESS GUARD: Busca orçamentos apenas sob demanda se o usuário acessar a aba de vínculos ou editar
+  useEffect(() => {
+    if (selectedOrder && (activeTab === 'vinculos' || isEditing) && quotes.length === 0) {
+      DataService.getQuotes().then(q => setQuotes(q || []));
+    }
+  }, [selectedOrder, activeTab, isEditing, quotes.length]);
 
   // Listener para abrir OS a partir de outros componentes (ex: aba de ativos)
   useEffect(() => {

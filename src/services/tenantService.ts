@@ -428,7 +428,7 @@ export const TenantService = {
         if (isCloudEnabled) {
             let query = supabase
                 .from('users')
-                .select('*')
+                .select('id, name, email, role, avatar, tenant_id, active, created_at, phone, group_id, permissions')
                 .eq('tenant_id', tenantId)
                 .order('created_at', { ascending: false })
                 .limit(100);

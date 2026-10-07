@@ -312,8 +312,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         if (!tenantIdStr) return;
         try {
             const [invRes, itmsRes, usersRes, nfseRes] = await Promise.all([
-                supabase.from('invoices').select('*').eq('tenant_id', tenantIdStr).order('created_at', { ascending: false }),
-                supabase.from('invoice_items').select('*').eq('tenant_id', tenantIdStr),
+                supabase.from('invoices').select('*').eq('tenant_id', tenantIdStr).order('created_at', { ascending: false }).limit(200),
+                supabase.from('invoice_items').select('*').eq('tenant_id', tenantIdStr).limit(500),
                 supabase.from('users').select('id, name'),
                 supabase.from('invoice_nfse').select('invoice_id, status, nfse_number, pdf_url, xml_url, asaas_nfse_id, error_message').eq('tenant_id', tenantIdStr).then(res => res, () => ({ data: null, error: null }))
             ]);
@@ -548,19 +548,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         };
     }, [tenantIdStr, onRefresh]);
 
-    // ⚡ Auto-refresh: Recarrega dados do banco para refletir alterações vindas do webhook Asaas.
-    // NÃO chama syncInstallment aqui — o status só muda via webhook real do Asaas, nunca via polling.
-    useEffect(() => {
-        const hasPending = invoices.some(inv => inv.status === 'PENDING' || inv.status === 'BILLED');
-        if (!hasPending) return;
-
-        const interval = setInterval(() => {
-            loadInvoices();
-            onRefresh();
-        }, 30000);
-
-        return () => clearInterval(interval);
-    }, [invoices, tenantIdStr, onRefresh]);
+    // ⚡ Realtime Event-Driven: Alterações são sincronizadas em tempo real via canal Supabase acima. Zero polling necessário.
 
     const handleCancelInvoice = async () => {
         if (!cancelInvoiceModal.invoice) return;

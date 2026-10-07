@@ -56,7 +56,7 @@ export const getOrdersPage = async (
 
     let query = supabase
         .from('orders')
-        .select('*, service_visits(count)', { count: 'exact' })
+        .select('id, display_id, public_token, tenant_id, title, description, customer_id, customer_name, customer_address, status, priority, operation_type, assigned_to, form_id, equipment_name, equipment_model, equipment_serial, created_at, updated_at, scheduled_date, scheduled_time, start_date, end_date, notes, show_value_to_client, billing_status, payment_method, paid_at, billing_notes, linked_quotes, discount, discount_type, checkin_location, checkout_location, pause_reason, total_amount, total_value, service_visits(count)', { count: 'exact' })
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false });
 
@@ -130,7 +130,7 @@ export const getQuotesPage = async (
 
     let query = supabase
         .from('quotes')
-        .select('*', { count: 'exact' })
+        .select('id, display_id, public_token, tenant_id, customer_id, created_by, created_by_name, customer_name, customer_address, customer_document, title, description, total_value, total_amount, status, notes, valid_until, linked_order_id, approved_by_name, approved_at, created_at, updated_at, billing_status, payment_method, paid_at, discount, discount_type, gateway_status', { count: 'exact' })
         .eq('tenant_id', tenantId)
         // Excluir lançamentos PMOC (billing-only) — estes aparecem somente no Financeiro
         .not('display_id', 'like', 'PMOC-%')
@@ -183,7 +183,7 @@ export const getContractsPage = async (
 
     let query = supabase
         .from('contracts')
-        .select('*', { count: 'exact' })
+        .select('id, display_id, title, description, customer_name, customer_address, status, priority, operation_type, scheduled_date, periodicity, maintenance_day, equipment_ids, contract_value, includes_parts, visit_count, created_at, updated_at, tenant_id', { count: 'exact' })
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false });
 
