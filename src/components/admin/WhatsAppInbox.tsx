@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw, X, BellRing, Bell, Volume2, ArrowRight, ArrowLeft, ChevronLeft, ChevronRight, Sticker, FileVideo, Paperclip, Mic, FileText, Download, AlertCircle, Plus, Search, Loader2, CheckCircle2, ExternalLink, Images, Clock } from 'lucide-react';
+import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw, X, BellRing, Bell, Volume2, ArrowRight, ArrowLeft, ChevronLeft, ChevronRight, Sticker, FileVideo, Paperclip, Mic, FileText, Download, AlertCircle, Plus, Search, Loader2, CheckCircle2, ExternalLink, Images, Clock, Calendar } from 'lucide-react';
 import { Customer } from '../../types';
 import { getCurrentTenantId } from '../../lib/tenantContext';
 
@@ -74,6 +74,89 @@ function timeAgo(iso: string) {
   if (diff < 3600) return `${Math.floor(diff / 60)}min`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
   return `${Math.floor(diff / 86400)}d`;
+}
+
+// ── Helpers de Data Estilo WhatsApp & Zendesk ─────────────────────────────
+
+function getDateGroupKey(dateInput?: string | Date): string {
+  if (!dateInput) return 'unknown';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return 'unknown';
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateDivider(dateInput?: string | Date): string {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const targetDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  
+  const diffDays = Math.round((today.getTime() - targetDay.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return 'Hoje';
+  if (diffDays === 1) return 'Ontem';
+
+  // Se for nos últimos 6 dias, mostrar dia da semana por extenso (ex: "Segunda-feira, 5 de Outubro")
+  if (diffDays > 1 && diffDays < 7) {
+    const weekday = d.toLocaleDateString('pt-BR', { weekday: 'long' });
+    const capitalizedWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+    const dayMonth = d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
+    return `${capitalizedWeekday}, ${dayMonth}`;
+  }
+
+  // Se for do ano atual
+  if (d.getFullYear() === now.getFullYear()) {
+    return d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
+  }
+
+  // Anos anteriores
+  return d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function formatConversationListDate(dateInput?: string | Date): string {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const targetDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+  const diffDays = Math.round((today.getTime() - targetDay.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) {
+    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }
+  if (diffDays === 1) {
+    return 'Ontem';
+  }
+  if (diffDays > 1 && diffDays < 7) {
+    const weekday = d.toLocaleDateString('pt-BR', { weekday: 'short' });
+    return weekday.replace('.', '').charAt(0).toUpperCase() + weekday.replace('.', '').slice(1);
+  }
+  if (d.getFullYear() === now.getFullYear()) {
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  }
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+function formatFullDateTime(dateInput?: string | Date): string {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 }
 
 function formatLastMessagePreview(rawContent: string): string {
@@ -1556,7 +1639,12 @@ export const WhatsAppInbox: React.FC = () => {
                         <p className={`text-xs font-bold truncate ${isUnread ? 'text-emerald-800' : 'text-slate-900'}`}>
                           {customerName || formatPhone(conv.phone_number)}
                         </p>
-                        <span className="text-[10px] text-slate-400 font-medium flex-shrink-0">{timeAgo(conv.last_message_at)}</span>
+                        <span 
+                          className="text-[10.5px] text-slate-400 font-medium flex-shrink-0 tracking-tight" 
+                          title={formatFullDateTime(conv.last_message_at)}
+                        >
+                          {formatConversationListDate(conv.last_message_at)}
+                        </span>
                       </div>
                       {!customerName && <p className="text-[10px] text-slate-400">{formatPhone(conv.phone_number)}</p>}
                       <p className={`text-[10px] font-semibold ${stateInfo.color} mt-0.5`}>
@@ -1633,6 +1721,12 @@ export const WhatsAppInbox: React.FC = () => {
                   {selected.state === 'RESOLVED' && selected.users?.name && (
                     <span className="text-slate-600 font-medium">
                       • Resolvido por: <strong className="text-slate-800 font-bold">{selected.users.name}</strong>
+                    </span>
+                  )}
+                  {selected.last_message_at && (
+                    <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10.5px] flex items-center gap-1.5 font-medium ml-auto sm:ml-0 border border-slate-200/60" title="Data e hora da última interação">
+                      <Calendar size={11} className="text-slate-400" />
+                      <span>{formatFullDateTime(selected.last_message_at)}</span>
                     </span>
                   )}
                 </div>
@@ -1821,7 +1915,39 @@ export const WhatsAppInbox: React.FC = () => {
                 }
               }
 
-              return groupedList.map((item, gIdx) => {
+              type DayGroup = {
+                dateKey: string;
+                dateLabel: string;
+                items: GroupedItem[];
+              };
+
+              const dayGroups: DayGroup[] = [];
+              groupedList.forEach((item) => {
+                const itemTimestamp = item.type === 'single' ? item.message.timestamp : item.timestamp;
+                const dateKey = getDateGroupKey(itemTimestamp);
+                let dg = dayGroups.find(d => d.dateKey === dateKey);
+                if (!dg) {
+                  dg = {
+                    dateKey,
+                    dateLabel: formatDateDivider(itemTimestamp),
+                    items: []
+                  };
+                  dayGroups.push(dg);
+                }
+                dg.items.push(item);
+              });
+
+              return dayGroups.map((dayGroup) => (
+                <div key={`day-group-${dayGroup.dateKey}`} className="space-y-3">
+                  {/* Separador de Data Estilo WhatsApp & Zendesk */}
+                  <div className="flex justify-center my-4 sticky top-1 z-10 pointer-events-none">
+                    <div className="bg-slate-200/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 text-[11px] font-semibold px-3.5 py-1 rounded-full shadow-2xs backdrop-blur-md border border-slate-300/80 dark:border-slate-700/80 flex items-center gap-1.5 uppercase tracking-wider select-none">
+                      <Calendar size={11} className="text-slate-500 dark:text-slate-400 shrink-0" />
+                      <span>{dayGroup.dateLabel}</span>
+                    </div>
+                  </div>
+
+                  {dayGroup.items.map((item, gIdx) => {
                 if (item.type === 'single') {
                   const msg = item.message;
                   if (msg.role === 'system') {
@@ -1960,7 +2086,7 @@ export const WhatsAppInbox: React.FC = () => {
                           return <p className={`whitespace-pre-wrap text-[12.5px] leading-relaxed ${isAgent ? 'text-slate-100' : 'text-slate-800'}`}>{content}</p>;
                         })()}
 
-                        <p className={`text-[9.5px] mt-1.5 font-medium ${isAgent ? 'text-white/60 text-right' : isBot ? 'text-violet-600/70 text-right' : 'text-slate-400'}`}>
+                        <p className={`text-[9.5px] mt-1.5 font-medium ${isAgent ? 'text-white/60 text-right' : isBot ? 'text-violet-600/70 text-right' : 'text-slate-400'}`} title={formatFullDateTime(msg.timestamp)}>
                           {new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
@@ -2108,7 +2234,7 @@ export const WhatsAppInbox: React.FC = () => {
                         <span className="flex items-center gap-1 font-medium">
                           <Images size={11} /> {totalImages} fotos
                         </span>
-                        <span>
+                        <span title={formatFullDateTime(item.timestamp)}>
                           {new Date(item.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
@@ -2123,8 +2249,10 @@ export const WhatsAppInbox: React.FC = () => {
                     )}
                   </div>
                 );
-              });
-            })()}
+              })}
+            </div>
+          ));
+        })()}
             <div ref={chatEndRef} />
           </div>
 
