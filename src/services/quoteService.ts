@@ -87,7 +87,7 @@ export const QuoteService = {
 
             return CacheManager.deduplicate(cacheKey, async (currentSignal) => {
                 let query = supabase.from('quotes')
-                    .select('id, display_id, public_token, tenant_id, customer_id, created_by, created_by_name, customer_name, customer_address, customer_document, title, description, total_value, total_amount, status, notes, valid_until, linked_order_id, approved_by_name, approved_at, created_at, updated_at, billing_status, payment_method, paid_at, discount, discount_type, gateway_status')
+                    .select('id, display_id, public_token, tenant_id, customer_id, created_by_name, customer_name, customer_address, title, description, total_value, status, notes, valid_until, linked_order_id, approved_by_name, approved_at, created_at, updated_at, billing_status, payment_method, paid_at, discount, discount_type, gateway_status, items')
                     .eq('tenant_id', tenantId)
                     .order('created_at', { ascending: false })
                     .limit(100);

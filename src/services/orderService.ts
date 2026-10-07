@@ -298,7 +298,7 @@ export const OrderService = {
                     const timeoutId = setTimeout(() => controller.abort(), 20000);
 
                     let { data, error } = await clientToUse.from('orders')
-                        .select('id, display_id, public_token, tenant_id, title, description, customer_id, customer_name, customer_address, status, priority, operation_type, assigned_to, form_id, equipment_name, equipment_model, equipment_serial, created_at, updated_at, scheduled_date, scheduled_time, start_date, end_date, notes, show_value_to_client, billing_status, payment_method, paid_at, billing_notes, linked_quotes, discount, discount_type, checkin_location, checkout_location, pause_reason, total_amount, total_value')
+                        .select('id, display_id, public_token, tenant_id, title, description, customer_id, customer_name, customer_address, status, priority, operation_type, assigned_to, form_id, equipment_name, equipment_model, equipment_serial, created_at, updated_at, scheduled_date, scheduled_time, start_date, end_date, notes, show_value_to_client, billing_status, payment_method, paid_at, billing_notes, linked_quotes, discount, discount_type, checkin_location, checkout_location, pause_reason, total_value, items, created_by')
                         .eq('tenant_id', tenantId)
                         .order('created_at', { ascending: false })
                         .limit(100)
@@ -374,7 +374,7 @@ export const OrderService = {
 
             let query = clientToUse
                 .from('orders')
-                .select('id, display_id, public_token, tenant_id, title, description, customer_id, customer_name, customer_address, status, priority, operation_type, assigned_to, form_id, equipment_name, equipment_model, equipment_serial, created_at, updated_at, scheduled_date, scheduled_time, start_date, end_date, notes, show_value_to_client, billing_status, payment_method, paid_at, billing_notes, linked_quotes, discount, discount_type, checkin_location, checkout_location, pause_reason, total_amount, total_value', { count: 'exact' })
+                .select('id, display_id, public_token, tenant_id, title, description, customer_id, customer_name, customer_address, status, priority, operation_type, assigned_to, form_id, equipment_name, equipment_model, equipment_serial, created_at, updated_at, scheduled_date, scheduled_time, start_date, end_date, notes, show_value_to_client, billing_status, payment_method, paid_at, billing_notes, linked_quotes, discount, discount_type, checkin_location, checkout_location, pause_reason, total_value, items, created_by', { count: 'exact' })
                 .eq('tenant_id', tenantId);
 
             // Filtra por técnico se especificado

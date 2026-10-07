@@ -115,7 +115,7 @@ export const TechnicianService = {
 
             const fetcher = async (currentSignal?: AbortSignal): Promise<any[]> => {
                 let query = clientToUse.from('technicians')
-                    .select('id, name, email, phone, avatar, active, tenant_id, user_id, color, last_latitude, last_longitude, last_seen, motion_state, battery_level, device_model')
+                    .select('id, name, email, phone, avatar, active, tenant_id, last_latitude, last_longitude, last_seen, motion_state, battery_level, device_model')
                     .eq('tenant_id', tenantId)
                     .order('name')
                     .limit(100);
