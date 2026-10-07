@@ -648,6 +648,7 @@ export const WhatsAppInbox: React.FC = () => {
   useEffect(() => {
     if (selectedId) {
       try {
+        localStorage.setItem('wa_active_conv_id', selectedId);
         const conv = conversations.find(c => c.id === selectedId);
         if (conv && conv.history && conv.history.length > 0) {
           const lastMsg = conv.history[conv.history.length - 1];
@@ -663,7 +664,16 @@ export const WhatsAppInbox: React.FC = () => {
       } catch (e) {
         console.error('Erro ao salvar recibo de leitura:', e);
       }
+    } else {
+      try {
+        localStorage.removeItem('wa_active_conv_id');
+      } catch (e) {}
     }
+    return () => {
+      try {
+        localStorage.removeItem('wa_active_conv_id');
+      } catch (e) {}
+    };
   }, [selectedId, conversations]);
 
   // Fechar popover de emojis ao clicar fora
@@ -1208,6 +1218,7 @@ export const WhatsAppInbox: React.FC = () => {
       if (sendErr) throw sendErr;
 
       const safeText = `MEDIA_URL:${isImage ? 'image' : 'document'}:${signData.publicUrl}`;
+      const nowIso = new Date().toISOString();
       const optimisticMsg = {
         role: "agent",
         content: safeText,
@@ -1216,14 +1227,22 @@ export const WhatsAppInbox: React.FC = () => {
         is_from_me: true,
         agent_id: currentUserId,
         agent_name: currentUserName,
-        timestamp: new Date().toISOString()
+        timestamp: nowIso
       };
+
+      try {
+        const receiptsStr = localStorage.getItem('wa_read_receipts');
+        let receipts = receiptsStr ? JSON.parse(receiptsStr) : {};
+        receipts[selected.id] = nowIso;
+        localStorage.setItem('wa_read_receipts', JSON.stringify(receipts));
+        window.dispatchEvent(new Event('wa_read_receipts_changed'));
+      } catch (e) {}
       
       setConversations(prev => prev.map(c => {
         if (c.id === selected.id) {
           const updatedHistory = [...(Array.isArray(c.history) ? c.history : []), optimisticMsg];
           if (updatedHistory.length > 30) updatedHistory.slice(-30);
-          return { ...c, history: updatedHistory, last_message_at: new Date().toISOString() };
+          return { ...c, history: updatedHistory, last_message_at: nowIso };
         }
         return c;
       }));
@@ -1243,17 +1262,28 @@ export const WhatsAppInbox: React.FC = () => {
     const txt = message;
     setMessage('');
 
+    const nowIso = new Date().toISOString();
+
+    // 🛡️ ENTRADA VS SAÍDA: Grava o recibo de leitura imediatamente para a mensagem enviada pelo agente
+    try {
+      const receiptsStr = localStorage.getItem('wa_read_receipts');
+      let receipts = receiptsStr ? JSON.parse(receiptsStr) : {};
+      receipts[selected.id] = nowIso;
+      localStorage.setItem('wa_read_receipts', JSON.stringify(receipts));
+      window.dispatchEvent(new Event('wa_read_receipts_changed'));
+    } catch (e) {}
+
     // ✨ Update otimista: mensagem aparece instantaneamente na tela
     const optimisticMsg: Message = {
       role: 'agent',
       content: txt,
-      timestamp: new Date().toISOString(),
+      timestamp: nowIso,
       agent_id: currentUserId || undefined,
       agent_name: currentUserName,
     };
     setConversations(prev => prev.map(c => {
       if (c.id !== selected.id) return c;
-      return { ...c, history: [...(c.history || []), optimisticMsg], last_message_at: new Date().toISOString() };
+      return { ...c, history: [...(c.history || []), optimisticMsg], last_message_at: nowIso };
     }));
 
     // Libera o botão imediatamente — rede roda em background
@@ -1279,15 +1309,25 @@ export const WhatsAppInbox: React.FC = () => {
     setSendingAction('sticker');
     setShowStickers(false);
 
+    const nowIso = new Date().toISOString();
+
+    try {
+      const receiptsStr = localStorage.getItem('wa_read_receipts');
+      let receipts = receiptsStr ? JSON.parse(receiptsStr) : {};
+      receipts[selected.id] = nowIso;
+      localStorage.setItem('wa_read_receipts', JSON.stringify(receipts));
+      window.dispatchEvent(new Event('wa_read_receipts_changed'));
+    } catch (e) {}
+
     const optimisticMsg: Message = {
       role: 'agent',
       content: '[✨ Figurinha Enviada]',
-      timestamp: new Date().toISOString(),
+      timestamp: nowIso,
     };
     
     setConversations(prev => prev.map(c => {
       if (c.id !== selected.id) return c;
-      return { ...c, history: [...(c.history || []), optimisticMsg], last_message_at: new Date().toISOString() };
+      return { ...c, history: [...(c.history || []), optimisticMsg], last_message_at: nowIso };
     }));
 
     try {
