@@ -1501,26 +1501,35 @@ export const WhatsAppInbox: React.FC = () => {
                       window.dispatchEvent(new Event('whatsapp_state_changed'));
                     } catch (e) {}
                   }}
-                  className={`w-full text-left p-3 border-b border-gray-50 hover:bg-gray-50 transition-all ${
-                    isSelected ? 'bg-emerald-50 border-l-2 border-l-emerald-400' : isUnread ? 'bg-emerald-50/30' : ''
+                  className={`w-full text-left p-3 border-b border-slate-100 transition-all cursor-pointer ${
+                    isSelected 
+                      ? 'bg-slate-100/80 border-l-4 border-l-[#1c2d4f] shadow-xs' 
+                      : isUnread 
+                      ? 'bg-emerald-50/40 hover:bg-emerald-50/70' 
+                      : 'hover:bg-slate-50/80'
                   }`}
                 >
-                  <div className="flex items-start gap-2">
-                    <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${stateInfo.dot}`} />
+                  <div className="flex items-start gap-2.5">
+                    {/* Zendesk Customer Initials Avatar with status badge */}
+                    <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200/90 flex items-center justify-center text-slate-700 font-bold text-xs flex-shrink-0 relative shadow-2xs">
+                      {customerName ? customerName.charAt(0).toUpperCase() : <User size={13} className="text-slate-500" />}
+                      <span className={`w-2.5 h-2.5 rounded-full absolute -bottom-0.5 -right-0.5 ring-2 ring-white ${stateInfo.dot}`} />
+                    </div>
+
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-1">
-                        <p className={`text-xs font-bold truncate ${isUnread ? 'text-emerald-700' : 'text-gray-800'}`}>
+                        <p className={`text-xs font-bold truncate ${isUnread ? 'text-emerald-800' : 'text-slate-900'}`}>
                           {customerName || formatPhone(conv.phone_number)}
                         </p>
-                        <span className="text-[9px] text-gray-400 flex-shrink-0">{timeAgo(conv.last_message_at)}</span>
+                        <span className="text-[10px] text-slate-400 font-medium flex-shrink-0">{timeAgo(conv.last_message_at)}</span>
                       </div>
-                      {!customerName && <p className="text-[10px] text-gray-400">{formatPhone(conv.phone_number)}</p>}
-                      <p className={`text-[10px] font-medium ${stateInfo.color}`}>
-                        {conv.state === 'HUMAN_ACTIVE' && conv.users?.name ? `👤 Em atendimento pelo: ${conv.users.name.split(' ')[0]}` : conv.state === 'RESOLVED' && conv.users?.name ? `✅ Finalizado por: ${conv.users.name.split(' ')[0]}` : stateInfo.label}
+                      {!customerName && <p className="text-[10px] text-slate-400">{formatPhone(conv.phone_number)}</p>}
+                      <p className={`text-[10px] font-semibold ${stateInfo.color} mt-0.5`}>
+                        {conv.state === 'HUMAN_ACTIVE' && conv.users?.name ? `👤 Em atendimento: ${conv.users.name.split(' ')[0]}` : conv.state === 'RESOLVED' && conv.users?.name ? `✅ Finalizado por: ${conv.users.name.split(' ')[0]}` : stateInfo.label}
                       </p>
                       {lastMsg && (
-                        <p className={`text-xs truncate w-full ${isUnread ? 'text-emerald-600 font-semibold' : 'text-slate-500'}`}>
-                          {isUnread && <span className="mr-1 text-[8px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full animate-pulse">NOVA</span>}
+                        <p className={`text-[11.5px] truncate w-full mt-1 ${isUnread ? 'text-emerald-700 font-semibold' : 'text-slate-500'}`}>
+                          {isUnread && <span className="mr-1.5 text-[8.5px] bg-emerald-500 text-white px-1.5 py-0.2 rounded-full font-bold">NOVA</span>}
                           {lastMsg.role === 'bot' ? '🤖' : lastMsg.role === 'agent' ? '👤' : lastMsg.role === 'system' ? '⏱️' : '💬'} {formatLastMessagePreview(lastMsg.content).substring(0, 60)}
                         </p>
                       )}
@@ -1536,99 +1545,131 @@ export const WhatsAppInbox: React.FC = () => {
       {/* ── Coluna direita: janela de chat ── */}
       {selected ? (
         <div className={`flex-1 flex-col ${!selected ? 'hidden md:flex' : 'flex'} w-full h-full absolute md:relative z-20 md:z-auto bg-gray-50/30`}>
-          {/* Header */}
-          <div className="bg-white border-b border-gray-100 p-2 sm:p-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-            <div className="flex-1 flex items-start sm:items-center gap-2 min-w-0 w-full sm:w-auto">
+          {/* Header estilo Zendesk Ticket Header */}
+          <div className="bg-white border-b border-slate-200/90 px-3 py-2.5 sm:px-4 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-3 min-w-0">
               <button 
-                className="md:hidden p-1.5 -ml-1 text-slate-500 hover:bg-slate-100 rounded-full shrink-0"
+                className="md:hidden p-1.5 -ml-1 text-slate-500 hover:bg-slate-100 rounded-lg shrink-0 transition-colors"
                 onClick={() => setSelected(null)}
               >
-                <ArrowLeft size={20} />
+                <ArrowLeft size={18} />
               </button>
-              <div className="flex-1 min-w-0">
+
+              {/* Avatar do Cliente */}
+              <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200/90 flex items-center justify-center text-slate-700 font-bold text-sm shrink-0 shadow-2xs">
+                {selected.customers?.name ? selected.customers.name.charAt(0).toUpperCase() : <User size={18} className="text-slate-500" />}
+              </div>
+
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-bold text-gray-800 truncate">
+                  <h3 className="text-sm font-bold text-slate-900 truncate tracking-tight">
                     {selected.customers?.name || formatPhone(selected.phone_number)}
-                  </p>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
-                    selected.state === 'WAITING_HUMAN' ? 'bg-orange-50 text-orange-500 border-orange-200' :
-                    selected.state === 'HUMAN_ACTIVE'  ? 'bg-indigo-50 text-indigo-500 border-indigo-200' :
-                    selected.state.includes('FOUND') || selected.state.includes('VIEWING') ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
-                    'bg-gray-50 text-gray-400 border-gray-200'
+                  </h3>
+                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border shrink-0 flex items-center gap-1 ${
+                    selected.state === 'WAITING_HUMAN' ? 'bg-amber-50 text-amber-800 border-amber-300' :
+                    selected.state === 'HUMAN_ACTIVE'  ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                    selected.state.includes('FOUND') || selected.state.includes('VIEWING') ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                    'bg-slate-100 text-slate-600 border-slate-200'
                   }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      selected.state === 'WAITING_HUMAN' ? 'bg-amber-500 animate-pulse' :
+                      selected.state === 'HUMAN_ACTIVE' ? 'bg-blue-500' :
+                      selected.state.includes('FOUND') ? 'bg-emerald-500' : 'bg-slate-400'
+                    }`} />
                     {STATE_LABELS[selected.state]?.label || selected.state}
                   </span>
                 </div>
-                <div className="flex items-center gap-1 flex-wrap mt-0.5">
-                  <p className="text-[10px] text-gray-400 shrink-0">
-                    <Phone size={10} className="inline mr-1" />{formatPhone(selected.phone_number)}
-                    {selected.customers?.document && ` · Doc: ${selected.customers.document}`}
-                  </p>
+
+                <div className="flex items-center gap-2 flex-wrap mt-0.5 text-[11px] text-slate-500">
+                  <span className="flex items-center gap-1 font-mono text-slate-600">
+                    <Phone size={11} className="text-slate-400" />
+                    {formatPhone(selected.phone_number)}
+                  </span>
+                  {selected.customers?.document && (
+                    <span className="bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-mono text-[10px]">
+                      Doc: {selected.customers.document}
+                    </span>
+                  )}
                   {selected.state === 'HUMAN_ACTIVE' && selected.users?.name && (
-                    <span className="text-[10px] font-medium text-slate-500 shrink-0">
-                      · Atendido por: <strong className="text-slate-700">{selected.users.name}</strong>
+                    <span className="text-slate-600 font-medium">
+                      • Atendente: <strong className="text-slate-800 font-bold">{selected.users.name}</strong>
                     </span>
                   )}
                   {selected.state === 'RESOLVED' && selected.users?.name && (
-                    <span className="text-[10px] text-slate-500 shrink-0">
-                      · Finalizado por: <strong className="text-slate-700">{selected.users.name}</strong> em {new Date(selected.last_message_at).toLocaleDateString('pt-BR')}
+                    <span className="text-slate-600 font-medium">
+                      • Resolvido por: <strong className="text-slate-800 font-bold">{selected.users.name}</strong>
                     </span>
                   )}
                 </div>
               </div>
             </div>
             
-            <div className="flex items-center gap-2 flex-wrap sm:justify-end shrink-0 overflow-x-auto pb-1 sm:pb-0 w-full sm:w-auto">
+            {/* Zendesk Action Toolbar */}
+            <div className="flex items-center gap-1.5 flex-wrap sm:justify-end shrink-0">
               {(selected.state !== 'HUMAN_ACTIVE' || selected.assigned_agent_id !== currentUserId) && (
                 <button
                   onClick={handleTakeover}
                   disabled={sendingAction !== null}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1c2d4f] text-white text-[11px] font-bold rounded-xl hover:bg-[#2a4376] disabled:opacity-50 transition-all shadow-sm border border-[#1c2d4f] whitespace-nowrap"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1c2d4f] hover:bg-[#283f6b] text-white text-xs font-bold rounded-lg disabled:opacity-50 transition-all shadow-xs active:scale-95 whitespace-nowrap cursor-pointer"
+                  title="Assumir ticket de atendimento"
                 >
-                  {sendingAction === 'takeover' ? <RefreshCw size={14} className="animate-spin" /> : <UserCheck size={14} />} {selected.state === 'HUMAN_ACTIVE' ? 'Assumir p/ Mim' : 'Assumir'}
+                  {sendingAction === 'takeover' ? <RefreshCw size={13} className="animate-spin" /> : <UserCheck size={13} />}
+                  <span>{selected.state === 'HUMAN_ACTIVE' ? 'Assumir p/ Mim' : 'Assumir Atendimento'}</span>
                 </button>
               )}
               {selected.state !== 'HUMAN_ACTIVE' && (
                 <button
                   onClick={() => setShowResetConfirm(true)}
                   disabled={sendingAction !== null}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-slate-600 text-[11px] font-bold rounded-xl hover:bg-slate-50 disabled:opacity-50 transition-all border border-slate-200 shadow-sm whitespace-nowrap"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg disabled:opacity-50 transition-all border border-slate-200/90 shadow-2xs whitespace-nowrap cursor-pointer"
+                  title="Reiniciar fluxo automático da IA"
                 >
-                  {sendingAction === 'reset' ? <RefreshCw size={14} className="animate-spin" /> : <RotateCcw size={14} />} Reiniciar
+                  {sendingAction === 'reset' ? <RefreshCw size={13} className="animate-spin" /> : <RotateCcw size={13} />}
+                  <span>Reiniciar Bot</span>
                 </button>
               )}
               {selected.state === 'HUMAN_ACTIVE' && selected.assigned_agent_id === currentUserId && (
                 <>
-                    <button
-                      onClick={() => {
-                        supabase.from('users').select('id, name').neq('role', 'TECHNICIAN').order('name').then(({ data }) => setTeamMembers(data || []));
-                        setTransferModal(selected.id);
-                        setAgentSearch('');
-                      }}
-                      disabled={sendingAction !== null}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 text-[11px] font-bold rounded-xl hover:bg-indigo-100 disabled:opacity-50 transition-all border border-indigo-200 shadow-sm whitespace-nowrap"
-                    >
-                      {sendingAction === 'transfer' ? <RefreshCw size={14} className="animate-spin" /> : <ArrowRight size={14} />} Transferir
-                    </button>
+                  <button
+                    onClick={() => {
+                      supabase.from('users').select('id, name').neq('role', 'TECHNICIAN').order('name').then(({ data }) => setTeamMembers(data || []));
+                      setTransferModal(selected.id);
+                      setAgentSearch('');
+                    }}
+                    disabled={sendingAction !== null}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-indigo-50/70 text-slate-700 hover:text-indigo-700 text-xs font-semibold rounded-lg disabled:opacity-50 transition-all border border-slate-200/90 shadow-2xs whitespace-nowrap cursor-pointer"
+                    title="Transferir para outro agente"
+                  >
+                    {sendingAction === 'transfer' ? <RefreshCw size={13} className="animate-spin" /> : <ArrowRight size={13} />}
+                    <span>Transferir</span>
+                  </button>
                   <button
                     onClick={handleReturnToBot}
                     disabled={sendingAction !== null}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-[11px] font-bold rounded-xl hover:bg-emerald-100 disabled:opacity-50 transition-all border border-emerald-200 shadow-sm whitespace-nowrap"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg disabled:opacity-50 transition-all border border-slate-200/90 shadow-2xs whitespace-nowrap cursor-pointer"
+                    title="Devolver ao fluxo automático do Bot"
                   >
-                    {sendingAction === 'return_to_bot' ? <RefreshCw size={14} className="animate-spin" /> : <Bot size={14} />} Devolver
+                    {sendingAction === 'return_to_bot' ? <RefreshCw size={13} className="animate-spin" /> : <Bot size={13} />}
+                    <span>Devolver ao Bot</span>
                   </button>
                 </>
               )}
-              {/* Encerrar Atendimento agora sempre visível (se não estiver encerrado) */}
+              {/* Encerrar / Resolver Atendimento */}
               <button
                 onClick={handleCloseConversation}
                 disabled={sendingAction !== null}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-700 text-[11px] font-bold rounded-xl hover:bg-rose-100 disabled:opacity-50 transition-all border border-rose-200 shadow-sm"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-lg disabled:opacity-50 transition-all border border-rose-200/80 shadow-2xs cursor-pointer"
+                title="Encerrar e marcar conversa como resolvida"
               >
-                {sendingAction === 'close' ? <RefreshCw size={14} className="animate-spin" /> : <X size={14} />} Encerrar
+                {sendingAction === 'close' ? <RefreshCw size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                <span>Encerrar</span>
               </button>
 
-              <button onClick={() => setSelectedId(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 ml-1">
+              <button 
+                onClick={() => setSelectedId(null)} 
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors ml-1 cursor-pointer"
+                title="Fechar conversa"
+              >
                 <X size={16} />
               </button>
             </div>
@@ -1759,35 +1800,50 @@ export const WhatsAppInbox: React.FC = () => {
                     );
                   }
                   const isFromMe = msg.role === 'agent' || msg.role === 'bot';
+                  const isAgent = msg.role === 'agent';
+                  const isBot = msg.role === 'bot';
+                  const isUser = msg.role === 'user';
+
                   return (
                     <div key={`single-${item.originalIndex}`} className={`flex gap-2 items-end ${isFromMe ? 'justify-end' : 'justify-start'}`}>
-                      {!isFromMe && (
-                        <div className="w-7 h-7 rounded-full bg-slate-300 flex items-center justify-center flex-shrink-0 shadow-sm">
-                          <User size={14} className="text-slate-600" />
+                      {isUser && (
+                        <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200/90 flex items-center justify-center flex-shrink-0 shadow-2xs text-slate-700 font-bold text-xs">
+                          {selected.customers?.name ? selected.customers.name.charAt(0).toUpperCase() : <User size={14} className="text-slate-500" />}
                         </div>
                       )}
 
-                      <div className={`max-w-[72%] px-3.5 py-2.5 text-xs leading-relaxed shadow-sm ${
-                        msg.role === 'agent'
-                          ? 'bg-emerald-800 text-white rounded-2xl rounded-br-sm'
-                          : msg.role === 'bot'
-                          ? 'bg-violet-700 text-white rounded-2xl rounded-bl-sm'
-                          : 'bg-blue-800 text-white rounded-2xl rounded-bl-sm'
+                      <div className={`max-w-[75%] sm:max-w-[70%] px-4 py-2.5 text-xs leading-relaxed shadow-xs transition-all ${
+                        isAgent
+                          ? 'bg-[#1c2d4f] text-white rounded-2xl rounded-tr-xs border border-[#1c2d4f]'
+                          : isBot
+                          ? 'bg-violet-50/90 text-slate-800 rounded-2xl rounded-tr-xs border border-violet-200/80'
+                          : 'bg-white text-slate-800 rounded-2xl rounded-tl-xs border border-slate-200/90'
                       }`}>
-                        {msg.role === 'user' && (
-                          <p className="text-[10px] font-semibold text-blue-200 mb-1 tracking-wide">
-                            {formatPhone(selected.phone_number)}
-                          </p>
+                        {isUser && (
+                          <div className="flex items-center justify-between gap-3 mb-1 pb-1 border-b border-slate-100">
+                            <span className="text-[11px] font-bold text-slate-900 tracking-tight">
+                              {selected.customers?.name || formatPhone(selected.phone_number)}
+                            </span>
+                            <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Cliente</span>
+                          </div>
                         )}
-                        {msg.role === 'agent' && (
-                          <p className="text-[10px] font-semibold text-emerald-200 mb-1 tracking-wide uppercase">
-                            👤 {msg.agent_name || (msg.agent_id ? teamMembers.find(m => m.id === msg.agent_id)?.name : null) || selected.users?.name || currentUserName}
-                          </p>
+                        {isAgent && (
+                          <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-white/10">
+                            <UserCheck size={12} className="text-indigo-300" />
+                            <span className="text-[10.5px] font-bold text-white uppercase tracking-tight">
+                              {msg.agent_name || (msg.agent_id ? teamMembers.find(m => m.id === msg.agent_id)?.name : null) || selected.users?.name || currentUserName}
+                            </span>
+                            <span className="text-[8.5px] bg-white/20 text-indigo-100 px-1.5 py-0.2 rounded font-bold uppercase ml-auto">Agente</span>
+                          </div>
                         )}
-                        {msg.role === 'bot' && (
-                          <p className="text-[10px] font-semibold text-emerald-200 mb-1 tracking-wide uppercase">
-                            🤖 Assistente Virtual
-                          </p>
+                        {isBot && (
+                          <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-violet-200/60">
+                            <Bot size={13} className="text-violet-600" />
+                            <span className="text-[10.5px] font-bold text-violet-950 uppercase tracking-tight">
+                              Nexus Assistente Virtual
+                            </span>
+                            <span className="text-[8.5px] bg-violet-200/80 text-violet-800 px-1.5 py-0.2 rounded font-extrabold uppercase ml-auto">IA</span>
+                          </div>
                         )}
 
                         {(() => {
@@ -1795,8 +1851,8 @@ export const WhatsAppInbox: React.FC = () => {
                           const parsed = parseMessageMedia(content);
                           if (parsed) {
                             const { mediaType, mediaUrl, caption } = parsed;
-                            const isLight = isFromMe;
-                            const textColor = isLight ? 'text-white/60' : 'text-slate-400';
+                            const isLight = isAgent;
+                            const textColor = isLight ? 'text-white/70' : 'text-slate-500';
 
                             if ((mediaType === 'image' || mediaType === 'sticker') && mediaUrl) {
                               return (
@@ -1804,7 +1860,7 @@ export const WhatsAppInbox: React.FC = () => {
                                   <img
                                     src={mediaUrl}
                                     alt={caption || 'Imagem'}
-                                    className="max-w-[220px] rounded-xl object-cover cursor-pointer hover:opacity-90 transition-opacity border border-white/10"
+                                    className="max-w-[240px] rounded-xl object-cover cursor-pointer hover:opacity-95 transition-opacity border border-slate-200/50 shadow-2xs"
                                     onClick={() => openViewerAtUrl(mediaUrl)}
                                     onError={(e) => {
                                       const el = e.target as HTMLImageElement;
@@ -1818,7 +1874,7 @@ export const WhatsAppInbox: React.FC = () => {
                                       }
                                     }}
                                   />
-                                  {caption && <p className={`text-[10px] italic ${textColor}`}>{caption}</p>}
+                                  {caption && <p className={`text-[11px] italic ${textColor}`}>{caption}</p>}
                                 </div>
                               );
                             }
@@ -1826,8 +1882,8 @@ export const WhatsAppInbox: React.FC = () => {
                               return (
                                 <div className="flex flex-col gap-1 py-1 min-w-[210px]">
                                   <div className="flex items-center gap-1.5 text-[11px] font-semibold opacity-90">
-                                    <Mic size={14} className={isLight ? 'text-white' : 'text-indigo-500'} />
-                                    <span>Mensagem de Voz</span>
+                                    <Mic size={14} className={isLight ? 'text-white' : 'text-indigo-600'} />
+                                    <span className={isLight ? 'text-white' : 'text-slate-700'}>Mensagem de Voz</span>
                                   </div>
                                   <audio controls src={mediaUrl} className="h-9 w-full rounded-lg outline-none" preload="metadata" />
                                 </div>
@@ -1836,7 +1892,7 @@ export const WhatsAppInbox: React.FC = () => {
                             if (mediaType === 'video') {
                               return (
                                 <div className="flex items-center gap-2 p-2 rounded-lg bg-black/10">
-                                  <FileVideo size={16} className={isLight ? 'text-amber-300' : 'text-amber-500'} />
+                                  <FileVideo size={16} className={isLight ? 'text-amber-300' : 'text-amber-600'} />
                                   <span className="text-[11px] italic">Vídeo recebido (envio de vídeos desativado)</span>
                                 </div>
                               );
@@ -1845,10 +1901,14 @@ export const WhatsAppInbox: React.FC = () => {
                               const fileName = caption || mediaUrl.split('/').pop() || 'Documento';
                               return (
                                 <a href={mediaUrl || '#'} target="_blank" rel="noopener noreferrer"
-                                   className={`flex items-center gap-2 p-2 rounded-lg hover:opacity-80 transition-opacity ${isLight ? 'bg-white/10' : 'bg-slate-100'}`}>
-                                  <FileText size={16} className={isLight ? 'text-white' : 'text-indigo-500'} />
-                                  <span className={`text-[11px] font-medium truncate max-w-[150px] ${isLight ? 'text-white' : 'text-slate-700'}`}>{fileName}</span>
-                                  {mediaUrl && <Download size={12} className={isLight ? 'text-white/70' : 'text-slate-400'} />}
+                                   className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all ${
+                                     isLight 
+                                       ? 'bg-white/10 border-white/20 hover:bg-white/15 text-white' 
+                                       : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100 text-slate-800'
+                                   }`}>
+                                  <FileText size={18} className={isLight ? 'text-indigo-200' : 'text-indigo-600'} />
+                                  <span className="text-[11.5px] font-semibold truncate max-w-[170px]">{fileName}</span>
+                                  {mediaUrl && <Download size={13} className={`ml-auto ${isLight ? 'text-white/80' : 'text-slate-400'}`} />}
                                 </a>
                               );
                             }
@@ -1862,17 +1922,19 @@ export const WhatsAppInbox: React.FC = () => {
                               </p>
                             );
                           }
-                          return <p className="whitespace-pre-wrap">{content}</p>;
+                          return <p className={`whitespace-pre-wrap text-[12.5px] leading-relaxed ${isAgent ? 'text-slate-100' : 'text-slate-800'}`}>{content}</p>;
                         })()}
 
-                        <p className={`text-[9px] mt-1 ${isFromMe ? 'text-white/50 text-right' : 'text-slate-400'}`}>
-                          {new Date(msg.timestamp).toLocaleDateString('pt-BR')} às {new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        <p className={`text-[9.5px] mt-1.5 font-medium ${isAgent ? 'text-white/60 text-right' : isBot ? 'text-violet-600/70 text-right' : 'text-slate-400'}`}>
+                          {new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
 
                       {isFromMe && (
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${msg.role === 'bot' ? 'bg-emerald-100' : 'bg-indigo-100'}`}>
-                          {msg.role === 'bot' ? <Bot size={14} className="text-emerald-600" /> : <User size={14} className="text-indigo-600" />}
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-2xs ${
+                          isBot ? 'bg-gradient-to-tr from-violet-600 to-indigo-600 text-white' : 'bg-[#1c2d4f] text-white border border-white/20'
+                        }`}>
+                          {isBot ? <Bot size={15} /> : <User size={14} />}
                         </div>
                       )}
                     </div>
@@ -1881,37 +1943,51 @@ export const WhatsAppInbox: React.FC = () => {
 
                 // IMAGE GROUP CARD (2+ IMAGES)
                 const isFromMe = item.role === 'agent' || item.role === 'bot';
+                const isAgent = item.role === 'agent';
+                const isBot = item.role === 'bot';
+                const isUser = item.role === 'user';
                 const totalImages = item.items.length;
 
                 return (
                   <div key={`group-${gIdx}`} className={`flex gap-2 items-end ${isFromMe ? 'justify-end' : 'justify-start'}`}>
-                    {!isFromMe && (
-                      <div className="w-7 h-7 rounded-full bg-slate-300 flex items-center justify-center flex-shrink-0 shadow-sm">
-                        <User size={14} className="text-slate-600" />
+                    {isUser && (
+                      <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200/90 flex items-center justify-center flex-shrink-0 shadow-2xs text-slate-700 font-bold text-xs">
+                        {selected.customers?.name ? selected.customers.name.charAt(0).toUpperCase() : <User size={14} className="text-slate-500" />}
                       </div>
                     )}
 
-                    <div className={`max-w-[280px] p-2 text-xs leading-relaxed shadow-md ${
-                      item.role === 'agent'
-                        ? 'bg-emerald-800 text-white rounded-2xl rounded-br-sm'
-                        : item.role === 'bot'
-                        ? 'bg-violet-700 text-white rounded-2xl rounded-bl-sm'
-                        : 'bg-blue-800 text-white rounded-2xl rounded-bl-sm'
+                    <div className={`max-w-[300px] p-2.5 text-xs leading-relaxed shadow-xs transition-all ${
+                      isAgent
+                        ? 'bg-[#1c2d4f] text-white rounded-2xl rounded-tr-xs border border-[#1c2d4f]'
+                        : isBot
+                        ? 'bg-violet-50/90 text-slate-800 rounded-2xl rounded-tr-xs border border-violet-200/80'
+                        : 'bg-white text-slate-800 rounded-2xl rounded-tl-xs border border-slate-200/90'
                     }`}>
-                      {item.role === 'user' && (
-                        <p className="text-[10px] font-semibold text-blue-200 mb-1.5 px-1 tracking-wide">
-                          {formatPhone(selected.phone_number)}
-                        </p>
+                      {isUser && (
+                        <div className="flex items-center justify-between gap-3 mb-1.5 pb-1 border-b border-slate-100 px-1">
+                          <span className="text-[11px] font-bold text-slate-900 tracking-tight">
+                            {selected.customers?.name || formatPhone(selected.phone_number)}
+                          </span>
+                          <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Cliente</span>
+                        </div>
                       )}
-                      {item.role === 'agent' && (
-                        <p className="text-[10px] font-semibold text-emerald-200 mb-1.5 px-1 tracking-wide uppercase">
-                          👤 {item.agent_name || (item.agent_id ? teamMembers.find(m => m.id === item.agent_id)?.name : null) || selected.users?.name || currentUserName}
-                        </p>
+                      {isAgent && (
+                        <div className="flex items-center gap-1.5 mb-1.5 pb-1 border-b border-white/10 px-1">
+                          <UserCheck size={12} className="text-indigo-300" />
+                          <span className="text-[10.5px] font-bold text-white uppercase tracking-tight">
+                            {item.agent_name || (item.agent_id ? teamMembers.find(m => m.id === item.agent_id)?.name : null) || selected.users?.name || currentUserName}
+                          </span>
+                          <span className="text-[8.5px] bg-white/20 text-indigo-100 px-1.5 py-0.2 rounded font-bold uppercase ml-auto">Agente</span>
+                        </div>
                       )}
-                      {item.role === 'bot' && (
-                        <p className="text-[10px] font-semibold text-emerald-200 mb-1.5 px-1 tracking-wide uppercase">
-                          🤖 Assistente Virtual
-                        </p>
+                      {isBot && (
+                        <div className="flex items-center gap-1.5 mb-1.5 pb-1 border-b border-violet-200/60 px-1">
+                          <Bot size={13} className="text-violet-600" />
+                          <span className="text-[10.5px] font-bold text-violet-950 uppercase tracking-tight">
+                            Nexus Assistente Virtual
+                          </span>
+                          <span className="text-[8.5px] bg-violet-200/80 text-violet-800 px-1.5 py-0.2 rounded font-extrabold uppercase ml-auto">IA</span>
+                        </div>
                       )}
 
                       {/* GRID OF IMAGES */}
@@ -2004,8 +2080,10 @@ export const WhatsAppInbox: React.FC = () => {
                     </div>
 
                     {isFromMe && (
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${item.role === 'bot' ? 'bg-emerald-100' : 'bg-indigo-100'}`}>
-                        {item.role === 'bot' ? <Bot size={14} className="text-emerald-600" /> : <User size={14} className="text-indigo-600" />}
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-2xs ${
+                        item.role === 'bot' ? 'bg-gradient-to-tr from-violet-600 to-indigo-600 text-white' : 'bg-[#1c2d4f] text-white border border-white/20'
+                      }`}>
+                        {item.role === 'bot' ? <Bot size={15} /> : <User size={14} />}
                       </div>
                     )}
                   </div>
@@ -2015,19 +2093,38 @@ export const WhatsAppInbox: React.FC = () => {
             <div ref={chatEndRef} />
           </div>
 
-          {/* Input */}
+          {/* Input estilo Zendesk Composer */}
           {selected.state === 'HUMAN_ACTIVE' ? (
-            <div className="bg-white border-t border-slate-100 p-4 relative shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
+            <div className="bg-white border-t border-slate-200/90 p-3 sm:p-4 relative shadow-[0_-4px_12px_rgba(0,0,0,0.02)]">
               
+              {/* Header do Composer */}
+              <div className="flex items-center justify-between pb-2 mb-2 text-xs border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center gap-1.5 font-bold text-slate-700">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    Resposta Pública
+                  </span>
+                  <span className="text-slate-400 text-[11px] font-medium">• WhatsApp</span>
+                  {selected.assigned_agent_id !== currentUserId && (
+                    <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.2 rounded-md font-bold">
+                      Atribuído a outro atendente
+                    </span>
+                  )}
+                </div>
+                <span className="text-[11px] text-slate-400 hidden sm:inline font-mono">
+                  Shift + Enter para nova linha
+                </span>
+              </div>
+
               {/* Emoji Popover */}
               {showStickers && selected.assigned_agent_id === currentUserId && (
                 <div
                   ref={stickerRef}
-                  className="absolute bottom-full mb-2 left-4 bg-white border border-slate-200 shadow-xl rounded-2xl p-3 z-50 w-72 animate-in slide-in-from-bottom-2"
+                  className="absolute bottom-full mb-3 left-4 bg-white border border-slate-200 shadow-xl rounded-2xl p-3 z-50 w-72 animate-in slide-in-from-bottom-2"
                 >
                   <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100">
-                    <p className="text-xs font-bold text-slate-600">Emojis Rápidos</p>
-                    <button onClick={() => setShowStickers(false)} className="text-slate-400 hover:text-slate-600">
+                    <p className="text-xs font-bold text-slate-700">Emojis Rápidos</p>
+                    <button onClick={() => setShowStickers(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-md">
                       <X size={14} />
                     </button>
                   </div>
@@ -2036,7 +2133,7 @@ export const WhatsAppInbox: React.FC = () => {
                       <button
                         key={emoji}
                         onClick={() => setMessage(prev => prev + emoji)}
-                        className="text-xl hover:bg-slate-100 rounded p-1 transition-colors flex items-center justify-center"
+                        className="text-xl hover:bg-slate-100 rounded-lg p-1 transition-colors flex items-center justify-center cursor-pointer"
                         disabled={sendingAction !== null}
                       >
                         {emoji}
@@ -2046,7 +2143,12 @@ export const WhatsAppInbox: React.FC = () => {
                 </div>
               )}
 
-              <div className={`flex items-end gap-3 rounded-3xl pr-2 pl-2 py-2 transition-all shadow-inner border ${selected.assigned_agent_id === currentUserId ? 'bg-slate-50 border-slate-200 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-400' : 'bg-slate-100 border-slate-200 opacity-70 cursor-not-allowed'}`}>
+              {/* Card de Resposta */}
+              <div className={`rounded-2xl border transition-all ${
+                selected.assigned_agent_id === currentUserId 
+                  ? 'bg-slate-50/70 border-slate-200 focus-within:bg-white focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-400/15 shadow-2xs' 
+                  : 'bg-slate-100 border-slate-200 opacity-70 cursor-not-allowed'
+              }`}>
                 <input 
                   type="file" 
                   ref={fileInputRef}
@@ -2054,22 +2156,7 @@ export const WhatsAppInbox: React.FC = () => {
                   accept="image/*,application/pdf,.doc,.docx"
                   className="hidden" 
                 />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={selected.assigned_agent_id !== currentUserId || uploadingMedia}
-                  className={`w-10 h-10 mb-0.5 flex items-center justify-center rounded-full transition-colors shrink-0 text-[#54656f] hover:bg-black/5 ${uploadingMedia ? 'opacity-50 cursor-wait' : ''}`}
-                  title="Anexar Arquivo"
-                >
-                  {uploadingMedia ? <Loader2 size={22} className="animate-spin" /> : <Paperclip size={22} />}
-                </button>
-                <button
-                  onClick={() => setShowStickers(!showStickers)}
-                  disabled={selected.assigned_agent_id !== currentUserId}
-                  className={`w-9 h-9 mb-0.5 flex items-center justify-center rounded-full transition-colors shrink-0 ${selected.assigned_agent_id !== currentUserId ? 'text-slate-300' : showStickers ? 'bg-emerald-100 text-emerald-600' : 'text-slate-400 hover:bg-slate-200 hover:text-slate-600'}`}
-                  title="Inserir Emoji"
-                >
-                  <Sticker size={18} />
-                </button>
+
                 <textarea
                   value={message}
                   onChange={e => setMessage(e.target.value)}
@@ -2080,31 +2167,98 @@ export const WhatsAppInbox: React.FC = () => {
                       }
                   }}
                   disabled={selected.assigned_agent_id !== currentUserId}
-                  rows={1}
-                  placeholder={selected.assigned_agent_id === currentUserId ? "Digite sua mensagem (Shift + Enter para nova linha)..." : "Esta conversa pertence a outro agente."}
-                  className="flex-1 bg-transparent border-none outline-none text-sm text-slate-700 placeholder-slate-400 py-1.5 resize-none custom-scrollbar disabled:cursor-not-allowed"
-                  style={{ minHeight: '36px', maxHeight: '120px' }}
+                  rows={2}
+                  placeholder={selected.assigned_agent_id === currentUserId ? "Digite sua resposta para o cliente..." : "Esta conversa pertence a outro agente."}
+                  className="w-full px-3.5 pt-2.5 pb-1 bg-transparent border-none outline-none text-[13px] text-slate-800 placeholder-slate-400 resize-none custom-scrollbar disabled:cursor-not-allowed leading-relaxed"
+                  style={{ minHeight: '44px', maxHeight: '140px' }}
                   onInput={(e) => {
                       const target = e.target as HTMLTextAreaElement;
                       target.style.height = 'auto';
                       target.style.height = `${target.scrollHeight}px`;
                   }}
                 />
-                <button
-                  onClick={handleSend}
-                  disabled={sendingAction !== null || uploadingMedia || !message.trim() || selected.assigned_agent_id !== currentUserId}
-                  className="w-10 h-10 mb-0.5 flex items-center justify-center bg-emerald-500 text-white rounded-full hover:bg-emerald-600 disabled:opacity-50 transition-all shrink-0 shadow-md hover:shadow-lg active:scale-95 disabled:hover:bg-emerald-500 disabled:hover:shadow-md disabled:active:scale-100"
-                  title="Enviar (Enter)"
-                >
-                  {sendingAction === 'send' ? <RefreshCw size={18} className="animate-spin" /> : <Send size={18} className="ml-1" />}
-                </button>
+
+                {/* Toolbar inferior */}
+                <div className="flex items-center justify-between px-2.5 py-1.5 border-t border-slate-100/80">
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={selected.assigned_agent_id !== currentUserId || uploadingMedia}
+                      className={`p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer ${uploadingMedia ? 'opacity-50 cursor-wait' : ''}`}
+                      title="Anexar Arquivo ou Imagem"
+                    >
+                      {uploadingMedia ? <Loader2 size={16} className="animate-spin text-indigo-600" /> : <Paperclip size={16} />}
+                    </button>
+                    <button
+                      onClick={() => setShowStickers(!showStickers)}
+                      disabled={selected.assigned_agent_id !== currentUserId}
+                      className={`p-2 rounded-lg transition-colors cursor-pointer ${
+                        selected.assigned_agent_id !== currentUserId 
+                          ? 'text-slate-300' 
+                          : showStickers 
+                          ? 'bg-indigo-100 text-indigo-700' 
+                          : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/60'
+                      }`}
+                      title="Inserir Emoji"
+                    >
+                      <Sticker size={16} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">Enter ↵</span>
+                    <button
+                      onClick={handleSend}
+                      disabled={sendingAction !== null || uploadingMedia || !message.trim() || selected.assigned_agent_id !== currentUserId}
+                      className="px-4 py-1.5 bg-[#1c2d4f] hover:bg-[#283f6b] text-white text-xs font-bold rounded-xl disabled:opacity-40 transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                      title="Enviar Mensagem (Enter)"
+                    >
+                      {sendingAction === 'send' ? (
+                        <>
+                          <RefreshCw size={14} className="animate-spin" />
+                          <span>Enviando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Enviar</span>
+                          <Send size={13} />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           ) : (
-            <div className="bg-white border-t border-gray-100 p-3 text-center text-[11px] text-gray-400">
-              {selected.state === 'WAITING_HUMAN'
-                ? '⚠ Cliente aguardando — clique em "Assumir Conversa" para responder'
-                : '🤖 Bot está gerenciando esta conversa'}
+            <div className="bg-white border-t border-slate-200/90 p-4">
+              {selected.state === 'WAITING_HUMAN' ? (
+                <div className="bg-amber-50/90 border border-amber-200/80 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+                  <div className="flex items-center gap-2.5 text-xs font-bold text-amber-900">
+                    <div className="w-8 h-8 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0 text-amber-700">
+                      <AlertCircle size={16} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-900">Cliente aguardando atendimento humano</p>
+                      <p className="text-[11px] text-amber-700 font-normal">Assuma a conversa para responder diretamente pelo WhatsApp.</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleTakeover}
+                    disabled={sendingAction !== null}
+                    className="px-4 py-2 bg-[#1c2d4f] hover:bg-[#283f6b] text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
+                  >
+                    {sendingAction === 'takeover' ? <RefreshCw size={14} className="animate-spin" /> : <UserCheck size={14} />}
+                    <span>Assumir Conversa Agora</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 sm:p-4 flex items-center justify-center gap-2.5 text-xs text-slate-600 shadow-2xs">
+                  <div className="w-7 h-7 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 shrink-0">
+                    <Bot size={15} />
+                  </div>
+                  <span>O assistente virtual está gerenciando este atendimento automaticamente.</span>
+                </div>
+              )}
             </div>
           )}
         </div>
