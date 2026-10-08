@@ -235,12 +235,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     .eq('tenant_id', currentTenantId)
                     .eq('state', 'WAITING_HUMAN');
 
-                // 2. Contar conversas atribuídas a MIM com mensagens NOVAS DO CLIENTE (SEM contar ações do agente)
+                // 2. Contar conversas atribuídas a MIM com mensagens NOVAS DO CLIENTE (SEM baixar history)
                 let myUnread = 0;
                 if (user?.id) {
                     const { data: myConversations } = await supabase
                         .from('whatsapp_conversations')
-                        .select('id, last_message_at, history')
+                        .select('id, last_message_at, last_message_role')
                         .eq('tenant_id', currentTenantId)
                         .eq('state', 'HUMAN_ACTIVE')
                         .eq('assigned_agent_id', user.id);
@@ -261,18 +261,16 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                                 return;
                             }
 
-                            // 🛡️ ENTRADA VS SAÍDA: Somente considera nova mensagem se a última mensagem for comprovadamente do CLIENTE
-                            const history = Array.isArray(conv.history) ? conv.history : [];
-                            const lastMsg = history.length > 0 ? history[history.length - 1] : null;
-                            const isIncomingFromCustomer = !!lastMsg && lastMsg.role === 'user' && !lastMsg.is_from_me && !lastMsg.agent_id;
+                            // 🛡️ ENTRADA VS SAÍDA: Somente considera nova mensagem se a última mensagem for do CLIENTE
+                            // Utiliza o campo leve last_message_role — ZERO download de JSONB history!
+                            const isIncomingFromCustomer = (conv as any).last_message_role === 'user' || !(conv as any).last_message_role;
 
-                            // Se a última mensagem foi do agente, bot ou sistema, NUNCA incrementa o balão de alerta!
                             if (!isIncomingFromCustomer) {
                                 return;
                             }
 
                             const readAtStr = receipts[conv.id];
-                            const msgTime = lastMsg?.timestamp ? new Date(lastMsg.timestamp) : (conv.last_message_at ? new Date(conv.last_message_at) : new Date(0));
+                            const msgTime = conv.last_message_at ? new Date(conv.last_message_at) : new Date(0);
                             const readTime = readAtStr ? new Date(readAtStr) : new Date(0);
                             if (!readAtStr || msgTime > readTime) {
                                 myUnread++;
@@ -300,8 +298,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             )
             .subscribe();
 
-        // Fallback: polling leve a cada 120s (era 5s) — segurança contra desconexão Realtime
-        const interval = setInterval(fetchWACount, 120_000);
+        // Fallback: polling leve a cada 120s (apenas se a aba estiver visível)
+        const interval = setInterval(() => {
+            if (typeof document !== 'undefined' && !document.hidden) {
+                fetchWACount();
+            }
+        }, 120_000);
 
         window.addEventListener('whatsapp_state_changed', fetchWACount);
         window.addEventListener('wa_read_receipts_changed', fetchWACount);

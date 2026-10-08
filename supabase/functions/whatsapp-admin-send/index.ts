@@ -74,7 +74,7 @@ serve(async (req: Request) => {
       // Verificar se a conversa já existe
       const { data: existingConvs } = await supabaseAdmin
         .from("whatsapp_conversations")
-        .select("*")
+        .select("id, customer_id, history")
         .eq("tenant_id", targetTenantId)
         .in("phone_number", possiblePhones)
         .order("last_message_at", { ascending: false, nullsFirst: false })
@@ -99,14 +99,17 @@ serve(async (req: Request) => {
           });
         }
 
+        const hist = [...(existingConv.history || []), { role: "agent", content: initial_message.trim().substring(0, 2000), timestamp: new Date().toISOString() }];
         await supabaseAdmin
           .from("whatsapp_conversations")
           .update({
             state: "HUMAN_ACTIVE",
             assigned_agent_id: user.id,
             customer_id: customer_id || existingConv.customer_id,
-            history: [...(existingConv.history || []), { role: "agent", content: initial_message.trim().substring(0, 2000), timestamp: new Date().toISOString() }],
+            history: hist.slice(-30),
             last_message_at: new Date().toISOString(),
+            last_message_preview: initial_message.trim().substring(0, 100),
+            last_message_role: 'agent',
           })
           .eq("id", existingConv.id);
 
@@ -121,6 +124,8 @@ serve(async (req: Request) => {
             assigned_agent_id: user.id,
             state: "HUMAN_ACTIVE",
             last_message_at: new Date().toISOString(),
+            last_message_preview: initial_message && initial_message.trim() ? initial_message.trim().substring(0, 100) : '',
+            last_message_role: 'agent',
             history: initial_message && initial_message.trim() ? [{ role: "agent", content: initial_message.trim().substring(0, 2000), timestamp: new Date().toISOString() }] : [],
           }])
           .select("id")
@@ -171,7 +176,7 @@ serve(async (req: Request) => {
     // Carregar conversa
     const { data: conv, error: convErr } = await supabaseAdmin
       .from("whatsapp_conversations")
-      .select("*")
+      .select("id, phone_number, tenant_id, customer_id, state, history")
       .eq("id", conversation_id)
       .single();
 
@@ -217,13 +222,16 @@ serve(async (req: Request) => {
         created_at: new Date().toISOString()
       });
 
+      const takeoverHist = [...(conv.history || []), { role: "agent", content: takeoverMsg, timestamp: new Date().toISOString() }];
       await supabaseAdmin
         .from("whatsapp_conversations")
         .update({
           state: "HUMAN_ACTIVE",
           assigned_agent_id: user.id,
-          history: [...(conv.history || []), { role: "agent", content: takeoverMsg, timestamp: new Date().toISOString() }],
+          history: takeoverHist.slice(-30),
           last_message_at: new Date().toISOString(),
+          last_message_preview: takeoverMsg.substring(0, 100),
+          last_message_role: 'agent',
         })
         .eq("id", conversation_id);
 
@@ -248,13 +256,16 @@ serve(async (req: Request) => {
         created_at: new Date().toISOString()
       });
 
+      const returnHist = [...(conv.history || []), { role: "bot", content: returnMsg, timestamp: new Date().toISOString() }];
       await supabaseAdmin
         .from("whatsapp_conversations")
         .update({
           state: "CUSTOMER_FOUND",
           assigned_agent_id: null,
-          history: [...(conv.history || []), { role: "bot", content: returnMsg, timestamp: new Date().toISOString() }],
+          history: returnHist.slice(-30),
           last_message_at: new Date().toISOString(),
+          last_message_preview: returnMsg.substring(0, 100),
+          last_message_role: 'bot',
         })
         .eq("id", conversation_id);
 
@@ -371,11 +382,14 @@ serve(async (req: Request) => {
         created_at: new Date().toISOString()
       });
 
+      const sendHist = [...(conv.history || []), { role: "agent", content: safeText, timestamp: new Date().toISOString() }];
       await supabaseAdmin
         .from("whatsapp_conversations")
         .update({ 
-            history: [...(conv.history || []), { role: "agent", content: safeText, timestamp: new Date().toISOString() }],
-            last_message_at: new Date().toISOString() 
+            history: sendHist.slice(-30),
+            last_message_at: new Date().toISOString(),
+            last_message_preview: safeText.substring(0, 100),
+            last_message_role: 'agent',
         })
         .eq("id", conversation_id);
 
@@ -407,11 +421,14 @@ serve(async (req: Request) => {
         created_at: new Date().toISOString()
       });
 
+      const mediaHist = [...(conv.history || []), { role: "agent", content: safeText, timestamp: new Date().toISOString() }];
       await supabaseAdmin
         .from("whatsapp_conversations")
         .update({ 
-            history: [...(conv.history || []), { role: "agent", content: safeText, timestamp: new Date().toISOString() }],
-            last_message_at: new Date().toISOString() 
+            history: mediaHist.slice(-30),
+            last_message_at: new Date().toISOString(),
+            last_message_preview: `[${type === 'image' ? 'Imagem' : 'Documento'}]`,
+            last_message_role: 'agent',
         })
         .eq("id", conversation_id);
 

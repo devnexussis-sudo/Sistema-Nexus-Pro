@@ -33,8 +33,10 @@ interface Conversation {
   id: string;
   phone_number: string;
   state: string;
-  history: Message[];
+  history?: Message[];
   last_message_at: string;
+  last_message_preview?: string | null;
+  last_message_role?: string | null;
   customer_id: string | null;
   assigned_agent_id: string | null;
   customers?: { name: string; document?: string } | null;
@@ -713,17 +715,30 @@ export const WhatsAppInbox: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from('whatsapp_messages')
-          .select('*')
+          .select('id, role, content, type, media_url, is_from_me, agent_id, agent_name, created_at')
           .eq('conversation_id', selectedId)
-          .order('created_at', { ascending: true });
+          .order('created_at', { ascending: false })
+          .limit(50);
 
-        if (error) {
-          console.warn('[WhatsAppInbox] Aviso ao carregar mensagens dedicadas:', error);
+        if (error || !data || data.length === 0) {
+          // 🛡️ FALLBACK CIRÚRGICO: Se a tabela whatsapp_messages ainda não tiver os dados ou estiver indisponível,
+          // busca pontualmente o history apenas DESTA conversa (1 requisição isolada e leve)
+          const { data: convFallback } = await supabase
+            .from('whatsapp_conversations')
+            .select('history')
+            .eq('id', selectedId)
+            .single();
+
+          if (convFallback?.history && Array.isArray(convFallback.history) && convFallback.history.length > 0) {
+            if (isMounted) setCurrentDbMessages(convFallback.history);
+            return;
+          }
+          if (isMounted) setCurrentDbMessages([]);
           return;
         }
 
         if (data && data.length > 0) {
-          const formatted: Message[] = data.map(m => ({
+          const formatted: Message[] = [...data].reverse().map(m => ({
             role: m.role as any,
             content: m.content,
             timestamp: m.created_at,
@@ -731,11 +746,9 @@ export const WhatsAppInbox: React.FC = () => {
             agent_name: m.agent_name || undefined
           }));
           if (isMounted) setCurrentDbMessages(formatted);
-        } else {
-          if (isMounted) setCurrentDbMessages([]);
         }
       } catch (e) {
-        console.error('[WhatsAppInbox] Falha ao carregar mensagens do banco:', e);
+        console.warn('[WhatsAppInbox] Carregando mensagens via fallback:', e);
       }
     };
 
@@ -813,14 +826,22 @@ export const WhatsAppInbox: React.FC = () => {
   // Helper para disparar atualização imediata na badge do menu
   const triggerNavUpdate = () => window.dispatchEvent(new Event('whatsapp_state_changed'));
 
-  // ── 🔧 OTIMIZAÇÃO EGRESS: Carregar conversas (busca conversa única por ID quando via Realtime) ──
+  // ── 🔧 OTIMIZAÇÃO EGRESS: Carregar conversas (ZERO history no payload da listagem) ──
   const fetchConversations = useCallback(async (silent = false, singleId?: string) => {
-    if (isOptimisticPending.current) return; // Não sobresscrever estado otimista com dados velhos do DB
+    if (isOptimisticPending.current) return; // Não sobrescrever estado otimista com dados velhos do DB
     
+    const currentTenantId = getCurrentTenantId();
     let query = supabase
       .from('whatsapp_conversations')
-      .select('*, customers(name, document), users(name)');
-    if (singleId) query = query.eq('id', singleId);
+      .select('id, tenant_id, phone_number, state, customer_id, assigned_agent_id, last_message_at, last_user_message_id, last_message_preview, last_message_role, created_at, customers(name, document), users(name)');
+    
+    if (currentTenantId) query = query.eq('tenant_id', currentTenantId);
+    if (singleId) {
+      query = query.eq('id', singleId);
+    } else {
+      query = query.limit(100);
+    }
+
     const { data } = await query.order('last_message_at', { ascending: false });
     if (data) {
       setConversations(prev => {
@@ -829,48 +850,20 @@ export const WhatsAppInbox: React.FC = () => {
           const existing = prev.find(c => c.id === updated.id);
           if (!existing) return updated;
 
-          // Preservar mensagens otimistas locais que ainda não chegaram do servidor
-          const serverHistoryLen = updated.history?.length || 0;
-          let mergedHistory = [...(updated.history || [])];
-          
-          // Buscar mensagens otimistas locais (enviadas pelo agente que talvez ainda não estejam no server)
-          const existingHistory = existing.history || [];
-          const optimisticMsgs = existingHistory.filter(m => m.role === 'agent' || m.role === 'bot');
-
-          // Adicionar as otimistas que não estão no histórico do servidor (mesmo conteúdo e horário próximo)
-          optimisticMsgs.forEach(optMsg => {
-            const isAlreadyInServer = mergedHistory.some(srvMsg => 
-              srvMsg.role === optMsg.role && 
-              srvMsg.content === optMsg.content &&
-              Math.abs(new Date(srvMsg.timestamp).getTime() - new Date(optMsg.timestamp).getTime()) < 60000
-            );
-            if (!isAlreadyInServer) {
-              mergedHistory.push(optMsg);
-            }
-          });
-
-          // ✨ Garantir ordem estritamente cronológica para evitar balões fora de ordem
-          mergedHistory = mergedHistory.sort((a: Message, b: Message) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          // Preservar histórico existente da memória para a conversa ativa
+          const mergedHistory = updated.history || existing.history || [];
 
           // 🛡️ ENTRADA VS SAÍDA: Identificar se o evento é estritamente de entrada (cliente) ou de saída (agente)
           const isOutgoingAction = actionInitiatedConvId.current === updated.id || 
             ((Date.now() - (outgoingActionConvIds.current.get(updated.id) || 0)) < 8000);
 
-          const serverHistory = updated.history || [];
-          const lastServerMsg = serverHistory.length > 0 ? serverHistory[serverHistory.length - 1] : null;
-
-          // Só é mensagem de entrada se a última mensagem do histórico for comprovadamente do cliente (não de agente/bot)
-          const isLastMsgFromUser = !!lastServerMsg && lastServerMsg.role === 'user' && !lastServerMsg.is_from_me && !lastServerMsg.agent_id;
+          // Verifica se a última mensagem é comprovadamente do cliente
+          const isLastMsgFromUser = updated.last_message_role === 'user' ||
+            (!!updated.history && updated.history.length > 0 && updated.history[updated.history.length - 1]?.role === 'user');
 
           // Comparar timestamps para garantir que é uma mensagem que acabou de chegar do cliente
-          const existingUserMsgs = (existing.history || []).filter(m => m.role === 'user' && !m.is_from_me && !m.agent_id);
-          const lastExistingUserMsg = existingUserMsgs.length > 0 ? existingUserMsgs[existingUserMsgs.length - 1] : null;
-          const serverUserMsgs = serverHistory.filter(m => m.role === 'user' && !m.is_from_me && !m.agent_id);
-          const lastServerUserMsg = serverUserMsgs.length > 0 ? serverUserMsgs[serverUserMsgs.length - 1] : null;
-
-          const hasNewUserMsg = !isOutgoingAction && isLastMsgFromUser && !!lastServerUserMsg && (
-            !lastExistingUserMsg ||
-            new Date(lastServerUserMsg.timestamp).getTime() > new Date(lastExistingUserMsg.timestamp).getTime()
+          const hasNewUserMsg = !isOutgoingAction && isLastMsgFromUser && (
+            new Date(updated.last_message_at).getTime() > new Date(existing.last_message_at || 0).getTime()
           );
 
           const justAskedForHuman = !isOutgoingAction && updated.state === 'WAITING_HUMAN' && existing.state !== 'WAITING_HUMAN';
@@ -898,7 +891,7 @@ export const WhatsAppInbox: React.FC = () => {
               sendBrowserNotification('💬 Chat Transferido!', `Um atendimento foi transferido para você.`);
               setToast('⚠️ Uma conversa foi transferida para você!');
             } else {
-              const previewMsg = lastServerUserMsg?.content || 'Cliente enviou uma mensagem.';
+              const previewMsg = updated.last_message_preview || 'Cliente enviou uma mensagem.';
               const preview = formatLastMessagePreview(previewMsg).substring(0, 60);
               sendBrowserNotification('💬 Duno WhatsApp', `${updated.phone_number}: ${preview}`);
               setToast(justAskedForHuman ? '⚠️ Cliente pediu atendimento humano!' : '💬 Nova mensagem do cliente!');
@@ -930,21 +923,23 @@ export const WhatsAppInbox: React.FC = () => {
     fetchConversations();
 
     // 🛡️ EGRESS GUARD: o polling só roda quando o Realtime NÃO está saudável.
-    // Antes, a cada 120s baixava TODAS as conversas com o `history` JSON completo,
-    // mesmo com o WebSocket entregando tudo em tempo real.
     let isRealtimeHealthy = false;
     let hadDisconnect = false;
     const pollInterval = setInterval(() => {
-      if (!isRealtimeHealthy) fetchConversations(true);
+      if (!isRealtimeHealthy && typeof document !== 'undefined' && !document.hidden) {
+        fetchConversations(true);
+      }
     }, 120_000);
 
-    // REALTIME: busca APENAS a conversa alterada (não recarrega todas)
+    // REALTIME: busca APENAS a conversa alterada filtrada por tenant_id
+    const currentTenantId = getCurrentTenantId();
     const channel = supabase
-      .channel('whatsapp-inbox-v4')
+      .channel(currentTenantId ? `wpp-inbox-${currentTenantId}` : 'whatsapp-inbox-v5')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'whatsapp_conversations',
+        filter: currentTenantId ? `tenant_id=eq.${currentTenantId}` : undefined,
       }, (payload: any) => {
         const changedId = payload.new?.id || payload.old?.id;
         if (payload.eventType === 'DELETE' && changedId) {
@@ -1357,8 +1352,9 @@ export const WhatsAppInbox: React.FC = () => {
       const q = inboxSearch.toLowerCase().trim();
       const matchPhone = c.phone_number?.includes(q) || false;
       const matchName = c.customers?.name?.toLowerCase().includes(q) || c.users?.name?.toLowerCase().includes(q) || false;
-      const matchHistory = c.history?.some(h => h.content?.toLowerCase().includes(q));
-      if (!matchPhone && !matchName && !matchHistory) return false;
+      const matchPreview = c.last_message_preview?.toLowerCase().includes(q) || false;
+      const matchHistory = c.history?.some(h => h.content?.toLowerCase().includes(q)) || false;
+      if (!matchPhone && !matchName && !matchPreview && !matchHistory) return false;
     }
 
     return true;
@@ -1629,14 +1625,16 @@ export const WhatsAppInbox: React.FC = () => {
               const lastMsg = history[history.length - 1];
               const customerName = conv.customers?.name;
               const isSelected = selectedId === conv.id;
+              const previewText = conv.last_message_preview || lastMsg?.content || '';
+              const lastRole = conv.last_message_role || lastMsg?.role || 'user';
 
               let isUnread = false;
-              if (!isSelected && lastMsg && lastMsg.role === 'user') {
+              if (!isSelected && lastRole === 'user') {
                 const readAtStr = receipts[conv.id];
                 if (!readAtStr) {
                   isUnread = true;
                 } else {
-                  const msgTime = new Date(lastMsg.timestamp).getTime();
+                  const msgTime = new Date(conv.last_message_at || lastMsg?.timestamp || 0).getTime();
                   const readTime = new Date(readAtStr).getTime();
                   if (msgTime > readTime + 1000) {
                     isUnread = true;
@@ -1652,7 +1650,7 @@ export const WhatsAppInbox: React.FC = () => {
                     try {
                       const curReceiptsStr = localStorage.getItem('wa_read_receipts');
                       let curReceipts = curReceiptsStr ? JSON.parse(curReceiptsStr) : {};
-                      const lastTime = lastMsg?.timestamp || new Date().toISOString();
+                      const lastTime = conv.last_message_at || lastMsg?.timestamp || new Date().toISOString();
                       curReceipts[conv.id] = new Date(new Date(lastTime).getTime() + 1000).toISOString();
                       localStorage.setItem('wa_read_receipts', JSON.stringify(curReceipts));
                       window.dispatchEvent(new Event('wa_read_receipts_changed'));
@@ -1703,13 +1701,13 @@ export const WhatsAppInbox: React.FC = () => {
                       </div>
 
                       {/* Linha 3: Prévia da última mensagem */}
-                      {lastMsg && (
+                      {(previewText || lastMsg) && (
                         <p className={`text-[11px] truncate w-full leading-relaxed ${isUnread ? 'text-emerald-800 font-semibold' : 'text-slate-500'}`}>
                           {isUnread && <span className="mr-1 text-[8.5px] bg-emerald-500 text-white px-1.5 py-0.2 rounded-full font-bold inline-block">NOVA</span>}
                           <span className="opacity-70 mr-1">
-                            {lastMsg.role === 'bot' ? '🤖' : lastMsg.role === 'agent' ? '👤' : lastMsg.role === 'system' ? '⏱️' : '💬'}
+                            {lastRole === 'bot' ? '🤖' : lastRole === 'agent' ? '👤' : lastRole === 'system' ? '⏱️' : '💬'}
                           </span>
-                          {formatLastMessagePreview(lastMsg.content).substring(0, 65)}
+                          {formatLastMessagePreview(previewText).substring(0, 65)}
                         </p>
                       )}
                     </div>

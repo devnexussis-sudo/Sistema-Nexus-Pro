@@ -398,7 +398,11 @@ async function appendMessagesToConversation(
       created_at: m.timestamp || new Date().toISOString(),
     };
 
-    await supabase.from('whatsapp_messages').insert(insertPayload);
+    try {
+      await supabase.from('whatsapp_messages').insert(insertPayload);
+    } catch (insertErr) {
+      console.warn('[WPP Bot] Aviso inserindo em whatsapp_messages:', insertErr);
+    }
   }
 
   const { data: freshConv } = await supabase
@@ -409,11 +413,16 @@ async function appendMessagesToConversation(
 
   const currentHistory = Array.isArray(freshConv?.history) ? freshConv.history : [];
   let updatedHistory = [...currentHistory, ...messagesToAppend];
-  if (updatedHistory.length > 100) updatedHistory = updatedHistory.slice(-100);
+  // 🛡️ OTIMIZAÇÃO EGRESS: Mantém no máximo as últimas 30 mensagens na coluna JSONB
+  // O histórico completo fica preservado na tabela dedicada whatsapp_messages
+  if (updatedHistory.length > 30) updatedHistory = updatedHistory.slice(-30);
 
+  const lastMsg = messagesToAppend[messagesToAppend.length - 1];
   const updateObj: Record<string, any> = {
     history: updatedHistory,
     last_message_at: new Date().toISOString(),
+    last_message_preview: (lastMsg?.content || '').substring(0, 100),
+    last_message_role: lastMsg?.role || 'user',
   };
   if (newState) updateObj.state = newState;
   if (customerId) updateObj.customer_id = customerId;
@@ -904,7 +913,7 @@ serve(async (req: Request) => {
 
       const { data: convs } = await supabase
         .from('whatsapp_conversations')
-        .select('*')
+        .select('id')
         .in('phone_number', possiblePhones)
         .eq('tenant_id', tenant.id)
         .order('last_message_at', { ascending: false })
@@ -959,7 +968,7 @@ serve(async (req: Request) => {
 
     const { data: existingConvs } = await supabase
       .from('whatsapp_conversations')
-      .select('*')
+      .select('id, tenant_id, phone_number, state, assigned_agent_id, customer_id, last_message_at, history')
       .in('phone_number', possiblePhones)
       .eq('tenant_id', tenant.id)
       .order('last_message_at', { ascending: false, nullsFirst: false })

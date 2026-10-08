@@ -6,6 +6,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Cache em memória na Edge Function (TTL 5 min) para evitar queries repetidas ao Postgres
+interface CachedSettings {
+  token: string;
+  instanceName: string;
+  baseUrl: string;
+  expiresAt: number;
+}
+const settingsCache = new Map<string, CachedSettings>();
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -23,28 +32,48 @@ serve(async (req) => {
     // Usamos o Service Role (Chave Mestra) apenas para furar o bloqueio do Cofre
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 1. Abre o cofre seguro e pega a chave real
-    const { data: vault, error: vaultErr } = await supabase
-      .from('tenant_secrets')
-      .select('uazapi_token, uazapi_instance')
-      .eq('tenant_id', tenantId)
-      .single();
+    let token = '';
+    let instanceName = '';
+    let baseUrl = 'https://api.uaizap.com.br';
 
-    if (vaultErr || !vault?.uazapi_token) {
-      throw new Error('Chaves do WhatsApp não configuradas no cofre.');
+    const now = Date.now();
+    const cached = settingsCache.get(tenantId);
+
+    if (cached && cached.expiresAt > now) {
+      token = cached.token;
+      instanceName = cached.instanceName;
+      baseUrl = cached.baseUrl;
+    } else {
+      // 1. Abre o cofre seguro e pega a chave real
+      const { data: vault, error: vaultErr } = await supabase
+        .from('tenant_secrets')
+        .select('uazapi_token, uazapi_instance')
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (vaultErr || !vault?.uazapi_token) {
+        throw new Error('Chaves do WhatsApp não configuradas no cofre.');
+      }
+
+      // 2. Busca a URL base pública (que ficou na tabela tenants)
+      const { data: tData } = await supabase
+        .from('tenants')
+        .select('whatsapp_settings')
+        .eq('id', tenantId)
+        .single();
+
+      baseUrl = tData?.whatsapp_settings?.uazapi_url || 'https://api.uaizap.com.br';
+      if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+      token = vault.uazapi_token.trim();
+      instanceName = vault.uazapi_instance?.trim() || '';
+
+      settingsCache.set(tenantId, {
+        token,
+        instanceName,
+        baseUrl,
+        expiresAt: now + 5 * 60 * 1000,
+      });
     }
-
-    // 2. Busca a URL base pública (que ficou na tabela tenants)
-    const { data: tData } = await supabase
-      .from('tenants')
-      .select('whatsapp_settings')
-      .eq('id', tenantId)
-      .single();
-
-    let baseUrl = tData?.whatsapp_settings?.uazapi_url || 'https://api.uaizap.com.br';
-    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-    const token = vault.uazapi_token.trim();
-    const instanceName = vault.uazapi_instance?.trim() || '';
 
     // Cabeçalho de autorização para a Uaizap
     const headers = { 

@@ -20,6 +20,9 @@ export function useWhatsAppMonitor(tenant: any | null, isAdmin: boolean) {
         }
 
         const checkConnection = async () => {
+            // 🛡️ Não executa polling se a aba do navegador estiver em segundo plano
+            if (typeof document !== 'undefined' && document.hidden) return;
+
             try {
                 // Delega a checagem para a Edge Function segura
                 const { data, error: funcErr } = await supabase.functions.invoke('whatsapp-admin', {
@@ -54,7 +57,17 @@ export function useWhatsAppMonitor(tenant: any | null, isAdmin: boolean) {
         // Then check every 3 minutes (180,000 ms)
         const intervalId = setInterval(checkConnection, 180000);
 
-        return () => clearInterval(intervalId);
+        const handleVisibilityChange = () => {
+            if (typeof document !== 'undefined' && !document.hidden) {
+                checkConnection();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            clearInterval(intervalId);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
     }, [
         isAdmin, 
         tenant?.whatsapp_settings?.uazapi_url, 
