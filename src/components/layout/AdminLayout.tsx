@@ -351,8 +351,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             )
             .subscribe();
 
-        // Fallback: polling a cada 120s (era 5s)
-        const interval = setInterval(fetchSolicitacoesCount, 120_000);
+        // Fallback: polling a cada 180s apenas se a aba estiver visível (Realtime cuida do push)
+        const interval = setInterval(() => {
+            if (typeof document !== 'undefined' && !document.hidden) {
+                fetchSolicitacoesCount();
+            }
+        }, 180_000);
 
         return () => {
             clearInterval(interval);

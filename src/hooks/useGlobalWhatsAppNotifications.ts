@@ -139,9 +139,9 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
       if (isInitial) return 0;
 
       // 🛡️ ENTRADA VS SAÍDA: Somente considera nova mensagem se for genuinamente do cliente (entrada)
-      const history = Array.isArray(conv.history) ? conv.history : [];
-      const lastMsg = history.length > 0 ? history[history.length - 1] : null;
-      const isIncomingFromCustomer = !!lastMsg && lastMsg.role === 'user' && !lastMsg.is_from_me && !lastMsg.agent_id;
+      // Utiliza a coluna escalar leve last_message_role (ZERO egress de history)
+      const isIncomingFromCustomer = conv.last_message_role === 'user' ||
+        (Array.isArray(conv.history) && conv.history.length > 0 && conv.history[conv.history.length - 1]?.role === 'user');
 
       const isNewToMe = !prev;
       const hasNewMsg = prev && lastMsgTimestamp && prev.lastMsgTimestamp && lastMsgTimestamp !== prev.lastMsgTimestamp;
@@ -178,7 +178,7 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
             if (justAssignedToMe) {
               sendBrowserNotification('💬 Chat Transferido!', `Um atendimento foi transferido para você.`);
             } else if (justAskedForHuman || userMsgWhileHuman) {
-              const preview = lastMsg?.content ? String(lastMsg.content).substring(0, 60) : 'Nova mensagem.';
+              const preview = conv.last_message_preview || 'Nova mensagem.';
               sendBrowserNotification('💬 Duno WhatsApp', `${conv.phone_number || 'Cliente'}: ${preview}`);
             }
             return 1; // 1 novo alerta
@@ -189,12 +189,20 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
     };
 
     const checkConversations = async () => {
-      // 🔧 OTIMIZAÇÃO: Snapshot inicial apenas, Realtime cuida do resto sem HTTP
-      const { data } = await supabase
+      // 🛡️ EGRESS GUARD: Nunca faz requisições quando a aba do navegador estiver em segundo plano
+      if (typeof document !== 'undefined' && document.hidden) return;
+
+      const currentTenantId = SessionStorage.get('current_tenant');
+      let query = supabase
         .from('whatsapp_conversations')
-        .select('id, state, last_message_at, assigned_agent_id, phone_number, history')
+        .select('id, tenant_id, state, last_message_at, assigned_agent_id, phone_number, last_message_preview, last_message_role')
         .or(`state.eq.WAITING_HUMAN,and(state.eq.HUMAN_ACTIVE,assigned_agent_id.eq.${currentUserId})`);
 
+      if (currentTenantId) {
+        query = query.eq('tenant_id', currentTenantId);
+      }
+
+      const { data } = await query;
       if (!data) return;
 
       let incomingAlerts = 0;
@@ -213,16 +221,17 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
     checkConversations();
 
     // ⚡ Realtime Push Listener: Atualiza instantaneamente com payload (sem HTTP req!)
+    const currentTenantId = SessionStorage.get('current_tenant');
     const channel = supabase
-      .channel(`global_wa_notifs_${currentUserId || 'all'}`)
+      .channel(`global_wa_notifs_${currentUserId || 'all'}_${currentTenantId || 'default'}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
-        table: 'whatsapp_conversations'
+        table: 'whatsapp_conversations',
+        filter: currentTenantId ? `tenant_id=eq.${currentTenantId}` : undefined,
       }, (payload) => {
         // 🔧 OTIMIZAÇÃO: Intercepta o evento em tempo real e não faz re-fetch
         if (payload.new && payload.new.id) {
-          // Ignora mensagens que não são para mim ou que não estão aguardando
           const isWaiting = payload.new.state === 'WAITING_HUMAN';
           const isActiveMine = payload.new.state === 'HUMAN_ACTIVE' && payload.new.assigned_agent_id === currentUserId;
           
@@ -236,11 +245,23 @@ export function useGlobalWhatsAppNotifications(currentUserId: string | null, isA
       })
       .subscribe();
 
-    // Polling de fallback a cada 60 segundos (em vez de 3s agressivo)
-    const interval = setInterval(checkConversations, 60000);
+    // Polling de fallback apenas a cada 300 segundos (5 minutos) e somente quando aba visível
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        checkConversations();
+      }
+    }, 300_000);
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        checkConversations();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       supabase.removeChannel(channel);
     };
   }, [currentUserId, isAdmin]);

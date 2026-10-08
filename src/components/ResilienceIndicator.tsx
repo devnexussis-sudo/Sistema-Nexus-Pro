@@ -14,6 +14,7 @@ export const ResilienceIndicator: React.FC = () => {
         window.addEventListener('offline', handleOffline);
 
         const checkStatus = async () => {
+            if (typeof document !== 'undefined' && document.hidden) return;
             try {
                 const res = await supabaseDiagnostics.ping();
                 setSupabaseStatus(res.ok ? 'online' : 'offline');
@@ -22,12 +23,20 @@ export const ResilienceIndicator: React.FC = () => {
             }
         };
 
-        const interval = setInterval(checkStatus, 60000); // a cada 60s
+        const interval = setInterval(checkStatus, 180000); // a cada 180s e só se visível
         checkStatus(); // cheque inicial
+
+        const handleVisibilityChange = () => {
+            if (typeof document !== 'undefined' && !document.hidden) {
+                checkStatus();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
             clearInterval(interval);
         };
     }, []);
