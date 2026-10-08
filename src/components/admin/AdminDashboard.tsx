@@ -148,6 +148,50 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isUploadingNote, setIsUploadingNote] = useState(false);
   const [isSavingInternalNote, setIsSavingInternalNote] = useState(false);
 
+  const handleSaveInternalNote = async () => {
+    if (!selectedOrder) return;
+    if (!newInternalNote.trim() && internalNoteAttachments.length === 0) return;
+    if (isSavingInternalNote || internalNoteAttachments.some(a => a.isUploading)) return;
+
+    setIsSavingInternalNote(true);
+
+    try {
+      const validAttachments = internalNoteAttachments
+        .filter(a => !a.isUploading && a.url)
+        .map(({ url, name, type, size }) => ({ url, name, type, size }));
+
+      const newNoteObj = {
+        text: newInternalNote.trim(),
+        user: auth?.user?.name || auth?.user?.email || 'Usuário',
+        date: new Date().toISOString(),
+        attachments: validAttachments
+      };
+
+      const targetOrderId = selectedOrder.id || selectedOrder.displayId;
+      if (!targetOrderId) {
+        throw new Error("ID da Ordem de Serviço não encontrado.");
+      }
+
+      console.log(`[AdminDashboard] 📝 Salvando observação para OS ${targetOrderId}:`, newNoteObj);
+
+      const { OrderService } = await import('../../services/orderService');
+      const updatedNotes = await OrderService.addInternalNote(targetOrderId, newNoteObj);
+      
+      setSelectedOrder(prev => prev ? ({ ...prev, internalNotes: updatedNotes }) : null);
+      if (isEditing) {
+        setEditDraft(prev => ({ ...prev, internalNotes: updatedNotes }));
+      }
+      
+      setNewInternalNote('');
+      setInternalNoteAttachments([]);
+    } catch (err: any) {
+      console.error("❌ Erro ao salvar observação interna:", err);
+      alert(`Erro ao salvar observação: ${err?.message || 'Falha na conexão'}`);
+    } finally {
+      setIsSavingInternalNote(false);
+    }
+  };
+
   // ── Aba Visitas ────────────────────────────────────────────────
   const [visits, setVisits] = useState<ServiceVisit[]>([]);
   const [visitsLoading, setVisitsLoading] = useState(false);
@@ -533,13 +577,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Sincroniza a OS aberta (selectedOrder) com atualizações no pagedOrders vindas do Realtime
   useEffect(() => {
-    if (selectedOrder && !isEditing) {
+    if (selectedOrder?.id && !isEditing) {
       const updatedInList = pagedOrders.find(o => o.id === selectedOrder.id);
       if (updatedInList && updatedInList.updatedAt !== selectedOrder.updatedAt) {
-        setSelectedOrder(updatedInList);
+        setSelectedOrder(prev => {
+          if (!prev || prev.id !== updatedInList.id) return prev;
+          return {
+            ...updatedInList,
+            internalNotes: (prev.internalNotes && prev.internalNotes.length > 0) ? prev.internalNotes : updatedInList.internalNotes,
+            formData: prev.formData || updatedInList.formData,
+          };
+        });
       }
     }
-  }, [pagedOrders, selectedOrder, isEditing]);
+  }, [pagedOrders, selectedOrder?.id, selectedOrder?.updatedAt, isEditing]);
 
   // 📡 Realtime Local (Only INSERT/DELETE — UPDATE is handled globally by AdminApp via updateOrderInPlace)
   useEffect(() => {
@@ -2172,10 +2223,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="space-y-4">
                       <textarea
                         className="w-full bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm font-medium text-slate-700 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-50 transition-all resize-y min-h-[120px]"
-                        placeholder="Digite uma nova observação interna (sempre permitido, mesmo com a OS finalizada)..."
+                        placeholder="Digite uma nova observação interna (Pressione Enter para enviar, Shift+Enter para nova linha)..."
                         value={newInternalNote}
                         onChange={(e) => setNewInternalNote(e.target.value)}
-                        disabled={isUploadingNote}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSaveInternalNote();
+                          }
+                        }}
+                        disabled={isSavingInternalNote || isUploadingNote}
                       />
                       
                       {internalNoteAttachments.length > 0 && (
@@ -2245,49 +2302,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <button
                           type="button"
                           disabled={isSavingInternalNote || (!newInternalNote.trim() && internalNoteAttachments.length === 0) || internalNoteAttachments.some(a => a.isUploading)}
-                          onClick={async () => {
-                            if (!newInternalNote.trim() && internalNoteAttachments.length === 0) return;
-                            if (isSavingInternalNote) return;
-
-                            setIsSavingInternalNote(true);
-
-                            try {
-                              const validAttachments = internalNoteAttachments
-                                .filter(a => !a.isUploading && a.url)
-                                .map(({ url, name, type, size }) => ({ url, name, type, size }));
-
-                              const newNoteObj = {
-                                text: newInternalNote.trim(),
-                                user: auth?.user?.name || auth?.user?.email || 'Usuário',
-                                date: new Date().toISOString(),
-                                attachments: validAttachments
-                              };
-
-                              const targetOrderId = selectedOrder.id || selectedOrder.displayId;
-                              if (!targetOrderId) {
-                                throw new Error("ID da Ordem de Serviço não encontrado.");
-                              }
-
-                              console.log(`[AdminDashboard] 📝 Salvando observação para OS ${targetOrderId}:`, newNoteObj);
-
-                              const { OrderService } = await import('../../services/orderService');
-                              const updatedNotes = await OrderService.addInternalNote(targetOrderId, newNoteObj);
-                              
-                              setSelectedOrder(prev => prev ? ({ ...prev, internalNotes: updatedNotes }) : null);
-                              if (isEditing) {
-                                setEditDraft(prev => ({ ...prev, internalNotes: updatedNotes }));
-                              }
-                              if (typeof refetchOrders === 'function') refetchOrders();
-                              
-                              setNewInternalNote('');
-                              setInternalNoteAttachments([]);
-                            } catch (err: any) {
-                              console.error("❌ Erro ao salvar observação interna:", err);
-                              alert(`Erro ao salvar observação: ${err?.message || 'Falha na conexão'}`);
-                            } finally {
-                              setIsSavingInternalNote(false);
-                            }
-                          }}
+                          onClick={handleSaveInternalNote}
                           className="bg-[#1c2d4f] text-white px-4 py-2 rounded-lg text-xs font-medium uppercase tracking-widest hover:bg-[#2a457a] disabled:opacity-50 transition-colors flex items-center gap-2"
                         >
                           {isSavingInternalNote ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}

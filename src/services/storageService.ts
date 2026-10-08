@@ -83,7 +83,12 @@ export const StorageService = {
                 const orderId = parts[1];
                 const subfolder = parts[2];
                 
-                const { data } = await supabase.from('orders').select('display_id, tenant_id').eq('id', orderId).maybeSingle();
+                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
+                const orderQuery = supabase.from('orders').select('display_id, tenant_id');
+                const { data } = isUuid 
+                    ? await orderQuery.eq('id', orderId).maybeSingle()
+                    : await orderQuery.eq('display_id', orderId).maybeSingle();
+
                 if (data) {
                     if (!tenantIdToUse) tenantIdToUse = data.tenant_id;
                     const code = data.display_id || orderId.substring(0, 8);
@@ -253,7 +258,30 @@ export const StorageService = {
                 if (err.name === 'AbortError' || signal?.aborted) throw err;
                 console.warn(`[Storage/R2] ⚠️ Tentativa ${i + 1} falhou:`, err.message);
 
-                if (i === retryCount) throw err;
+                if (i === retryCount) {
+                    // 🛡️ FALLBACK CIRÚRGICO: Se o R2 falhar (CORS no Vercel, credenciais, etc.), usa o Supabase Storage diretamente!
+                    console.log(`[Storage/Fallback] 🔄 Tentando upload de fallback via Supabase Storage ('nexus-files')...`);
+                    try {
+                        const { error: sbError } = await supabase.storage
+                            .from('nexus-files')
+                            .upload(fullPath, blobOrFile, {
+                                contentType,
+                                upsert: true
+                            });
+
+                        if (!sbError) {
+                            const { data: { publicUrl } } = supabase.storage
+                                .from('nexus-files')
+                                .getPublicUrl(fullPath);
+                            console.log(`[Storage/Fallback] ✅ Upload concluído com sucesso via Supabase Storage:`, publicUrl);
+                            return publicUrl;
+                        }
+                        console.error('[Storage/Fallback] ❌ Supabase Storage erro:', sbError.message);
+                    } catch (sbErr) {
+                        console.error('[Storage/Fallback] ❌ Exceção no Supabase Storage:', sbErr);
+                    }
+                    throw err;
+                }
                 await new Promise(resolve => setTimeout(resolve, 1500));
             }
         }
