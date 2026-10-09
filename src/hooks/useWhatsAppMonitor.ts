@@ -54,9 +54,12 @@ export function useWhatsAppMonitor(tenant: any | null, isAdmin: boolean) {
         // Check immediately on mount/change
         checkConnection();
 
-        // Then check every 3 minutes (180,000 ms)
-        const intervalId = setInterval(checkConnection, 180000);
-
+        // Then check every 3 minutes (180,000 ms) - OTIMIZAÇÃO: Apenas se visível
+        const intervalId = setInterval(() => {
+            if (typeof document !== 'undefined' && !document.hidden) {
+                checkConnection();
+            }
+        }, 180000);
         const handleVisibilityChange = () => {
             if (typeof document !== 'undefined' && !document.hidden) {
                 checkConnection();

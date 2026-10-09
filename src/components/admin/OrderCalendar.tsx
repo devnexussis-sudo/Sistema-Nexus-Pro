@@ -354,12 +354,12 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
         <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/50 border border-slate-200/80 overflow-hidden flex flex-col h-full">
 
           {/* Cabeçalho dias da semana */}
-          <div className="grid grid-cols-7 bg-slate-200/80 backdrop-blur-md border-b-2 border-slate-300 shrink-0">
+          <div className="grid grid-cols-7 bg-slate-50 border-b border-slate-100 shrink-0">
             {['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'].map((d, i) => (
               <div
                 key={d}
-                className={`py-2 text-center text-xs font-black tracking-widest uppercase border-r border-slate-300 last:border-0 ${
-                  i === 0 || i === 6 ? 'text-slate-600' : 'text-slate-800'
+                className={`py-2 text-center text-xs font-medium uppercase border-r border-slate-100 last:border-0 ${
+                  i === 0 || i === 6 ? 'text-slate-400' : 'text-slate-500'
                 }`}
               >
                 {d}
@@ -368,7 +368,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
           </div>
 
           {/* Grid de dias — 6 linhas */}
-          <div className="flex-1 grid grid-cols-7 min-h-0 border-l border-t border-slate-300/90" style={{ gridTemplateRows: 'repeat(6, 1fr)' }}>
+          <div className="flex-1 grid grid-cols-7 min-h-0 border-l border-t border-slate-100" style={{ gridTemplateRows: 'repeat(6, 1fr)' }}>
             {days.map((day, idx) => {
               const dayOrders = getOrdersForDay(day);
               const isToday = isDateToday(day);
@@ -380,21 +380,21 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                   key={idx}
                   onClick={() => dayOrders.length > 0 && setSelectedDayData({ day, orders: dayOrders })}
                   className={`
-                    relative flex flex-col border-r border-b border-slate-300/90 transition-colors min-h-0 overflow-hidden
+                    relative flex flex-col border-r border-b border-slate-100 transition-colors min-h-0 overflow-hidden group
                     ${isCurrentMonth
-                      ? isWeekend ? 'bg-slate-100/70' : 'bg-white'
-                      : 'bg-slate-100/40 opacity-40'}
-                    ${dayOrders.length > 0 ? 'cursor-pointer hover:bg-blue-50/60' : 'cursor-default'}
+                      ? isWeekend ? 'bg-slate-50/50' : 'bg-white'
+                      : 'bg-slate-50/30 opacity-50'}
+                    ${dayOrders.length > 0 ? 'cursor-pointer hover:bg-slate-50' : 'cursor-default'}
                   `}
                 >
                   {/* Número do dia */}
                   <div className="flex items-center justify-between px-1.5 pt-1.5 pb-0.5 shrink-0">
                     <div
                       className={`
-                        flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full text-xs sm:text-sm font-black transition-all shrink-0
+                        flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full text-xs sm:text-sm font-bold transition-all shrink-0
                         ${isToday
-                          ? 'bg-[#1c2d4f] text-white shadow-md ring-2 ring-[#1c2d4f]/20'
-                          : isCurrentMonth ? 'text-slate-900 font-black' : 'text-slate-400 font-bold'}
+                          ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-600/20'
+                          : isCurrentMonth ? 'text-slate-600 group-hover:text-blue-600' : 'text-slate-400'}
                       `}
                     >
                       {format(day, 'd')}
@@ -424,21 +424,17 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                         <div
                           key={order.id}
                           title={`${order.scheduledTime || ''} — #${osNum} ${order.customerName} | ${order.title}`}
-                          className="flex items-center gap-[4px] px-1.5 py-[3px] rounded-md bg-slate-50/90 hover:bg-slate-200/90 border border-slate-200/90 transition-colors shadow-2xs"
+                          className="flex items-center gap-1.5 px-1.5 py-[3px] rounded transition-colors hover:brightness-95"
+                          style={{ backgroundColor: `${color}1A`, borderLeft: `3px solid ${color}` }}
                         >
-                          {/* Bolinha status */}
-                          <span
-                            className="w-[8px] h-[8px] rounded-full shrink-0 shadow-2xs"
-                            style={{ backgroundColor: color }}
-                          />
                           {/* Hora */}
                           {formattedTime && (
-                            <span className="text-[11px] font-bold text-slate-600 shrink-0 leading-none tracking-tight">
+                            <span className="text-[10px] font-medium text-slate-600 shrink-0 leading-none">
                               {formattedTime}
                             </span>
                           )}
                           {/* Sufixo OS + Nome cliente */}
-                          <span className="text-[11px] font-bold text-slate-800 truncate leading-none flex-1">
+                          <span className="text-[10px] font-medium text-slate-700 truncate leading-none flex-1">
                             {osLabel}
                           </span>
                         </div>
@@ -468,38 +464,39 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="bg-gradient-to-br from-[#1c2d4f] via-[#233862] to-[#2a457a] px-6 sm:px-8 py-6 shrink-0 relative overflow-hidden text-white">
-              <div className="absolute top-0 right-0 p-6 opacity-5">
-                <CalendarIcon size={120} className="rotate-12" />
-              </div>
+            <div className="bg-white px-6 sm:px-8 pt-8 pb-5 border-b border-slate-100 shrink-0 relative overflow-hidden">
               <button
                 onClick={() => setSelectedDayData(null)}
-                className="absolute top-5 right-5 p-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white transition-all active:scale-95"
+                className="absolute top-5 right-5 p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-full text-slate-400 hover:text-slate-600 transition-all active:scale-95"
               >
                 <X size={18} />
               </button>
-              <p className="text-[10px] font-bold text-sky-300 tracking-[0.2em] uppercase mb-1">Agenda do Dia</p>
-              <h3 className="text-2xl sm:text-3xl font-bold text-white capitalize leading-none tracking-tight">
-                {format(selectedDayData.day, "dd ", { locale: ptBR })}
-                <span className="font-normal opacity-90">{format(selectedDayData.day, "MMMM yyyy", { locale: ptBR })}</span>
+              <p className="text-[10px] font-semibold text-primary-500 tracking-[0.2em] uppercase mb-2">Resumo da Agenda</p>
+              <h3 className="text-2xl sm:text-3xl font-medium text-slate-800 capitalize leading-none tracking-tight flex items-baseline gap-2">
+                <span className="font-bold text-primary-600">{format(selectedDayData.day, "dd", { locale: ptBR })}</span>
+                <span className="text-slate-500">{format(selectedDayData.day, "MMMM yyyy", { locale: ptBR })}</span>
               </h3>
-              <div className="mt-3.5 flex items-center gap-2.5 flex-wrap">
-                <div className="inline-flex items-center gap-1.5 bg-white/15 border border-white/20 rounded-xl px-3 py-1.5 shadow-xs">
-                  <span className="text-white text-xs font-bold">{selectedDayData.orders.length}</span>
-                  <span className="text-white/80 text-[10px] font-semibold uppercase tracking-wider">Ordens de Serviço</span>
+              
+              <div className="mt-5 flex items-center gap-2 flex-wrap">
+                <div className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5">
+                  <span className="text-slate-700 text-sm font-semibold">{selectedDayData.orders.length}</span>
+                  <span className="text-slate-500 text-[10px] font-medium uppercase tracking-wider">Ordens de Serviço</span>
                 </div>
                 {/* mini legenda de status */}
-                {Array.from(new Set(selectedDayData.orders.map(o => o.status))).map(s => (
-                  <div key={s} className="inline-flex items-center gap-1.5 bg-white/10 border border-white/15 rounded-xl px-2.5 py-1">
-                    <span className="w-2 h-2 rounded-full shadow-xs" style={{ backgroundColor: getStatusHexColor(s) }} />
-                    <span className="text-white/90 text-[9px] font-bold uppercase tracking-wider">{STATUS_LABELS[s] || s}: {selectedDayData.orders.filter(o => o.status === s).length}</span>
-                  </div>
-                ))}
+                {Array.from(new Set(selectedDayData.orders.map(o => o.status))).map(s => {
+                  const color = getStatusHexColor(s);
+                  return (
+                    <div key={s} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 border" style={{ backgroundColor: `${color}10`, borderColor: `${color}20` }}>
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                      <span className="text-slate-700 text-[10px] font-medium uppercase tracking-wider">{STATUS_LABELS[s] || s}: <span className="font-bold text-slate-800">{selectedDayData.orders.filter(o => o.status === s).length}</span></span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
             {/* Lista */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-2.5 custom-scrollbar bg-slate-50/80">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 custom-scrollbar bg-slate-50/50">
               {selectedDayData.orders.map(order => {
                 const tech = techs.find(t => t.id === order.assignedTo);
                 const color = getStatusHexColor(order.status);
@@ -507,39 +504,38 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                   <div
                     key={order.id}
                     onClick={() => setSelectedOrder(order)}
-                    className="bg-white rounded-2xl border border-slate-200/80 shadow-xs cursor-pointer hover:shadow-md hover:border-primary-300 transition-all active:scale-[0.99] group overflow-hidden"
+                    className="bg-white rounded-2xl border border-slate-200/80 shadow-sm cursor-pointer hover:shadow-md hover:border-primary-200 transition-all active:scale-[0.99] group overflow-hidden flex flex-row"
                   >
-                    {/* Faixa de status */}
-                    <div className="h-[4px] w-full" style={{ backgroundColor: color }} />
+                    {/* Faixa lateral */}
+                    <div className="w-[4px] shrink-0" style={{ backgroundColor: color }} />
 
-                    <div className="flex items-center gap-3 px-4 py-3">
+                    <div className="flex items-center gap-4 px-5 py-4 w-full">
                       {/* Bloco de hora */}
-                      <div
-                        className="flex flex-col items-center justify-center w-[62px] shrink-0 rounded-xl py-2 border shadow-2xs"
-                        style={{ backgroundColor: `${color}12`, borderColor: `${color}30` }}
-                      >
-                        <span className="text-base font-bold leading-none" style={{ color }}>
+                      <div className="flex flex-col items-center justify-center shrink-0 w-12">
+                        <span className="text-[17px] font-bold text-slate-700 leading-none">
                           {order.scheduledTime?.substring(0, 5) || '--:--'}
                         </span>
-                        <span className="text-[7px] font-bold uppercase tracking-widest mt-1" style={{ color: `${color}99` }}>HORA</span>
                       </div>
+                      
+                      {/* Divisor vertical */}
+                      <div className="w-px h-10 bg-slate-100 shrink-0 mx-1" />
 
                       {/* Conteúdo */}
                       <div className="flex-1 min-w-0">
                         {/* Linha 1: título + ID */}
                         <div className="flex items-center gap-2 min-w-0">
-                          <p className="text-xs sm:text-sm font-bold text-slate-800 truncate leading-tight group-hover:text-primary-700 transition-colors flex-1">
+                          <p className="text-sm font-semibold text-slate-800 truncate leading-tight group-hover:text-primary-600 transition-colors flex-1">
                             {order.title || 'Manutenção Programada'}
                           </p>
-                          <span className="text-[9px] font-mono font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0 border border-slate-200">
+                          <span className="text-[9px] font-mono font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 uppercase tracking-wider shrink-0">
                             #{order.displayId || order.id.split('-')[0].toUpperCase()}
                           </span>
                         </div>
 
                         {/* Linha 2: cliente + endereço */}
-                        <div className="flex items-center gap-1.5 mt-1">
+                        <div className="flex items-center gap-1.5 mt-1.5">
                           <MapPin size={11} className="text-slate-400 shrink-0" />
-                          <span className="text-[11px] font-medium text-slate-600 truncate">
+                          <span className="text-[11px] font-medium text-slate-500 truncate">
                             {order.customerName || '—'}
                             {order.customerAddress && (
                               <span className="font-normal text-slate-400"> · {order.customerAddress}</span>

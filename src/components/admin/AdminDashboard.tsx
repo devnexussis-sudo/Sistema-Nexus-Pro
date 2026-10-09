@@ -1558,7 +1558,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </tr>
             </thead>
             <tbody key={currentPage} className="divide-y divide-slate-100 bg-white animate-fade-in duration-200">
-              {ordersLoading ? (
+              {(ordersLoading || ordersFetching) ? (
                 <tr>
                   <td colSpan={11} className="py-24 text-center">
                     <div className="flex flex-col items-center gap-3 text-slate-400">
@@ -1653,7 +1653,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         
         {/* 📱 MOBILE CARDS VIEW */}
         <div className="md:hidden flex-1 overflow-auto custom-scrollbar bg-slate-50/50 p-2 space-y-2 pb-28">
-          {ordersLoading ? (
+          {(ordersLoading || ordersFetching) ? (
             <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                <Loader2 size={28} className="animate-spin text-primary-400 mb-2" />
                <span className="text-xs uppercase tracking-widest">Carregando...</span>

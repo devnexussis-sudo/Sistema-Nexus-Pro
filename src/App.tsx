@@ -75,16 +75,11 @@ const AppRoutes: React.FC = () => {
       return;
     }
 
-    // Se o hash contém tokens de recovery (Implicit Flow) genérico
+    // Se o hash contém tokens de recovery genérico
     if (hash.includes('type=recovery') && !hash.includes('reset-password')) {
       console.log('[RecoveryInterceptor] Detectado lander de recuperação genérico. Redirecionando para /reset-password...');
       const newHash = '#/reset-password' + hash.replace('#', '?');
       window.location.hash = newHash;
-    }
-    // Se a query string contém PKCE code ou token_hash (Novo Padrão)
-    else if ((search.includes('code=') || search.includes('token_hash=')) && !hash.includes('reset-password')) {
-      console.log('[RecoveryInterceptor] Detectado lander PKCE. Redirecionando para /reset-password...');
-      navigate('/reset-password' + search, { replace: true });
     }
   }, [navigate]);
 

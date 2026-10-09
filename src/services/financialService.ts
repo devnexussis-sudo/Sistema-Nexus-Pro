@@ -402,7 +402,7 @@ export const FinancialService = {
     getPayableCategories: async (): Promise<any[]> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
-            const { data, error } = await supabase.from('payable_categories').select('*').eq('tenant_id', tenantId).order('name');
+            const { data, error } = await supabase.from('payable_categories').select('id, name, color').eq('tenant_id', tenantId).order('name');
             if (error) throw error;
             return data.map(d => ({
                 id: d.id,
@@ -438,7 +438,7 @@ export const FinancialService = {
     getCommissionRules: async (): Promise<any[]> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
-            const { data, error } = await supabase.from('commission_rules').select('*').eq('tenant_id', tenantId);
+            const { data, error } = await supabase.from('commission_rules').select('id, name, type, value, is_active').eq('tenant_id', tenantId);
             if (error) throw error;
             return data.map(d => ({
                 id: d.id,

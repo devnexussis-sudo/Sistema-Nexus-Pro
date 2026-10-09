@@ -258,7 +258,9 @@ export const StorageService = {
                 if (err.name === 'AbortError' || signal?.aborted) throw err;
                 console.warn(`[Storage/R2] ⚠️ Tentativa ${i + 1} falhou:`, err.message);
 
-                if (i === retryCount) {
+                // OTIMIZAÇÃO VERCEL: Fast-fail para CORS (TypeError: Failed to fetch)
+                const isCorsOrNetworkError = err instanceof TypeError || err.message.includes('Failed to fetch');
+                if (i === retryCount || isCorsOrNetworkError) {
                     // 🛡️ FALLBACK CIRÚRGICO: Se o R2 falhar (CORS no Vercel, credenciais, etc.), usa o Supabase Storage diretamente!
                     console.log(`[Storage/Fallback] 🔄 Tentando upload de fallback via Supabase Storage ('nexus-files')...`);
                     try {
@@ -280,9 +282,11 @@ export const StorageService = {
                     } catch (sbErr) {
                         console.error('[Storage/Fallback] ❌ Exceção no Supabase Storage:', sbErr);
                     }
-                    throw err;
+                    if (isCorsOrNetworkError) throw err;
                 }
-                await new Promise(resolve => setTimeout(resolve, 1500));
+                if (!isCorsOrNetworkError) {
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                }
             }
         }
 

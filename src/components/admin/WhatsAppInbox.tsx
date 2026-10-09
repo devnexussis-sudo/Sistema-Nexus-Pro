@@ -329,6 +329,7 @@ export const WhatsAppInbox: React.FC = () => {
   const isOptimisticPending = useRef(false);
   const actionInitiatedConvId = useRef<string | null>(null);
   const outgoingActionConvIds = useRef<Map<string, number>>(new Map());
+  const stickerRef = useRef<HTMLDivElement>(null);
 
   // 🛡️ ENTRADA VS SAÍDA: Registra ação de saída iniciada pelo agente para evitar falsos alertas sonoros/visuais
   const markOutgoingAction = (convId: string) => {
@@ -701,15 +702,24 @@ export const WhatsAppInbox: React.FC = () => {
 
   // Estado para armazenar mensagens carregadas da tabela dedicada whatsapp_messages
   const [currentDbMessages, setCurrentDbMessages] = useState<Message[]>([]);
+  const [msgLimit, setMsgLimit] = useState(15);
+  const [isLoadingMoreMsgs, setIsLoadingMoreMsgs] = useState(false);
+  const msgContainerRef = useRef<HTMLDivElement>(null);
+  const prevScrollHeightRef = useRef<number>(0);
+  const isRestoringScrollRef = useRef(false);
+
+  // ── Reset limit e estado quando a conversa muda ──
+  useEffect(() => {
+    setMsgLimit(15);
+    setCurrentDbMessages([]);
+  }, [selectedId]);
 
   // ── Carregar histórico completo da tabela dedicada whatsapp_messages para a conversa ativa ──
   useEffect(() => {
-    if (!selectedId) {
-      setCurrentDbMessages([]);
-      return;
-    }
+    if (!selectedId) return;
 
     let isMounted = true;
+    setIsLoadingMoreMsgs(true);
 
     const loadMessagesFromDb = async () => {
       try {
@@ -718,7 +728,7 @@ export const WhatsAppInbox: React.FC = () => {
           .select('id, role, content, type, media_url, is_from_me, agent_id, agent_name, created_at')
           .eq('conversation_id', selectedId)
           .order('created_at', { ascending: false })
-          .limit(50);
+          .limit(msgLimit);
 
         if (error || !data || data.length === 0) {
           // 🛡️ FALLBACK CIRÚRGICO: Se a tabela whatsapp_messages ainda não tiver os dados ou estiver indisponível,
@@ -745,16 +755,28 @@ export const WhatsAppInbox: React.FC = () => {
             agent_id: m.agent_id || undefined,
             agent_name: m.agent_name || undefined
           }));
-          if (isMounted) setCurrentDbMessages(formatted);
+          if (isMounted) {
+            if (msgContainerRef.current && msgLimit > 15) {
+              prevScrollHeightRef.current = msgContainerRef.current.scrollHeight;
+              isRestoringScrollRef.current = true;
+            }
+            setCurrentDbMessages(formatted);
+          }
         }
       } catch (e) {
         console.warn('[WhatsAppInbox] Carregando mensagens via fallback:', e);
+      } finally {
+        if (isMounted) setIsLoadingMoreMsgs(false);
       }
     };
 
     loadMessagesFromDb();
+  }, [selectedId, msgLimit]);
 
-    // Escutar novos inserts de mensagens na tabela dedicada em tempo real para a conversa selecionada
+  // ── Escutar novos inserts de mensagens na tabela dedicada em tempo real ──
+  useEffect(() => {
+    if (!selectedId) return;
+    let isMounted = true;
     const channel = supabase
       .channel(`wpp_messages_active_${selectedId}`)
       .on('postgres_changes', {
@@ -816,9 +838,17 @@ export const WhatsAppInbox: React.FC = () => {
     return jsonMsgs;
   }, [selected, currentDbMessages]);
 
-  // Auto-scroll quando mensagens ativas mudam
+  // Auto-scroll e manutenção de scroll position
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (msgContainerRef.current && isRestoringScrollRef.current) {
+      // Scroll restoration after fetching more history (scroll up)
+      const newScrollHeight = msgContainerRef.current.scrollHeight;
+      msgContainerRef.current.scrollTop = newScrollHeight - prevScrollHeightRef.current;
+      isRestoringScrollRef.current = false;
+    } else {
+      // Auto-scroll to bottom on initial load or new message
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [activeMessages.length]);
 
   const [realtimeOk, setRealtimeOk] = useState(false);
@@ -1859,8 +1889,22 @@ export const WhatsAppInbox: React.FC = () => {
           </div>
 
           {/* Mensagens */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
-            {activeMessages.length === 0 && (
+          <div 
+            ref={msgContainerRef}
+            className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50"
+            onScroll={(e) => {
+              const target = e.target as HTMLDivElement;
+              if (target.scrollTop <= 5 && !isLoadingMoreMsgs && activeMessages.length >= msgLimit) {
+                setMsgLimit(prev => prev + 15);
+              }
+            }}
+          >
+            {isLoadingMoreMsgs && msgLimit > 15 && (
+              <div className="flex justify-center py-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-2"><div className="w-3 h-3 border-2 border-primary-500 border-t-transparent rounded-full animate-spin"/> Carregando mensagens antigas...</span>
+              </div>
+            )}
+            {activeMessages.length === 0 && !isLoadingMoreMsgs && (
               <div className="flex flex-col items-center justify-center h-full text-gray-300">
                 <MessageCircle size={40} />
                 <p className="text-xs mt-2">Nenhuma mensagem ainda</p>
