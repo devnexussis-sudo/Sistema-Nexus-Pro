@@ -42,7 +42,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Inicializa do "bolso" global do Singleton — sem esperar assíncrono.
     // Se for retorno de OAuth, inicia obrigatoriamente como loading para manter o splash screen com ícone do Duno.
     const [session, setSession] = useState<any | null>(globalSession);
-    const [isAuthLoading, setIsAuthLoading] = useState(() => hasOAuthCallback || !globalSessionOk);
+    const [isAuthLoading, setIsAuthLoading] = useState(true);
 
     const [auth, setAuth] = useState<AuthState>(() => {
         const stored = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
@@ -111,7 +111,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // Se o Singleton já tem sessão no "bolso", usa direto (zero latência)
             if (globalSessionOk && globalSession) {
                 setSession(globalSession);
-                setIsAuthLoading(false);
 
                 if (!refreshUserPromise.current) {
                     refreshUserPromise.current = AuthService.refreshUser().catch(() => null);
@@ -126,6 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     SessionStorage.clear();
                     GlobalStorage.remove('persistent_user');
                 }
+                if (isMounted.current) setIsAuthLoading(false);
                 return;
             }
 
@@ -136,7 +136,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 if (activeSession && isMounted.current) {
                     console.log('[AuthContext] 🔑 Sessão Supabase restaurada no reload.');
                     setSession(activeSession);
-                    setIsAuthLoading(false);
 
                     if (!refreshUserPromise.current) {
                         refreshUserPromise.current = AuthService.refreshUser().catch(() => null);
@@ -151,6 +150,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         SessionStorage.clear();
                         GlobalStorage.remove('persistent_user');
                     }
+                    if (isMounted.current) setIsAuthLoading(false);
                     return;
                 }
             } catch (err) {
