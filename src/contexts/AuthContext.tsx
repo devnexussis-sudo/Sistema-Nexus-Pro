@@ -220,9 +220,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         SessionStorage.clear();
                         GlobalStorage.remove('persistent_user');
                     }
-                }
-                if (isMounted.current) {
-                    setIsAuthLoading(false);
+                    if (isMounted.current) {
+                        setIsAuthLoading(false);
+                    }
+                } else {
+                    console.log('[AuthContext] ⏳ SIGNED_IN event recebido, mas refreshUser já está em andamento. Aguardando...');
                 }
             } else if (event === 'TOKEN_REFRESHED' && newSession?.user) {
                 // Token renovado: atualiza sessão sem re-buscar perfil do banco

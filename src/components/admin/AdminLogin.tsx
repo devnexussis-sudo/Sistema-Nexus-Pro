@@ -409,7 +409,7 @@ const ModernAdminLogin: React.FC<ThemedLoginProps> = ({ onLogin, onToggleMaster,
                                             disabled={loading}
                                             className="w-full bg-[#1c2d4f] hover:bg-[#162441] active:bg-[#121d33] disabled:opacity-60 text-white font-semibold py-2.5 px-4 rounded-xl transition-all duration-200 shadow-md shadow-[#1c2d4f]/20 flex items-center justify-center gap-2 group mt-2"
                                         >
-                                            <span>{loading ? 'Validando...' : 'Acessar Plataforma'}</span>
+                                            <span>{loading ? 'Validando...' : 'Entrar no Duno'}</span>
                                             {!loading && (
                                                 <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
@@ -792,7 +792,7 @@ const ClassicAdminLogin: React.FC<ThemedLoginProps> = ({ onLogin, onToggleMaster
                                     disabled={loading}
                                     className="w-full bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-2xl py-5 font-bold text-sm shadow-2xl shadow-primary-900/20 border-none transition-all active:scale-[0.97]"
                                 >
-                                    {loading ? 'Validando Acesso...' : 'Continuar'}
+                                    {loading ? 'Validando Acesso...' : 'Entrar no Duno'}
                                 </Button>
                             </form>
                         ) : (
