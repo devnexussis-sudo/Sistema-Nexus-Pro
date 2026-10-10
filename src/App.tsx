@@ -104,7 +104,13 @@ const AppRoutes: React.FC = () => {
     }
   }, [navigate]);
 
-  // Rendeiza logo a UI, confiando no splashscreen do index.html para cobrir o carregamento inicial
+  // Dispara 'nexus-ready' para ocultar o splash screen do Duno pulsante
+  // SOMENTE quando o ciclo de autenticação (incluindo retorno de Google SSO) estiver concluído
+  useEffect(() => {
+    if (!isInitializing) {
+      window.dispatchEvent(new Event('nexus-ready'));
+    }
+  }, [isInitializing]);
 
   return (
     <Routes>
@@ -141,7 +147,7 @@ const AppRoutes: React.FC = () => {
       {/* LOGIN */}
       <Route path="/login" element={
         auth.isAuthenticated ? <Navigate to="/admin" replace /> :
-          <AdminLogin onLogin={login} onToggleMaster={() => { }} />
+          (isInitializing ? null : <AdminLogin onLogin={login} onToggleMaster={() => { }} />)
       } />
 
       {/* RESET PASSWORD - Suporte flexível para landers do Supabase com HashRouter */}

@@ -466,9 +466,9 @@ export async function ensureValidSession(): Promise<boolean> {
 
     if (await checkSession()) return true;
 
-    // Espera até 3s pela sessão (cobre o tempo do INITIAL_SESSION / SIGNED_IN ou refresh)
-    const MAX_WAIT_MS = 3000;
-    const POLL_INTERVAL_MS = 200;
+    // Espera até 5s pela sessão (cobre o tempo do INITIAL_SESSION / SIGNED_IN ou handshake PKCE de OAuth)
+    const MAX_WAIT_MS = 5000;
+    const POLL_INTERVAL_MS = 150;
     let waited = 0;
 
     while (waited < MAX_WAIT_MS) {

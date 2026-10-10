@@ -22,6 +22,9 @@ class ErrorBoundary extends Component<Props, State> {
 
     public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
         console.error('Uncaught error:', error, errorInfo);
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('nexus-ready'));
+        }
     }
 
     public render() {

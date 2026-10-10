@@ -127,10 +127,26 @@ const ModernAdminLogin: React.FC<ThemedLoginProps> = ({ onLogin, onToggleMaster,
         try {
             setError('');
             setLoading(true);
+
+            // Ativa o splash screen com ícone pulsante do Duno antes de redirecionar ao Google
+            const splash = document.getElementById('nexus-loading-screen');
+            if (splash) {
+                splash.style.transition = 'none';
+                splash.style.opacity = '1';
+                splash.style.pointerEvents = 'auto';
+                splash.style.display = 'flex';
+                splash.classList.remove('fade-out');
+            }
+
             await DataService.signInWithGoogle();
         } catch (err: any) {
-            setError(err.message || 'Erro ao autenticar com Google Workspace. Verifique se o login social está configurado.');
+            setError(err.message || 'Erro ao autenticar com o Google. Verifique se o login social está configurado.');
             setLoading(false);
+            const splash = document.getElementById('nexus-loading-screen');
+            if (splash) {
+                splash.classList.add('fade-out');
+                setTimeout(() => { splash.style.display = 'none'; }, 500);
+            }
         }
     };
 

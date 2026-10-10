@@ -29,9 +29,19 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    // Inicializa do "bolso" global do Singleton — sem esperar assíncrono
+    // Detecta se a URL atual contém retorno de autenticação OAuth (Google SSO)
+    const hasOAuthCallback = typeof window !== 'undefined' && (
+        window.location.search.includes('code=') ||
+        window.location.search.includes('access_token=') ||
+        window.location.hash.includes('code=') ||
+        window.location.hash.includes('access_token=')
+    );
+    const hasOAuthCallbackRef = useRef<boolean>(hasOAuthCallback);
+
+    // Inicializa do "bolso" global do Singleton — sem esperar assíncrono.
+    // Se for retorno de OAuth, inicia obrigatoriamente como loading para manter o splash screen com ícone do Duno.
     const [session, setSession] = useState<any | null>(globalSession);
-    const [isAuthLoading, setIsAuthLoading] = useState(!globalSessionOk);
+    const [isAuthLoading, setIsAuthLoading] = useState(() => hasOAuthCallback || !globalSessionOk);
 
     const [auth, setAuth] = useState<AuthState>(() => {
         const stored = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
@@ -59,6 +69,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 return;
             }
 
+            // 🛡️ OAUTH CALLBACK GUARD: Se houver retorno de login social na URL (code= ou access_token=),
+            // aguarda a resolução do handshake PKCE pelo SDK antes de decidir se o usuário está deslogado
+            if (hasOAuthCallbackRef.current) {
+                console.log('[AuthContext] ⏳ Detectado retorno de OAuth (Google SSO). Aguardando finalização da sessão...');
+                const valid = await ensureValidSession();
+                if (valid && isMounted.current) {
+                    const { data: { session: activeSession } } = await supabase.auth.getSession();
+                    if (activeSession) {
+                        setSession(activeSession);
+                        if (!isRefreshingUser.current) {
+                            isRefreshingUser.current = true;
+                            const rUser = await AuthService.refreshUser().catch(() => null);
+                            isRefreshingUser.current = false;
+                            if (rUser && isMounted.current) {
+                                setAuth({ user: rUser, isAuthenticated: true });
+                            } else if (isMounted.current) {
+                                setAuth({ user: null, isAuthenticated: false });
+                                setSession(null);
+                                SessionStorage.clear();
+                                GlobalStorage.remove('persistent_user');
+                            }
+                        }
+                        if (isMounted.current) setIsAuthLoading(false);
+                        return;
+                    }
+                }
+                if (isMounted.current) {
+                    console.warn('[AuthContext] ⚠️ OAuth não gerou sessão válida ou falhou.');
+                    setAuth({ user: null, isAuthenticated: false });
+                    setIsAuthLoading(false);
+                }
+                return;
+            }
+
             // Se o Singleton já tem sessão no "bolso", usa direto (zero latência)
             if (globalSessionOk && globalSession) {
                 setSession(globalSession);
@@ -78,17 +122,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     }
                 }
                 return;
-            }
-
-            // 🛡️ OAUTH CALLBACK GUARD: Se houver retorno de login social na URL (code= ou access_token=),
-            // aguarda a resolução do handshake PKCE pelo SDK antes de decidir se o usuário está deslogado
-            const hasOAuthCallback = typeof window !== 'undefined' && (
-                window.location.search.includes('code=') ||
-                window.location.hash.includes('access_token=')
-            );
-            if (hasOAuthCallback) {
-                console.log('[AuthContext] ⏳ Detectado retorno de OAuth (Google SSO). Aguardando finalização da sessão...');
-                await ensureValidSession();
             }
 
             // 🛡️ RECOVERY NO RELOAD: Se o Singleton ainda não recebeu o evento do SDK (ex: F5 / refresh),
@@ -144,13 +177,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const { event, session: newSession } = (e as CustomEvent).detail;
             console.log(`[AuthContext] 📡 NEXUS_AUTH_EVENT: ${event}`);
 
+            // 🛡️ Se houver retorno de OAuth em processamento e o evento for INITIAL_SESSION sem sessão:
+            // NÃO declaramos carregamento finalizado nem limpamos sessão ainda, pois o SDK do Supabase
+            // está no meio da troca PKCE do código pelo token!
+            if (hasOAuthCallbackRef.current && !newSession && event === 'INITIAL_SESSION') {
+                console.log('[AuthContext] ⏳ OAuth PKCE handshake em andamento — mantendo splash screen do Duno...');
+                return;
+            }
+
             setSession(newSession);
-            setIsAuthLoading(false);
 
             if (!newSession) {
                 // 🛡️ IMPERSONATION & RECOVERY GUARD: Não destruir sessão virtual nem limpar durante reset-password
                 if (window.__NEXUS_IMPERSONATION || SessionStorage.get('is_impersonating') || window.location.href.includes('reset-password')) {
                     console.log('[AuthContext] 🛡️ Rota de reset-password ou impersonation ativa — ignorando expurgo de sessão.');
+                    setIsAuthLoading(false);
                     return;
                 }
                 // Se não há sessão válida (expirou silenciosamente ou INITIAL_SESSION veio nulo)
@@ -158,10 +199,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setAuth({ user: null, isAuthenticated: false });
                 SessionStorage.clear();
                 GlobalStorage.remove('persistent_user');
+                setIsAuthLoading(false);
             } else if (event === 'SIGNED_IN' && newSession?.user) {
                 // 🛡️ IMPERSONATION GUARD: Não sobrescrever user virtual com user real do DB
                 if (window.__NEXUS_IMPERSONATION || SessionStorage.get('is_impersonating')) {
                     console.log('[AuthContext] 🛡️ Impersonation ativa — ignorando refreshUser no SIGNED_IN.');
+                    setIsAuthLoading(false);
                     return;
                 }
                 // Apenas no login inicial — carrega o perfil Nexus do usuário
@@ -178,9 +221,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         GlobalStorage.remove('persistent_user');
                     }
                 }
+                if (isMounted.current) {
+                    setIsAuthLoading(false);
+                }
             } else if (event === 'TOKEN_REFRESHED' && newSession?.user) {
                 // Token renovado: atualiza sessão sem re-buscar perfil do banco
                 setAuth(prev => prev.isAuthenticated ? prev : { user: null, isAuthenticated: false });
+                setIsAuthLoading(false);
+            } else {
+                setIsAuthLoading(false);
             }
         };
 

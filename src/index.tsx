@@ -25,5 +25,6 @@ root.render(
   </ErrorBoundary>
 );
 
-// Remove the HTML splash screen
-window.dispatchEvent(new Event('nexus-ready'));
+// A tela de carregamento com ícone pulsante do Duno (#nexus-loading-screen)
+// permanece ativa até o App.tsx confirmar que a inicialização de autenticação
+// e roteamento (incluindo o retorno de OAuth do Google) foram 100% concluídos.
