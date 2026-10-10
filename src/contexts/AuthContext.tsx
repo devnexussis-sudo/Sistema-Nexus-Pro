@@ -251,6 +251,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setAuth(prev => prev.isAuthenticated ? prev : { user: null, isAuthenticated: false });
                 window.localStorage.removeItem('nexus_oauth_in_flight'); window.localStorage.removeItem('nexus_oauth_timestamp');
                 setIsAuthLoading(false);
+            } else if (event === 'INITIAL_SESSION' && newSession) {
+                console.log('[AuthContext] ⏳ INITIAL_SESSION com sessão válida — delegando para o bootstrap().');
+                return;
             } else {
                 window.localStorage.removeItem('nexus_oauth_in_flight'); window.localStorage.removeItem('nexus_oauth_timestamp');
                 setIsAuthLoading(false);
