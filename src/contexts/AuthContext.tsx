@@ -34,7 +34,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         window.location.search.includes('code=') ||
         window.location.search.includes('access_token=') ||
         window.location.hash.includes('code=') ||
-        window.location.hash.includes('access_token=')
+        window.location.hash.includes('access_token=') ||
+        window.sessionStorage.getItem('nexus_oauth_in_flight') === 'true'
     );
     const hasOAuthCallbackRef = useRef<boolean>(hasOAuthCallback);
 
@@ -91,12 +92,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                             SessionStorage.clear();
                             GlobalStorage.remove('persistent_user');
                         }
-                        if (isMounted.current) setIsAuthLoading(false);
+                        if (isMounted.current) {
+                            window.sessionStorage.removeItem('nexus_oauth_in_flight');
+                            setIsAuthLoading(false);
+                        }
                         return;
                     }
                 }
                 if (isMounted.current) {
                     console.warn('[AuthContext] ⚠️ OAuth não gerou sessão válida ou falhou.');
+                    window.sessionStorage.removeItem('nexus_oauth_in_flight');
                     setAuth({ user: null, isAuthenticated: false });
                     setIsAuthLoading(false);
                 }
@@ -191,6 +196,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 // 🛡️ IMPERSONATION & RECOVERY GUARD: Não destruir sessão virtual nem limpar durante reset-password
                 if (window.__NEXUS_IMPERSONATION || SessionStorage.get('is_impersonating') || window.location.href.includes('reset-password')) {
                     console.log('[AuthContext] 🛡️ Rota de reset-password ou impersonation ativa — ignorando expurgo de sessão.');
+                    window.sessionStorage.removeItem('nexus_oauth_in_flight');
                     setIsAuthLoading(false);
                     return;
                 }
@@ -199,11 +205,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setAuth({ user: null, isAuthenticated: false });
                 SessionStorage.clear();
                 GlobalStorage.remove('persistent_user');
+                window.sessionStorage.removeItem('nexus_oauth_in_flight');
                 setIsAuthLoading(false);
             } else if (event === 'SIGNED_IN' && newSession?.user) {
                 // 🛡️ IMPERSONATION GUARD: Não sobrescrever user virtual com user real do DB
                 if (window.__NEXUS_IMPERSONATION || SessionStorage.get('is_impersonating')) {
                     console.log('[AuthContext] 🛡️ Impersonation ativa — ignorando refreshUser no SIGNED_IN.');
+                    window.sessionStorage.removeItem('nexus_oauth_in_flight');
                     setIsAuthLoading(false);
                     return;
                 }
@@ -222,13 +230,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     GlobalStorage.remove('persistent_user');
                 }
                 if (isMounted.current) {
+                    window.sessionStorage.removeItem('nexus_oauth_in_flight');
                     setIsAuthLoading(false);
                 }
             } else if (event === 'TOKEN_REFRESHED' && newSession?.user) {
                 // Token renovado: atualiza sessão sem re-buscar perfil do banco
                 setAuth(prev => prev.isAuthenticated ? prev : { user: null, isAuthenticated: false });
+                window.sessionStorage.removeItem('nexus_oauth_in_flight');
                 setIsAuthLoading(false);
             } else {
+                window.sessionStorage.removeItem('nexus_oauth_in_flight');
                 setIsAuthLoading(false);
             }
         };
