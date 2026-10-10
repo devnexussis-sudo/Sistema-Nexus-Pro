@@ -472,7 +472,8 @@ export const AuthService = {
 
     signInWithGoogle: async (): Promise<void> => {
         if (isCloudEnabled) {
-            sessionStorage.setItem('nexus_oauth_in_flight', 'true');
+            localStorage.setItem('nexus_oauth_in_flight', 'true');
+            localStorage.setItem('nexus_oauth_timestamp', Date.now().toString());
             const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
