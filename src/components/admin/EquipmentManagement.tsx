@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { usePermissions } from '../../hooks/usePermissions';
+import { useDialog } from '../../contexts/DialogContext';
 import { supabase } from '../../lib/supabase';
 import { getCurrentTenantId } from '../../lib/tenantContext';
 
@@ -43,6 +44,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
 }) => {
   const { t } = useI18n();
   const { canCreate, canEdit } = usePermissions();
+  const { showAlert } = useDialog();
 
   const [activeTab, setActiveTab] = useState<'list' | 'families'>('list');
   const [isModalOpen, setIsModalOpen] = useState(false);

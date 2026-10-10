@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ErrorHandler, AppError, ErrorCode } from '@/lib/errorHandler';
+import { ErrorHandler, AppError, ErrorCode } from '../../../lib/errorHandler';
 
 describe('ErrorHandler', () => {
     describe('AppError', () => {

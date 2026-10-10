@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { validate, formatValidationErrors, OrderSchema, CustomerSchema, LoginSchema } from '@/lib/validation';
+import { validate, formatValidationErrors, OrderSchema, CustomerSchema, LoginSchema } from '../../../lib/validation';
 
 describe('Validation System', () => {
     describe('validate function', () => {

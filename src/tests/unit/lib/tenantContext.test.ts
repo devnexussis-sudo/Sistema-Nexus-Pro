@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { TenantContextManager, getCurrentTenantId } from '@/lib/tenantContext';
-import SessionStorage, { GlobalStorage } from '@/lib/sessionStorage';
+import { TenantContextManager, getCurrentTenantId } from '../../../lib/tenantContext';
+import SessionStorage, { GlobalStorage } from '../../../lib/sessionStorage';
 
 describe('TenantContext', () => {
     let tenantContext: InstanceType<typeof TenantContextManager>;

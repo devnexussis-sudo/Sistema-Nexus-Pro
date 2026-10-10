@@ -32,7 +32,7 @@ export type DbVisitStatus = 'pending' | 'ongoing' | 'paused' | 'blocked' | 'comp
 
 // ─── Tabela: tenants ──────────────────────────────────────────
 
-export interface DbTenant {
+export interface DbTenant { [key: string]: any;
     id: string;
     slug: string;
     name: string;
@@ -77,7 +77,7 @@ export type DbTenantInsert = Omit<DbTenant, 'id' | 'created_at' | 'updated_at'> 
 
 // ─── Tabela: users ────────────────────────────────────────────
 
-export interface DbUser {
+export interface DbUser { [key: string]: any;
     id: string;
     tenant_id: string;
     name: string;

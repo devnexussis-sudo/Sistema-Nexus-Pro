@@ -221,6 +221,6 @@ export const ptBR = {
     symbol: 'R$',
     locale: 'pt-BR',
   },
-} as const;
+};
 
 export type TranslationKeys = typeof ptBR;

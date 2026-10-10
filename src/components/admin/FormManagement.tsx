@@ -12,6 +12,7 @@ import { DataService } from '../../services/dataService';
 import { EquipmentService } from '../../services/equipmentService';
 import { useForms, useServiceTypes, useActivationRules, useTenant, NexusQueryClient } from '../../hooks/nexusHooks';
 import { usePermissions } from '../../hooks/usePermissions';
+import { useDialog } from '../../contexts/DialogContext';
 
 // Famílias vindas do EquipmentManagement para consistência
 export const EQUIPMENT_FAMILIES = [
@@ -40,6 +41,7 @@ interface ActivationRule {
 export const FormManagement: React.FC = () => {
     const { t } = useI18n();
     const { canCreate, canEdit, canDelete } = usePermissions();
+    const { showAlert } = useDialog();
 
   const [activeTab, setActiveTab] = useState<'types' | 'templates' | 'rules'>('templates');
   const [isModalOpen, setIsModalOpen] = useState(false);

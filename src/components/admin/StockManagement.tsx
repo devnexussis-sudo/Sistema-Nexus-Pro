@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '../../i18n';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDialog } from '../../contexts/DialogContext';
 import { DataService } from '../../services/dataService';
 import { StorageService } from '../../services/storageService';
 import { TenantService } from '../../services/tenantService';
@@ -17,6 +18,7 @@ export const StockManagement: React.FC = () => {
     const { t } = useI18n();
     const { isAuthLoading, session } = useAuth();
     const { canCreate, canEdit, canDelete } = usePermissions();
+    const { showAlert } = useDialog();
 
     // Application State
     const [activeTab, setActiveTab] = useState<'items' | 'categories' | 'techs' | 'movements' | 'balance'>('items');

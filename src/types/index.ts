@@ -165,7 +165,7 @@ export const ADMIN_PERMISSIONS: UserPermissions = {
   }
 };
 
-export interface UserGroup {
+export interface UserGroup { [key: string]: any;
   id: string;
   tenantId?: string;
   name: string;
@@ -230,17 +230,7 @@ export interface FormTemplate {
 }
 
 
-export interface Customer {
-  id: string;
-  name: string;
-  document: string;
-  email: string;
-  phone: string;
-  address: string;
-  type: 'FISICA' | 'JURIDICA';
-  segment: string;
-  tenantId: string;
-}
+// Removed duplicate Customer interface
 
 export interface AccountPayable {
   id: string;
@@ -269,7 +259,7 @@ export interface PayableCategory {
   color?: string;
 }
 
-export interface Tenant {
+export interface Tenant { [key: string]: any;
   id: string;
   slug: string;
   name: string;
@@ -365,7 +355,7 @@ export interface OrderItem {
   equipmentSerial?: string;
 }
 
-export interface ServiceOrder {
+export interface ServiceOrder { [key: string]: any;
   id: string;
   displayId?: string; // ID amigável (ex: OS-1234)
   publicToken?: string; // Token único para compartilhamento público
@@ -578,10 +568,10 @@ export interface OrderTimelineEvent {
 
 
 
-export interface Customer {
+export interface Customer { [key: string]: any;
   id: string;
   tenantId?: string; // Multi-tenancy
-  type: 'PF' | 'PJ';
+  type: 'PF' | 'PJ' | 'FISICA' | 'JURIDICA';
   name: string;
   document: string;
   email: string;
@@ -597,6 +587,7 @@ export interface Customer {
   latitude?: number;
   longitude?: number;
   active: boolean;
+  segment?: string;
 }
 
 export interface EquipmentFamily {
@@ -607,7 +598,7 @@ export interface EquipmentFamily {
   active: boolean;
 }
 
-export interface Equipment {
+export interface Equipment { [key: string]: any;
   id: string;
   tenantId?: string; // Multi-tenancy
   assetCode?: string; // Código visual único de 6 dígitos (ex: A3F9K2)
@@ -659,7 +650,7 @@ export interface QuoteItem {
   stockCode?: string; // Código do item no estoque
 }
 
-export interface Quote {
+export interface Quote { [key: string]: any;
   id: string;          // UUID interno gerado pelo Postgres (PK)
   displayId?: string;  // Identificador Soberano Nexus (ex: ORC-2926001)
   tenantId?: string;   // Multi-tenancy
@@ -727,7 +718,7 @@ export interface AuthState {
 }
 
 
-export interface StockItem {
+export interface StockItem { [key: string]: any;
   id: string;
   tenantId?: string;
   code: string;
