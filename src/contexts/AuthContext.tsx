@@ -49,8 +49,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     const isMounted = useRef(true);
-    // Mutex para evitar N chamadas simultâneas de refreshUser
-    const isRefreshingUser = useRef(false);
+    // Mutex promise para sincronizar chamadas concorrentes de refreshUser
+    const refreshUserPromise = useRef<Promise<any> | null>(null);
 
     // Controle de inatividade (8 horas)
     const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
@@ -78,18 +78,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     const { data: { session: activeSession } } = await supabase.auth.getSession();
                     if (activeSession) {
                         setSession(activeSession);
-                        if (!isRefreshingUser.current) {
-                            isRefreshingUser.current = true;
-                            const rUser = await AuthService.refreshUser().catch(() => null);
-                            isRefreshingUser.current = false;
-                            if (rUser && isMounted.current) {
-                                setAuth({ user: rUser, isAuthenticated: true });
-                            } else if (isMounted.current) {
-                                setAuth({ user: null, isAuthenticated: false });
-                                setSession(null);
-                                SessionStorage.clear();
-                                GlobalStorage.remove('persistent_user');
-                            }
+                        if (!refreshUserPromise.current) {
+                            refreshUserPromise.current = AuthService.refreshUser().catch(() => null);
+                        }
+                        const rUser = await refreshUserPromise.current;
+                        
+                        if (rUser && isMounted.current) {
+                            setAuth({ user: rUser, isAuthenticated: true });
+                        } else if (isMounted.current) {
+                            setAuth({ user: null, isAuthenticated: false });
+                            setSession(null);
+                            SessionStorage.clear();
+                            GlobalStorage.remove('persistent_user');
                         }
                         if (isMounted.current) setIsAuthLoading(false);
                         return;
@@ -108,18 +108,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setSession(globalSession);
                 setIsAuthLoading(false);
 
-                if (!isRefreshingUser.current) {
-                    isRefreshingUser.current = true;
-                    const rUser = await AuthService.refreshUser().catch(() => null);
-                    isRefreshingUser.current = false;
-                    if (rUser && isMounted.current) {
-                        setAuth({ user: rUser, isAuthenticated: true });
-                    } else if (isMounted.current) {
-                        setAuth({ user: null, isAuthenticated: false });
-                        setSession(null);
-                        SessionStorage.clear();
-                        GlobalStorage.remove('persistent_user');
-                    }
+                if (!refreshUserPromise.current) {
+                    refreshUserPromise.current = AuthService.refreshUser().catch(() => null);
+                }
+                const rUser = await refreshUserPromise.current;
+                
+                if (rUser && isMounted.current) {
+                    setAuth({ user: rUser, isAuthenticated: true });
+                } else if (isMounted.current) {
+                    setAuth({ user: null, isAuthenticated: false });
+                    setSession(null);
+                    SessionStorage.clear();
+                    GlobalStorage.remove('persistent_user');
                 }
                 return;
             }
@@ -133,18 +133,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     setSession(activeSession);
                     setIsAuthLoading(false);
 
-                    if (!isRefreshingUser.current) {
-                        isRefreshingUser.current = true;
-                        const rUser = await AuthService.refreshUser().catch(() => null);
-                        isRefreshingUser.current = false;
-                        if (rUser && isMounted.current) {
-                            setAuth({ user: rUser, isAuthenticated: true });
-                        } else if (isMounted.current) {
-                            setAuth({ user: null, isAuthenticated: false });
-                            setSession(null);
-                            SessionStorage.clear();
-                            GlobalStorage.remove('persistent_user');
-                        }
+                    if (!refreshUserPromise.current) {
+                        refreshUserPromise.current = AuthService.refreshUser().catch(() => null);
+                    }
+                    const rUser = await refreshUserPromise.current;
+                    
+                    if (rUser && isMounted.current) {
+                        setAuth({ user: rUser, isAuthenticated: true });
+                    } else if (isMounted.current) {
+                        setAuth({ user: null, isAuthenticated: false });
+                        setSession(null);
+                        SessionStorage.clear();
+                        GlobalStorage.remove('persistent_user');
                     }
                     return;
                 }
@@ -208,23 +208,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     return;
                 }
                 // Apenas no login inicial — carrega o perfil Nexus do usuário
-                if (!isRefreshingUser.current) {
-                    isRefreshingUser.current = true;
-                    const rUser = await AuthService.refreshUser().catch(() => null);
-                    isRefreshingUser.current = false;
-                    if (rUser && isMounted.current) {
-                        setAuth({ user: rUser, isAuthenticated: true });
-                    } else if (isMounted.current) {
-                        setAuth({ user: null, isAuthenticated: false });
-                        setSession(null);
-                        SessionStorage.clear();
-                        GlobalStorage.remove('persistent_user');
-                    }
-                    if (isMounted.current) {
-                        setIsAuthLoading(false);
-                    }
-                } else {
-                    console.log('[AuthContext] ⏳ SIGNED_IN event recebido, mas refreshUser já está em andamento. Aguardando...');
+                if (!refreshUserPromise.current) {
+                    refreshUserPromise.current = AuthService.refreshUser().catch(() => null);
+                }
+                const rUser = await refreshUserPromise.current;
+                
+                if (rUser && isMounted.current) {
+                    setAuth({ user: rUser, isAuthenticated: true });
+                } else if (isMounted.current) {
+                    setAuth({ user: null, isAuthenticated: false });
+                    setSession(null);
+                    SessionStorage.clear();
+                    GlobalStorage.remove('persistent_user');
+                }
+                if (isMounted.current) {
+                    setIsAuthLoading(false);
                 }
             } else if (event === 'TOKEN_REFRESHED' && newSession?.user) {
                 // Token renovado: atualiza sessão sem re-buscar perfil do banco
@@ -377,7 +375,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 
     const refreshUser = useCallback(async () => {
-        const u = await AuthService.refreshUser().catch(() => undefined);
+        if (!refreshUserPromise.current) {
+            refreshUserPromise.current = AuthService.refreshUser().catch(() => undefined);
+        }
+        const u = await refreshUserPromise.current;
         if (u && isMounted.current) setAuth(prev => ({ ...prev, user: u }));
         return u;
     }, []);
