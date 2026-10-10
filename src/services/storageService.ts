@@ -518,6 +518,23 @@ export const StorageService = {
     },
 
     /**
+     * 🏢 Upload Oficial de Logo da Empresa
+     * Salva em: ${tenantId}/tenants/logo/logo_${timestamp}.webp
+     */
+    uploadTenantLogo: async (file: File | Blob, tenantId: string, signal?: AbortSignal): Promise<string> => {
+        const folderPath = `tenants/${tenantId || 'company'}/logo`;
+        if (!isCloudEnabled) return URL.createObjectURL(file);
+        try {
+            const compressedBlob = await StorageService.processAndCompress(file, signal);
+            const webpFile = new File([compressedBlob], `logo_${Date.now()}.webp`, { type: 'image/webp' });
+            return await StorageService._uploadCore(webpFile, folderPath, 2, signal, { contentType: 'image/webp', extension: 'webp' });
+        } catch (err: any) {
+            console.error(`[LogoUpload] ❌ Falha:`, err.message);
+            throw err;
+        }
+    },
+
+    /**
      * Upload de evidência de OS (Alias para compatibilidade)
      */
     uploadServiceOrderEvidence: async (file: File, orderId: string, signal?: AbortSignal): Promise<string> => {

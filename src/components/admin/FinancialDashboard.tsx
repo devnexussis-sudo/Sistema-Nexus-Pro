@@ -24,6 +24,8 @@ import { PaymentService } from '../../services/paymentService';
 import { AccountsPayableTab } from './AccountsPayableTab';
 import { CashFlowTab } from './CashFlowTab';
 import { CommissionsTab } from './CommissionsTab';
+import { FloatingBatchBar } from './FloatingBatchBar';
+import { exportToExcelWithStyle, printFinancialReport } from '../../utils/financialExportUtils';
 
 const getInitialFinancialState = <T,>(key: string, fallback: T): T => {
     if (typeof window === 'undefined' || !key) return fallback;
@@ -160,6 +162,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         setCurrentInvoicePage(1);
     };
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
     const [selectedItem, setSelectedItem] = useState<any | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
@@ -1928,11 +1931,17 @@ ${container.innerHTML}
     };
 
     const handleExportExcel = () => {
-        if (selectedIds.length === 0) return;
+        if (selectedIds.length === 0) {
+            showAlert('Selecione ao menos um lançamento para exportar.', 'warning');
+            return;
+        }
 
         const itemsToExport = filteredItems.filter(i => selectedIds.includes(i.id));
 
-        if (itemsToExport.length === 0) return;
+        if (itemsToExport.length === 0) {
+            showAlert('Nenhum registro selecionado para exportar.', 'warning');
+            return;
+        }
 
         const formatDateTime = (dateStr?: string) => {
             if (!dateStr || dateStr === 'N/A') return 'N/A';
@@ -1974,18 +1983,6 @@ ${container.innerHTML}
             'Data de Conclusão / Baixa'
         ];
 
-        const headerStyle = {
-            font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
-            fill: { fgColor: { rgb: '1C2D4F' } },
-            alignment: { horizontal: 'center', vertical: 'center' },
-            border: {
-                top: { style: 'thin', color: { rgb: 'FFFFFF' } },
-                bottom: { style: 'thin', color: { rgb: 'FFFFFF' } },
-                left: { style: 'thin', color: { rgb: 'FFFFFF' } },
-                right: { style: 'thin', color: { rgb: 'FFFFFF' } }
-            }
-        };
-
         const rows = itemsToExport.map(item => {
             const isOrder = item.type === 'ORDER';
             const orig: any = item.original || {};
@@ -2008,37 +2005,212 @@ ${container.innerHTML}
             ];
         });
 
-        const wsData = [headers, ...rows];
-        const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-        ws['!cols'] = [
-            { wch: 15 }, // ID
-            { wch: 18 }, // Tipo Documento
-            { wch: 15 }, // Data Agendada
-            { wch: 15 }, // Hora Agendada
-            { wch: 30 }, // Cliente
-            { wch: 30 }, // Título
-            { wch: 40 }, // Descrição
-            { wch: 20 }, // Tipo Atendimento
-            { wch: 20 }, // Técnico
-            { wch: 18 }, // Status Operacional
-            { wch: 15 }, // Prioridade
-            { wch: 15 }, // Valor Final
-            { wch: 18 }, // Status Financeiro
-            { wch: 20 }, // Abertura
-            { wch: 20 }  // Conclusão
+        const colWidths = [
+            { wch: 15 },
+            { wch: 18 },
+            { wch: 15 },
+            { wch: 15 },
+            { wch: 30 },
+            { wch: 30 },
+            { wch: 40 },
+            { wch: 20 },
+            { wch: 20 },
+            { wch: 18 },
+            { wch: 15 },
+            { wch: 15 },
+            { wch: 18 },
+            { wch: 20 },
+            { wch: 20 }
         ];
 
-        const range = XLSX.utils.decode_range(ws['!ref'] || "A1:A1");
-        for (let C = range.s.c; C <= range.e.c; ++C) {
-            const address = XLSX.utils.encode_cell({ r: 0, c: C });
-            if (!ws[address]) continue;
-            ws[address].s = headerStyle;
+        exportToExcelWithStyle({
+            filename: `Nexus_Contas_a_Receber_${new Date().toISOString().split('T')[0]}`,
+            sheetName: 'Contas a Receber',
+            headers,
+            rows,
+            colWidths
+        });
+    };
+
+    const handlePrintReceivablesPdf = () => {
+        if (selectedIds.length === 0) {
+            showAlert('Selecione ao menos um lançamento para imprimir.', 'warning');
+            return;
         }
 
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Financeiro");
-        XLSX.writeFile(wb, `Nexus_Financeiro_${new Date().toISOString().split('T')[0]}.xlsx`);
+        const itemsToPrint = filteredItems.filter(i => selectedIds.includes(i.id));
+
+        if (itemsToPrint.length === 0) {
+            showAlert('Nenhum registro selecionado para imprimir.', 'warning');
+            return;
+        }
+
+        const headers = [
+            'Protocolo',
+            'Tipo',
+            'Data Agendada',
+            'Cliente',
+            'Descrição / Título',
+            'Técnico',
+            'Valor',
+            'Status'
+        ];
+
+        const rows = itemsToPrint.map(item => {
+            const isOrder = item.type === 'ORDER';
+            const orig: any = item.original || {};
+            const scheduledDate = orig.scheduledDate ? new Date(orig.scheduledDate + (orig.scheduledDate.length === 10 ? 'T12:00:00' : '')).toLocaleDateString('pt-BR') : '—';
+            return [
+                item.displayId || item.id.slice(0, 8).toUpperCase(),
+                isOrder ? 'O.S.' : 'Orçamento',
+                scheduledDate,
+                item.customerName || 'N/A',
+                item.title || item.description || 'N/A',
+                item.technician || 'N/A',
+                formatCurrency(item.value || 0),
+                translateStatusToPT(item.status)
+            ];
+        });
+
+        const totalVal = itemsToPrint.reduce((acc, i) => acc + (Number(i.value) || 0), 0);
+        const paidVal = itemsToPrint.filter(i => i.status === 'PAID').reduce((acc, i) => acc + (Number(i.value) || 0), 0);
+        const pendingVal = totalVal - paidVal;
+
+        printFinancialReport({
+            title: 'Relatório de Contas a Receber',
+            subtitle: `${itemsToPrint.length} Registros ${selectedIds.length > 0 ? 'Selecionados' : 'Filtrados'}`,
+            headers,
+            rows,
+            colAlignments: ['left', 'center', 'center', 'left', 'left', 'left', 'right', 'center'],
+            summaryCards: [
+                { label: 'Qtd. Lançamentos', value: String(itemsToPrint.length) },
+                { label: 'Valor Total', value: formatCurrency(totalVal), color: '#0f172a' },
+                { label: 'Liquidado / Pago', value: formatCurrency(paidVal), color: '#059669' },
+                { label: 'Pendente', value: formatCurrency(pendingVal), color: '#d97706' },
+            ],
+            tenant,
+            userName: currentUser?.name || 'Administrador'
+        });
+    };
+
+    const handleExportInvoicesExcel = () => {
+        if (selectedInvoiceIds.length === 0) {
+            showAlert('Selecione ao menos uma fatura para exportar.', 'warning');
+            return;
+        }
+
+        const invoicesToExport = filteredInvoices.filter((inv: any) => selectedInvoiceIds.includes(inv.id));
+        if (invoicesToExport.length === 0) {
+            showAlert('Nenhuma fatura selecionada para exportar.', 'warning');
+            return;
+        }
+
+        const headers = [
+            'Nº Fatura',
+            'Cliente',
+            'Documento / CNPJ',
+            'Forma de Pagamento',
+            'Data de Emissão',
+            'Data de Vencimento',
+            'Data de Pagamento',
+            'Valor Total (R$)',
+            'Status'
+        ];
+
+        const rows = invoicesToExport.map((inv: any) => {
+            const pMethodObj = getInvoicePaymentMethodLabel(inv);
+            const isPaid = inv.status === 'PAID' || inv.gateway_status === 'approved';
+            return [
+                inv.display_id || inv.invoice_number || inv.id.slice(0, 8).toUpperCase(),
+                inv.customer_name || 'N/A',
+                inv.customer_document || 'N/A',
+                pMethodObj.label,
+                inv.created_at ? new Date(inv.created_at).toLocaleDateString('pt-BR') : '—',
+                inv.due_date ? new Date(inv.due_date + (inv.due_date.length === 10 ? 'T12:00:00' : '')).toLocaleDateString('pt-BR') : '—',
+                inv.paid_at ? new Date(inv.paid_at).toLocaleDateString('pt-BR') : isPaid && inv.updated_at ? new Date(inv.updated_at).toLocaleDateString('pt-BR') : '—',
+                Number(inv.total_amount || 0),
+                isPaid ? 'LIQUIDADO' : 'PENDENTE'
+            ];
+        });
+
+        const colWidths = [
+            { wch: 15 },
+            { wch: 30 },
+            { wch: 20 },
+            { wch: 20 },
+            { wch: 15 },
+            { wch: 15 },
+            { wch: 15 },
+            { wch: 16 },
+            { wch: 15 }
+        ];
+
+        exportToExcelWithStyle({
+            filename: `Nexus_Faturas_${new Date().toISOString().split('T')[0]}`,
+            sheetName: 'Faturas Geradas',
+            headers,
+            rows,
+            colWidths
+        });
+    };
+
+    const handlePrintInvoicesPdf = () => {
+        if (selectedInvoiceIds.length === 0) {
+            showAlert('Selecione ao menos uma fatura para imprimir.', 'warning');
+            return;
+        }
+
+        const invoicesToPrint = filteredInvoices.filter((inv: any) => selectedInvoiceIds.includes(inv.id));
+        if (invoicesToPrint.length === 0) {
+            showAlert('Nenhuma fatura selecionada para imprimir.', 'warning');
+            return;
+        }
+
+        const headers = [
+            'Fatura',
+            'Cliente',
+            'Forma de Pagamento',
+            'Emissão',
+            'Vencimento',
+            'Pagamento',
+            'Valor Total',
+            'Status'
+        ];
+
+        const rows = invoicesToPrint.map((inv: any) => {
+            const pMethodObj = getInvoicePaymentMethodLabel(inv);
+            const isPaid = inv.status === 'PAID' || inv.gateway_status === 'approved';
+            return [
+                inv.display_id || inv.invoice_number || inv.id.slice(0, 8).toUpperCase(),
+                inv.customer_name || 'N/A',
+                pMethodObj.label,
+                inv.created_at ? new Date(inv.created_at).toLocaleDateString('pt-BR') : '—',
+                inv.due_date ? new Date(inv.due_date + (inv.due_date.length === 10 ? 'T12:00:00' : '')).toLocaleDateString('pt-BR') : '—',
+                inv.paid_at ? new Date(inv.paid_at).toLocaleDateString('pt-BR') : isPaid && inv.updated_at ? new Date(inv.updated_at).toLocaleDateString('pt-BR') : '—',
+                formatCurrency(Number(inv.total_amount || 0)),
+                isPaid ? 'LIQUIDADO' : 'PENDENTE'
+            ];
+        });
+
+        const totalVal = invoicesToPrint.reduce((acc, i) => acc + (Number(i.total_amount) || 0), 0);
+        const paidVal = invoicesToPrint.filter(i => i.status === 'PAID' || i.gateway_status === 'approved').reduce((acc, i) => acc + (Number(i.total_amount) || 0), 0);
+        const pendingVal = totalVal - paidVal;
+
+        printFinancialReport({
+            title: 'Relatório de Faturas Geradas',
+            subtitle: `${invoicesToPrint.length} Faturas Selecionadas`,
+            headers,
+            rows,
+            colAlignments: ['left', 'left', 'center', 'center', 'center', 'center', 'right', 'center'],
+            summaryCards: [
+                { label: 'Qtd. Faturas', value: String(invoicesToPrint.length) },
+                { label: 'Valor Total', value: formatCurrency(totalVal), color: '#0f172a' },
+                { label: 'Total Liquidado', value: formatCurrency(paidVal), color: '#059669' },
+                { label: 'Total Pendente', value: formatCurrency(pendingVal), color: '#d97706' },
+            ],
+            tenant,
+            userName: currentUser?.name || 'Administrador'
+        });
     };
 
     const formatCurrency = (val: number) =>
@@ -2244,10 +2416,18 @@ ${container.innerHTML}
 
                                 <button
                                     onClick={handleExportExcel}
-                                    className="flex items-center gap-2 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded text-[10px] font-semibold uppercase transition-all"
+                                    className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-bold uppercase transition-all"
                                     title="Exportar Seleção para Excel"
                                 >
-                                    <FileSpreadsheet size={13} /> Excel
+                                    <FileSpreadsheet size={13} className="text-emerald-600" /> Excel
+                                </button>
+
+                                <button
+                                    onClick={handlePrintReceivablesPdf}
+                                    className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-bold uppercase transition-all"
+                                    title="Imprimir Seleção em PDF"
+                                >
+                                    <Printer size={13} className="text-[#1c2d4f]" /> PDF
                                 </button>
 
                                 <button
@@ -2255,7 +2435,7 @@ ${container.innerHTML}
                                         if (can('financial', 'invoice')) handleInvoiceBatch();
                                         else showAlert("Acesso Negado: Você não tem permissão para faturar.", 'warning');
                                     }}
-                                    className={`flex items-center gap-2 px-3 py-1 text-white rounded text-[10px] font-semibold uppercase transition-all shadow-sm ${can('financial', 'invoice') ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-300 text-white/50 cursor-not-allowed'}`}
+                                    className={`flex items-center gap-1.5 px-3 py-1 text-white rounded text-[10px] font-bold uppercase transition-all shadow-sm ${can('financial', 'invoice') ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-300 text-white/50 cursor-not-allowed'}`}
                                     title="Faturar Seleção"
                                 >
                                     <DollarSign size={13} /> Faturar
@@ -2270,6 +2450,45 @@ ${container.innerHTML}
                                 </button>
                             </div>
                         )}
+
+                        {/* Botões de Exportar e Imprimir na visualização de Faturas (apenas quando houver faturas selecionadas) */}
+                        {receivablesView === 'invoices' && selectedInvoiceIds.length > 0 && (
+                            <div className="flex items-center gap-3 px-3 py-1 bg-white border border-slate-200 rounded-lg shadow-sm animate-in fade-in h-9 mr-2">
+                                <div className="flex items-center gap-2 pr-3 border-r border-slate-200">
+                                    <span className="text-[10px] font-semibold text-slate-500 uppercase">Sel. ({selectedInvoiceIds.length})</span>
+                                    <span className="text-[11px] font-bold text-emerald-600">
+                                        {formatCurrency(filteredInvoices
+                                            .filter((inv: any) => selectedInvoiceIds.includes(inv.id))
+                                            .reduce((acc: number, inv: any) => acc + (inv.total_amount - (inv.discount_amount || 0) + (inv.shipping_amount || 0) + (inv.other_additions_amount || 0)), 0))}
+                                    </span>
+                                </div>
+
+                                <button
+                                    onClick={handleExportInvoicesExcel}
+                                    className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-bold uppercase transition-all"
+                                    title="Exportar Seleção para Excel"
+                                >
+                                    <FileSpreadsheet size={13} className="text-emerald-600" /> Excel
+                                </button>
+
+                                <button
+                                    onClick={handlePrintInvoicesPdf}
+                                    className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-bold uppercase transition-all"
+                                    title="Imprimir Seleção em PDF"
+                                >
+                                    <Printer size={13} className="text-[#1c2d4f]" /> PDF
+                                </button>
+
+                                <button
+                                    onClick={() => setSelectedInvoiceIds([])}
+                                    className="p-1 ml-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded transition-all"
+                                    title="Limpar Seleção"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        )}
+
 
                         <button
                             onClick={handleRefresh}
@@ -2926,6 +3145,23 @@ ${container.innerHTML}
                         <table className="w-full text-left border-collapse min-w-[800px]">
                             <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
                                 <tr>
+                                    <th className="py-3 px-3 text-center w-10">
+                                        <input
+                                            type="checkbox"
+                                            className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 w-4 h-4 cursor-pointer"
+                                            checked={paginatedInvoices.length > 0 && paginatedInvoices.every((inv: any) => selectedInvoiceIds.includes(inv.id))}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    const currentIds = paginatedInvoices.map((inv: any) => inv.id);
+                                                    setSelectedInvoiceIds(prev => Array.from(new Set([...prev, ...currentIds])));
+                                                } else {
+                                                    const currentIds = new Set(paginatedInvoices.map((inv: any) => inv.id));
+                                                    setSelectedInvoiceIds(prev => prev.filter(id => !currentIds.has(id)));
+                                                }
+                                            }}
+                                            title="Selecionar todas da página"
+                                        />
+                                    </th>
                                     <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Fatura</th>
                                     <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Cliente</th>
                                     <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap text-center">Forma de Pagamento</th>
@@ -2940,17 +3176,32 @@ ${container.innerHTML}
                             <tbody className="divide-y divide-slate-100">
                                 {paginatedInvoices.length === 0 ? (
                                     <tr>
-                                        <td colSpan={9} className="py-12 text-center text-slate-500 text-sm">
+                                        <td colSpan={10} className="py-12 text-center text-slate-500 text-sm">
                                             {invoices.length === 0 ? 'Nenhuma fatura gerada até o momento.' : 'Nenhuma fatura encontrada com os filtros atuais.'}
                                         </td>
                                     </tr>
                                 ) : (
-                                    paginatedInvoices.map((inv: any) => (
+                                    paginatedInvoices.map((inv: any) => {
+                                        const isSelected = selectedInvoiceIds.includes(inv.id);
+                                        return (
                                         <tr 
                                             key={inv.id} 
                                             onClick={() => handleOpenInvoiceDetail(inv)}
-                                            className="hover:bg-slate-50 transition-colors group cursor-pointer"
+                                            className={`hover:bg-slate-50 transition-colors group cursor-pointer ${isSelected ? 'bg-primary-50/40' : ''}`}
                                         >
+                                            <td className="py-3 px-3 text-center w-10" onClick={(e) => e.stopPropagation()}>
+                                                <input
+                                                    type="checkbox"
+                                                    className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 w-4 h-4 cursor-pointer"
+                                                    checked={isSelected}
+                                                    onChange={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedInvoiceIds(prev =>
+                                                            prev.includes(inv.id) ? prev.filter(id => id !== inv.id) : [...prev, inv.id]
+                                                        );
+                                                    }}
+                                                />
+                                            </td>
                                             <td className="py-3 px-4">
                                                 <div className="flex flex-col gap-0.5">
                                                     <div className="flex items-center gap-2 relative">
@@ -3199,8 +3450,9 @@ ${container.innerHTML}
                                                 </div>
                                             </td>
                                         </tr>
-                                    ))
-                                )}
+                                    );
+                                }))}
+
                             </tbody>
                         </table>
                     </div>
@@ -5922,6 +6174,37 @@ ${container.innerHTML}
                 }
             `}</style>
                 </>
+            )}
+
+            {mainTab === 'RECEIVABLES' && receivablesView === 'items' && selectedIds.length > 0 && (
+                <FloatingBatchBar
+                    selectedCount={selectedIds.length}
+                    totalAmount={selectedTotal}
+                    onExportExcel={handleExportExcel}
+                    onPrintPdf={handlePrintReceivablesPdf}
+                    onClearSelection={() => setSelectedIds([])}
+                    primaryAction={{
+                        label: 'Faturar',
+                        icon: <DollarSign size={14} />,
+                        onClick: () => {
+                            if (can('financial', 'invoice')) handleInvoiceBatch();
+                            else showAlert("Acesso Negado: Você não tem permissão para faturar.", 'warning');
+                        },
+                        disabled: !can('financial', 'invoice')
+                    }}
+                />
+            )}
+
+            {mainTab === 'RECEIVABLES' && receivablesView === 'invoices' && selectedInvoiceIds.length > 0 && (
+                <FloatingBatchBar
+                    selectedCount={selectedInvoiceIds.length}
+                    totalAmount={filteredInvoices
+                        .filter((inv: any) => selectedInvoiceIds.includes(inv.id))
+                        .reduce((acc: number, inv: any) => acc + (inv.total_amount - (inv.discount_amount || 0) + (inv.shipping_amount || 0) + (inv.other_additions_amount || 0)), 0)}
+                    onExportExcel={handleExportInvoicesExcel}
+                    onPrintPdf={handlePrintInvoicesPdf}
+                    onClearSelection={() => setSelectedInvoiceIds([])}
+                />
             )}
         </div>
     );

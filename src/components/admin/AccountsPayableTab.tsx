@@ -3,11 +3,13 @@ import { useAccountsPayable, useTechnicians, NexusQueryClient } from '../../hook
 import { useI18n } from '../../i18n';
 import { useDialog } from '../../contexts/DialogContext';
 import { DataService } from '../../services/dataService';
-import { Search, Plus, Filter, CreditCard, Calendar, ArrowUpRight, DollarSign, Loader2, CheckCircle2, Tag, RefreshCcw, Trash2, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown, X, UserCheck, User, Award, CheckSquare } from 'lucide-react';
+import { Search, Plus, Filter, CreditCard, Calendar, ArrowUpRight, DollarSign, Loader2, CheckCircle2, Tag, RefreshCcw, Trash2, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown, X, UserCheck, User, Award, CheckSquare, FileSpreadsheet, FileText } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { CreatePayableModal } from './CreatePayableModal';
 import { PayableCategoriesModal } from './PayableCategoriesModal';
 import { FinancialService } from '../../services/financialService';
+import { FloatingBatchBar } from './FloatingBatchBar';
+import { exportToExcelWithStyle, printFinancialReport } from '../../utils/financialExportUtils';
 
 export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId }) => {
     const { t } = useI18n();
@@ -315,6 +317,119 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
             .reduce((acc, curr) => acc + curr.amount, 0);
     }, [filteredItems, selectedIds]);
 
+    const selectedPendingCount = useMemo(() => {
+        return filteredItems.filter(i => selectedIds.includes(i.id) && i.status === 'PENDING').length;
+    }, [filteredItems, selectedIds]);
+
+    const handleExportExcel = () => {
+        if (selectedIds.length === 0) {
+            showAlert('Selecione ao menos um item para exportar.', 'warning');
+            return;
+        }
+
+        const itemsToExport = filteredItems.filter(i => selectedIds.includes(i.id));
+
+        if (itemsToExport.length === 0) {
+            showAlert('Nenhum registro selecionado para exportar.', 'warning');
+            return;
+        }
+
+        const headers = [
+            'ID / Código',
+            'Descrição',
+            'Fornecedor / Técnico',
+            'Categoria',
+            'Data de Vencimento',
+            'Data de Pagamento',
+            'Valor (R$)',
+            'Status'
+        ];
+
+        const rows = itemsToExport.map(item => [
+            item.id.slice(0, 8).toUpperCase(),
+            item.description || 'Sem descrição',
+            item.supplierName || 'Não informado',
+            item.category || 'Geral',
+            item.dueDate ? new Date(item.dueDate + (item.dueDate.length === 10 ? 'T12:00:00' : '')).toLocaleDateString('pt-BR') : '—',
+            item.paidAt ? new Date(item.paidAt).toLocaleDateString('pt-BR') : '—',
+            item.amount || 0,
+            item.status === 'PAID' ? 'PAGO' : item.status === 'CANCELLED' ? 'CANCELADO' : 'PENDENTE'
+        ]);
+
+        const colWidths = [
+            { wch: 15 },
+            { wch: 35 },
+            { wch: 25 },
+            { wch: 18 },
+            { wch: 16 },
+            { wch: 16 },
+            { wch: 15 },
+            { wch: 15 }
+        ];
+
+        exportToExcelWithStyle({
+            filename: `Nexus_Contas_a_Pagar_${new Date().toISOString().split('T')[0]}`,
+            sheetName: 'Contas a Pagar',
+            headers,
+            rows,
+            colWidths
+        });
+    };
+
+    const handlePrintPdf = () => {
+        if (selectedIds.length === 0) {
+            showAlert('Selecione ao menos um item para imprimir.', 'warning');
+            return;
+        }
+
+        const itemsToPrint = filteredItems.filter(i => selectedIds.includes(i.id));
+
+        if (itemsToPrint.length === 0) {
+            showAlert('Nenhum registro selecionado para imprimir.', 'warning');
+            return;
+        }
+
+        const headers = [
+            'ID',
+            'Descrição',
+            'Fornecedor / Técnico',
+            'Categoria',
+            'Vencimento',
+            'Pagamento',
+            'Valor',
+            'Status'
+        ];
+
+        const rows = itemsToPrint.map(item => [
+            item.id.slice(0, 8).toUpperCase(),
+            item.description || 'Sem descrição',
+            item.supplierName || 'Não informado',
+            item.category || 'Geral',
+            item.dueDate ? new Date(item.dueDate + (item.dueDate.length === 10 ? 'T12:00:00' : '')).toLocaleDateString('pt-BR') : '—',
+            item.paidAt ? new Date(item.paidAt).toLocaleDateString('pt-BR') : '—',
+            new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.amount || 0),
+            item.status === 'PAID' ? 'PAGO' : item.status === 'CANCELLED' ? 'CANCELADO' : 'PENDENTE'
+        ]);
+
+        const totalAmount = itemsToPrint.reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
+        const paidAmount = itemsToPrint.filter(i => i.status === 'PAID').reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
+        const pendingAmount = itemsToPrint.filter(i => i.status === 'PENDING').reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
+
+        printFinancialReport({
+            title: 'Relatório de Contas a Pagar',
+            subtitle: `Período: ${new Date(startDate + 'T00:00:00').toLocaleDateString('pt-BR')} até ${new Date(endDate + 'T00:00:00').toLocaleDateString('pt-BR')} • ${itemsToPrint.length} Registros`,
+            headers,
+            rows,
+            colAlignments: ['left', 'left', 'left', 'center', 'center', 'center', 'right', 'center'],
+            summaryCards: [
+                { label: 'Qtd. Registros', value: String(itemsToPrint.length) },
+                { label: 'Total Geral', value: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalAmount), color: '#0f172a' },
+                { label: 'Total Pago', value: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(paidAmount), color: '#0284c7' },
+                { label: 'Total Pendente', value: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pendingAmount), color: '#059669' },
+            ]
+        });
+    };
+
     const toggleSelectAll = () => {
         if (selectedIds.length === paginatedItems.length && paginatedItems.length > 0) {
             setSelectedIds([]);
@@ -480,6 +595,28 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
                         >
                             <Filter size={14} /> <span>{showFilters ? 'Filtros Ativos' : 'Filtros'}</span>
                         </button>
+
+                        {selectedIds.length > 0 && (
+                            <>
+                                <button
+                                    onClick={handleExportExcel}
+                                    className="h-9 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5 animate-in fade-in"
+                                    title={`Exportar ${selectedIds.length} selecionados para Excel`}
+                                >
+                                    <FileSpreadsheet size={14} className="text-emerald-600" />
+                                    <span className="hidden sm:inline">Excel ({selectedIds.length})</span>
+                                </button>
+
+                                <button
+                                    onClick={handlePrintPdf}
+                                    className="h-9 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5 animate-in fade-in"
+                                    title={`Imprimir ${selectedIds.length} selecionados em PDF`}
+                                >
+                                    <FileText size={14} className="text-blue-600" />
+                                    <span className="hidden sm:inline">PDF ({selectedIds.length})</span>
+                                </button>
+                            </>
+                        )}
 
                         <button
                             onClick={() => refetch()}
@@ -881,6 +1018,21 @@ export const AccountsPayableTab: React.FC<{ tenantId: string }> = ({ tenantId })
             {isCategoriesModalOpen && (
                 <PayableCategoriesModal onClose={() => setIsCategoriesModalOpen(false)} />
             )}
+
+            {/* Barra Flutuante de Ações em Lote (Excel, PDF, Baixa, Limpar) */}
+            <FloatingBatchBar
+                count={selectedIds.length}
+                totalAmount={totalSelected}
+                onExportExcel={handleExportExcel}
+                onPrintPdf={handlePrintPdf}
+                onClearSelection={() => setSelectedIds([])}
+                extraAction={selectedPendingCount > 0 ? {
+                    label: `Dar Baixa (${selectedPendingCount})`,
+                    icon: <CheckCircle2 size={13} />,
+                    onClick: () => handleBulkMarkAsPaid(),
+                    className: "flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all text-xs font-medium shadow-sm cursor-pointer"
+                } : undefined}
+            />
         </div>
     );
 };

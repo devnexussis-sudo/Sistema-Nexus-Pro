@@ -23,7 +23,7 @@
 //  4. Removida dependência de lock stealing no index.html
 // ============================================================
 
-import { createClient, SupabaseClient, type LockFunc } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { CacheManager } from './cache';
 
 // ---------------------------------------------------------------
@@ -44,74 +44,8 @@ const safeKey = supabaseAnonKey ?? 'placeholder';
 const activeNexusFetches = new Set<AbortController>();
 
 // ---------------------------------------------------------------
-// Lock Strategy — Big Tech Standard
-//
-// Usa Web Locks API nativa (gerenciada pelo SO, sobrevive a suspensão).
-// Fallback silencioso para browsers sem suporte (execução direta).
-//
-// IMPORTANTE: O lock é passado para o Supabase SDK para serializar
-// apenas operações de AUTH (refresh de token). Não é usado para
-// serializar chamadas de banco — isso causaria gargalo.
-// ---------------------------------------------------------------
-
-const _buildLock = (): LockFunc => {
-    // Web Locks API — nativa do browser, sobrevive à suspensão de SO
-    if (typeof navigator !== 'undefined' && 'locks' in navigator) {
-        // IMPORTANTE: O SDK do Supabase pode chamar com 2 ou 3 params dependendo da versão do gotrue-js
-        const webLockFn = (name: string, arg2: number | (() => Promise<unknown>), arg3?: () => Promise<unknown>) => {
-            const acquireTimeout = typeof arg2 === 'number' ? arg2 : 0;
-            const fn = typeof arg2 === 'function' ? arg2 : arg3;
-
-            if (typeof fn !== 'function') {
-                console.error(`[Nexus Lock] 💥 Falha crítica: Callback não recebido para '${name}'`);
-                // Evita crashar a aplicação inteira
-                return Promise.resolve(null as any);
-            }
-
-            const ac = new AbortController();
-            const actualTimeout = acquireTimeout > 0 ? acquireTimeout : 15000; // Reduzido para bater o timeout do Auth caso trave na queue
-
-            setTimeout(() => ac.abort(new Error('Nexus Lock Timeout')), actualTimeout);
-
-            return navigator.locks.request(`nexus_auth_${name}`, {
-                mode: 'exclusive',
-                signal: ac.signal,
-            }, fn).catch(err => {
-                const isAbort = err.name === 'AbortError' || err.message === 'Nexus Lock Timeout';
-                if (isAbort) {
-                    console.warn(`[Auth] Lock concorrente ou timeout de ${actualTimeout}ms ('${name}'). Retornando null para evitar derrubar a conexão global (bypass removido).`);
-                    return null; // Bypass removido pois trazia problemas em chamadas concorrentes do SDK
-                }
-                throw err;
-            });
-        };
-        return webLockFn as unknown as LockFunc; // cast para contornar tipagem estrita da interface atual
-    }
-
-    // Fallback: execução direta em browsers sem Web Locks
-    if (isDev) console.warn('[Nexus Lock] Web Locks API indisponível — usando fallback direto.');
-    let fallbackLockPromise: Promise<unknown> | null = null;
-    const fallbackFn = async (_name: string, arg2: number | (() => Promise<unknown>), arg3?: () => Promise<unknown>) => {
-        const fn = typeof arg2 === 'function' ? arg2 : arg3;
-        if (typeof fn !== 'function') return Promise.resolve(null as any);
-
-        // Fila rudimentar para garantir serialidade do Lock
-        while (fallbackLockPromise) {
-            await fallbackLockPromise;
-        }
-
-        fallbackLockPromise = fn().finally(() => {
-            fallbackLockPromise = null;
-        });
-
-        return fallbackLockPromise;
-    };
-    return fallbackFn as unknown as LockFunc;
-};
-
-const nexusLock: LockFunc = _buildLock();
-
 // Custom storage adapter para respeitar a flag "Manter conectado"
+// ---------------------------------------------------------------
 const customStorage = typeof window !== 'undefined' ? {
     getItem: (key: string) => {
         return window.sessionStorage.getItem(key) || window.localStorage.getItem(key);
@@ -134,6 +68,9 @@ const customStorage = typeof window !== 'undefined' ? {
 // ---------------------------------------------------------------
 // ✅ Singleton — única instância para toda a aplicação.
 // Importado via src/lib/supabase.ts pelos consumidores.
+// Padrão Big Tech: delega o gerenciamento de concorrência e Web Locks
+// diretamente ao SDK oficial (@supabase/auth-js), que já possui
+// navigatorLock com Lock Stealing ({ steal: true }) e fallback para lockNoOp.
 // ---------------------------------------------------------------
 export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
     auth: {
@@ -143,7 +80,6 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
         detectSessionInUrl: true,           // Habilitado para captura automática de links de recuperação e auth
         flowType: 'pkce',                   // Arquitetura moderna Pkce
         storage: customStorage,
-        lock: nexusLock,
     },
 
     realtime: {

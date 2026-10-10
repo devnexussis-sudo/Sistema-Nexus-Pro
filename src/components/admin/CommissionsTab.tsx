@@ -5,7 +5,9 @@ import { FormService } from '../../services/formService';
 import { useI18n } from '../../i18n';
 import { useDialog } from '../../contexts/DialogContext';
 import { User } from '../../types';
-import { Percent, DollarSign, Edit2, Trash2, Plus, Loader2, Save, X, Activity, Settings2, Info, ChevronDown } from 'lucide-react';
+import { Percent, DollarSign, Edit2, Trash2, Plus, Loader2, Save, X, Activity, Settings2, Info, ChevronDown, Power, PowerOff, FileSpreadsheet, Printer, CheckSquare, Square } from 'lucide-react';
+import { exportToExcelWithStyle, printFinancialReport } from '../../utils/financialExportUtils';
+import { FloatingBatchBar } from './FloatingBatchBar';
 
 interface CommissionsTabProps {
     techs: User[];
@@ -15,6 +17,7 @@ export const CommissionsTab: React.FC<CommissionsTabProps> = ({ techs }) => {
     const { t } = useI18n();
     const { showAlert, showConfirm } = useDialog();
     const [rules, setRules] = useState<any[]>([]);
+    const [selectedRuleIds, setSelectedRuleIds] = useState<string[]>([]);
     const [serviceTypes, setServiceTypes] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -185,12 +188,31 @@ export const CommissionsTab: React.FC<CommissionsTabProps> = ({ techs }) => {
     };
 
     const toggleActive = async (rule: any) => {
-        try {
-            await FinancialService.upsertCommissionRule({ ...rule, active: !rule.active });
-            loadData();
-        } catch (error: any) {
-            showAlert(`Erro ao alterar status: ${error.message}`, 'error');
-        }
+        const nextState = !rule.active;
+        const techName = rule.technicianName || rule.technician_name || 'o técnico';
+
+        showConfirm(
+            nextState 
+                ? `Deseja ativar a regra de comissão de ${techName}? O sistema voltará a calcular comissões e enviar lançamentos para Contas a Pagar.`
+                : `Deseja inativar a regra de comissão de ${techName}? Quando inativada, o sistema NÃO calculará comissões nem enviará lançamentos para Contas a Pagar.`,
+            async () => {
+                try {
+                    await FinancialService.updateCommissionRuleStatus(rule.id, nextState);
+                    showAlert(
+                        nextState 
+                            ? 'Regra ativada com sucesso! As comissões voltaram a ser calculadas.' 
+                            : 'Regra inativada com sucesso! As comissões foram pausadas.', 
+                        'success'
+                    );
+                    loadData();
+                } catch (error: any) {
+                    showAlert(`Erro ao alterar status da regra: ${error.message}`, 'error');
+                }
+            },
+            nextState ? 'Ativar Regra' : 'Inativar Regra',
+            nextState ? 'Ativar' : 'Inativar',
+            !nextState
+        );
     };
 
     const formatValue = (type: string, value: number) => {
@@ -198,19 +220,163 @@ export const CommissionsTab: React.FC<CommissionsTabProps> = ({ techs }) => {
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
     };
 
+    const handleToggleSelectAll = () => {
+        if (selectedRuleIds.length === rules.length) {
+            setSelectedRuleIds([]);
+        } else {
+            setSelectedRuleIds(rules.map(r => r.id));
+        }
+    };
+
+    const handleToggleRule = (id: string) => {
+        setSelectedRuleIds(prev => 
+            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+        );
+    };
+
+    const handleExportExcel = () => {
+        if (selectedRuleIds.length === 0) {
+            showAlert('Selecione ao menos uma regra para exportar.', 'warning');
+            return;
+        }
+
+        const itemsToExport = rules.filter(r => selectedRuleIds.includes(r.id));
+
+        if (itemsToExport.length === 0) {
+            showAlert('Nenhuma regra selecionada para exportar.', 'warning');
+            return;
+        }
+
+        const headers = [
+            'Técnico',
+            'Status',
+            'Tipo de Regra',
+            'OS Concluída (Padrão)',
+            'OS Impedida (Padrão)',
+            'Exceções por Modalidade'
+        ];
+
+        const rows = itemsToExport.map(r => {
+            const techName = r.technicianName || r.technician_name || 'N/A';
+            const status = r.active !== false ? 'ATIVA' : 'PAUSADA / INATIVA';
+            const ruleType = r.modalities && r.modalities.length > 0 ? 'Por Modalidade' : 'Padrão Global';
+            const compStr = formatValue(r.completedType || r.completed_type, r.completedValue ?? r.completed_value);
+            const blkStr = formatValue(r.blockedType || r.blocked_type, r.blockedValue ?? r.blocked_value);
+            const modsStr = r.modalities && r.modalities.length > 0 
+                ? r.modalities.map((m: any) => `${m.operationType}: Concl. ${formatValue(m.completedType, m.completedValue)} / Imp. ${formatValue(m.blockedType, m.blockedValue)}`).join('; ')
+                : 'Nenhuma';
+
+            return [techName, status, ruleType, compStr, blkStr, modsStr];
+        });
+
+        const colWidths = [
+            { wch: 25 },
+            { wch: 18 },
+            { wch: 20 },
+            { wch: 22 },
+            { wch: 22 },
+            { wch: 45 }
+        ];
+
+        exportToExcelWithStyle({
+            filename: `Nexus_Regras_Comissao_${new Date().toISOString().split('T')[0]}`,
+            sheetName: 'Regras de Comissão',
+            headers,
+            rows,
+            colWidths
+        });
+    };
+
+    const handlePrintPdf = () => {
+        if (selectedRuleIds.length === 0) {
+            showAlert('Selecione ao menos uma regra para imprimir.', 'warning');
+            return;
+        }
+
+        const itemsToPrint = rules.filter(r => selectedRuleIds.includes(r.id));
+
+        if (itemsToPrint.length === 0) {
+            showAlert('Nenhuma regra selecionada para imprimir.', 'warning');
+            return;
+        }
+
+        const headers = [
+            'Técnico',
+            'OS Concluída',
+            'OS Impedida',
+            'Exceções',
+            'Status'
+        ];
+
+        const rows = itemsToPrint.map(r => {
+            const techName = r.technicianName || r.technician_name || 'N/A';
+            const compStr = formatValue(r.completedType || r.completed_type, r.completedValue ?? r.completed_value);
+            const blkStr = formatValue(r.blockedType || r.blocked_type, r.blockedValue ?? r.blocked_value);
+            const modsCount = r.modalities && r.modalities.length > 0 ? `${r.modalities.length} exceção(ões)` : 'Nenhuma';
+            const status = r.active !== false ? 'ATIVA' : 'PAUSADA';
+
+            return [techName, compStr, blkStr, modsCount, status];
+        });
+
+        const activeCount = itemsToPrint.filter(r => r.active !== false).length;
+        const pausedCount = itemsToPrint.filter(r => r.active === false).length;
+
+        const userStored = localStorage.getItem('nexus_user');
+        let userName = 'Administrador';
+        try { if (userStored) userName = JSON.parse(userStored)?.name || userName; } catch {}
+
+        printFinancialReport({
+            title: 'Relatório de Regras de Comissão',
+            subtitle: `${itemsToPrint.length} Regras Selecionadas`,
+            headers,
+            rows,
+            colAlignments: ['left', 'center', 'center', 'center', 'center'],
+            summaryCards: [
+                { label: 'Total de Regras', value: String(itemsToPrint.length), color: '#0f172a' },
+                { label: 'Regras Ativas', value: String(activeCount), color: '#059669' },
+                { label: 'Regras Pausadas', value: String(pausedCount), color: '#d97706' },
+            ],
+            userName
+        });
+    };
+
     return (
         <div className="p-4 bg-slate-50/20 h-full overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
                 <div>
                     <h2 className="text-xl font-bold text-slate-800">Regras de Comissão</h2>
                     <p className="text-xs text-slate-500">Configure comissões automáticas (Padrão ou por Modalidade)</p>
                 </div>
-                <button
-                    onClick={() => openModal()}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#1c2d4f] hover:bg-[#2a4170] text-white rounded-lg text-xs font-semibold shadow-sm transition-colors"
-                >
-                    <Plus size={16} /> Adicionar Regra
-                </button>
+                <div className="flex items-center gap-2">
+                    {selectedRuleIds.length > 0 && (
+                        <>
+                            <button
+                                onClick={handleExportExcel}
+                                className="h-9 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-emerald-700 rounded-lg text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5 active:scale-95 animate-in fade-in"
+                                title={`Exportar ${selectedRuleIds.length} regras selecionadas para Excel`}
+                            >
+                                <FileSpreadsheet size={14} className="text-emerald-600" />
+                                <span className="hidden sm:inline">Excel ({selectedRuleIds.length})</span>
+                            </button>
+
+                            <button
+                                onClick={handlePrintPdf}
+                                className="h-9 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-[#1c2d4f] rounded-lg text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5 active:scale-95 animate-in fade-in"
+                                title={`Imprimir ${selectedRuleIds.length} regras selecionadas em PDF`}
+                            >
+                                <Printer size={14} className="text-[#1c2d4f]" />
+                                <span className="hidden sm:inline">PDF ({selectedRuleIds.length})</span>
+                            </button>
+                        </>
+                    )}
+
+                    <button
+                        onClick={() => openModal()}
+                        className="flex items-center gap-2 px-4 h-9 bg-[#1c2d4f] hover:bg-[#2a4170] text-white rounded-lg text-xs font-semibold shadow-sm transition-colors"
+                    >
+                        <Plus size={16} /> Adicionar Regra
+                    </button>
+                </div>
             </div>
 
             {isLoading ? (
@@ -229,6 +395,20 @@ export const CommissionsTab: React.FC<CommissionsTabProps> = ({ techs }) => {
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50/80 border-b border-slate-200">
+                                <th className="py-3 px-3 w-10 text-center">
+                                    <button
+                                        type="button"
+                                        onClick={handleToggleSelectAll}
+                                        className="text-slate-400 hover:text-slate-700 transition-colors flex items-center justify-center mx-auto"
+                                        title={selectedRuleIds.length === rules.length ? "Desmarcar todos" : "Selecionar todos"}
+                                    >
+                                        {rules.length > 0 && selectedRuleIds.length === rules.length ? (
+                                            <CheckSquare size={16} className="text-[#1c2d4f]" />
+                                        ) : (
+                                            <Square size={16} />
+                                        )}
+                                    </button>
+                                </th>
                                 <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Técnico</th>
                                 <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center">OS Concluída (Padrão)</th>
                                 <th className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center">OS Impedida (Padrão)</th>
@@ -238,10 +418,32 @@ export const CommissionsTab: React.FC<CommissionsTabProps> = ({ techs }) => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {rules.map(rule => (
-                                <tr key={rule.id} className="hover:bg-slate-50 transition-colors group">
+                            {rules.map(rule => {
+                                const isSelected = selectedRuleIds.includes(rule.id);
+                                return (
+                                <tr key={rule.id} className={`transition-colors group ${isSelected ? 'bg-blue-50/50' : rule.active ? 'hover:bg-slate-50' : 'bg-slate-50/70 opacity-75 hover:bg-slate-100/70'}`}>
+                                    <td className="py-3 px-3 w-10 text-center">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleToggleRule(rule.id)}
+                                            className="text-slate-400 hover:text-slate-700 transition-colors flex items-center justify-center mx-auto"
+                                        >
+                                            {isSelected ? (
+                                                <CheckSquare size={16} className="text-[#1c2d4f]" />
+                                            ) : (
+                                                <Square size={16} />
+                                            )}
+                                        </button>
+                                    </td>
                                     <td className="py-3 px-4 font-semibold text-sm text-slate-700 uppercase">
-                                        {rule.technicianName || rule.technician_name}
+                                        <div className="flex items-center gap-2">
+                                            <span>{rule.technicianName || rule.technician_name}</span>
+                                            {!rule.active && (
+                                                <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                                                    Pausada
+                                                </span>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="py-3 px-4 text-center">
                                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
@@ -266,24 +468,49 @@ export const CommissionsTab: React.FC<CommissionsTabProps> = ({ techs }) => {
                                     </td>
                                     <td className="py-3 px-4 text-center">
                                         <button 
-                                            onClick={() => toggleActive(rule)}
-                                            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest border transition-colors ${rule.active ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'bg-slate-100 border-slate-200 text-slate-500'}`}
+                                            onClick={() => toggleActive(rule)} 
+                                            title={rule.active ? "Regra Ativa: Clique para inativar" : "Regra Inativa: Clique para ativar"}
+                                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer ${
+                                                rule.active 
+                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' 
+                                                    : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                                            }`}
                                         >
-                                            {rule.active ? 'Ativa' : 'Inativa'}
+                                            <div className={`w-1.5 h-1.5 rounded-full ${rule.active ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                                            <span>{rule.active ? 'Ativa' : 'Inativa'}</span>
                                         </button>
                                     </td>
                                     <td className="py-3 px-4 text-right">
-                                        <div className="flex justify-end gap-2">
-                                            <button onClick={() => openModal(rule)} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors" title="Editar">
+                                        <div className="flex justify-end items-center gap-1.5">
+                                            <button 
+                                                onClick={() => toggleActive(rule)} 
+                                                className={`p-1.5 rounded-lg border transition-all ${
+                                                    rule.active 
+                                                        ? 'text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200' 
+                                                        : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200'
+                                                }`}
+                                                title={rule.active ? "Inativar Regra (Pausar comissões e contas a pagar)" : "Ativar Regra (Voltar a comissionar)"}
+                                            >
+                                                {rule.active ? <PowerOff size={14} /> : <Power size={14} />}
+                                            </button>
+                                            <button 
+                                                onClick={() => openModal(rule)} 
+                                                className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors" 
+                                                title="Editar Regra"
+                                            >
                                                 <Edit2 size={14} />
                                             </button>
-                                            <button onClick={() => handleDelete(rule.id)} className="p-1.5 text-rose-500 bg-rose-50 hover:bg-rose-100 rounded-md transition-colors" title="Excluir">
+                                            <button 
+                                                onClick={() => handleDelete(rule.id)} 
+                                                className="p-1.5 text-rose-500 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors" 
+                                                title="Excluir Definitivamente"
+                                            >
                                                 <Trash2 size={14} />
                                             </button>
                                         </div>
                                     </td>
                                 </tr>
-                            ))}
+                            )})}
                         </tbody>
                     </table>
                 </div>
@@ -304,11 +531,15 @@ export const CommissionsTab: React.FC<CommissionsTabProps> = ({ techs }) => {
                                 <button 
                                     type="button"
                                     onClick={() => setIsActive(!isActive)}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest border shadow-sm transition-colors ${isActive ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100' : 'bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200'}`}
-                                    title={isActive ? 'Clique para desativar esta regra' : 'Clique para ativar esta regra'}
+                                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer ${
+                                        isActive 
+                                            ? 'bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100' 
+                                            : 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100'
+                                    }`}
+                                    title={isActive ? 'Clique para inativar esta regra' : 'Clique para ativar esta regra'}
                                 >
-                                    <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-indigo-500' : 'bg-slate-400'}`} />
-                                    <span className="hidden sm:inline">{isActive ? 'Ativa' : 'Inativa'}</span>
+                                    {isActive ? <Power size={13} className="text-emerald-600" /> : <PowerOff size={13} className="text-amber-600" />}
+                                    <span>{isActive ? 'Regra Ativa' : 'Regra Inativa'}</span>
                                 </button>
                                 <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors p-2 bg-white rounded-full shadow-sm border border-slate-200">
                                     <X size={18} />
@@ -317,8 +548,45 @@ export const CommissionsTab: React.FC<CommissionsTabProps> = ({ techs }) => {
                         </div>
                         
                         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 bg-slate-50/30">
-                            <form id="commission-form" onSubmit={handleSave} className="space-y-8">
+                            <form id="commission-form" onSubmit={handleSave} className="space-y-6">
                                 
+                                {/* STATUS DA REGRA & AVISO DE COMISSIONAMENTO */}
+                                <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
+                                    isActive ? 'bg-emerald-50/60 border-emerald-200 text-emerald-950' : 'bg-amber-50/70 border-amber-200 text-amber-950'
+                                }`}>
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-2.5 rounded-xl ${isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                            {isActive ? <Power size={20} /> : <PowerOff size={20} />}
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-bold uppercase tracking-wider">
+                                                    {isActive ? 'Status: Regra Ativa' : 'Status: Regra Inativada'}
+                                                </span>
+                                                <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full ${isActive ? 'bg-emerald-200 text-emerald-800' : 'bg-amber-200 text-amber-800'}`}>
+                                                    {isActive ? 'Comissionando' : 'Pausada'}
+                                                </span>
+                                            </div>
+                                            <p className="text-[11px] font-medium text-slate-600 mt-0.5">
+                                                {isActive 
+                                                    ? 'O sistema calcula comissões automaticamente para este técnico e envia lançamentos para Contas a Pagar.' 
+                                                    : 'Regra pausada: o sistema NÃO calculará comissões nem gerará lançamentos no Contas a Pagar.'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsActive(!isActive)}
+                                        className={`px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wide border shadow-xs transition-all whitespace-nowrap self-start sm:self-auto cursor-pointer ${
+                                            isActive 
+                                                ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300' 
+                                                : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+                                        }`}
+                                    >
+                                        {isActive ? 'Inativar Regra' : 'Ativar Regra'}
+                                    </button>
+                                </div>
+
                                 {/* 1. SELEÇÃO DO TÉCNICO */}
                                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                                     <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 mb-3">
@@ -604,6 +872,15 @@ export const CommissionsTab: React.FC<CommissionsTabProps> = ({ techs }) => {
                     </div>
                 </div>,
                 document.body
+            )}
+
+            {selectedRuleIds.length > 0 && (
+                <FloatingBatchBar
+                    selectedCount={selectedRuleIds.length}
+                    onExportExcel={handleExportExcel}
+                    onPrintPdf={handlePrintPdf}
+                    onClearSelection={() => setSelectedRuleIds([])}
+                />
             )}
         </div>
     );

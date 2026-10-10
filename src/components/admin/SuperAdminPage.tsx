@@ -12,6 +12,7 @@ import {
 import { Button as NexusButton } from '../ui/Button';
 import { Input as NexusInput } from '../ui/Input';
 import { BackupEngine } from '../../lib/backupEngine';
+import { StorageService } from '../../services/storageService';
 
 interface Tenant {
   id: string;
@@ -905,9 +906,16 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                             onChange={async (e) => {
                               const file = e.target.files?.[0];
                               if (file) {
-                                const reader = new FileReader();
-                                reader.onload = (ev) => setFormData({ ...formData, logoUrl: ev.target?.result as string });
-                                reader.readAsDataURL(file);
+                                try {
+                                  const uploadedUrl = await StorageService.uploadTenantLogo(file, formData.id || 'new_tenant');
+                                  if (uploadedUrl && !uploadedUrl.startsWith('data:')) {
+                                    setFormData({ ...formData, logoUrl: uploadedUrl });
+                                  } else {
+                                    throw new Error("Formato inválido retornado pelo storage.");
+                                  }
+                                } catch (err) {
+                                  alert('Falha ao enviar logo para o Storage (R2). Imagens em Base64 não são permitidas no banco.');
+                                }
                               }
                             }}
                           />

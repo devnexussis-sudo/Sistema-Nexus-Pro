@@ -730,23 +730,6 @@ export const WhatsAppInbox: React.FC = () => {
           .order('created_at', { ascending: false })
           .limit(msgLimit);
 
-        if (error || !data || data.length === 0) {
-          // 🛡️ FALLBACK CIRÚRGICO: Se a tabela whatsapp_messages ainda não tiver os dados ou estiver indisponível,
-          // busca pontualmente o history apenas DESTA conversa (1 requisição isolada e leve)
-          const { data: convFallback } = await supabase
-            .from('whatsapp_conversations')
-            .select('history')
-            .eq('id', selectedId)
-            .single();
-
-          if (convFallback?.history && Array.isArray(convFallback.history) && convFallback.history.length > 0) {
-            if (isMounted) setCurrentDbMessages(convFallback.history);
-            return;
-          }
-          if (isMounted) setCurrentDbMessages([]);
-          return;
-        }
-
         if (data && data.length > 0) {
           const formatted: Message[] = [...data].reverse().map(m => ({
             role: m.role as any,
@@ -762,7 +745,23 @@ export const WhatsAppInbox: React.FC = () => {
             }
             setCurrentDbMessages(formatted);
           }
+          return;
         }
+
+        // 🛡️ FALLBACK CIRÚRGICO: Apenas acionado se houver erro de permissão ou tabela ainda não migrada
+        if (error) {
+          const { data: convFallback } = await supabase
+            .from('whatsapp_conversations')
+            .select('history')
+            .eq('id', selectedId)
+            .single();
+
+          if (convFallback?.history && Array.isArray(convFallback.history) && convFallback.history.length > 0) {
+            if (isMounted) setCurrentDbMessages(convFallback.history);
+            return;
+          }
+        }
+        if (isMounted) setCurrentDbMessages([]);
       } catch (e) {
         console.warn('[WhatsAppInbox] Carregando mensagens via fallback:', e);
       } finally {

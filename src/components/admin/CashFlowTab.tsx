@@ -1,11 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useI18n } from '../../i18n';
+import { useDialog } from '../../contexts/DialogContext';
 import { FinancialService } from '../../services/financialService';
 import { getCurrentTenantId } from '../../lib/tenantContext';
-import { ArrowDownRight, ArrowUpRight, Calendar, DollarSign, Loader2, TrendingUp, Filter, RefreshCcw, X, Wallet, ArrowRight } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Calendar, DollarSign, Loader2, TrendingUp, Filter, RefreshCcw, X, Wallet, ArrowRight, FileSpreadsheet, Printer } from 'lucide-react';
 import { CashFlowEntry } from '../../types';
 import { Pagination } from '../ui/Pagination';
+import { exportToExcelWithStyle, printFinancialReport } from '../../utils/financialExportUtils';
+import { FloatingBatchBar } from './FloatingBatchBar';
 
 interface CashFlowTabProps {
     tenantId: string;
@@ -14,6 +17,7 @@ interface CashFlowTabProps {
 
 export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables }) => {
     const { t } = useI18n();
+    const { showAlert } = useDialog();
     const [startDate, setStartDate] = useState(() => {
         const d = new Date();
         return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
@@ -30,6 +34,7 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
     const [pendingInvoices, setPendingInvoices] = useState<any[]>([]);
     const [showFilters, setShowFilters] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
+    const [selectedEntryIds, setSelectedEntryIds] = useState<string[]>([]);
     const ITEMS_PER_PAGE = 10;
 
     const cleanDateStr = (rawDate?: string) => {
@@ -62,8 +67,8 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
             const [cfData, payablesData, instRes, invRes] = await Promise.all([
                 FinancialService.getCashFlow({ start: dStart.toISOString().split('T')[0], end: endDate }).catch(e => { console.error("CF Error", e); return []; }),
                 FinancialService.getAccountsPayable({ start: startDate, end: endDate, status: 'ALL' }).catch(e => { console.error("AP Error", e); return []; }),
-                supabase.from('invoice_installments').select('*').eq('tenant_id', activeTenantId).neq('status', 'PAID').neq('status', 'CANCELED').then(res => res).catch(e => ({ data: [], error: e })),
-                supabase.from('invoices').select('*').eq('tenant_id', activeTenantId).neq('status', 'PAID').neq('status', 'CANCELED').then(res => res).catch(e => ({ data: [], error: e }))
+                supabase.from('invoice_installments').select('id, invoice_id, due_date, status, amount, value').eq('tenant_id', activeTenantId).neq('status', 'PAID').neq('status', 'CANCELED').limit(200).then(res => res).catch(e => ({ data: [], error: e })),
+                supabase.from('invoices').select('id, due_date, created_at, status, gateway_status, total_amount, discount_amount, shipping_amount, other_additions_amount').eq('tenant_id', activeTenantId).neq('status', 'PAID').neq('status', 'CANCELED').limit(200).then(res => res).catch(e => ({ data: [], error: e }))
             ]);
 
             setCashFlow(cfData || []);
@@ -83,9 +88,10 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
         fetchData();
     }, [tenantId, startDate, endDate]);
 
-    // Reset página ao mudar o período de datas
+    // Reset página e seleção ao mudar o período de datas
     useEffect(() => {
         setCurrentPage(1);
+        setSelectedEntryIds([]);
     }, [startDate, endDate]);
 
     const filteredEntries = useMemo(() => {
@@ -101,6 +107,29 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
         const start = (currentPage - 1) * ITEMS_PER_PAGE;
         return filteredEntries.slice(start, start + ITEMS_PER_PAGE);
     }, [filteredEntries, currentPage]);
+
+    const toggleSelectAll = () => {
+        if (paginatedEntries.length === 0) return;
+        const pageIds = paginatedEntries.map(e => e.id);
+        const allSelected = pageIds.every(id => selectedEntryIds.includes(id));
+        if (allSelected) {
+            setSelectedEntryIds(prev => prev.filter(id => !pageIds.includes(id)));
+        } else {
+            setSelectedEntryIds(prev => Array.from(new Set([...prev, ...pageIds])));
+        }
+    };
+
+    const toggleSelectEntry = (id: string) => {
+        setSelectedEntryIds(prev =>
+            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+        );
+    };
+
+    const totalSelectedAmount = useMemo(() => {
+        return filteredEntries
+            .filter(e => selectedEntryIds.includes(e.id))
+            .reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+    }, [filteredEntries, selectedEntryIds]);
 
     // 1. Cálculo de Saldo Atual (Todo o histórico até a data final selecionada)
     const saldoAtual = useMemo(() => {
@@ -252,6 +281,110 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
         return `${parts[2]}/${parts[1]}`;
     };
 
+    const handleExportExcel = () => {
+        if (selectedEntryIds.length === 0) {
+            showAlert('Selecione ao menos um lançamento para exportar.', 'warning');
+            return;
+        }
+
+        const entriesToExport = filteredEntries.filter(e => selectedEntryIds.includes(e.id));
+        if (entriesToExport.length === 0) {
+            showAlert('Nenhum lançamento selecionado para exportar.', 'warning');
+            return;
+        }
+
+        const headers = [
+            'Data',
+            'Descrição',
+            'Categoria',
+            'Tipo',
+            'Valor (R$)'
+        ];
+
+        const rows = entriesToExport.map(e => [
+            e.entryDate ? new Date(e.entryDate + (e.entryDate.length === 10 ? 'T12:00:00' : '')).toLocaleDateString('pt-BR') : '—',
+            e.description || 'Lançamento',
+            e.category || 'Geral',
+            e.type === 'INCOME' ? 'Entrada' : 'Saída',
+            e.type === 'INCOME' ? Number(e.amount) : -Number(e.amount)
+        ]);
+
+        const colWidths = [
+            { wch: 15 },
+            { wch: 35 },
+            { wch: 20 },
+            { wch: 15 },
+            { wch: 18 }
+        ];
+
+        exportToExcelWithStyle({
+            filename: `Nexus_Giro_de_Caixa_${startDate}_a_${endDate}`,
+            sheetName: 'Giro de Caixa',
+            headers,
+            rows,
+            colWidths
+        });
+    };
+
+    const handlePrintPdf = () => {
+        if (selectedEntryIds.length === 0) {
+            showAlert('Selecione ao menos um lançamento para imprimir.', 'warning');
+            return;
+        }
+
+        const entriesToPrint = filteredEntries.filter(e => selectedEntryIds.includes(e.id));
+        if (entriesToPrint.length === 0) {
+            showAlert('Nenhum lançamento selecionado para imprimir.', 'warning');
+            return;
+        }
+
+        const headers = [
+            'Data',
+            'Descrição',
+            'Categoria',
+            'Tipo',
+            'Valor'
+        ];
+
+        const rows = entriesToPrint.map(e => [
+            e.entryDate ? new Date(e.entryDate + (e.entryDate.length === 10 ? 'T12:00:00' : '')).toLocaleDateString('pt-BR') : '—',
+            e.description || 'Lançamento',
+            e.category || 'Geral',
+            e.type === 'INCOME' ? 'ENTRADA' : 'SAÍDA',
+            formatCurrency(Number(e.amount))
+        ]);
+
+        const totalIncome = entriesToPrint.filter(e => e.type === 'INCOME').reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+        const totalExpense = entriesToPrint.filter(e => e.type === 'EXPENSE').reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+        const netTotal = totalIncome - totalExpense;
+
+        const formatDtBR = (dt: string) => {
+            if (!dt) return '—';
+            const parts = dt.split('-');
+            if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            return dt;
+        };
+
+        const userStored = localStorage.getItem('nexus_user');
+        let userName = 'Administrador';
+        try { if (userStored) userName = JSON.parse(userStored)?.name || userName; } catch {}
+
+        printFinancialReport({
+            title: 'Relatório de Giro de Caixa',
+            subtitle: `Período: ${formatDtBR(startDate)} a ${formatDtBR(endDate)} • ${entriesToPrint.length} lançamentos selecionados`,
+            headers,
+            rows,
+            colAlignments: ['center', 'left', 'left', 'center', 'right'],
+            summaryCards: [
+                { label: 'Qtd. Selecionados', value: String(entriesToPrint.length), color: '#0f172a' },
+                { label: 'Total Entradas', value: formatCurrency(totalIncome), color: '#059669' },
+                { label: 'Total Saídas', value: formatCurrency(totalExpense), color: '#e11d48' },
+                { label: 'Saldo Selecionado', value: formatCurrency(netTotal), color: netTotal >= 0 ? '#4338ca' : '#e11d48' },
+            ],
+            userName
+        });
+    };
+
     return (
         <div className="space-y-4 pb-8 animate-in fade-in duration-300">
             {/* Top Toolbar */}
@@ -286,6 +419,30 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
                                 className="bg-transparent border-none text-xs font-semibold text-slate-800 outline-none cursor-pointer w-full"
                             />
                         </div>
+
+                        {selectedEntryIds.length > 0 && (
+                            <>
+                                <button
+                                    onClick={handleExportExcel}
+                                    disabled={isLoading}
+                                    className="h-9 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-emerald-700 rounded-lg text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50 animate-in fade-in"
+                                    title={`Exportar ${selectedEntryIds.length} lançamentos selecionados para Excel`}
+                                >
+                                    <FileSpreadsheet size={14} className="text-emerald-600" />
+                                    <span className="hidden sm:inline">Excel ({selectedEntryIds.length})</span>
+                                </button>
+
+                                <button
+                                    onClick={handlePrintPdf}
+                                    disabled={isLoading}
+                                    className="h-9 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-[#1c2d4f] rounded-lg text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50 animate-in fade-in"
+                                    title={`Imprimir ${selectedEntryIds.length} lançamentos selecionados em PDF`}
+                                >
+                                    <Printer size={14} className="text-[#1c2d4f]" />
+                                    <span className="hidden sm:inline">PDF ({selectedEntryIds.length})</span>
+                                </button>
+                            </>
+                        )}
 
                         <button
                             onClick={fetchData}
@@ -438,6 +595,15 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
                             <table className="w-full text-left border-collapse">
                                 <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
                                     <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                        <th className="py-2.5 px-3 w-10 text-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={paginatedEntries.length > 0 && paginatedEntries.every(e => selectedEntryIds.includes(e.id))}
+                                                onChange={toggleSelectAll}
+                                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                                title="Selecionar todos da página"
+                                            />
+                                        </th>
                                         <th className="py-2.5 px-3">Data</th>
                                         <th className="py-2.5 px-3">Descrição</th>
                                         <th className="py-2.5 px-3">Categoria</th>
@@ -448,13 +614,25 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
                                 <tbody className="divide-y divide-slate-100">
                                     {paginatedEntries.length === 0 ? (
                                         <tr>
-                                            <td colSpan={5} className="py-8 text-center text-slate-400 text-xs">
+                                            <td colSpan={6} className="py-8 text-center text-slate-400 text-xs">
                                                 Nenhum registro encontrado para o período.
                                             </td>
                                         </tr>
                                     ) : (
                                         paginatedEntries.map(entry => (
-                                            <tr key={entry.id} className="hover:bg-slate-50/50 transition-colors">
+                                            <tr 
+                                                key={entry.id} 
+                                                onClick={() => toggleSelectEntry(entry.id)}
+                                                className={`transition-colors cursor-pointer ${selectedEntryIds.includes(entry.id) ? 'bg-indigo-50/50 hover:bg-indigo-50' : 'hover:bg-slate-50/50'}`}
+                                            >
+                                                <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedEntryIds.includes(entry.id)}
+                                                        onChange={() => toggleSelectEntry(entry.id)}
+                                                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                                    />
+                                                </td>
                                                 <td className="py-2.5 px-3 text-xs text-slate-600 font-medium">
                                                     {formatDateShort(entry.entryDate.split('T')[0])}
                                                 </td>
@@ -493,6 +671,16 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
                         )}
                     </div>
                 </>
+            )}
+
+            {selectedEntryIds.length > 0 && (
+                <FloatingBatchBar
+                    count={selectedEntryIds.length}
+                    totalAmount={totalSelectedAmount}
+                    onExportExcel={handleExportExcel}
+                    onPrintPdf={handlePrintPdf}
+                    onClearSelection={() => setSelectedEntryIds([])}
+                />
             )}
         </div>
     );

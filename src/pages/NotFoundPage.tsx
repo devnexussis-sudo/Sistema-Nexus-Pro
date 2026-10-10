@@ -7,6 +7,15 @@ import { NexusBranding } from '../components/ui/NexusBranding';
 export const NotFoundPage: React.FC = () => {
     const navigate = useNavigate();
 
+    React.useEffect(() => {
+        const hash = window.location.hash || '';
+        const search = window.location.search || '';
+        if (hash.includes('error=') || search.includes('error=')) {
+            const isLogged = !!(sessionStorage.getItem('nexus-line-auth') || localStorage.getItem('nexus-line-auth'));
+            navigate(isLogged ? '/admin' : '/login', { replace: true });
+        }
+    }, [navigate]);
+
     return (
         <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center relative overflow-hidden">
             {/* Background Decor */}

@@ -12,7 +12,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { AuthState, User } from '../types';
 import { AuthService } from '../services/authService';
 import SessionStorage, { GlobalStorage } from '../lib/sessionStorage';
-import { globalSession, globalSessionOk } from '../lib/supabaseClient';
+import { ensureValidSession, globalSession, globalSessionOk } from '../lib/supabaseClient';
 import { supabase } from '../lib/supabase';
 
 interface AuthContextType {
@@ -78,6 +78,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     }
                 }
                 return;
+            }
+
+            // 🛡️ OAUTH CALLBACK GUARD: Se houver retorno de login social na URL (code= ou access_token=),
+            // aguarda a resolução do handshake PKCE pelo SDK antes de decidir se o usuário está deslogado
+            const hasOAuthCallback = typeof window !== 'undefined' && (
+                window.location.search.includes('code=') ||
+                window.location.hash.includes('access_token=')
+            );
+            if (hasOAuthCallback) {
+                console.log('[AuthContext] ⏳ Detectado retorno de OAuth (Google SSO). Aguardando finalização da sessão...');
+                await ensureValidSession();
             }
 
             // 🛡️ RECOVERY NO RELOAD: Se o Singleton ainda não recebeu o evento do SDK (ex: F5 / refresh),

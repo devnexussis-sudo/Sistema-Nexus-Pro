@@ -5,7 +5,7 @@ import {
     Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck,
     Settings, LogOut, Bell, Package, ArrowRight, FileText,
     AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff, X, Phone, Menu, Bot, Code2, BookOpen, MapPin, MessageCircle, ClipboardCheck,
-    Camera, Upload, Sparkles, Check, CheckCircle2, Loader2, Key, Mail, FolderTree, ExternalLink
+    Camera, Upload, Sparkles, Check, CheckCircle2, Loader2, Key, Mail, FolderTree, ExternalLink, Link2
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { NexusBranding } from '../ui/NexusBranding';
@@ -101,8 +101,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         };
     }, [isAvatarModalOpen]);
 
-    // Estado da aba de perfil (Foto / Alterar Senha)
-    const [profileTab, setProfileTab] = useState<'avatar' | 'password'>('avatar');
+    // Estado da aba de perfil (Foto / Alterar Senha / Google SSO)
+    const [profileTab, setProfileTab] = useState<'avatar' | 'password' | 'google'>('avatar');
+    const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
+    const [linkedGoogleIdentity, setLinkedGoogleIdentity] = useState<any | null>(null);
+    const [isLoadingIdentities, setIsLoadingIdentities] = useState(false);
+    const [isUnlinkingGoogle, setIsUnlinkingGoogle] = useState(false);
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [passwordError, setPasswordError] = useState('');
@@ -111,6 +115,31 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     const [isSendingResetEmail, setIsSendingResetEmail] = useState(false);
     const [isEmailSent, setIsEmailSent] = useState(false);
 
+    // Consulta identidades ativas do usuário no Supabase Auth (ex: conta Google vinculada)
+    const checkGoogleIdentity = useCallback(async () => {
+        setIsLoadingIdentities(true);
+        try {
+            const { data, error } = await supabase.auth.getUserIdentities();
+            if (error) {
+                console.warn('[AdminLayout] Erro ao buscar identidades:', error);
+                return;
+            }
+            const googleId = data?.identities?.find((i: any) => i.provider === 'google') || null;
+            setLinkedGoogleIdentity(googleId);
+        } catch (err) {
+            console.error('[AdminLayout] Falha ao verificar identidades:', err);
+        } finally {
+            setIsLoadingIdentities(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (isAvatarModalOpen && profileTab === 'google') {
+            checkGoogleIdentity();
+        }
+    }, [isAvatarModalOpen, profileTab, checkGoogleIdentity]);
+
+
     const handleAvatarFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -118,15 +147,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         try {
             setIsSavingAvatar(true);
             const uploadedUrl = await StorageService.uploadUserAvatar(file, user?.id || 'user');
-            setAvatarInput(uploadedUrl);
-        } catch (err) {
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-                if (evt.target?.result) {
-                    setAvatarInput(evt.target.result as string);
-                }
-            };
-            reader.readAsDataURL(file);
+            if (uploadedUrl && !uploadedUrl.startsWith('data:')) {
+                setAvatarInput(uploadedUrl);
+            } else {
+                throw new Error("Formato de URL inválido retornado pelo storage.");
+            }
+        } catch (err: any) {
+            console.error('[Avatar] Falha no upload para o Storage R2:', err);
+            alert('Falha ao enviar imagem para o armazenamento (R2). Verifique a conexão e tente novamente. Imagens em Base64 não são permitidas no banco.');
         } finally {
             setIsSavingAvatar(false);
         }
@@ -134,11 +162,15 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
     const handleSaveAvatar = async () => {
         if (!user) return;
+        if (avatarInput && (avatarInput.startsWith('data:') || avatarInput.length > 2048)) {
+            alert('Aviso de Segurança: Imagens em Base64 não são permitidas no banco de dados. Envie uma foto válida via Storage.');
+            return;
+        }
         try {
             setIsSavingAvatar(true);
-            await supabase.from('users').update({ avatar: avatarInput }).eq('id', user.id);
+            await supabase.from('users').update({ avatar: avatarInput || null }).eq('id', user.id);
 
-            const updatedUser = { ...user, avatar: avatarInput };
+            const updatedUser = { ...user, avatar: avatarInput || undefined };
             SessionStorage.set('user', updatedUser);
             GlobalStorage.set('persistent_user', updatedUser);
             setAuth(prev => ({ ...prev, user: updatedUser }));
@@ -631,6 +663,15 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                                     >
                                         <Key size={13} /> Alterar Senha
                                     </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setProfileTab('google')}
+                                        className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                                            profileTab === 'google' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                                        }`}
+                                    >
+                                        <Link2 size={13} /> Google SSO
+                                    </button>
                                 </div>
 
                                 {/* 3. Conteúdo Aba 1: Foto */}
@@ -712,6 +753,98 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                                                     {isSendingResetEmail ? 'Enviando...' : 'Enviar Link de Redefinição de Senha'}
                                                 </button>
                                             </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* 5. Conteúdo Aba 3: Google SSO */}
+                                {profileTab === 'google' && (
+                                    <div className="space-y-3 font-poppins">
+                                        {isLoadingIdentities ? (
+                                            <div className="py-6 flex flex-col items-center justify-center gap-2 text-slate-400">
+                                                <Loader2 size={20} className="animate-spin text-primary-500" />
+                                                <span className="text-[11px] font-medium">Verificando status do Google SSO...</span>
+                                            </div>
+                                        ) : linkedGoogleIdentity ? (
+                                            <>
+                                                <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-start gap-2.5">
+                                                    <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-xs font-bold text-emerald-800">Conta Google Vinculada</p>
+                                                        <p className="text-[11px] text-emerald-700 font-semibold truncate mt-0.5">
+                                                            {linkedGoogleIdentity.identity_data?.email || linkedGoogleIdentity.email || 'Conta conectada'}
+                                                        </p>
+                                                        <p className="text-[10px] text-emerald-600 mt-1 leading-relaxed">
+                                                            Você pode entrar no Duno com 1 clique utilizando o botão &quot;Entrar com Google&quot; na tela de login.
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        if (!window.confirm('Deseja realmente desvincular sua conta Google?')) return;
+                                                        setIsUnlinkingGoogle(true);
+                                                        try {
+                                                            const { error } = await supabase.auth.unlinkIdentity(linkedGoogleIdentity);
+                                                            if (error) throw error;
+                                                            setLinkedGoogleIdentity(null);
+                                                            window.alert('Conta Google desvinculada com sucesso!');
+                                                        } catch (err: any) {
+                                                            console.error(err);
+                                                            window.alert('Erro ao desvincular conta Google: ' + err.message);
+                                                        } finally {
+                                                            setIsUnlinkingGoogle(false);
+                                                        }
+                                                    }}
+                                                    disabled={isUnlinkingGoogle}
+                                                    className="w-full py-2.5 bg-white hover:bg-rose-50 border border-rose-200 text-rose-600 text-xs font-bold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                                                >
+                                                    {isUnlinkingGoogle ? <Loader2 size={15} className="animate-spin text-rose-500" /> : <X size={15} />}
+                                                    {isUnlinkingGoogle ? 'Desvinculando...' : 'Desvincular Conta Google'}
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-100 flex items-start gap-2.5">
+                                                    <Link2 size={15} className="text-indigo-600 shrink-0 mt-0.5" />
+                                                    <p className="text-[10px] text-indigo-700 font-medium leading-relaxed">
+                                                        Vincule sua conta do <span className="font-bold">Google</span> para entrar no sistema com apenas um clique, sem precisar de senha.
+                                                    </p>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        setIsLinkingGoogle(true);
+                                                        try {
+                                                            const { error } = await supabase.auth.linkIdentity({
+                                                                provider: 'google',
+                                                                options: {
+                                                                    redirectTo: window.location.origin
+                                                                }
+                                                            });
+                                                            if (error) throw error;
+                                                        } catch (err: any) {
+                                                            console.error(err);
+                                                            window.alert('Erro ao vincular conta: ' + err.message);
+                                                            setIsLinkingGoogle(false);
+                                                        }
+                                                    }}
+                                                    disabled={isLinkingGoogle}
+                                                    className="w-full py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    {isLinkingGoogle ? <Loader2 size={15} className="animate-spin text-slate-400" /> : (
+                                                        <svg className="w-4 h-4" viewBox="0 0 24 24">
+                                                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                                                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                                                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                                                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                                                        </svg>
+                                                    )}
+                                                    {isLinkingGoogle ? 'Redirecionando...' : 'Vincular Conta Google'}
+                                                </button>
+                                            </>
                                         )}
                                     </div>
                                 )}

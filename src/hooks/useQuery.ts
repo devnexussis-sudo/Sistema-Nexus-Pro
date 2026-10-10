@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 // 🧠 Global Query Cache (Singleton)
 const queryCache = new Map<string, { data: any; timestamp: number; promise?: Promise<any>; promiseTimestamp?: number }>();
@@ -105,6 +105,7 @@ export function useQuery<T>(
     const abortControllerRef = useRef<AbortController | null>(null);
     const enabledRef = useRef(enabled);
     const queryFnRef = useRef(queryFn);
+    const fetchDataRef = useRef<(forceRefetch?: boolean) => Promise<void>>(() => Promise.resolve());
 
     useEffect(() => { enabledRef.current = enabled; }, [enabled]);
     useEffect(() => { queryFnRef.current = queryFn; }, [queryFn]);
@@ -262,17 +263,19 @@ export function useQuery<T>(
         };
     }, [key, enabled, keepPreviousData]);
 
-    const refetch = async () => {
-        isFetchingRef.current = false;
-        await fetchData(true);
-    };
+    fetchDataRef.current = fetchData;
 
-    const invalidate = () => {
+    const refetch = useCallback(async () => {
+        isFetchingRef.current = false;
+        await fetchDataRef.current(true);
+    }, []);
+
+    const invalidate = useCallback(() => {
         const cached = queryCache.get(key);
         if (cached) cached.timestamp = 0;
         isFetchingRef.current = false;
-        fetchData(true);
-    };
+        fetchDataRef.current(true);
+    }, [key]);
 
     return {
         data: state.data ?? (keepPreviousData ? (previousData.current as T) : undefined),

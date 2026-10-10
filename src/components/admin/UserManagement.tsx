@@ -534,6 +534,10 @@ export const UserManagement: React.FC = () => {
         if (primaryGroup) userPermissions = primaryGroup.permissions;
       }
 
+      if (formData.avatar && (formData.avatar.startsWith('data:') || formData.avatar.length > 2048)) {
+        throw new Error('Aviso de Segurança: Imagens em Base64 não são permitidas no banco de dados. Faça upload pelo Storage ou gere um avatar automático.');
+      }
+
       const dataToSave = {
         ...formData,
         groupId: (selectedGroupIds[0] && selectedGroupIds[0].trim() !== '') ? selectedGroupIds[0] : null,
@@ -1103,15 +1107,14 @@ export const UserManagement: React.FC = () => {
                                   if (!file) return;
                                   try {
                                     const uploadedUrl = await StorageService.uploadUserAvatar(file, editingUser?.id || 'new_user');
-                                    setFormData(prev => ({ ...prev, avatar: uploadedUrl }));
-                                  } catch (err) {
-                                    const reader = new FileReader();
-                                    reader.onload = (evt) => {
-                                      if (evt.target?.result) {
-                                        setFormData(prev => ({ ...prev, avatar: evt.target?.result as string }));
-                                      }
-                                    };
-                                    reader.readAsDataURL(file);
+                                    if (uploadedUrl && !uploadedUrl.startsWith('data:')) {
+                                      setFormData(prev => ({ ...prev, avatar: uploadedUrl }));
+                                    } else {
+                                      throw new Error("Formato inválido retornado pelo storage.");
+                                    }
+                                  } catch (err: any) {
+                                    console.error('[Avatar] Falha no upload para o Storage R2:', err);
+                                    alert("Falha ao enviar foto para o armazenamento (R2). Imagens em Base64 não são permitidas no banco de dados.");
                                   }
                                 }}
                               />

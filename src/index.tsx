@@ -1,4 +1,5 @@
 import './handoff'; // DEVE SER A PRIMEIRA LINHA!
+import './authCallbackHandler'; // 🛡️ Intercepta retornos e erros de OAuth antes do HashRouter montar!
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './styles/admin.css';

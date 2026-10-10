@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { DataService } from '../../services/dataService';
+import { StorageService } from '../../services/storageService';
 import { NexusQueryClient, useTenant } from '../../hooks/nexusHooks';
 import SessionStorage from '../../lib/sessionStorage';
 import { supabase } from '../../lib/supabaseClient';
@@ -436,60 +437,25 @@ export const SettingsPage: React.FC = () => {
   // O useEffect vazio para loadSettingsData foi removido 
   // pois agora usamos o hook useTenant para carga automática e resiliente.
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const limitInBytes = 300 * 1024; // 300KB
-    const targetSize = 400; // Máximo 400px (Altura ou Largura)
-    const reader = new FileReader();
-
-    reader.onload = (readerEvent) => {
-      const img = new Image();
-      img.onload = () => {
-        // Redimensionamento inteligente via Canvas
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-
-        // Mantém a proporção mas limita ao bounding box de 400x400
-        if (width > height) {
-          if (width > targetSize) {
-            height *= targetSize / width;
-            width = targetSize;
-          }
-        } else {
-          if (height > targetSize) {
-            width *= targetSize / height;
-            height = targetSize;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-
-        // Fundo transparente p/ PNG/WebP caso queira, ou limpa fundo p/ JPEG
-        ctx?.clearRect(0, 0, width, height);
-        ctx?.drawImage(img, 0, 0, width, height);
-
-        // Escolhe o formato mais leve disponível (WebP é superior ao JPEG)
-        // Se o navegador não suportar WebP ele cai p/ JPEG automaticamente
-        const quality = 0.7; // 70% de qualidade é excelente para 400px
-        let dataUrl = canvas.toDataURL('image/webp', quality);
-
-        // Caso o arquivo WebP ainda fique maior que o original (em arquivos minúsculos)
-        // ou se o original já for minúsculo e pequeno, usamos o que for menor
-        if (file.size < dataUrl.length * 0.75 && file.size <= limitInBytes) {
-          setCompany(prev => ({ ...prev, logoUrl: readerEvent.target?.result as string }));
-        } else {
-          console.log("Nexus Optimizer: Logo processada para", width + "x" + height, "px");
-          setCompany(prev => ({ ...prev, logoUrl: dataUrl }));
-        }
-      };
-      img.src = readerEvent.target?.result as string;
-    };
-    reader.readAsDataURL(file);
+    try {
+      setLoading(true);
+      const tenantId = DataService.getCurrentTenantId() || 'global';
+      const uploadedUrl = await StorageService.uploadTenantLogo(file, tenantId);
+      if (uploadedUrl && !uploadedUrl.startsWith('data:')) {
+        setCompany(prev => ({ ...prev, logoUrl: uploadedUrl }));
+      } else {
+        throw new Error("URL inválida retornada pelo storage.");
+      }
+    } catch (err: any) {
+      console.error('[LogoUpload] Erro:', err);
+      alert('Falha ao enviar logo para o Storage (R2). Imagens em Base64 não são permitidas no banco de dados.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const removeLogo = () => {
@@ -504,6 +470,10 @@ export const SettingsPage: React.FC = () => {
     try {
       const tenantId = DataService.getCurrentTenantId();
       if (!tenantId) throw new Error("ID da empresa não identificado.");
+
+      if (company.logoUrl && (company.logoUrl.startsWith('data:') || company.logoUrl.length > 2048)) {
+        throw new Error("Aviso de Segurança: Imagens em Base64 não são permitidas no banco de dados. Envie a logo via Storage.");
+      }
 
       // SYNC WITH MASTER PANEL: Update the global record
       const payload = {

@@ -73,8 +73,8 @@ export const AuthService = {
                 return stored;
             }
 
-            // Se não tiver local, busca full do banco
-            return await AuthService._fetchFullUser(user.id, user.email || '', user.user_metadata);
+            const userEmail = user.email || (user.user_metadata?.email as string) || '';
+            return await AuthService._fetchFullUser(user.id, userEmail, user.user_metadata);
         }
         const stored = SessionStorage.get('user');
         return stored ? (typeof stored === 'string' ? JSON.parse(stored) : stored) : undefined;
@@ -267,6 +267,9 @@ export const AuthService = {
                 .single();
                 
             dbUser = res.data;
+            if (dbUser?.avatar && (dbUser.avatar.startsWith('data:') || dbUser.avatar.length > 2048)) {
+                dbUser.avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(dbUser.name || 'User')}&background=random&color=fff&bold=true`;
+            }
             error = res.error;
 
             // Previne o bug do Web Locks API do Supabase ao religar após inatividade
@@ -295,10 +298,36 @@ export const AuthService = {
             await new Promise(r => setTimeout(r, jitterDelay));
         }
 
+        // 1.1 Se não encontrou por authId direto (ex: login com Google onde o auth.users.id é diferente do id na tabela users),
+        // busca pelo e-mail do usuário como fallback resiliente
+        if ((!dbUser || error?.code === 'PGRST116') && (email || metadata?.email)) {
+            const lookupEmail = (email || metadata?.email || '').trim().toLowerCase();
+            if (lookupEmail) {
+                const { data: userByEmail } = await supabase
+                    .from('users')
+                    .select('*')
+                    .ilike('email', lookupEmail)
+                    .maybeSingle();
+
+                if (userByEmail) {
+                    console.log(`[AuthService] 👤 Usuário localizado via e-mail (${lookupEmail}) no banco.`);
+                    dbUser = userByEmail;
+                    error = null;
+                    if (dbUser.avatar && (dbUser.avatar.startsWith('data:') || dbUser.avatar.length > 2048)) {
+                        dbUser.avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(dbUser.name || 'User')}&background=random&color=fff&bold=true`;
+                    }
+                }
+            }
+        }
+
         if (error) {
             if (error.code === 'PGRST116') {
                 // Usuário existe no Auth mas não na 'users' -> Provável Técnico tentando acessar o Painel.
                 logger.warn('🔥 Acesso Bloqueado: Usuário autenticado mas sem privilégios de Painel Administrativo.', { authId, email });
+                window.alert('Acesso negado: Seu e-mail não possui permissão de acesso ou não está cadastrado.');
+                if (isCloudEnabled) {
+                    supabase.auth.signOut().catch(() => {});
+                }
                 return undefined;
             }
 

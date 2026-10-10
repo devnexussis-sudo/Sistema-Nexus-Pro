@@ -435,22 +435,50 @@ async function appendMessagesToConversation(
 }
 
 const STATUS_EVENT_TYPES = [
-  'DeliveryCallback',
-  'ReadCallback',
-  'PlayedCallback',
-  'SentCallback',
-  'MessageStatusCallback',
-  'PresenceCallback',
-  'ConnectedCallback',
-  'DisconnectedCallback',
-  'AllUnreadMessagesCallback',
-  'MESSAGE_STATUS',
-  'CONNECTION_UPDATE',
+  'deliverycallback',
+  'readcallback',
+  'playedcallback',
+  'sentcallback',
+  'messagestatuscallback',
+  'presencecallback',
+  'connectedcallback',
+  'disconnectedcallback',
+  'allunreadmessagescallback',
+  'message_status',
+  'connection_update',
+  'connection.update',
   'messages_update',
-  'MESSAGE_UPDATE',
+  'message_update',
   'messages.update',
-  'MESSAGES_UPDATE',
+  'messages_upsert',
+  'presence.update',
+  'presence_update',
+  'contacts.update',
+  'contacts.upsert',
+  'contacts_update',
+  'contacts_upsert',
+  'chats.update',
+  'chats.upsert',
+  'chats.delete',
+  'chats.set',
+  'chats_update',
+  'chats_upsert',
+  'groups.update',
+  'group-participants.update',
+  'labels.association',
+  'labels.edit',
+  'qrcode.updated',
+  'call',
+  'ack',
 ];
+
+// In-memory cache de tenant para evitar consultas contínuas no Postgres a cada webhook
+interface CachedTenantData {
+  tenant: any;
+  vaultToken: string | null;
+  expiresAt: number;
+}
+const tenantLookupCache = new Map<string, CachedTenantData>();
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -458,24 +486,34 @@ serve(async (req: Request) => {
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-    );
-
-    const rawPayload = await req.json();
+    const rawPayload = await req.json().catch(() => ({}));
     const payload: any = rawPayload;
-    console.log('[WPP Bot] Keys:', Object.keys(rawPayload).join(', '));
-    console.log('[WPP Bot] Payload:', JSON.stringify(rawPayload).substring(0, 2000));
 
-    if (STATUS_EVENT_TYPES.includes(payload.type || '')) {
-      return new Response(JSON.stringify({ ok: true, skipped: `status:${payload.type}` }), {
+    // 🛡️ EGRESS SHIELD — Extração e Filtragem Universal de Eventos
+    const rawEvent = String(
+      payload.event ||
+      payload.eventType ||
+      payload.event_type ||
+      payload.type ||
+      payload.mediaType ||
+      payload.messageType ||
+      ''
+    ).toLowerCase().trim();
+
+    // Se for evento de presença, status, contato, chat ou keepalive: descarta imediatamente SEM tocar no banco!
+    if (STATUS_EVENT_TYPES.includes(rawEvent) ||
+        rawEvent.includes('presence') ||
+        rawEvent.includes('connection') ||
+        rawEvent.includes('contact') ||
+        rawEvent.includes('chat') ||
+        rawEvent.includes('status') ||
+        rawEvent.includes('ack')) {
+      return new Response(JSON.stringify({ ok: true, skipped: `event:${rawEvent || 'status'}` }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     if (isProtocolOrMetadataMessage(payload)) {
-      console.log('[WPP Bot] Webhook de metadados/protocolo ignorado');
       return new Response(JSON.stringify({ ok: true, skipped: 'protocol_or_metadata_message' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -496,6 +534,18 @@ serve(async (req: Request) => {
     let text = extractText(payload);
     const messageId = extractMessageId(payload);
 
+    // Se não tiver telefone ou não for mensagem real, rejeita sem queries
+    if (!phone) {
+      return new Response(JSON.stringify({ ok: true, skipped: 'no_phone' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    );
+
     const url = new URL(req.url);
     const rawTenantIdParam = url.searchParams.get('tenant_id');
     const tenantIdParam = rawTenantIdParam ? rawTenantIdParam.split('/')[0] : null;
@@ -511,63 +561,95 @@ serve(async (req: Request) => {
       messageId,
     );
 
-    let tenants: any[] | null = null;
+    const cacheKey = tenantIdParam || instanceId || 'default';
+    const now = Date.now();
+    let tenant: any = null;
+    let settings: Record<string, any> = {};
 
-    if (tenantIdParam) {
-      const { data } = await supabase
-        .from('tenants')
-        .select(
-          'id, company_name, trading_name, cnpj, whatsapp_settings, street, number, complement, neighborhood, city, state, cep',
-        )
-        .eq('id', tenantIdParam);
-      tenants = data;
+    const cached = tenantLookupCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+      tenant = cached.tenant;
+      settings = { ...(tenant.whatsapp_settings || {}) };
+      if (cached.vaultToken) {
+        settings.uazapi_token = cached.vaultToken;
+      }
     } else {
-      const { data } = await supabase
-        .from('tenants')
-        .select(
-          'id, company_name, trading_name, cnpj, whatsapp_settings, street, number, complement, neighborhood, city, state, cep',
-        );
+      let tenants: any[] | null = null;
 
-      if (data) {
-        tenants = data.filter((t) => {
-          const ws = t.whatsapp_settings as Record<string, any>;
-          if (!ws) return false;
-          if (
-            ws.uazapi_instance && instanceId &&
-            ws.uazapi_instance.toLowerCase() === instanceId.toLowerCase()
-          ) return true;
-          if (ws.uazapi_url && instanceId && ws.uazapi_url.includes(instanceId)) return true;
-          if (
-            ws.zapi_instance_id && instanceId &&
-            ws.zapi_instance_id.toLowerCase() === instanceId.toLowerCase()
-          ) return true;
-          return false;
-        });
+      if (tenantIdParam) {
+        const { data } = await supabase
+          .from('tenants')
+          .select(
+            'id, company_name, trading_name, cnpj, whatsapp_settings, street, number, complement, neighborhood, city, state, cep',
+          )
+          .eq('id', tenantIdParam);
+        tenants = data;
+      } else {
+        const { data } = await supabase
+          .from('tenants')
+          .select(
+            'id, company_name, trading_name, cnpj, whatsapp_settings, street, number, complement, neighborhood, city, state, cep',
+          );
 
-        if ((!tenants || tenants.length === 0) && data.length === 1) {
-          tenants = data;
+        if (data) {
+          tenants = data.filter((t) => {
+            const ws = t.whatsapp_settings as Record<string, any>;
+            if (!ws) return false;
+            if (
+              ws.uazapi_instance && instanceId &&
+              ws.uazapi_instance.toLowerCase() === instanceId.toLowerCase()
+            ) return true;
+            if (ws.uazapi_url && instanceId && ws.uazapi_url.includes(instanceId)) return true;
+            if (
+              ws.zapi_instance_id && instanceId &&
+              ws.zapi_instance_id.toLowerCase() === instanceId.toLowerCase()
+            ) return true;
+            return false;
+          });
+
+          if ((!tenants || tenants.length === 0) && data.length === 1) {
+            tenants = data;
+          }
         }
       }
-    }
 
-    if (!tenants || tenants.length === 0) {
-      console.error('[WPP Bot] Tenant nao encontrado para instanceId:', instanceId);
-      return new Response(JSON.stringify({ ok: false, error: 'tenant_not_found', instanceId }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 404,
+      if (!tenants || tenants.length === 0) {
+        console.error('[WPP Bot] Tenant nao encontrado para instanceId:', instanceId);
+        return new Response(JSON.stringify({ ok: false, error: 'tenant_not_found', instanceId }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 404,
+        });
+      }
+
+      tenant = tenants[0];
+      settings = { ...(tenant.whatsapp_settings || {}) };
+
+      // BUSCA CHAVE REAL NO COFRE
+      let vaultToken: string | null = null;
+      const { data: vault } = await supabase
+        .from('tenant_secrets')
+        .select('uazapi_token')
+        .eq('tenant_id', tenant.id)
+        .maybeSingle();
+      if (vault?.uazapi_token) {
+        vaultToken = vault.uazapi_token;
+        settings.uazapi_token = vault.uazapi_token;
+      }
+
+      // Salva no cache por 10 minutos (TTL)
+      tenantLookupCache.set(cacheKey, {
+        tenant,
+        vaultToken,
+        expiresAt: now + 10 * 60 * 1000,
       });
+      if (tenant.id && cacheKey !== tenant.id) {
+        tenantLookupCache.set(tenant.id, {
+          tenant,
+          vaultToken,
+          expiresAt: now + 10 * 60 * 1000,
+        });
+      }
     }
-
-    const tenant = tenants[0];
-    const settings = (tenant.whatsapp_settings || {}) as Record<string, any>;
-
-    // BUSCA CHAVE REAL NO COFRE
-    const { data: vault } = await supabase
-      .from('tenant_secrets')
-      .select('uazapi_token')
-      .eq('tenant_id', tenant.id)
-      .single();
-    if (vault?.uazapi_token) settings.uazapi_token = vault.uazapi_token;
 
     console.log('[WPP Bot] Tenant:', tenant.company_name, '| bot_enabled:', settings?.bot_enabled);
 
@@ -575,17 +657,13 @@ serve(async (req: Request) => {
       markWhatsAppRead(settings, messageId);
     }
 
-    if (
-      instanceId && settings &&
-      (settings.uazapi_instance !== instanceId || settings.zapi_instance_id !== instanceId)
-    ) {
+    // Apenas atualiza instanceId se não estiver previamente preenchido
+    if (instanceId && settings && !settings.uazapi_instance && !settings.zapi_instance_id) {
       const updatedSettings = {
         ...settings,
         uazapi_instance: instanceId,
-        zapi_instance_id: instanceId,
       };
-      supabase.from('tenants').update({ whatsapp_settings: updatedSettings }).eq('id', tenant.id)
-        .then();
+      supabase.from('tenants').update({ whatsapp_settings: updatedSettings }).eq('id', tenant.id).then();
     }
 
     const msgType = payload.type || payload.mediaType || payload.messageType || '';

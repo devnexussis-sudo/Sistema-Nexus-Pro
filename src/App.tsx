@@ -1,23 +1,22 @@
 
-import React, { useState, useEffect } from 'react';
-import { HashRouter, Routes, Route, Navigate, useParams, useNavigate, useLocation } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { DialogProvider } from './contexts/DialogContext';
-import { PublicApp } from './apps/public/PublicApp';
+import React, { useEffect, useState } from 'react';
+import { HashRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AdminApp } from './apps/admin/AdminApp';
+import { PublicApp } from './apps/public/PublicApp';
 import { AdminLogin } from './components/admin/AdminLogin';
 import { MasterLogin } from './components/admin/MasterLogin';
-import { SuperAdminPage } from './components/admin/SuperAdminPage';
 import { ResetPassword } from './components/admin/ResetPassword';
-import { NotFoundPage } from './pages/NotFoundPage';
-import SessionStorage from './lib/sessionStorage';
-import { DataService } from './services/dataService';
-import { PwaInstallPrompt } from './components/pwa/PwaInstallPrompt';
-import { PwaNotificationPrompt } from './components/pwa/PwaNotificationPrompt';
-import { NetworkStatusIndicator } from './components/common/NetworkStatusIndicator';
+import { SuperAdminPage } from './components/admin/SuperAdminPage';
 import { GlobalAlertProvider } from './components/common/GlobalAlert';
 import { GlobalSpinnerProvider } from './components/common/GlobalSpinner';
+import { NetworkStatusIndicator } from './components/common/NetworkStatusIndicator';
+import { PwaInstallPrompt } from './components/pwa/PwaInstallPrompt';
+import { PwaNotificationPrompt } from './components/pwa/PwaNotificationPrompt';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { DialogProvider } from './contexts/DialogContext';
 import { I18nProvider } from './i18n';
+import SessionStorage from './lib/sessionStorage';
+import { NotFoundPage } from './pages/NotFoundPage';
 
 import { PublicCheckoutPage } from './components/public/PublicCheckoutPage';
 import { useSystemNotifications } from './hooks/useSystemNotifications';
@@ -62,24 +61,46 @@ const AppRoutes: React.FC = () => {
   // 📡 Hook Realtime WebSocket Bus
   const { notifications: systemNotifications, markAsRead: onMarkNotificationRead } = useSystemNotifications(activeUserId, activeTenantId, activeUserRole);
 
-  // 🛡️ RECOVERY INTERCEPTOR: Se cair no root com token de recovery, redireciona preservando o hash
+  // 🛡️ RECOVERY & OAUTH INTERCEPTOR: Se cair no root com token de recovery ou OAuth, redireciona preservando estado
   const navigate = useNavigate();
   useEffect(() => {
     const hash = window.location.hash;
     const search = window.location.search;
 
-    // Corrige URL malformada do Supabase (quando redirectTo já tem hash, o Supabase concatena com &)
+    // 1. Corrige URL malformada do Supabase (quando redirectTo já tem hash, o Supabase concatena com &)
     if (hash.startsWith('#/reset-password&')) {
       console.log('[RecoveryInterceptor] Corrigindo URL malformada do Supabase...');
       window.location.hash = hash.replace('#/reset-password&', '#/reset-password?');
       return;
     }
 
-    // Se o hash contém tokens de recovery genérico
+    // 2. Se o hash contém tokens de recovery genérico
     if (hash.includes('type=recovery') && !hash.includes('reset-password')) {
       console.log('[RecoveryInterceptor] Detectado lander de recuperação genérico. Redirecionando para /reset-password...');
       const newHash = '#/reset-password' + hash.replace('#', '?');
       window.location.hash = newHash;
+      return;
+    }
+
+    // 3. Se ainda houver resquício de erro OAuth no hash ou search que escapou do handler inicial
+    if (hash.includes('error=') || search.includes('error=')) {
+      console.log('[OAuthInterceptor] Detectado erro de autenticação na URL. Normalizando para rota segura...');
+      const isLogged = !!(sessionStorage.getItem('nexus-line-auth') || localStorage.getItem('nexus-line-auth'));
+      navigate(isLogged ? '/admin' : '/login', { replace: true });
+    }
+
+    // 4. Consome feedback de OAuth (erros ou sucessos de vinculação do Google)
+    try {
+      const rawFeedback = sessionStorage.getItem('nexus_oauth_feedback');
+      if (rawFeedback) {
+        sessionStorage.removeItem('nexus_oauth_feedback');
+        const feedback = JSON.parse(rawFeedback);
+        setTimeout(() => {
+          window.alert(feedback.message);
+        }, 350);
+      }
+    } catch (e) {
+      console.error(e);
     }
   }, [navigate]);
 
@@ -105,7 +126,7 @@ const AppRoutes: React.FC = () => {
       <Route path="/admin/*" element={
         auth.isAuthenticated ?
           <AdminApp
-            auth={auth} 
+            auth={auth}
             onLogin={login}
             onLogout={async () => { await logout(); window.location.href = '/'; }}
             isImpersonating={isImpersonating}

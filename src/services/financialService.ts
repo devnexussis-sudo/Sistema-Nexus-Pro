@@ -62,11 +62,13 @@ export const FinancialService = {
     getCashFlow: async (filters?: { start?: string, end?: string }): Promise<CashFlowEntry[]> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
-            let query = supabase.from('cash_flow').select('*').eq('tenant_id', tenantId);
+            let query = supabase.from('cash_flow')
+                .select('id, tenant_id, type, category, amount, description, reference_id, reference_type, payment_method, entry_date, customer_id, technician_id, created_at, created_by')
+                .eq('tenant_id', tenantId);
             if (filters?.start) query = query.gte('entry_date', filters.start);
             if (filters?.end) query = query.lte('entry_date', filters.end);
 
-            const { data, error } = await query.order('entry_date', { ascending: false }).limit(500);
+            const { data, error } = await query.order('entry_date', { ascending: false }).limit(200);
             if (error) throw error;
 
             const result: CashFlowEntry[] = (data || []).map(d => ({
@@ -88,10 +90,16 @@ export const FinancialService = {
 
             const existingRefIds = new Set(result.map(r => r.referenceId).filter(Boolean));
 
-            // Buscar parcelas de faturas pagas (invoice_installments)
+            // Buscar parcelas de faturas pagas (invoice_installments) com projeção leve e filtro no banco
             try {
-                let instQuery = supabase.from('invoice_installments').select('*, invoices(display_id, customer_name)').eq('tenant_id', tenantId);
-                const { data: instData } = await instQuery;
+                let instQuery = supabase.from('invoice_installments')
+                    .select('id, tenant_id, invoice_id, installment_number, amount, value, status, payment_method, due_date, paid_at, updated_at, created_at, invoices(display_id, customer_name)')
+                    .eq('tenant_id', tenantId)
+                    .in('status', ['PAID', 'RECEIVED', 'CONFIRMED', 'approved']);
+                if (filters?.start) instQuery = instQuery.gte('due_date', filters.start);
+                if (filters?.end) instQuery = instQuery.lte('due_date', filters.end);
+
+                const { data: instData } = await instQuery.limit(200);
                 if (instData && instData.length > 0) {
                     instData.forEach((inst: any) => {
                         const isInstPaid = inst.status === 'PAID' || inst.status === 'RECEIVED' || inst.status === 'CONFIRMED' || inst.status === 'approved' || !!inst.paid_at;
@@ -127,11 +135,16 @@ export const FinancialService = {
                 console.warn('Aviso ao carregar parcelas de faturas para giro de caixa:', e);
             }
 
-            // Buscar faturas pagas integrais (invoices)
+            // Buscar faturas pagas integrais (invoices) com projeção leve e filtro no banco
             try {
-                let invQuery = supabase.from('invoices').select('*').eq('tenant_id', tenantId);
-                const { data: invData } = await invQuery;
+                let invQuery = supabase.from('invoices')
+                    .select('id, tenant_id, display_id, customer_name, status, gateway_status, total_amount, discount_amount, shipping_amount, other_additions_amount, payment_method, gateway_payment_method, due_date, paid_at, updated_at, created_at')
+                    .eq('tenant_id', tenantId)
+                    .in('status', ['PAID', 'approved']);
+                if (filters?.start) invQuery = invQuery.gte('created_at', filters.start);
+                if (filters?.end) invQuery = invQuery.lte('created_at', filters.end);
 
+                const { data: invData } = await invQuery.limit(200);
                 if (invData && invData.length > 0) {
                     invData.forEach((inv: any) => {
                         const isInvPaid = inv.status === 'PAID' || inv.gateway_status === 'approved' || !!inv.paid_at;
@@ -173,10 +186,9 @@ export const FinancialService = {
     getAccountsPayable: async (filters?: { start?: string, end?: string, status?: string }): Promise<any[]> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
-            // Auto-sync any completed OS commissions before returning payables
-            await FinancialService.syncCommissionsForCompletedOrders().catch(e => console.warn('[Commission Sync Error]', e));
-
-            let query = supabase.from('accounts_payable').select('*').eq('tenant_id', tenantId);
+            let query = supabase.from('accounts_payable')
+                .select('id, tenant_id, description, supplier_name, category, amount, due_date, paid_at, status, payment_method, notes, is_recurring, recurrence_period, parent_id, created_at, updated_at, created_by, paid_by, cancelled_by')
+                .eq('tenant_id', tenantId);
             if (filters?.start) query = query.gte('due_date', filters.start);
             if (filters?.end) query = query.lte('due_date', filters.end);
             if (filters?.status && filters.status !== 'ALL') {
@@ -438,9 +450,12 @@ export const FinancialService = {
     getCommissionRules: async (): Promise<any[]> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
-            const { data, error } = await supabase.from('commission_rules').select('id, name, type, value, is_active').eq('tenant_id', tenantId);
+            const { data, error } = await supabase
+                .from('commission_rules')
+                .select('id, tenant_id, technician_id, technician_name, completed_type, completed_value, blocked_type, blocked_value, modalities, active')
+                .eq('tenant_id', tenantId);
             if (error) throw error;
-            return data.map(d => ({
+            return (data || []).map(d => ({
                 id: d.id,
                 tenantId: d.tenant_id,
                 technicianId: d.technician_id,
@@ -449,6 +464,7 @@ export const FinancialService = {
                 completedValue: Number(d.completed_value),
                 blockedType: d.blocked_type,
                 blockedValue: Number(d.blocked_value),
+                modalities: d.modalities || [],
                 active: d.active
             }));
         }
@@ -483,6 +499,18 @@ export const FinancialService = {
         }
     },
 
+    updateCommissionRuleStatus: async (id: string, active: boolean): Promise<void> => {
+        const tenantId = getCurrentTenantId();
+        if (isCloudEnabled && tenantId) {
+            const { error } = await supabase
+                .from('commission_rules')
+                .update({ active, updated_at: new Date().toISOString() })
+                .eq('id', id)
+                .eq('tenant_id', tenantId);
+            if (error) throw error;
+        }
+    },
+
     syncCommissionsForCompletedOrders: async (): Promise<void> => {
         const tenantId = getCurrentTenantId();
         if (!isCloudEnabled || !tenantId) return;
@@ -490,41 +518,58 @@ export const FinancialService = {
         try {
             const { data: rules } = await supabase
                 .from('commission_rules')
-                .select('*')
+                .select('id, completed_type, completed_value, blocked_type, blocked_value, modalities, technician_id, active')
                 .eq('tenant_id', tenantId)
                 .eq('active', true);
 
             if (!rules || rules.length === 0) return;
 
+            // Busca apenas OS dos últimos 30 dias com projeção estrita (NUNCA form_data com fotos base64)
+            const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
             const { data: orders } = await supabase
                 .from('orders')
-                .select('id, display_id, status, assigned_to, operation_type, form_data, items')
+                .select('id, display_id, status, assigned_to, operation_type, total_value')
                 .eq('tenant_id', tenantId)
-                .in('status', ['CONCLUÍDO', 'CONCLUIDO', 'completed', 'COMPLETED', 'IMPEDIDO', 'blocked', 'BLOCKED']);
+                .gte('updated_at', thirtyDaysAgo)
+                .in('status', ['CONCLUÍDO', 'CONCLUIDO', 'completed', 'COMPLETED', 'IMPEDIDO', 'blocked', 'BLOCKED'])
+                .limit(100);
 
             if (!orders || orders.length === 0) return;
+
+            // Pre-carregar nomes de técnicos em 1 única query consolidada
+            const techIds = [...new Set(orders.map(o => o.assigned_to).filter(Boolean))];
+            const techNameMap: Record<string, string> = {};
+            if (techIds.length > 0) {
+                const { data: users } = await supabase.from('users').select('id, name').in('id', techIds);
+                if (users) {
+                    users.forEach(u => { techNameMap[u.id] = u.name; });
+                }
+            }
 
             for (const order of orders) {
                 if (!order.assigned_to) continue;
                 const techRule = rules.find((r: any) => r.technician_id === order.assigned_to);
                 if (!techRule) continue;
 
-                await FinancialService.generateCommission({
-                    id: order.id,
-                    displayId: order.display_id,
-                    status: order.status,
-                    assignedTo: order.assigned_to,
-                    operationType: order.operation_type || (order.form_data as any)?.operationType,
-                    dbFormData: order.form_data,
-                    dbItems: order.items
-                });
+                await FinancialService.generateCommission(
+                    {
+                        id: order.id,
+                        displayId: order.display_id,
+                        status: order.status,
+                        assignedTo: order.assigned_to,
+                        operationType: order.operation_type || '',
+                        totalValue: Number(order.total_value || 0)
+                    },
+                    techNameMap[order.assigned_to] || 'Técnico',
+                    techRule
+                );
             }
         } catch (e) {
             console.warn('[Commission Sync] Error syncing commissions:', e);
         }
     },
 
-    generateCommission: async (order: any, technicianName?: string): Promise<void> => {
+    generateCommission: async (order: any, technicianName?: string, preloadedRule?: any): Promise<void> => {
         const tenantId = getCurrentTenantId();
         const techId = order?.assignedTo || order?.assigned_to;
         if (!isCloudEnabled || !tenantId || !techId) return;
@@ -537,12 +582,12 @@ export const FinancialService = {
 
             if (!isCompleted && !isBlocked) return;
 
-            // Fetch full order data if necessary
+            // Fetch order data ONLY if missing essential attributes (projeção leve sem form_data)
             let fullOrder = { ...order, assignedTo: techId };
-            if (order.id && (!order.operationType || !order.displayId || !order.totalValue)) {
+            if (order.id && (!order.displayId || order.totalValue === undefined)) {
                 const { data: dbOrder } = await supabase
                     .from('orders')
-                    .select('id, display_id, status, assigned_to, operation_type, form_data, items')
+                    .select('id, display_id, status, assigned_to, operation_type, total_value')
                     .eq('id', order.id)
                     .single();
                 if (dbOrder) {
@@ -550,9 +595,8 @@ export const FinancialService = {
                         ...fullOrder,
                         displayId: order.displayId || dbOrder.display_id,
                         status: order.status || dbOrder.status,
-                        operationType: order.operationType || order.operation_type || dbOrder.operation_type || (dbOrder.form_data as any)?.operationType || '',
-                        dbFormData: dbOrder.form_data,
-                        dbItems: dbOrder.items
+                        operationType: order.operationType || order.operation_type || dbOrder.operation_type || '',
+                        totalValue: Number(order.totalValue ?? dbOrder.total_value ?? 0)
                     };
                 }
             }
@@ -565,17 +609,23 @@ export const FinancialService = {
                 else techName = 'Técnico Desconhecido';
             }
 
-            // 2. Fetch the commission rule for the technician
-            const { data: rules } = await supabase
-                .from('commission_rules')
-                .select('*')
-                .eq('tenant_id', tenantId)
-                .eq('technician_id', techId)
-                .eq('active', true)
-                .limit(1);
+            // 2. Fetch or use preloaded commission rule for the technician
+            let rule = preloadedRule;
+            if (!rule) {
+                const { data: rules } = await supabase
+                    .from('commission_rules')
+                    .select('id, completed_type, completed_value, blocked_type, blocked_value, modalities, active')
+                    .eq('tenant_id', tenantId)
+                    .eq('technician_id', techId)
+                    .eq('active', true)
+                    .limit(1);
 
-            if (!rules || rules.length === 0) return; // No rule configured
-            const rule = rules[0];
+                if (!rules || rules.length === 0) return; // No rule configured
+                rule = rules[0];
+            }
+
+            // Regra inativa: encerra sem calcular comissão nem lançar contas a pagar
+            if (!rule || rule.active === false) return;
 
             // 3. Determine if there's a specific modality rule for the OS operationType
             let targetRule = {
