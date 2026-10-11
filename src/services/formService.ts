@@ -1,8 +1,8 @@
 
 import { supabase } from '../lib/supabase';
-import { FormTemplate } from '../types';
+import { FormTemplate, DefectType } from '../types';
 import { CacheManager } from '../lib/cache';
-import { getCurrentTenantId } from '../lib/tenantContext';
+import { getCurrentTenantId, tenantContext } from '../lib/tenantContext';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 const STORAGE_KEYS = { TEMPLATES: 'nexus_templates_v2' };
@@ -288,6 +288,142 @@ export const FormService = {
                 .delete()
                 .eq('id', id)
                 .eq('tenant_id', tid);
+        }
+    },
+
+    getDefectTypes: async (signal?: AbortSignal): Promise<DefectType[]> => {
+        await FormService._ensureFreshSession();
+        const tenantId = await FormService._resolveTenantId();
+        if (isCloudEnabled) {
+            if (!tenantId) return [];
+
+            try {
+                let query = supabase
+                    .from('defect_types')
+                    .select('*')
+                    .eq('tenant_id', tenantId)
+                    .order('code', { ascending: true })
+                    .limit(200);
+
+                if (signal) {
+                    query = query.abortSignal(signal);
+                }
+
+                let { data, error } = await query;
+
+                if (error) {
+                    console.warn('[FormService] Erro em defect_types, tentando refresh:', error.message);
+                    await supabase.auth.refreshSession();
+                    let retryQuery = supabase
+                        .from('defect_types')
+                        .select('*')
+                        .eq('tenant_id', tenantId)
+                        .order('code', { ascending: true })
+                        .limit(200);
+                    if (signal) retryQuery = retryQuery.abortSignal(signal);
+                    const retryResult = await retryQuery;
+                    data = retryResult.data;
+                    error = retryResult.error;
+                }
+
+                if (error) {
+                    console.error('[FormService] ❌ Erro ao buscar defect_types:', error);
+                    return [];
+                }
+
+                return (data || []).map((d: any) => ({
+                    id: d.id,
+                    tenantId: d.tenant_id,
+                    tenant_id: d.tenant_id,
+                    code: d.code,
+                    name: d.name,
+                    description: d.description || '',
+                    active: d.active ?? true,
+                    createdAt: d.created_at,
+                    updatedAt: d.updated_at,
+                }));
+            } catch (e) {
+                console.error('[FormService] Erro crítico ao buscar defect_types:', e);
+                return [];
+            }
+        }
+        return [];
+    },
+
+    saveDefectType: async (defect: Partial<DefectType>): Promise<DefectType> => {
+        const tid = getCurrentTenantId();
+        if (isCloudEnabled) {
+            try {
+                const isActiveVal = defect.active ?? true;
+                const codeVal = (defect.code || '').trim();
+                const nameVal = (defect.name || '').trim();
+                const descVal = defect.description?.trim() || null;
+
+                if (defect.id) {
+                    const { data, error } = await supabase.from('defect_types')
+                        .update({
+                            code: codeVal,
+                            name: nameVal,
+                            description: descVal,
+                            active: isActiveVal,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', defect.id)
+                        .eq('tenant_id', tid)
+                        .select()
+                        .single();
+
+                    if (error) throw error;
+                    return {
+                        id: data.id,
+                        tenantId: data.tenant_id,
+                        code: data.code,
+                        name: data.name,
+                        description: data.description,
+                        active: data.active,
+                        createdAt: data.created_at,
+                        updatedAt: data.updated_at
+                    };
+                } else {
+                    const { data, error } = await supabase.from('defect_types')
+                        .insert([{
+                            tenant_id: tid,
+                            code: codeVal,
+                            name: nameVal,
+                            description: descVal,
+                            active: isActiveVal
+                        }])
+                        .select()
+                        .single();
+
+                    if (error) throw error;
+                    return {
+                        id: data.id,
+                        tenantId: data.tenant_id,
+                        code: data.code,
+                        name: data.name,
+                        description: data.description,
+                        active: data.active,
+                        createdAt: data.created_at,
+                        updatedAt: data.updated_at
+                    };
+                }
+            } catch (err: any) {
+                console.error("❌ FormService: Erro ao salvar Defeito:", err);
+                throw err;
+            }
+        }
+        return defect as DefectType;
+    },
+
+    deleteDefectType: async (id: string): Promise<void> => {
+        if (isCloudEnabled) {
+            const tid = getCurrentTenantId();
+            const { error } = await supabase.from('defect_types')
+                .delete()
+                .eq('id', id)
+                .eq('tenant_id', tid);
+            if (error) throw error;
         }
     },
 

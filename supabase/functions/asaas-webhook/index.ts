@@ -23,11 +23,65 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[Asaas Webhook NASA-Log] 📥 Evento recebido: ${event}`);
 
+    // Rejeição estrita se evento for nulo ou ausente (400 Bad Request)
     if (!event) {
-      return new Response(JSON.stringify({ message: 'Payload inválido: evento ausente' }), {
+      return new Response(JSON.stringify({ error: 'Payload inválido: evento ausente' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
+        status: 400,
       });
+    }
+
+    // =========================================================================
+    // 🛡️ BIG TECH SECURITY GATEWAY: VALIDAÇÃO DE AUTENTICAÇÃO DO WEBHOOK
+    // =========================================================================
+    const receivedToken = (
+      req.headers.get('asaas-access-token') ||
+      req.headers.get('Asaas-Access-Token') ||
+      ''
+    ).trim();
+
+    const globalSecret = (Deno.env.get('ASAAS_WEBHOOK_TOKEN') || '').trim();
+    let authenticatedTenantId: string | null = null;
+    let isTokenVerified = false;
+
+    if (receivedToken) {
+      // 1. Verificação contra segredo global (se configurado)
+      if (globalSecret && receivedToken === globalSecret) {
+        isTokenVerified = true;
+      } else {
+        // 2. Verificação dinâmica multi-tenant no Cofre (tenant_secrets)
+        const { data: matchedSecret } = await supabase
+          .from('tenant_secrets')
+          .select('tenant_id')
+          .eq('asaas_webhook_token', receivedToken)
+          .maybeSingle();
+
+        if (matchedSecret?.tenant_id) {
+          authenticatedTenantId = matchedSecret.tenant_id;
+          isTokenVerified = true;
+        } else {
+          // 3. Fallback em tenant_asaas_settings
+          const { data: matchedSettings } = await supabase
+            .from('tenant_asaas_settings')
+            .select('tenant_id')
+            .eq('asaas_webhook_token', receivedToken)
+            .maybeSingle();
+
+          if (matchedSettings?.tenant_id) {
+            authenticatedTenantId = matchedSettings.tenant_id;
+            isTokenVerified = true;
+          }
+        }
+      }
+
+      // Se o token foi enviado mas NÃO confere com nenhum tenant nem com o global: 401 imediato
+      if (!isTokenVerified) {
+        console.warn(`[Asaas Webhook Security] ⛔ Token inválido rejeitado: ${receivedToken.slice(0, 8)}...`);
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized: Token de webhook inválido.' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        );
+      }
     }
 
     // =========================================================================
@@ -101,6 +155,14 @@ Deno.serve(async (req: Request) => {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 200,
           },
+        );
+      }
+
+      if (!isTokenVerified) {
+        console.warn('[Asaas Webhook Security] ⛔ Tentativa NFS-e não autenticada e não encontrada bloqueada.');
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized: Header asaas-access-token ausente ou inválido.' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 },
         );
       }
 
@@ -673,6 +735,32 @@ Deno.serve(async (req: Request) => {
     }
 
     if (processed) {
+      // 🛡️ Validação Cross-Tenant: Se o token pertence ao Tenant A, ele NÃO pode processar faturas do Tenant B!
+      if (authenticatedTenantId && targetTenantId && authenticatedTenantId !== targetTenantId) {
+        console.error(`[Asaas Webhook Security] 🚨 Tentativa cross-tenant barrada! Token=${authenticatedTenantId}, Fatura=${targetTenantId}`);
+        return new Response(
+          JSON.stringify({ error: 'Forbidden: Operação cross-tenant não permitida.' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+        );
+      }
+
+      // Se a fatura é de um tenant que já possui token registrado, a requisição não pode ter vindo sem token!
+      if (!isTokenVerified && targetTenantId) {
+        const { data: tenantSec } = await supabase
+          .from('tenant_secrets')
+          .select('asaas_webhook_token')
+          .eq('tenant_id', targetTenantId)
+          .maybeSingle();
+
+        if (tenantSec?.asaas_webhook_token) {
+          console.warn(`[Asaas Webhook Security] ⛔ Tenant ${targetTenantId} exige token de webhook, mas a chamada veio sem o header.`);
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized: Header asaas-access-token obrigatório para este tenant.' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+          );
+        }
+      }
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -682,6 +770,19 @@ Deno.serve(async (req: Request) => {
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 200,
+        },
+      );
+    }
+
+    // Se NÃO foi processado (nenhuma fatura/parcela encontrada) e o token NÃO foi verificado:
+    // Bloqueia com 401 Unauthorized (neutraliza sondas de invasores e IDs forjados)
+    if (!isTokenVerified) {
+      console.warn('[Asaas Webhook Security] ⛔ Requisição não vinculada e sem token bloqueada.');
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized: Header asaas-access-token ausente ou inválido.' }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401,
         },
       );
     }

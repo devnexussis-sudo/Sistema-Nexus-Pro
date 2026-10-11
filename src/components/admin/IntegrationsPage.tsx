@@ -5,7 +5,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { 
   Key, Webhook, Plus, Copy, Trash2, Eye, EyeOff, 
-  CheckCircle2, ShieldAlert, Code2, ArrowRight, X, ExternalLink, CreditCard, RefreshCw, Unlink
+  CheckCircle2, ShieldAlert, Code2, ArrowRight, X, ExternalLink, CreditCard, RefreshCw, Unlink, ShieldCheck
 } from 'lucide-react';
 import { DataService } from '../../services/dataService';
 import { PaymentService } from '../../services/paymentService';
@@ -103,6 +103,25 @@ export const IntegrationsPage: React.FC = () => {
       }
     } finally {
       setSavingManual(false);
+    }
+  };
+
+  const [syncingWebhook, setSyncingWebhook] = useState(false);
+
+  const handleResyncWebhook = async () => {
+    if (!tenant?.id) return;
+    setSyncingWebhook(true);
+    try {
+      const res = await PaymentService.syncAsaasWebhook(tenant.id);
+      if (res.success) {
+        alert('🛡️ ' + res.message);
+      } else {
+        alert('⚠️ ' + res.message);
+      }
+    } catch (e: any) {
+      alert('❌ Erro: ' + e.message);
+    } finally {
+      setSyncingWebhook(false);
     }
   };
 
@@ -326,16 +345,27 @@ export const IntegrationsPage: React.FC = () => {
                 <RefreshCw size={14} className="animate-spin" /> Verificando conexão...
               </div>
             ) : asaasSettings?.isActive ? (
-              <div className="mt-4 bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
-                  <CheckCircle2 size={20} />
+              <div className="mt-4 bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                    <CheckCircle2 size={20} />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-emerald-900 uppercase tracking-wider block">Conta Ativa e Vinculada 🟢</span>
+                    <p className="text-xs text-emerald-700 mt-0.5">
+                      Integração com Asaas configurada e protegida
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-xs font-bold text-emerald-900 uppercase tracking-wider block">Conta Ativa e Vinculada 🟢</span>
-                  <p className="text-xs text-emerald-700 mt-0.5">
-                    Integração com Asaas configurada
-                  </p>
-                </div>
+                <button
+                  onClick={handleResyncWebhook}
+                  disabled={syncingWebhook}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-semibold shadow-sm transition-all shrink-0 active:scale-95"
+                  title="Gera e sincroniza o token criptográfico exclusivo do webhook no Asaas"
+                >
+                  {syncingWebhook ? <RefreshCw size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+                  <span>{syncingWebhook ? 'Sincronizando...' : 'Blindar Webhook'}</span>
+                </button>
               </div>
             ) : (
               <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2 text-amber-800 text-xs">

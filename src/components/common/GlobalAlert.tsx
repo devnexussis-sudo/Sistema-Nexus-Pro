@@ -48,20 +48,20 @@ export const GlobalAlertProvider: React.FC = () => {
   useEffect(() => {
     const handleSlowNetwork = () => {
       const now = Date.now();
-      // Cooldown de 1 minuto (60000 ms) para evitar spam de alertas
-      if (now - lastSlowNetworkWarning.current < 60000) return;
+      // Cooldown de 2 minutos (120000 ms) para evitar spam de alertas
+      if (now - lastSlowNetworkWarning.current < 120000) return;
       
       lastSlowNetworkWarning.current = now;
       
       const id = Date.now() + Math.random();
       setAlerts(prev => {
-        // Prevent duplicate slow network warnings if it's already on screen
+        // Evita duplicar se o aviso já estiver na tela
         if (prev.some(a => a.message.includes('conexão está lenta'))) return prev;
         return [...prev, { id, message: 'Sua conexão está lenta, estamos tentando reconectar...', type: 'info' }];
       });
       setTimeout(() => {
         setAlerts(prev => prev.filter(a => a.id !== id));
-      }, 8000);
+      }, 5000);
     };
 
     window.addEventListener('NEXUS_SLOW_NETWORK_WARNING', handleSlowNetwork);

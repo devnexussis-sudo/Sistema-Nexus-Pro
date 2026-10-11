@@ -368,6 +368,9 @@ export interface ServiceOrder { [key: string]: any;
   status: OrderStatus;
   priority: OrderPriority;
   operationType?: string;
+  defectTypeId?: string;
+  defectTypeCode?: string;
+  defectTypeName?: string;
   assignedTo?: string;
   formId?: string; // Vínculo direto com o modelo de checklist
   equipmentName?: string;
@@ -541,6 +544,19 @@ export interface FormRule {
   version: number;
   createdAt: string;
   createdBy?: string;
+}
+
+// ── Tipos de Defeitos ──────────────────────────────────────────
+export interface DefectType {
+  id?: string;
+  tenantId?: string;
+  tenant_id?: string;
+  code: string;           // Código de 4 dígitos (ex: "1001")
+  name: string;           // Nome / Identificação do defeito
+  description?: string;   // Detalhes adicionais
+  active?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // ── Histórico de Transições de Status (Imutável) ──────────────

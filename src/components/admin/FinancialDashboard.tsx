@@ -2287,7 +2287,7 @@ ${container.innerHTML}
                         onClick={() => setMainTab('PAYABLES')}
                         className={`flex items-center gap-2 pb-3 pt-1 text-sm font-semibold border-b-2 transition-all relative ${
                             mainTab === 'PAYABLES'
-                                ? 'border-amber-600 text-amber-700'
+                                ? 'border-[#1c2d4f] text-[#1c2d4f]'
                                 : 'border-transparent text-slate-500 hover:text-slate-800'
                         }`}
                     >
@@ -2299,7 +2299,7 @@ ${container.innerHTML}
                         onClick={() => setMainTab('CASH_FLOW')}
                         className={`flex items-center gap-2 pb-3 pt-1 text-sm font-semibold border-b-2 transition-all relative ${
                             mainTab === 'CASH_FLOW'
-                                ? 'border-indigo-600 text-indigo-700'
+                                ? 'border-[#1c2d4f] text-[#1c2d4f]'
                                 : 'border-transparent text-slate-500 hover:text-slate-800'
                         }`}
                     >
@@ -2310,7 +2310,7 @@ ${container.innerHTML}
                         onClick={() => setMainTab('COMMISSIONS')}
                         className={`flex items-center gap-2 pb-3 pt-1 text-sm font-semibold border-b-2 transition-all relative ${
                             mainTab === 'COMMISSIONS'
-                                ? 'border-teal-600 text-teal-700'
+                                ? 'border-[#1c2d4f] text-[#1c2d4f]'
                                 : 'border-transparent text-slate-500 hover:text-slate-800'
                         }`}
                     >

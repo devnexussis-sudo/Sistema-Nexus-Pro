@@ -523,6 +523,19 @@ export interface DbServiceType {
     created_at?: string;
 }
 
+// ─── Tabela: defect_types ─────────────────────────────────────
+
+export interface DbDefectType {
+    id: string;
+    tenant_id: string;
+    code: string;
+    name: string;
+    description?: string | null;
+    active: boolean;
+    created_at?: string;
+    updated_at?: string;
+}
+
 // ─── Tabela: activation_rules ────────────────────────────────
 
 export interface DbActivationRule {

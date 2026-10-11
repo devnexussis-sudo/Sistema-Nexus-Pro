@@ -103,6 +103,38 @@ export const PaymentService = {
   },
 
   /**
+   * Força a sincronização e blindagem do webhook no Asaas com token criptográfico exclusivo (Big Tech)
+   */
+  async syncAsaasWebhook(explicitTenantId?: string): Promise<{ success: boolean; message: string }> {
+    const tenantId = explicitTenantId || getCurrentTenantId();
+    if (!tenantId || tenantId === 'default') {
+      return { success: false, message: 'Tenant inválido' };
+    }
+
+    try {
+      const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/asaas-webhook`;
+      const { data, error } = await supabase.functions.invoke('asaas-create-charge', {
+        body: {
+          action: 'setup_webhook',
+          tenantId: tenantId,
+          webhookUrl: webhookUrl
+        }
+      });
+
+      if (error) {
+        return { success: false, message: error.message || 'Falha ao sincronizar webhook no Asaas' };
+      }
+
+      return {
+        success: data?.success ?? true,
+        message: data?.message || 'Webhook configurado e protegido com sucesso no Asaas!'
+      };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Erro inesperado ao sincronizar webhook' };
+    }
+  },
+
+  /**
    * Desconecta o Asaas do Tenant, desativando a integração e apagando a chave
    */
   async disconnectAsaas(explicitTenantId?: string): Promise<boolean> {

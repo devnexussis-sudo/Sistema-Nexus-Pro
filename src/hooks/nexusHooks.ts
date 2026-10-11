@@ -288,6 +288,16 @@ export const useActivationRules = (enabled = true) => {
     });
 };
 
+export const useDefectTypes = (enabled = true) => {
+    const tid = DataService.getCurrentTenantId();
+    return useQuery(['defect_types', tid || 'default'], (signal) => DataService.getDefectTypes(signal), {
+        enabled: enabled && !!tid,
+        staleTime: 1000 * 60 * 15, // 15 min
+        retry: 2,
+        refetchOnWindowFocus: false
+    });
+};
+
 export const useTenant = (enabled = true) => {
     const tid = DataService.getCurrentTenantId();
     // Se tid for nulo/indefinido, o useQuery usará "default" na chave e chamará o service.

@@ -3,14 +3,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useI18n } from '../../i18n';
 import { createPortal } from 'react-dom';
 import { safeCreatePortal } from '../../utils/portal';
-import { Plus, FileText, Trash2, Edit2, X, Save, GripVertical, CheckCircle2, List, Settings, Settings2, Tag, Layers, ArrowRight, Info, Box, Cpu, Workflow, Search, Filter, Loader2, ChevronLeft, RefreshCw, ChevronUp, ChevronDown, Power, PowerOff } from 'lucide-react';
+import { Plus, FileText, Trash2, Edit2, X, Save, GripVertical, CheckCircle2, List, Settings, Settings2, Tag, Layers, ArrowRight, Info, Box, Cpu, Workflow, Search, Filter, Loader2, ChevronLeft, RefreshCw, ChevronUp, ChevronDown, Power, PowerOff, AlertTriangle, Sparkles, Hash } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { FormTemplate, FormField, FormFieldType, EquipmentFamily } from '../../types';
+import { FormTemplate, FormField, FormFieldType, EquipmentFamily, DefectType } from '../../types';
 import { DataService } from '../../services/dataService';
 import { EquipmentService } from '../../services/equipmentService';
-import { useForms, useServiceTypes, useActivationRules, useTenant, NexusQueryClient } from '../../hooks/nexusHooks';
+import { useForms, useServiceTypes, useActivationRules, useDefectTypes, useTenant, NexusQueryClient } from '../../hooks/nexusHooks';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useDialog } from '../../contexts/DialogContext';
 
@@ -43,10 +43,11 @@ export const FormManagement: React.FC = () => {
     const { canCreate, canEdit, canDelete } = usePermissions();
     const { showAlert } = useDialog();
 
-  const [activeTab, setActiveTab] = useState<'types' | 'templates' | 'rules'>('templates');
+  const [activeTab, setActiveTab] = useState<'types' | 'templates' | 'rules' | 'defects'>('templates');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
+  const [isDefectModalOpen, setIsDefectModalOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [ruleDropdown, setRuleDropdown] = useState<string | null>(null);
 
@@ -75,6 +76,13 @@ export const FormManagement: React.FC = () => {
     isError: rulesError,
     refetch: refetchRules
   } = useActivationRules(tenantReady);
+
+  const {
+    data: defectTypesRaw = [],
+    isLoading: defectsLoading,
+    isError: defectsError,
+    refetch: refetchDefects
+  } = useDefectTypes(tenantReady);
 
   // 🛡️ Lógica de "Wake up" para garantir Tenant ID no F5 / Reload da página
   useEffect(() => {
@@ -137,24 +145,27 @@ export const FormManagement: React.FC = () => {
     }
   }, [rulesRaw]);
 
-  const loading = typesLoading || formsLoading || rulesLoading;
-  const isError = formsError || typesError || rulesError;
+  const defectTypes: DefectType[] = Array.isArray(defectTypesRaw) ? defectTypesRaw : [];
+
+  const loading = typesLoading || formsLoading || rulesLoading || defectsLoading;
+  const isError = formsError || typesError || rulesError || defectsError;
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleManualRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      await Promise.all([refetchTypes(), refetchForms(), refetchRules()]);
+      await Promise.all([refetchTypes(), refetchForms(), refetchRules(), refetchDefects()]);
     } catch (e) {
       console.warn('[FormManagement] Erro ao atualizar:', e);
     } finally {
       setIsRefreshing(false);
     }
-  }, [refetchTypes, refetchForms, refetchRules]);
+  }, [refetchTypes, refetchForms, refetchRules, refetchDefects]);
 
   const [editingType, setEditingType] = useState<Partial<ServiceType> | null>(null);
   const [editingForm, setEditingForm] = useState<Partial<FormTemplate> | null>(null);
   const [editingRule, setEditingRule] = useState<Partial<ActivationRule> | null>(null);
+  const [editingDefect, setEditingDefect] = useState<Partial<DefectType> | null>(null);
   const [isReadOnly, setIsReadOnly] = useState(false);
 
   const [equipmentFamilies, setEquipmentFamilies] = useState<EquipmentFamily[]>([]);
@@ -242,6 +253,13 @@ export const FormManagement: React.FC = () => {
     setIsReadOnly(true);
     setEditingRule({ id: rule.id, serviceTypeId: rule.serviceTypeId, equipmentFamily: rule.equipmentFamily, formId: rule.formId, financialFormId: (rule as any).financialFormId });
     setIsRuleModalOpen(true);
+  };
+
+  const handleViewDefect = (defect: DefectType, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsReadOnly(true);
+    setEditingDefect(defect);
+    setIsDefectModalOpen(true);
   };
 
   const FIELD_TYPE_OPTIONS = [
@@ -360,6 +378,84 @@ export const FormManagement: React.FC = () => {
     } catch (e) { alert("Erro ao deletar regra."); }
   };
 
+  // Handlers para Tipos de Defeitos (Cloud)
+  const generateRandomDefectCode = (): string => {
+    const existingCodes = new Set(defectTypes.map(d => d.code?.trim()));
+    for (let attempts = 0; attempts < 200; attempts++) {
+      const code = String(Math.floor(1000 + Math.random() * 9000));
+      if (!existingCodes.has(code)) return code;
+    }
+    return String(Math.floor(1000 + Math.random() * 9000));
+  };
+
+  const handleSaveDefect = async () => {
+    const code = editingDefect?.code?.trim();
+    const name = editingDefect?.name?.trim();
+
+    if (!code) {
+      alert("Atenção: Por favor, informe o código de 4 dígitos ou clique em 'Gerar'.");
+      return;
+    }
+    if (code.length !== 4 || !/^\d{4}$/.test(code)) {
+      alert("Atenção: O código do defeito deve conter exatamente 4 dígitos numéricos (ex: 1001).");
+      return;
+    }
+    if (!name) {
+      alert("Atenção: Por favor, informe o nome do defeito.");
+      return;
+    }
+
+    const isDuplicateCode = defectTypes.some(
+      d => d.id !== editingDefect?.id && d.code?.trim() === code
+    );
+    if (isDuplicateCode) {
+      alert(`Atenção: Já existe um tipo de defeito cadastrado com o código "${code}". Por favor, informe um código diferente ou gere um novo.`);
+      return;
+    }
+
+    try {
+      await DataService.saveDefectType({
+        ...editingDefect,
+        code,
+        name,
+        description: editingDefect?.description?.trim() || '',
+        active: editingDefect?.active !== false
+      });
+      await refetchDefects();
+      setIsDefectModalOpen(false);
+    } catch (e: any) {
+      console.error("Erro ao salvar tipo de defeito:", e);
+      alert(`Falha ao salvar defeito: ${e.message || 'Erro desconhecido no servidor'}`);
+    }
+  };
+
+  const handleToggleDefectStatus = async (defect: DefectType, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const nextStatus = defect.active === false ? true : false;
+    const actionText = nextStatus ? 'ativar' : 'inativar';
+    if (!confirm(`Deseja realmente ${actionText} o tipo de defeito "${defect.name}"?`)) return;
+
+    try {
+      await DataService.saveDefectType({ ...defect, active: nextStatus });
+      await refetchDefects();
+    } catch (err: any) {
+      console.error("Erro ao alterar status do defeito:", err);
+      alert(`Falha ao alterar status: ${err.message || 'Erro desconhecido'}`);
+    }
+  };
+
+  const handleDeleteDefect = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Isso excluirá o tipo de defeito permanentemente. Confirmar?")) return;
+    try {
+      await DataService.deleteDefectType(id);
+      await refetchDefects();
+    } catch (err: any) {
+      console.error("Erro ao excluir tipo de defeito:", err);
+      alert(`Falha ao excluir defeito: ${err.message || 'Erro desconhecido'}`);
+    }
+  };
+
   const filteredTypes = serviceTypes.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()));
   const filteredForms = forms.filter(f => {
     const matchesSearch = f.title.toLowerCase().includes(searchTerm.toLowerCase());
@@ -373,6 +469,12 @@ export const FormManagement: React.FC = () => {
       r.equipmentFamily.toLowerCase().includes(searchTerm.toLowerCase()) ||
       fName.toLowerCase().includes(searchTerm.toLowerCase());
   });
+  const filteredDefects = defectTypes.filter(d => {
+    const term = searchTerm.toLowerCase();
+    const matchesSearch = (d.code?.toLowerCase().includes(term) || d.name.toLowerCase().includes(term) || (d.description || '').toLowerCase().includes(term));
+    const matchesStatus = statusFilter === 'ALL' || (statusFilter === 'ACTIVE' ? d.active !== false : d.active === false);
+    return matchesSearch && matchesStatus;
+  });
 
   useEffect(() => {
     setCurrentPage(1);
@@ -381,8 +483,9 @@ export const FormManagement: React.FC = () => {
   const paginatedTypes = filteredTypes.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
   const paginatedForms = filteredForms.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
   const paginatedRules = filteredRules.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const paginatedDefects = filteredDefects.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
-  const totalItems = activeTab === 'types' ? filteredTypes.length : activeTab === 'templates' ? filteredForms.length : filteredRules.length;
+  const totalItems = activeTab === 'types' ? filteredTypes.length : activeTab === 'templates' ? filteredForms.length : activeTab === 'rules' ? filteredRules.length : filteredDefects.length;
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
 
   return (
@@ -394,32 +497,62 @@ export const FormManagement: React.FC = () => {
         </div>
       ) : (
         <>
+      {/* ── TOP LEVEL TAB SWITCHER (Stripe / Linear Style — Padrão Financeiro e Estoque) ── */}
+      <div className="flex items-center justify-between border-b border-slate-200/80 pb-0 mb-4 shrink-0">
+        <div className="flex items-center gap-6 overflow-x-auto custom-scrollbar">
+          <button
+            onClick={() => setActiveTab('types')}
+            className={`flex items-center gap-2 pb-3 pt-1 text-sm font-semibold border-b-2 transition-all relative ${
+              activeTab === 'types'
+                ? 'border-[#1c2d4f] text-[#1c2d4f]'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Tag size={16} className={activeTab === 'types' ? 'text-[#1c2d4f]' : 'text-slate-400'} />
+            <span className="whitespace-nowrap">Tipos de Atendimento</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('templates')}
+            className={`flex items-center gap-2 pb-3 pt-1 text-sm font-semibold border-b-2 transition-all relative ${
+              activeTab === 'templates'
+                ? 'border-[#1c2d4f] text-[#1c2d4f]'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <FileText size={16} className={activeTab === 'templates' ? 'text-[#1c2d4f]' : 'text-slate-400'} />
+            <span className="whitespace-nowrap">Modelos de Formulários</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('rules')}
+            className={`flex items-center gap-2 pb-3 pt-1 text-sm font-semibold border-b-2 transition-all relative ${
+              activeTab === 'rules'
+                ? 'border-[#1c2d4f] text-[#1c2d4f]'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Layers size={16} className={activeTab === 'rules' ? 'text-[#1c2d4f]' : 'text-slate-400'} />
+            <span className="whitespace-nowrap">Regras de Vinculação</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('defects')}
+            className={`flex items-center gap-2 pb-3 pt-1 text-sm font-semibold border-b-2 transition-all relative ${
+              activeTab === 'defects'
+                ? 'border-[#1c2d4f] text-[#1c2d4f]'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <AlertTriangle size={16} className={activeTab === 'defects' ? 'text-[#1c2d4f]' : 'text-slate-400'} />
+            <span className="whitespace-nowrap">Tipos de Defeitos</span>
+          </button>
+        </div>
+      </div>
+
       {/* Toolbar */}
       <div className="mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-[#1c2d4f]/20 bg-white/40 shadow-sm backdrop-blur-md flex flex-col gap-3">
         <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-3">
-          
-          <div className="flex items-center gap-1">
-            <div className="flex bg-white/60 p-1 rounded-xl border border-[#1c2d4f]/10 shadow-sm">
-              <button
-                onClick={() => setActiveTab('types')}
-                className={`px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1.5 ${activeTab === 'types' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}
-              >
-                <Tag size={14} /> Tipos
-              </button>
-              <button
-                onClick={() => setActiveTab('templates')}
-                className={`px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1.5 ${activeTab === 'templates' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}
-              >
-                <FileText size={14} /> Modelos
-              </button>
-              <button
-                onClick={() => setActiveTab('rules')}
-                className={`px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1.5 ${activeTab === 'rules' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}
-              >
-                <Layers size={14} /> Regras
-              </button>
-            </div>
-          </div>
 
           <div className="relative flex-1 min-w-[200px] w-full lg:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
@@ -464,10 +597,11 @@ export const FormManagement: React.FC = () => {
                 if (activeTab === 'types') { setEditingType({ name: '' }); setIsTypeModalOpen(true); }
                 else if (activeTab === 'templates') { setEditingForm({ title: '', fields: [], active: true, category: 'TECHNICAL' }); setIsModalOpen(true); }
                 else if (activeTab === 'rules') { setEditingRule({ serviceTypeId: '', equipmentFamily: '', formId: '', financialFormId: '' }); setIsRuleModalOpen(true); }
+                else if (activeTab === 'defects') { setEditingDefect({ code: generateRandomDefectCode(), name: '', description: '', active: true }); setIsDefectModalOpen(true); }
               }}
             >
               <Plus size={16} /> 
-              {activeTab === 'types' ? 'Novo Tipo' : activeTab === 'templates' ? 'Novo Modelo' : 'Nova Regra'}
+              {activeTab === 'types' ? 'Novo Tipo' : activeTab === 'templates' ? 'Novo Modelo' : activeTab === 'rules' ? 'Nova Regra' : 'Novo Defeito'}
             </Button>
           </div>
         </div>
@@ -696,6 +830,99 @@ export const FormManagement: React.FC = () => {
                       ))}
                       {paginatedRules.length === 0 && (
                         <tr><td colSpan={4} className="py-10 text-center text-slate-400 text-xs font-bold">Nenhuma regra encontrada.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* ABA 4: TIPOS DE DEFEITOS */}
+              {activeTab === 'defects' && (
+                <div className="flex-1 overflow-auto custom-scrollbar flex flex-col">
+                  <table className="w-full border-collapse">
+                    <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
+                      <tr className="text-[11px] font-bold text-slate-500">
+                        <th className="px-4 py-3 text-left w-28">código</th>
+                        <th className="px-4 py-3 text-left">tipo de defeito</th>
+                        <th className="px-4 py-3 text-left">descrição</th>
+                        <th className="px-4 py-3 text-center w-28">status</th>
+                        <th className="px-4 py-3 text-right w-28">ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {paginatedDefects.map(defect => (
+                        <tr 
+                          key={defect.id || defect.code} 
+                          onClick={(e) => handleViewDefect(defect, e)} 
+                          className="hover:bg-slate-50 transition-colors group cursor-pointer"
+                        >
+                          <td className="px-4 py-3">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200 font-mono text-xs font-bold text-slate-800 tracking-wider">
+                              <Hash size={12} className="text-slate-400" />
+                              {defect.code}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+                                <AlertTriangle size={14} />
+                              </div>
+                              <span className={`text-[13px] font-semibold ${defect.active === false ? "text-slate-400 line-through" : "text-slate-800"}`}>
+                                {defect.name}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-500 max-w-xs truncate">
+                            {defect.description || <span className="text-slate-300 italic text-[11px]">Sem descrição</span>}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`inline-flex items-center text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${defect.active === false ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                              {defect.active === false ? 'Inativo' : 'Ativo'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={(e) => {
+                                  if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                                  e.stopPropagation();
+                                  setIsReadOnly(false);
+                                  setEditingDefect({ ...defect });
+                                  setIsDefectModalOpen(true);
+                                }} 
+                                className={`p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
+                                title="Editar"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button 
+                                onClick={(e) => {
+                                  if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para inativar.'); return; }
+                                  handleToggleDefectStatus(defect, e);
+                                }} 
+                                className={`p-2 rounded-lg transition-all ${defect.active === false ? 'text-emerald-600 hover:bg-emerald-50' : 'text-amber-600 hover:bg-amber-50'} ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
+                                title={defect.active === false ? 'Ativar Defeito' : 'Inativar Defeito'}
+                              >
+                                {defect.active === false ? <Power size={16} /> : <PowerOff size={16} />}
+                              </button>
+                              {defect.id && (
+                                <button 
+                                  onClick={(e) => {
+                                    if (!canDelete('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
+                                    handleDeleteDefect(defect.id!, e);
+                                  }} 
+                                  className={`p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
+                                  title="Excluir"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {paginatedDefects.length === 0 && (
+                        <tr><td colSpan={5} className="py-12 text-center text-slate-400 text-xs font-bold">Nenhum tipo de defeito encontrado.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -1341,6 +1568,149 @@ export const FormManagement: React.FC = () => {
                 {!isReadOnly && (
                   <Button onClick={handleSaveRule} className="h-9 px-6 rounded-xl text-xs font-semibold bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white">
                     <Workflow size={14} className="mr-2" /> {editingRule.id ? 'Salvar Alterações' : 'Aplicar Vínculo'}
+                  </Button>
+                )}
+              </div>
+
+            </div>
+          </div>, document.body
+        )
+      }
+
+      {/* MODAL 4: TIPO DE DEFEITO */}
+      {
+        isDefectModalOpen && editingDefect && safeCreatePortal(
+          <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden animate-in fade-in">
+            <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up">
+
+              {/* HEADER */}
+              <div className="px-6 py-5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center text-amber-600 border border-amber-200">
+                    <AlertTriangle size={18} />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-slate-900 tracking-tight">
+                      {isReadOnly ? 'Detalhes do Defeito' : editingDefect.id ? 'Editar Tipo de Defeito' : 'Novo Tipo de Defeito'}
+                    </h2>
+                    <p className="text-[10px] text-slate-400 font-medium mt-0.5">Nexus Forms • Cadastro para abertura de OS</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => { setIsDefectModalOpen(false); setIsReadOnly(false); }} 
+                  className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* BODY */}
+              <div className="p-6 bg-slate-50/30 space-y-5">
+                {/* CÓDIGO (4 DÍGITOS) COM BOTÃO PARA GERAR NA HORA */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Código (4 dígitos) *
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <Hash size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        maxLength={4}
+                        placeholder="Ex: 1001"
+                        value={editingDefect.code || ''}
+                        disabled={isReadOnly}
+                        onChange={e => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                          setEditingDefect({ ...editingDefect, code: val });
+                        }}
+                        className="w-full font-mono text-sm font-bold tracking-widest pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50 disabled:text-slate-400"
+                      />
+                    </div>
+                    {!isReadOnly && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newCode = generateRandomDefectCode();
+                          setEditingDefect({ ...editingDefect, code: newCode });
+                        }}
+                        className="h-10 px-3.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 shrink-0"
+                        title="Gerar código aleatório de 4 dígitos"
+                      >
+                        <Sparkles size={14} />
+                        <span>Gerar Código</span>
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-medium px-1">
+                    Digite manualmente 4 números ou clique no botão para gerar automaticamente.
+                  </p>
+                </div>
+
+                {/* NOME DO DEFEITO */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Nome do Defeito *
+                  </label>
+                  <Input
+                    placeholder="Ex: Superaquecimento do Compressor"
+                    value={editingDefect.name || ''}
+                    disabled={isReadOnly}
+                    onChange={e => setEditingDefect({ ...editingDefect, name: e.target.value })}
+                    className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50"
+                  />
+                </div>
+
+                {/* DESCRIÇÃO / OBSERVAÇÕES */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Descrição Detalhada / Sintomas (Opcional)
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Detalhes técnicos sobre este tipo de defeito..."
+                    value={editingDefect.description || ''}
+                    disabled={isReadOnly}
+                    onChange={e => setEditingDefect({ ...editingDefect, description: e.target.value })}
+                    className="w-full rounded-xl p-3 text-xs font-medium border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50 resize-none outline-none"
+                  />
+                </div>
+
+                {/* STATUS ATIVO / INATIVO */}
+                {!isReadOnly && (
+                  <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200">
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">Status Ativo</p>
+                      <p className="text-[10px] text-slate-400">Defeitos ativos ficam disponíveis na seleção da OS</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingDefect.active !== false}
+                        onChange={e => setEditingDefect({ ...editingDefect, active: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1c2d4f]"></div>
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {/* FOOTER */}
+              <div className="px-6 py-4 border-t border-slate-200 bg-white flex justify-end gap-3 shrink-0">
+                <button 
+                  type="button" 
+                  onClick={() => { setIsDefectModalOpen(false); setIsReadOnly(false); }} 
+                  className="h-9 px-5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                >
+                  {isReadOnly ? 'Fechar' : 'Cancelar'}
+                </button>
+                {!isReadOnly && (
+                  <Button 
+                    onClick={handleSaveDefect} 
+                    className="h-9 px-6 rounded-xl text-xs font-semibold bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white"
+                  >
+                    <Save size={14} className="mr-2" /> Salvar Defeito
                   </Button>
                 )}
               </div>

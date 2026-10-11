@@ -1,15 +1,15 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '../../i18n';
 import { useDialog } from '../../contexts/DialogContext';
 import {
   UserPlus, Info, ChevronLeft, AtSign, Building2, Edit3, Laptop, UserMinus, Plus, Box,
-  DollarSign, Trash2, Eye, EyeOff, Package, ShoppingCart, ChevronRight, Save, X, Search, CheckCircle2, Hash, RefreshCw, Clock, FileText, Link2, Unlink, ChevronDown, MapPin, AlertCircle
+  DollarSign, Trash2, Eye, EyeOff, Package, ShoppingCart, ChevronRight, Save, X, Search, CheckCircle2, Hash, RefreshCw, Clock, FileText, Link2, Unlink, ChevronDown, MapPin, AlertCircle, AlertTriangle, Calendar
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
-import { OrderPriority, OrderStatus, ServiceOrder, User as UserType, OrderItem, StockItem, FormTemplate, Quote } from '../../types';
+import { OrderPriority, OrderStatus, ServiceOrder, User as UserType, OrderItem, StockItem, FormTemplate, Quote, DefectType } from '../../types';
 import { DataService } from '../../services/dataService';
 import { OrderService } from '../../services/orderService';
 import { OrderTimeline } from '../shared/OrderTimeline';
@@ -72,6 +72,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   const { showAlert } = useDialog();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(initialData ? 2 : 1);
+  const [step2Attempted, setStep2Attempted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [schedulingVisit, setSchedulingVisit] = useState(false);
   const [timelineKey, setTimelineKey] = useState(0);
@@ -116,6 +117,24 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   const isGeofencingEnabled = tenant?.metadata?.enableGeofencing === true;
 
   const [serviceTypes, setServiceTypes] = useState<any[]>(OS_TYPES.map(t => ({ id: t, name: t }))); // Default to hardcoded
+  const [defectTypes, setDefectTypes] = useState<DefectType[]>([]);
+  const [isDefectDropdownOpen, setIsDefectDropdownOpen] = useState(false);
+  const [defectSearch, setDefectSearch] = useState('');
+  const defectDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (defectDropdownRef.current && !defectDropdownRef.current.contains(event.target as Node)) {
+        setIsDefectDropdownOpen(false);
+      }
+    };
+    if (isDefectDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isDefectDropdownOpen]);
 
   const getLocalDate = () => getTodayLocalDate();
 
@@ -126,6 +145,9 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
     description: initialData?.description || '',
     priority: initialData?.priority || OrderPriority.MEDIUM,
     operationType: initialData?.operationType || OS_TYPES[0],
+    defectTypeId: initialData?.defectTypeId || '',
+    defectTypeCode: initialData?.defectTypeCode || '',
+    defectTypeName: initialData?.defectTypeName || '',
     assignedTo: initialData?.assignedTo || '',
     scheduledDate: initialData?.scheduledDate || getLocalDate(),
     scheduledTime: initialData?.scheduledTime || '',
@@ -150,7 +172,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
         console.warn("⚠️ Sessão pode estar expirada. Tentando buscar dados mesmo assim...");
       }
 
-      const [techs, loadedClients, loadedEquipments, loadedStock, loadedFormTemplates, loadedRules, loadedServiceTypes, loadedQuotes, loadedRegions] = await Promise.all([
+      const [techs, loadedClients, loadedEquipments, loadedStock, loadedFormTemplates, loadedRules, loadedServiceTypes, loadedQuotes, loadedRegions, loadedDefects] = await Promise.all([
         DataService.getAllTechnicians(),
         DataService.getCustomers(),
         DataService.getEquipments(),
@@ -159,7 +181,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
         DataService.getActivationRules(),
         DataService.getServiceTypes(),
         DataService.getQuotes(),
-        getRegions()
+        getRegions(),
+        DataService.getDefectTypes()
       ]);
 
       setTechnicians(techs);
@@ -170,6 +193,11 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
       setActivationRules(loadedRules);
       setQuotes(loadedQuotes || []);
       setRegions(loadedRegions || []);
+
+      if (loadedDefects && loadedDefects.length > 0) {
+        const activeDefects = loadedDefects.filter(d => d.active !== false);
+        setDefectTypes(activeDefects);
+      }
 
       if (loadedServiceTypes && loadedServiceTypes.length > 0) {
         const activeTypes = loadedServiceTypes.filter(t => t.active !== false && t.is_active !== false);
@@ -369,14 +397,56 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
   const goToStep2 = () => {
     if (!selectedClientId && !initialData) {
-      alert('Selecione um cliente para prosseguir.');
+      showAlert('Selecione um cliente para prosseguir.', 'warning');
       return;
     }
     if (selectedEquipIds.length === 0 && !initialData) {
-      alert('Selecione ao menos um ativo para o atendimento.');
+      showAlert('Selecione ao menos um ativo para o atendimento.', 'warning');
       return;
     }
+    setStep2Attempted(false);
     setStep(2);
+  };
+
+  const goToStep3 = () => {
+    setStep2Attempted(true);
+    const missingFields: string[] = [];
+    if (!formData.scheduledDate?.trim()) missingFields.push('Data Agendada');
+    if (!formData.scheduledTime?.trim()) missingFields.push('Horário Previsto');
+    if (!formData.operationType?.trim()) missingFields.push('Modalidade');
+    if (!formData.priority) missingFields.push('Prioridade');
+    if (!formData.defectTypeCode?.trim() && !formData.defectTypeId?.trim()) {
+      missingFields.push('Tipo de Defeito Reportado');
+    }
+
+    if (missingFields.length > 0) {
+      showAlert(
+        `Para avançar para o passo 3, preencha todos os campos obrigatórios da Etapa 2:\n\n${missingFields.map(f => `• ${f}`).join('\n')}`,
+        'warning'
+      );
+      return;
+    }
+
+    // Validação de data retroativa
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(formData.scheduledDate + 'T12:00:00');
+    if (selectedDate < today) {
+      showAlert('A data de agendamento não pode ser anterior ao dia de hoje.', 'error');
+      return;
+    }
+
+    // Validação de geofencing: se técnico foi selecionado, valida se atende a região
+    if (isGeofencingEnabled && allowedTechIds !== null && formData.assignedTo) {
+      const isTechAllowed = allowedTechIds.includes(formData.assignedTo);
+      if (!isTechAllowed) {
+        const techName = technicians.find(t => t.id === formData.assignedTo)?.name || 'selecionado';
+        showAlert(`O técnico "${techName}" não atende a região demarcada do cliente. Por favor, selecione um técnico autorizado para esta área antes de continuar.`, 'error');
+        return;
+      }
+    }
+
+    setStep(3);
   };
 
 
@@ -397,17 +467,32 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
     }
 
     if (!formData.scheduledDate) {
-      alert('A data de agendamento é obrigatória.');
+      showAlert('A data de agendamento é obrigatória.', 'warning');
+      return;
+    }
+
+    if (!formData.scheduledTime) {
+      showAlert('O horário previsto é obrigatório.', 'warning');
+      return;
+    }
+
+    if (!formData.operationType) {
+      showAlert('A modalidade é obrigatória.', 'warning');
+      return;
+    }
+
+    if (!formData.defectTypeCode && !formData.defectTypeId) {
+      showAlert('O tipo de defeito reportado é obrigatório.', 'warning');
       return;
     }
 
     if (!formData.title) {
-      alert('O título da ordem é obrigatório.');
+      showAlert('O título da ordem é obrigatório.', 'warning');
       return;
     }
 
     if (!formData.description) {
-      alert('A descrição é obrigatória.');
+      showAlert('A descrição é obrigatória.', 'warning');
       return;
     }
 
@@ -417,7 +502,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
     const selectedDate = new Date(formData.scheduledDate + 'T12:00:00');
 
     if (selectedDate < today) {
-      alert('A data de agendamento não pode ser anterior ao dia de hoje.');
+      showAlert('A data de agendamento não pode ser anterior ao dia de hoje.', 'error');
       return;
     }
 
@@ -570,7 +655,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
     const q = techSearch.toLowerCase().trim();
     
     const filtered = technicians.filter(t => {
-      if (!q) return formData.assignedTo === t.id;
+      if (!q) return true;
       return t.name.toLowerCase().includes(q) || (t.email || '').toLowerCase().includes(q);
     });
 
@@ -876,50 +961,86 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
           )}
 
           {step === 2 && (
-            <div className="animate-fade-in space-y-8 max-w-4xl mx-auto">
-              {/* CONFIGURAÇÃO DA AGENDA */}
-              <div className="space-y-8">
-                <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 space-y-6">
-                  <h3 className="text-sm font-bold text-slate-900 border-l-4 border-[#1c2d4f] pl-3">programação e prioridade</h3>
+            <div className="animate-fade-in max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+              {/* COLUNA ESQUERDA: PROGRAMAÇÃO E TIPO DE DEFEITO */}
+              <div className="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                <div className="space-y-4">
+                  {/* Cabeçalho do Bloco */}
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-4 bg-[#1c2d4f] rounded-full" />
+                      <h3 className="text-sm font-bold text-slate-900 tracking-tight">Programação & Defeito</h3>
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
+                      Etapa 2 de 5
+                    </span>
+                  </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                    <div className="space-y-2 md:col-span-3">
-                      <label className="text-[10px] font-bold text-slate-400 ml-1">data agendada</label>
+                  {/* Grid de Agendamento */}
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+                    {/* Data Agendada */}
+                    <div className="sm:col-span-6 space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 ml-0.5">
+                        <Calendar size={12} className="text-slate-400" />
+                        Data Agendada <span className="text-rose-500">*</span>
+                      </label>
                       <Input
                         type="date"
                         required
                         min={getLocalDate()}
                         disabled={isReadOnly}
-                        className="rounded-xl border-slate-200 font-medium text-sm py-3 disabled:opacity-50 w-full"
+                        className={`rounded-xl font-semibold text-xs py-2.5 disabled:opacity-50 w-full transition-colors ${
+                          step2Attempted && !formData.scheduledDate
+                            ? 'border-rose-400 bg-rose-50/30 ring-1 ring-rose-400/20'
+                            : 'border-slate-200 bg-slate-50/50 focus:bg-white'
+                        }`}
                         value={formData.scheduledDate}
                         onChange={e => setFormData({ ...formData, scheduledDate: e.target.value })}
                       />
                     </div>
-                    <div className="space-y-2 md:col-span-3">
-                      <label className="text-[10px] font-bold text-slate-400 ml-1">horário previsto</label>
+
+                    {/* Horário Previsto */}
+                    <div className="sm:col-span-6 space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 ml-0.5">
+                        <Clock size={12} className="text-slate-400" />
+                        Horário Previsto <span className="text-rose-500">*</span>
+                      </label>
                       <Input
                         type="time"
                         disabled={isReadOnly}
-                        className="rounded-xl border-slate-200 font-medium text-sm py-3 disabled:opacity-50 w-full"
+                        className={`rounded-xl font-semibold text-xs py-2.5 disabled:opacity-50 w-full transition-colors ${
+                          step2Attempted && !formData.scheduledTime
+                            ? 'border-rose-400 bg-rose-50/30 ring-1 ring-rose-400/20'
+                            : 'border-slate-200 bg-slate-50/50 focus:bg-white'
+                        }`}
                         value={formData.scheduledTime}
                         onChange={e => setFormData({ ...formData, scheduledTime: e.target.value })}
                       />
                     </div>
-                    <div className="space-y-2 relative md:col-span-4">
-                      <label className="text-[10px] font-bold text-slate-400 ml-1">modalidade</label>
+
+                    {/* Modalidade */}
+                    <div className="sm:col-span-7 space-y-1.5 relative">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 ml-0.5">
+                        <Building2 size={12} className="text-slate-400" />
+                        Modalidade <span className="text-rose-500">*</span>
+                      </label>
                       <div className="relative">
                         <button
                           type="button"
                           disabled={isReadOnly}
                           onClick={() => !isReadOnly && setIsOperationTypeOpen(!isOperationTypeOpen)}
                           onBlur={() => setTimeout(() => setIsOperationTypeOpen(false), 200)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-left text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all flex justify-between items-center disabled:opacity-50"
+                          className={`w-full hover:bg-slate-50 border rounded-xl px-3.5 py-2.5 text-left text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all flex justify-between items-center disabled:opacity-50 ${
+                            step2Attempted && !formData.operationType
+                              ? 'border-rose-400 bg-rose-50/30 ring-1 ring-rose-400/20'
+                              : 'border-slate-200 bg-slate-50/50'
+                          }`}
                         >
                           <span className="truncate">{formData.operationType || 'Selecione...'}</span>
-                          <ChevronDown size={16} className={`shrink-0 text-slate-400 transition-transform ${isOperationTypeOpen ? 'rotate-180' : ''}`} />
+                          <ChevronDown size={15} className={`shrink-0 text-slate-400 transition-transform ${isOperationTypeOpen ? 'rotate-180' : ''}`} />
                         </button>
                         {isOperationTypeOpen && (
-                          <div className="absolute z-[170] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2">
+                          <div className="absolute z-[170] top-full mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-52 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-1">
                             {serviceTypes.filter(type => type.active !== false && type.is_active !== false).map(type => (
                               <button
                                 key={type.id || type.name}
@@ -928,7 +1049,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                                   setFormData({ ...formData, operationType: type.name });
                                   setIsOperationTypeOpen(false);
                                 }}
-                                className="w-full text-left px-4 py-3 hover:bg-slate-50 text-xs font-bold text-slate-700 hover:text-[#1c2d4f] border-b border-slate-100 last:border-0 transition-colors"
+                                className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 text-xs font-bold text-slate-700 hover:text-[#1c2d4f] border-b border-slate-100 last:border-0 transition-colors"
                               >
                                 {type.name}
                               </button>
@@ -937,23 +1058,32 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                         )}
                       </div>
                     </div>
-                    <div className="space-y-2 relative md:col-span-2">
-                      <label className="text-[10px] font-bold text-slate-400 ml-1">nível de prioridade</label>
+
+                    {/* Nível de Prioridade */}
+                    <div className="sm:col-span-5 space-y-1.5 relative">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 ml-0.5">
+                        <AlertCircle size={12} className="text-slate-400" />
+                        Prioridade <span className="text-rose-500">*</span>
+                      </label>
                       <div className="relative">
                         <button
                           type="button"
                           disabled={isReadOnly}
                           onClick={() => !isReadOnly && setIsPriorityOpen(!isPriorityOpen)}
                           onBlur={() => setTimeout(() => setIsPriorityOpen(false), 200)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-left text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all flex justify-between items-center disabled:opacity-50 h-[42px]"
+                          className={`w-full hover:bg-slate-50 border rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all flex justify-between items-center disabled:opacity-50 h-[38px] ${
+                            step2Attempted && !formData.priority
+                              ? 'border-rose-400 bg-rose-50/30 ring-1 ring-rose-400/20'
+                              : 'border-slate-200 bg-slate-50/50'
+                          }`}
                         >
                           <span className="truncate flex items-center">
                             <PriorityBadge priority={formData.priority as OrderPriority} />
                           </span>
-                          <ChevronDown size={16} className={`shrink-0 text-slate-400 transition-transform ${isPriorityOpen ? 'rotate-180' : ''}`} />
+                          <ChevronDown size={15} className={`shrink-0 text-slate-400 transition-transform ${isPriorityOpen ? 'rotate-180' : ''}`} />
                         </button>
                         {isPriorityOpen && (
-                          <div className="absolute z-[170] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2">
+                          <div className="absolute z-[170] top-full mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-1">
                             {Object.values(OrderPriority).map(p => (
                               <button
                                 key={p}
@@ -962,7 +1092,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                                   setFormData({ ...formData, priority: p as OrderPriority });
                                   setIsPriorityOpen(false);
                                 }}
-                                className="w-full text-left px-4 py-3 hover:bg-slate-50 text-xs font-bold text-slate-700 hover:text-[#1c2d4f] border-b border-slate-100 last:border-0 transition-colors flex items-center"
+                                className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 text-xs font-bold text-slate-700 hover:text-[#1c2d4f] border-b border-slate-100 last:border-0 transition-colors flex items-center"
                               >
                                 <PriorityBadge priority={p as OrderPriority} />
                               </button>
@@ -971,140 +1101,269 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                         )}
                       </div>
                     </div>
-                  </div>
-                </div>
-              </div>
 
-                {/* ALOCAÇÃO DE TÉCNICO */}
-                <div className="space-y-6">
-                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 flex flex-col h-full">
-                    <h3 className="text-sm font-bold text-slate-900 border-l-4 border-emerald-500 pl-3 mb-6">responsável técnico</h3>
-
-                    {/* Banner de Geofencing Habilitado */}
-                    {isGeofencingEnabled && allowedTechIds !== null && (
-                      <div className="mb-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-between animate-in fade-in">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-md bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                            <MapPin size={13} />
-                          </div>
-                          <div>
-                            <p className="text-[11px] font-bold text-emerald-950">Geofencing Ativo</p>
-                            <p className="text-[9px] font-medium text-emerald-800">
-                              {allowedTechIds.length > 0
-                                ? `${allowedTechIds.length} técnico(s) designado(s) exibido(s) no topo da lista`
-                                : 'Endereço fora das regiões demarcadas'}
-                            </p>
-                          </div>
-                        </div>
-                        {allowedTechIds.length > 0 && (
-                          <span className="text-[8px] font-bold text-emerald-800 bg-emerald-200/80 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                            ★ Designados
-                          </span>
+                    {/* Tipo de Defeito */}
+                    <div className="sm:col-span-12 space-y-1.5 relative" ref={defectDropdownRef}>
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 ml-0.5">
+                          <Hash size={12} className="text-slate-400" />
+                          Tipo de Defeito Reportado <span className="text-rose-500">*</span>
+                        </label>
+                        {formData.defectTypeCode && (
+                          <button
+                            type="button"
+                            disabled={isReadOnly}
+                            onClick={() => setFormData({ ...formData, defectTypeId: '', defectTypeCode: '', defectTypeName: '' })}
+                            className="text-[10px] font-bold text-rose-500 hover:text-rose-600 disabled:opacity-50 transition-colors"
+                          >
+                            Limpar seleção
+                          </button>
                         )}
                       </div>
-                    )}
-
-                    <div className="relative mb-4">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                      <input
-                        placeholder={isGeofencingEnabled && allowedTechIds !== null ? "Pesquisar técnico (designados no topo)..." : "Pesquisar técnico..."}
-                        value={techSearch}
-                        onChange={e => setTechSearch(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] transition-all"
-                      />
-                    </div>
-
-                    <div className="flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar max-h-[300px]">
-                      <button
-                        type="button"
-                        onClick={() => handleSelectTechnician('')}
-                        className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group ${formData.assignedTo === ''
-                          ? 'border-amber-200 bg-amber-50 shadow-sm'
-                          : 'border-slate-50 bg-slate-50/50 hover:border-slate-200 hover:bg-white'
+                      <div className="relative">
+                        <button
+                          type="button"
+                          disabled={isReadOnly}
+                          onClick={() => !isReadOnly && setIsDefectDropdownOpen(!isDefectDropdownOpen)}
+                          className={`w-full hover:bg-slate-50 border rounded-xl px-3.5 py-2.5 text-left text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all flex justify-between items-center disabled:opacity-50 shadow-sm ${
+                            step2Attempted && !formData.defectTypeCode
+                              ? 'border-rose-400 bg-rose-50/30 ring-1 ring-rose-400/20'
+                              : 'border-slate-200 bg-slate-50/50'
                           }`}
-                      >
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center border transition-colors ${formData.assignedTo === '' ? 'bg-amber-400 border-amber-500 text-white' : 'bg-white border-slate-200 text-slate-400 group-hover:text-amber-500'
-                          }`}>
-                          <UserMinus size={16} />
-                        </div>
-                        <div>
-                          <p className="text-[11px] font-bold text-slate-800">Manter Pendente</p>
-                          <p className="text-[9px] text-slate-500 font-medium">Alocação em triagem</p>
-                        </div>
-                      </button>
+                        >
+                          {formData.defectTypeCode ? (
+                            <div className="flex items-center gap-2 truncate">
+                              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-mono text-[11px] font-bold border border-amber-200">
+                                <Hash size={11} className="text-amber-500" />
+                                {formData.defectTypeCode}
+                              </span>
+                              <span className="font-bold text-slate-800 truncate">{formData.defectTypeName}</span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">Selecione o tipo de defeito (código de 4 dígitos)...</span>
+                          )}
+                          <ChevronDown size={15} className={`shrink-0 text-slate-400 transition-transform ${isDefectDropdownOpen ? 'rotate-180' : ''}`} />
+                        </button>
 
-                      {filteredTechs.map(t => {
-                        const isAllowed = allowedTechIds === null || allowedTechIds.includes(t.id);
-                        const isDesignated = allowedTechIds !== null && allowedTechIds.includes(t.id);
-                        const isSelected = formData.assignedTo === t.id;
-                        return (
-                          <button
-                            key={t.id}
-                            type="button"
-                            onClick={() => {
-                              if (!isAllowed) {
-                                showAlert(`O técnico ${t.name} não atende a região onde o cliente está localizado. Selecione um técnico autorizado para esta área.`, 'error');
-                                return; // Não seleciona — bloqueio total
-                              }
-                              handleSelectTechnician(t.id);
-                            }}
-                            className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
-                              !isAllowed
-                                ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-100'
-                                : isSelected
-                                ? 'border-[#1c2d4f] bg-[#1c2d4f05] shadow-sm'
-                                : isDesignated
-                                ? 'border-emerald-300 bg-emerald-50/40 hover:border-emerald-400 hover:bg-emerald-50'
-                                : 'border-slate-50 bg-slate-50/50 hover:border-slate-200 hover:bg-white'
-                              }`}
-                          >
-                            <div className="relative">
-                              <img src={t.avatar} className="w-9 h-9 rounded-lg object-cover border border-slate-200" alt={t.name} />
-                              {!isAllowed ? (
-                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 rounded-full flex items-center justify-center" title="Fora da região">
-                                  <span className="text-white text-[8px] font-bold">✕</span>
-                                </div>
-                              ) : isDesignated && (
-                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center shadow-sm" title="Designado para esta área">
-                                  <span className="text-white text-[9px] font-bold">★</span>
+                        {isDefectDropdownOpen && (
+                          <div className="absolute z-[180] top-full mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-56 flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-1">
+                            <div className="p-2 border-b border-slate-100 bg-slate-50/70">
+                              <div className="relative">
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+                                <input
+                                  type="text"
+                                  placeholder="Buscar por código ou nome..."
+                                  value={defectSearch}
+                                  onChange={e => setDefectSearch(e.target.value)}
+                                  className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 outline-none focus:border-[#1c2d4f]"
+                                  autoFocus
+                                />
+                              </div>
+                            </div>
+                            <div className="overflow-y-auto max-h-44 custom-scrollbar divide-y divide-slate-100">
+                              {defectTypes
+                                .filter(d => {
+                                  const term = defectSearch.toLowerCase().trim();
+                                  if (!term) return true;
+                                  return d.code.toLowerCase().includes(term) || d.name.toLowerCase().includes(term) || (d.description || '').toLowerCase().includes(term);
+                                })
+                                .map(defect => (
+                                  <button
+                                    key={defect.id || defect.code}
+                                    type="button"
+                                    onClick={() => {
+                                      setFormData({
+                                        ...formData,
+                                        defectTypeId: defect.id || '',
+                                        defectTypeCode: defect.code,
+                                        defectTypeName: defect.name
+                                      });
+                                      setIsDefectDropdownOpen(false);
+                                      setDefectSearch('');
+                                    }}
+                                    className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 transition-colors flex items-center justify-between gap-3 group"
+                                  >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono text-[11px] font-bold border border-slate-200 group-hover:bg-[#1c2d4f] group-hover:text-white transition-colors">
+                                        <Hash size={10} />
+                                        {defect.code}
+                                      </span>
+                                      <div className="min-w-0">
+                                        <p className="text-xs font-bold text-slate-800 truncate">{defect.name}</p>
+                                        {defect.description && (
+                                          <p className="text-[10px] text-slate-400 truncate max-w-sm">{defect.description}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {formData.defectTypeCode === defect.code && (
+                                      <CheckCircle2 size={15} className="text-[#1c2d4f] shrink-0" />
+                                    )}
+                                  </button>
+                                ))}
+                              {defectTypes.length === 0 && (
+                                <div className="p-4 text-center text-xs text-slate-400 font-medium">
+                                  Nenhum tipo de defeito cadastrado na aba "Tipos de Defeitos".
                                 </div>
                               )}
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <p className="text-[11px] font-bold text-slate-800 truncate">{t.name}</p>
-                                {isDesignated && (
-                                  <span className="inline-flex items-center gap-0.5 text-[8px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-300">
-                                    <MapPin size={8} className="text-emerald-600" /> Região
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[9px] font-medium truncate">
-                                {!isAllowed
-                                  ? <span className="text-rose-400">Fora da área demarcada</span>
-                                  : <span className="text-slate-500">{t.email}</span>
-                                }
-                              </p>
-                            </div>
-                            {isSelected && <CheckCircle2 size={14} className="text-[#1c2d4f] shrink-0" />}
-                          </button>
-                        );
-                      })}
-                      
-                      {!techSearch.trim() && !formData.assignedTo && (
-                         <div className="p-4 text-center">
-                            <p className="text-xs text-slate-400 font-medium">Comece a digitar para buscar um técnico...</p>
-                         </div>
-                      )}
-                      
-                      {techSearch.trim() && filteredTechs.length === 0 && (
-                         <div className="p-4 text-center">
-                            <p className="text-xs text-slate-400 font-medium">Nenhum técnico encontrado.</p>
-                         </div>
-                      )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
+
+                {/* Informação no rodapé da coluna esquerda */}
+                <div className="mt-4 p-2.5 bg-slate-50/80 rounded-xl border border-slate-200/60 flex items-center gap-2 text-[11px] text-slate-500">
+                  <Info size={13} className="text-[#1c2d4f] shrink-0" />
+                  <span className="truncate">Defeito técnico classificado por código de 4 dígitos para fins de rastreabilidade.</span>
+                </div>
+              </div>
+
+              {/* COLUNA DIREITA: RESPONSÁVEL TÉCNICO */}
+              <div className="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                <div className="space-y-4 flex-1 flex flex-col">
+                  {/* Cabeçalho do Bloco */}
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-4 bg-emerald-500 rounded-full" />
+                      <h3 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-1.5">
+                        Responsável Técnico
+                        <span className="text-[10px] font-normal text-slate-400 lowercase">(opcional)</span>
+                      </h3>
+                    </div>
+                    {formData.assignedTo ? (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+                        <CheckCircle2 size={11} /> Definido
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200">
+                        Em Triagem (Sem Vínculo)
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Banner Geofencing se ativo */}
+                  {isGeofencingEnabled && allowedTechIds !== null && (
+                    <div className="p-2.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <MapPin size={13} className="text-emerald-600 shrink-0" />
+                        <p className="text-[10px] font-medium text-emerald-800">
+                          {allowedTechIds.length > 0
+                            ? `${allowedTechIds.length} técnico(s) designado(s)`
+                            : 'Endereço fora das regiões demarcadas'}
+                        </p>
+                      </div>
+                      {allowedTechIds.length > 0 && (
+                        <span className="text-[8px] font-bold text-emerald-800 bg-emerald-200/80 px-1.5 py-0.5 rounded-full uppercase">
+                          Geofencing
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Busca de Técnico */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+                    <input
+                      placeholder={isGeofencingEnabled && allowedTechIds !== null ? "Pesquisar técnico designado..." : "Pesquisar por nome ou e-mail..."}
+                      value={techSearch}
+                      onChange={e => setTechSearch(e.target.value)}
+                      className="w-full bg-slate-50/50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-[#1c2d4f] focus:bg-white transition-all placeholder:text-slate-400"
+                    />
+                  </div>
+
+                  {/* Lista de Técnicos com scroll dedicado */}
+                  <div className="flex-1 space-y-2 overflow-y-auto pr-1.5 custom-scrollbar max-h-[220px]">
+                    {/* Botão Sem Vínculo (Manter Pendente) */}
+                    <button
+                      type="button"
+                      onClick={() => handleSelectTechnician('')}
+                      className={`w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left ${formData.assignedTo === ''
+                        ? 'border-amber-300 bg-amber-50/70 shadow-sm'
+                        : 'border-slate-100 bg-slate-50/40 hover:border-slate-200 hover:bg-slate-50'
+                        }`}
+                    >
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center border shrink-0 transition-colors ${formData.assignedTo === '' ? 'bg-amber-400 border-amber-500 text-white' : 'bg-white border-slate-200 text-slate-400'
+                        }`}>
+                        <UserMinus size={15} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-bold text-slate-800">Sem Vínculo (Manter Pendente)</p>
+                        <p className="text-[9px] text-slate-500 font-medium truncate">Alocar técnico posteriormente via triagem</p>
+                      </div>
+                      {formData.assignedTo === '' && <CheckCircle2 size={14} className="text-amber-600 shrink-0" />}
+                    </button>
+                    {/* Lista de Técnicos */}
+                    {filteredTechs.map(t => {
+                      const isAllowed = allowedTechIds === null || allowedTechIds.includes(t.id);
+                      const isDesignated = allowedTechIds !== null && allowedTechIds.includes(t.id);
+                      const isSelected = formData.assignedTo === t.id;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            if (!isAllowed) {
+                              showAlert(`O técnico ${t.name} não atende a região onde o cliente está localizado. Selecione um técnico autorizado para esta área.`, 'error');
+                              return;
+                            }
+                            handleSelectTechnician(t.id);
+                          }}
+                          className={`w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left ${
+                            !isAllowed
+                              ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-100'
+                              : isSelected
+                              ? 'border-[#1c2d4f] bg-[#1c2d4f]/5 shadow-sm'
+                              : isDesignated
+                              ? 'border-emerald-200 bg-emerald-50/30 hover:border-emerald-300 hover:bg-emerald-50/60'
+                              : 'border-slate-100 bg-slate-50/40 hover:border-slate-200 hover:bg-slate-50'
+                            }`}
+                        >
+                          <div className="relative shrink-0">
+                            <img src={t.avatar} className="w-8 h-8 rounded-lg object-cover border border-slate-200" alt={t.name} />
+                            {!isAllowed ? (
+                              <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 rounded-full flex items-center justify-center" title="Fora da região">
+                                <span className="text-white text-[7px] font-bold">✕</span>
+                              </div>
+                            ) : isDesignated && (
+                              <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full flex items-center justify-center shadow-sm" title="Designado">
+                                <span className="text-white text-[8px] font-bold">★</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-[11px] font-bold text-slate-800 truncate">{t.name}</p>
+                              {isDesignated && (
+                                <span className="text-[8px] font-bold text-emerald-800 bg-emerald-100 px-1 py-0.2 rounded border border-emerald-200 shrink-0">
+                                  Região
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[9px] font-medium truncate text-slate-400">
+                              {!isAllowed ? <span className="text-rose-400">Fora da área demarcada</span> : t.email}
+                            </p>
+                          </div>
+                          {isSelected && <CheckCircle2 size={14} className="text-[#1c2d4f] shrink-0" />}
+                        </button>
+                      );
+                    })}
+
+                    {technicians.length === 0 && (
+                      <div className="py-4 text-center">
+                        <p className="text-xs text-slate-400 font-medium">Nenhum técnico cadastrado no sistema.</p>
+                      </div>
+                    )}
+
+                    {techSearch.trim() && filteredTechs.length === 0 && technicians.length > 0 && (
+                      <div className="py-4 text-center">
+                        <p className="text-xs text-slate-400 font-medium">Nenhum técnico encontrado para "{techSearch}".</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1270,84 +1529,243 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               )}
 
               {/* LISTA DE ORÇAMENTOS DISPONÍVEIS */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase px-1">Disponíveis</label>
-                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden max-h-[320px] overflow-y-auto custom-scrollbar">
-                  {quotes.filter(q => !linkedQuoteIds.includes(q.id) && (
-                    !quoteSearch || q.title?.toLowerCase().includes(quoteSearch.toLowerCase()) ||
-                    q.customerName?.toLowerCase().includes(quoteSearch.toLowerCase()) ||
-                    q.displayId?.toLowerCase().includes(quoteSearch.toLowerCase())
-                  )).length > 0 ? quotes.filter(q => !linkedQuoteIds.includes(q.id) && (
-                    !quoteSearch || q.title?.toLowerCase().includes(quoteSearch.toLowerCase()) ||
-                    q.customerName?.toLowerCase().includes(quoteSearch.toLowerCase()) ||
-                    q.displayId?.toLowerCase().includes(quoteSearch.toLowerCase())
-                  )).map(q => (
-                    <button key={q.id} onClick={() => !isReadOnly && setLinkedQuoteIds(prev => [...prev, q.id])} disabled={isReadOnly}
-                      className="w-full text-left px-3 py-2.5 hover:bg-slate-50 flex items-center justify-between border-b border-slate-100 last:border-0 transition-colors group disabled:opacity-50">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 bg-slate-50 rounded flex items-center justify-center group-hover:bg-[#1c2d4f10] transition-colors">
-                          <FileText size={13} className="text-slate-400 group-hover:text-[#1c2d4f]" />
+              {(() => {
+                const term = quoteSearch.trim().toLowerCase();
+                const tokens = term ? term.split(/\s+/).filter(Boolean) : [];
+                const searchedQuotes = tokens.length > 0
+                  ? quotes.filter(q => {
+                      if (linkedQuoteIds.includes(q.id)) return false;
+                      const searchable = `${q.displayId || ''} ${q.title || ''} ${q.customerName || ''} ${q.description || ''}`.toLowerCase();
+                      return tokens.every(token => searchable.includes(token));
+                    })
+                  : [];
+
+                return (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase px-1">
+                      {term ? `Resultados da Busca (${searchedQuotes.length})` : 'Buscar Orçamentos'}
+                    </label>
+                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden min-h-[160px] max-h-[320px] overflow-y-auto custom-scrollbar">
+                      {!term ? (
+                        <div className="px-6 py-12 text-center flex flex-col items-center justify-center">
+                          <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-3 border border-slate-200/60">
+                            <Search size={20} />
+                          </div>
+                          <p className="text-xs font-bold text-slate-700">Digite para buscar orçamentos</p>
+                          <p className="text-[11px] text-slate-400 font-medium max-w-sm mt-1">
+                            Insira o código, título ou cliente no campo acima para pesquisar e vincular orçamentos a esta OS.
+                          </p>
                         </div>
-                        <div>
-                          <p className="text-[11px] font-bold text-slate-700 group-hover:text-[#1c2d4f]">{q.displayId || q.title}</p>
-                          <p className="text-[10px] text-slate-400">{q.customerName} • R$ {(q.totalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                      ) : searchedQuotes.length > 0 ? (
+                        searchedQuotes.map(q => (
+                          <button
+                            key={q.id}
+                            onClick={() => !isReadOnly && setLinkedQuoteIds(prev => [...prev, q.id])}
+                            disabled={isReadOnly}
+                            className="w-full text-left px-3.5 py-3 hover:bg-slate-50 flex items-center justify-between border-b border-slate-100 last:border-0 transition-colors group disabled:opacity-50"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center group-hover:bg-[#1c2d4f10] border border-slate-100 transition-colors">
+                                <FileText size={14} className="text-slate-400 group-hover:text-[#1c2d4f]" />
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-slate-700 group-hover:text-[#1c2d4f]">{q.displayId || q.title}</p>
+                                <p className="text-[10px] text-slate-400 font-medium">{q.customerName || 'Cliente não informado'} • R$ {(q.totalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${q.status === 'APROVADO' ? 'bg-emerald-100 text-emerald-700' : q.status === 'REJEITADO' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-700'}`}>{q.status}</span>
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#1c2d4f] bg-slate-100 group-hover:bg-[#1c2d4f] group-hover:text-white px-2 py-1 rounded-md transition-colors">
+                                <Plus size={12} /> Vincular
+                              </span>
+                            </div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-6 py-10 text-center">
+                          <FileText size={24} className="mx-auto text-slate-300 mb-2" />
+                          <p className="text-xs font-bold text-slate-600">Nenhum orçamento encontrado</p>
+                          <p className="text-[11px] text-slate-400 mt-1">Nenhum resultado corresponde à sua busca "{quoteSearch}".</p>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${q.status === 'APROVADO' ? 'bg-emerald-100 text-emerald-700' : q.status === 'REJEITADO' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-700'}`}>{q.status}</span>
-                        <Plus size={14} className="text-slate-300 group-hover:text-[#1c2d4f] transition-colors" />
-                      </div>
-                    </button>
-                  )) : (
-                    <div className="px-6 py-10 text-center">
-                      <FileText size={24} className="mx-auto text-slate-200 mb-2" />
-                      <p className="text-[10px] font-semibold text-slate-400">{quoteSearch ? 'Nenhum orçamento encontrado' : 'Nenhum orçamento disponível'}</p>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
           {step === 5 && (
-            <div className="animate-fade-in space-y-8 max-w-2xl mx-auto">
-              {/* REVISÃO TÉCNICA */}
-              <div className="bg-emerald-50 border border-emerald-100 p-8 rounded-2xl flex items-center gap-6">
-                <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center text-emerald-500 shadow-sm border border-emerald-100">
-                  <CheckCircle2 size={28} />
+            <div className="animate-fade-in max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+              {/* COLUNA ESQUERDA: RESUMO EXECUTIVO DO PROTOCOLO */}
+              <div className="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                <div className="space-y-4">
+                  {/* Cabeçalho do Bloco */}
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-4 bg-emerald-500 rounded-full" />
+                      <h3 className="text-sm font-bold text-slate-900 tracking-tight">Resumo do Protocolo</h3>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center gap-1">
+                      <CheckCircle2 size={11} /> Etapa Final
+                    </span>
+                  </div>
+
+                  {/* Detalhes do Atendimento */}
+                  <div className="space-y-2.5">
+                    {/* Cliente */}
+                    <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/60 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-[#1c2d4f] shrink-0 shadow-2xs">
+                        <Building2 size={14} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Cliente Solicitante</p>
+                        <p className="font-bold text-slate-800 truncate text-xs">
+                          {clients.find(c => c.id === selectedClientId)?.name || formData.customerName || 'Cliente não selecionado'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Equipamento */}
+                    <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/60 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-[#1c2d4f] shrink-0 shadow-2xs">
+                        <Laptop size={14} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Equipamento / Ativo</p>
+                        <p className="font-bold text-slate-800 truncate text-xs">
+                          {equipments.find(e => selectedEquipIds.includes(e.id))?.model || formData.equipmentName || 'Equipamento'}
+                          {formData.equipmentSerial && formData.equipmentSerial !== '-' && (
+                            <span className="text-slate-500 font-normal ml-1.5 font-mono text-[11px]">({formData.equipmentSerial})</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Programação & Prioridade */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/60">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                          <Calendar size={11} className="text-slate-400" /> Programação
+                        </p>
+                        <p className="font-bold text-slate-800 text-xs truncate mt-1">
+                          {formData.scheduledDate ? (formData.scheduledDate.includes('-') ? formData.scheduledDate.split('-').reverse().join('/') : formData.scheduledDate) : 'Hoje'}
+                          {formData.scheduledTime ? ` às ${formData.scheduledTime}` : ''}
+                        </p>
+                      </div>
+
+                      <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/60">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                          <AlertCircle size={11} className="text-slate-400" /> Prioridade
+                        </p>
+                        <div className="mt-1 flex items-center">
+                          <PriorityBadge priority={formData.priority as OrderPriority} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Técnico & Defeito */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/60">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Técnico</p>
+                        <p className="font-bold text-slate-800 text-xs truncate mt-1">
+                          {technicians.find(t => t.id === formData.assignedTo)?.name || 'Em Triagem (Pendente)'}
+                        </p>
+                      </div>
+
+                      <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/60">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Defeito</p>
+                        <p className="font-bold text-slate-800 text-xs truncate mt-1" title={formData.defectTypeName}>
+                          {formData.defectTypeCode ? (
+                            <span className="inline-flex items-center gap-1 text-amber-700 font-mono">
+                              <Hash size={10} className="text-amber-500" />
+                              {formData.defectTypeCode}
+                            </span>
+                          ) : 'Não informado'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Valores & Orçamentos */}
+                    <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/60 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <DollarSign size={14} className="text-emerald-600" />
+                        <span className="text-xs font-semibold text-slate-600">
+                          {items.length} {items.length === 1 ? 'item' : 'itens'} • {linkedQuoteIds.length} {linkedQuoteIds.length === 1 ? 'orçamento' : 'orçamentos'}
+                        </span>
+                      </div>
+                      <span className="text-xs font-bold text-emerald-700 font-mono">
+                        R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-base font-bold text-emerald-900 tracking-tight">Revisão e Finalização</h3>
-                  <p className="text-xs text-emerald-600 font-medium mt-1">Preencha os detalhes finais para emissão do protocolo técnico</p>
+
+                {/* Rodapé da coluna esquerda */}
+                <div className="mt-4 p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-200/60 flex items-center gap-2 text-[11px] text-emerald-800">
+                  <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                  <span className="truncate">Todos os dados das etapas anteriores validados com sucesso.</span>
                 </div>
               </div>
 
-              <form id="os-form" onSubmit={handleSubmit} className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400   px-1 ml-1">título do atendimento</label>
-                  <Input
-                    placeholder="Ex: Manutenção Preventiva do Sistema Central..."
-                    required
-                    disabled={isReadOnly}
-                    className="rounded-xl py-4 px-4 font-semibold text-sm border-slate-200 shadow-sm focus:ring-[#1c2d4f10] disabled:opacity-50"
-                    value={formData.title}
-                    onChange={e => setFormData({ ...formData, title: e.target.value })}
-                  />
+              {/* COLUNA DIREITA: TÍTULO E DESCRIÇÃO TÉCNICO-OPERACIONAL */}
+              <div className="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                <div className="space-y-4">
+                  {/* Cabeçalho do Bloco */}
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-4 bg-[#1c2d4f] rounded-full" />
+                      <h3 className="text-sm font-bold text-slate-900 tracking-tight">Título e Escopo Operacional</h3>
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
+                      Obrigatório *
+                    </span>
+                  </div>
+
+                  <form id="os-form" onSubmit={handleSubmit} className="space-y-4">
+                    {/* Título do Atendimento */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 ml-0.5">
+                        <FileText size={12} className="text-slate-400" />
+                        Título do Atendimento <span className="text-rose-500">*</span>
+                      </label>
+                      <Input
+                        placeholder="Ex: Manutenção Preventiva do Sistema Central..."
+                        required
+                        disabled={isReadOnly}
+                        className="rounded-xl py-2.5 px-3.5 font-bold text-xs border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#1c2d4f] shadow-none disabled:opacity-50 transition-colors w-full"
+                        value={formData.title}
+                        onChange={e => setFormData({ ...formData, title: e.target.value })}
+                      />
+                    </div>
+
+                    {/* Descrição Técnico-Operacional */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 ml-0.5">
+                        <Info size={12} className="text-slate-400" />
+                        Descrição Técnico-Operacional <span className="text-rose-500">*</span>
+                      </label>
+                      <TextArea
+                        placeholder="Relate detalhadamente a necessidade do cliente, anomalias identificadas e o escopo do atendimento..."
+                        rows={7}
+                        required
+                        disabled={isReadOnly}
+                        className="rounded-xl p-3.5 text-xs font-medium border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#1c2d4f] shadow-none disabled:opacity-50 transition-colors w-full resize-none leading-relaxed"
+                        value={formData.description}
+                        onChange={e => setFormData({ ...formData, description: e.target.value })}
+                      />
+                    </div>
+                  </form>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400   px-1 ml-1">descrição técnico-operacional</label>
-                  <TextArea
-                    placeholder="Relate detalhadamente a necessidade do cliente e o escopo do trabalho..."
-                    rows={6}
-                    required
-                    disabled={isReadOnly}
-                    className="rounded-2xl p-6 text-sm font-medium border-slate-200 bg-white shadow-sm focus:ring-[#1c2d4f10] disabled:opacity-50"
-                    value={formData.description}
-                    onChange={e => setFormData({ ...formData, description: e.target.value })}
-                  />
+                {/* Rodapé da coluna direita */}
+                <div className="mt-4 p-2.5 bg-slate-50/80 rounded-xl border border-slate-200/60 flex items-center justify-between text-[11px] text-slate-600">
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 size={13} className="text-[#1c2d4f]" />
+                    <span>Ao emitir, a OS será registrada como <strong>{formData.assignedTo ? 'Atribuída' : 'Pendente (Triagem)'}</strong></span>
+                  </div>
                 </div>
-              </form>
+              </div>
             </div>
           )}
 
@@ -1418,18 +1836,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                 className="bg-[#1c2d4f] hover:bg-[#2a3e66] text-white rounded-xl px-10 py-3 font-bold text-xs   shadow-lg shadow-[#1c2d4f20] transition-all flex items-center gap-2"
                 onClick={() => {
                   if (step === 1) goToStep2();
-                  else if (step === 2) {
-                    // Validação de geofencing: impede avanço se técnico selecionado não é permitido
-                    if (isGeofencingEnabled && allowedTechIds !== null && formData.assignedTo) {
-                      const isTechAllowed = allowedTechIds.includes(formData.assignedTo);
-                      if (!isTechAllowed) {
-                        const techName = technicians.find(t => t.id === formData.assignedTo)?.name || 'selecionado';
-                        showAlert(`O técnico "${techName}" não atende a região demarcada do cliente. Por favor, selecione um técnico autorizado para esta área antes de continuar.`, 'error');
-                        return;
-                      }
-                    }
-                    setStep(3);
-                  }
+                  else if (step === 2) goToStep3();
                   else if (step === 3) setStep(4);
                   else if (step === 4) setStep(5);
                   else if (step === 5 && initialData) setStep(6);

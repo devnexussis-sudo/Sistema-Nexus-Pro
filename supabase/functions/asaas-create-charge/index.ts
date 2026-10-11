@@ -112,13 +112,71 @@ Deno.serve(async (req: Request) => {
     };
 
     // ==========================================
-    // ROTA DE CONFIGURAÇÃO DE WEBHOOK
+    // ROTA DE CONFIGURAÇÃO DE WEBHOOK (BIG TECH STANDARD)
     // ==========================================
     if (action === 'setup_webhook') {
       const { webhookUrl } = payload;
       if (!webhookUrl) throw new Error('webhookUrl é obrigatório para configurar o webhook.');
 
-      const webhookPayload = {
+      // 🛡️ Assegurar token criptográfico exclusivo para este tenant
+      const effectiveTenantId = tenantSettings?.tenant_id || tenantId;
+      let webhookToken: string | null = null;
+
+      if (effectiveTenantId) {
+        // 1. Tentar resgatar token já existente no cofre
+        try {
+          const { data: existingSecret } = await supabase
+            .from('tenant_secrets')
+            .select('asaas_webhook_token')
+            .eq('tenant_id', effectiveTenantId)
+            .maybeSingle();
+
+          if (existingSecret?.asaas_webhook_token) {
+            webhookToken = existingSecret.asaas_webhook_token;
+          }
+        } catch (_) {}
+
+        if (!webhookToken) {
+          try {
+            const { data: existingSetting } = await supabase
+              .from('tenant_asaas_settings')
+              .select('asaas_webhook_token')
+              .eq('tenant_id', effectiveTenantId)
+              .maybeSingle();
+
+            if (existingSetting?.asaas_webhook_token) {
+              webhookToken = existingSetting.asaas_webhook_token;
+            }
+          } catch (_) {}
+        }
+
+        // 2. Se não existir, gera token seguro no formato whsec_<uuid32>
+        if (!webhookToken) {
+          webhookToken = `whsec_${crypto.randomUUID().replace(/-/g, '')}`;
+        }
+
+        // 3. Salva no cofre de segredos de forma segura e idempotente
+        try {
+          await supabase.from('tenant_secrets').upsert({
+            tenant_id: effectiveTenantId,
+            asaas_webhook_token: webhookToken,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'tenant_id' });
+        } catch (e) {
+          console.warn('[Asaas Setup Webhook] Aviso ao salvar em tenant_secrets:', e);
+        }
+
+        try {
+          await supabase.from('tenant_asaas_settings').update({
+            asaas_webhook_token: webhookToken,
+            updated_at: new Date().toISOString(),
+          }).eq('tenant_id', effectiveTenantId);
+        } catch (e) {
+          console.warn('[Asaas Setup Webhook] Aviso ao salvar em tenant_asaas_settings:', e);
+        }
+      }
+
+      const webhookPayload: Record<string, any> = {
         url: webhookUrl,
         email: 'suporte@duno.com.br',
         apiVersion: 3,
@@ -130,11 +188,14 @@ Deno.serve(async (req: Request) => {
           'PAYMENT_CHARGEBACK_REQUESTED', 'PAYMENT_CHARGEBACK_DISPUTE', 'PAYMENT_AWAITING_CHARGEBACK_REVERSAL',
         ],
       };
+      if (webhookToken) {
+        webhookPayload.authToken = webhookToken;
+      }
 
       const webhookRes = await fetch(ASAAS_API_URL + '/webhook', { method: 'POST', headers, body: JSON.stringify(webhookPayload) });
       const webhookData = await webhookRes.json();
 
-      const invoiceWebhookPayload = {
+      const invoiceWebhookPayload: Record<string, any> = {
         url: webhookUrl,
         email: 'suporte@duno.com.br',
         apiVersion: 3,
@@ -142,6 +203,9 @@ Deno.serve(async (req: Request) => {
         interrupted: false,
         events: ['INVOICE_CREATED', 'INVOICE_UPDATED', 'INVOICE_SYNCHRONIZED', 'INVOICE_AUTHORIZED', 'INVOICE_PROCESSING_CANCELLATION', 'INVOICE_CANCELED', 'INVOICE_CANCELLATION_DENIED', 'INVOICE_ERROR'],
       };
+      if (webhookToken) {
+        invoiceWebhookPayload.authToken = webhookToken;
+      }
 
       try {
         await fetch(ASAAS_API_URL + '/webhook/invoice', { method: 'POST', headers, body: JSON.stringify(invoiceWebhookPayload) });
@@ -154,7 +218,11 @@ Deno.serve(async (req: Request) => {
       }
 
       return new Response(
-        JSON.stringify({ success: true, message: 'Webhook configurado com sucesso no Asaas.' }),
+        JSON.stringify({
+          success: true,
+          message: 'Webhook configurado com sucesso no Asaas com assinatura protegida.',
+          hasAuthToken: !!webhookToken,
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
       );
     }

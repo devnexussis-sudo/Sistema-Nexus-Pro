@@ -33,6 +33,9 @@ export const OrderService = {
             status: (order.status?.toUpperCase() === 'CANCELED' ? 'CANCELADO' : order.status) as DbOrderInsert['status'],
             priority: order.priority as DbOrderInsert['priority'],
             operation_type: order.operationType,
+            defect_type_id: order.defectTypeId || null,
+            defect_type_code: order.defectTypeCode || null,
+            defect_type_name: order.defectTypeName || null,
             assigned_to: order.assignedTo,
             form_id: order.formId,
             form_data: { 
@@ -108,6 +111,9 @@ export const OrderService = {
             status: data.status as ServiceOrder['status'],
             priority: data.priority as ServiceOrder['priority'],
             operationType: data.operation_type ?? '',
+            defectTypeId: (data as any).defect_type_id,
+            defectTypeCode: (data as any).defect_type_code,
+            defectTypeName: (data as any).defect_type_name,
             assignedTo: data.assigned_to,
             formId: data.form_id,
             formData: OrderService.migrateSignatureData(

@@ -117,19 +117,20 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
                 const onAbort = () => controller.abort(callerSignal?.reason || new Error('Caller Aborted'));
                 if (callerSignal) callerSignal.addEventListener('abort', onAbort);
 
-                // Timeout de 40s (aumentado de 12s) para evitar abortos prematuros
+                // Timeout estendido para 60s para evitar abortos prematuros
                 const timeoutId = setTimeout(() => {
-                    controller.abort(new Error('Nexus Fetch Timeout (40s)'));
-                }, 40_000);
+                    controller.abort(new Error('Nexus Fetch Timeout (60s)'));
+                }, 60_000);
 
                 let warningTimeoutId: ReturnType<typeof setTimeout> | undefined;
                 if (typeof window !== 'undefined') {
                     const urlStr = typeof url === 'string' ? url : (url instanceof URL ? url.toString() : (url as any).url || '');
                     const isHeavyOperation = isWrite || urlStr.includes('/functions/v1/');
                     
+                    // ⏱️ Tolerância ampliada: só avisa se demorar mais de 25s (leitura) ou 38s (operações pesadas)
                     warningTimeoutId = setTimeout(() => {
                         window.dispatchEvent(new CustomEvent('NEXUS_SLOW_NETWORK_WARNING'));
-                    }, isHeavyOperation ? 25_000 : 12_000);
+                    }, isHeavyOperation ? 38_000 : 25_000);
                 }
 
                 try {

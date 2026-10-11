@@ -1,5 +1,5 @@
 
-import { AlertTriangle, Barcode, Box, Camera, DollarSign, Edit3, Filter, History, Info, Layers, LayoutDashboard, List, Loader2, Package, Plus, RefreshCw, Save, Scale, Search, Tag, Trash2, TrendingDown, TrendingUp, Users, Wand2, X, Image as ImageIcon, Printer, QrCode, ClipboardCheck, CheckCircle, FileText } from 'lucide-react';
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Barcode, Box, Camera, Check, DollarSign, Edit3, Filter, History, Info, Layers, LayoutDashboard, List, Loader2, Package, Plus, RefreshCw, Save, Scale, Search, Tag, Trash2, TrendingDown, TrendingUp, Users, Wand2, X, Image as ImageIcon, Printer, QrCode, ClipboardCheck, CheckCircle, FileText } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '../../i18n';
@@ -1050,37 +1050,87 @@ export const StockManagement: React.FC = () => {
 
     return (
         <div className="p-4 pr-8 font-poppins">
-            <div className="mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-[#1c2d4f]/20 bg-white/40 shadow-sm backdrop-blur-md flex flex-col gap-3">
-                <div className="w-full overflow-x-auto custom-scrollbar pb-1 mb-1">
-                    <div className="flex items-center gap-1 w-max">
-                        <div className="flex bg-white/60 p-0.5 sm:p-1 rounded-xl border border-[#1c2d4f]/10 shadow-sm">
-                            <button onClick={() => setActiveTab('items')} className={`px-2 sm:px-3 h-8 rounded-lg text-[9px] transition-all flex items-center gap-1 ${activeTab === 'items' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
-                                <List size={14} /> <span className="whitespace-nowrap">Estoque</span>
-                            </button>
-                            <button onClick={() => setActiveTab('categories')} className={`px-2 sm:px-3 h-8 rounded-lg text-[9px] transition-all flex items-center gap-1 ${activeTab === 'categories' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
-                                <Tag size={14} /> <span className="whitespace-nowrap">Categorias</span>
-                            </button>
-                            <button onClick={() => setActiveTab('techs')} className={`px-2 sm:px-3 h-8 rounded-lg text-[9px] transition-all flex items-center gap-1 ${activeTab === 'techs' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
-                                <Box size={14} /> <span className="whitespace-nowrap">Técnicos</span>
-                            </button>
-                            <button onClick={() => setActiveTab('movements')} className={`px-2 sm:px-3 h-8 rounded-lg text-[9px] transition-all flex items-center gap-1 ${activeTab === 'movements' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
-                                <Scale size={14} /> <span className="whitespace-nowrap">Auditoria</span>
-                            </button>
-                            <button onClick={() => setActiveTab('balance')} className={`px-2 sm:px-3 h-8 rounded-lg text-[9px] transition-all flex items-center gap-1 ${activeTab === 'balance' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
-                                <ClipboardCheck size={14} /> <span className="whitespace-nowrap">Balanço</span>
-                            </button>
-                        </div>
-                    </div>
+            {/* ── TOP LEVEL TAB SWITCHER (Stripe / Linear Style — Idêntico à página Financeiro) ── */}
+            <div className="flex items-center justify-between border-b border-slate-200/80 pb-0 mb-4 shrink-0">
+                <div className="flex items-center gap-6 overflow-x-auto custom-scrollbar">
+                    <button
+                        onClick={() => setActiveTab('items')}
+                        className={`flex items-center gap-2 pb-3 pt-1 text-sm font-semibold border-b-2 transition-all relative ${
+                            activeTab === 'items'
+                                ? 'border-[#1c2d4f] text-[#1c2d4f]'
+                                : 'border-transparent text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        <List size={16} className={activeTab === 'items' ? 'text-[#1c2d4f]' : 'text-slate-400'} />
+                        <span className="whitespace-nowrap">Estoque</span>
+                    </button>
+
+                    <button
+                        onClick={() => setActiveTab('categories')}
+                        className={`flex items-center gap-2 pb-3 pt-1 text-sm font-semibold border-b-2 transition-all relative ${
+                            activeTab === 'categories'
+                                ? 'border-[#1c2d4f] text-[#1c2d4f]'
+                                : 'border-transparent text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        <Tag size={16} className={activeTab === 'categories' ? 'text-[#1c2d4f]' : 'text-slate-400'} />
+                        <span className="whitespace-nowrap">Categorias</span>
+                    </button>
+
+                    <button
+                        onClick={() => setActiveTab('techs')}
+                        className={`flex items-center gap-2 pb-3 pt-1 text-sm font-semibold border-b-2 transition-all relative ${
+                            activeTab === 'techs'
+                                ? 'border-[#1c2d4f] text-[#1c2d4f]'
+                                : 'border-transparent text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        <Box size={16} className={activeTab === 'techs' ? 'text-[#1c2d4f]' : 'text-slate-400'} />
+                        <span className="whitespace-nowrap">Técnicos</span>
+                    </button>
+
+                    <button
+                        onClick={() => setActiveTab('movements')}
+                        className={`flex items-center gap-2 pb-3 pt-1 text-sm font-semibold border-b-2 transition-all relative ${
+                            activeTab === 'movements'
+                                ? 'border-[#1c2d4f] text-[#1c2d4f]'
+                                : 'border-transparent text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        <Scale size={16} className={activeTab === 'movements' ? 'text-[#1c2d4f]' : 'text-slate-400'} />
+                        <span className="whitespace-nowrap">Auditoria</span>
+                    </button>
+
+                    <button
+                        onClick={() => setActiveTab('balance')}
+                        className={`flex items-center gap-2 pb-3 pt-1 text-sm font-semibold border-b-2 transition-all relative ${
+                            activeTab === 'balance'
+                                ? 'border-[#1c2d4f] text-[#1c2d4f]'
+                                : 'border-transparent text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        <ClipboardCheck size={16} className={activeTab === 'balance' ? 'text-[#1c2d4f]' : 'text-slate-400'} />
+                        <span className="whitespace-nowrap">Balanço</span>
+                    </button>
                 </div>
+            </div>
 
-                <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-3">
+            {/* Filtros e Ações da Listagem */}
+            {(activeTab === 'items' || activeTab === 'categories' || (activeTab === 'balance' && isCountingBalance)) && (
+                <div className="mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-slate-200/80 bg-white/60 shadow-sm backdrop-blur-md flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-3">
 
-                    {(activeTab === 'items' || (activeTab === 'balance' && isCountingBalance)) && (
+                    {(activeTab === 'items' || activeTab === 'categories' || (activeTab === 'balance' && isCountingBalance)) && (
                         <div className="relative flex-1 min-w-[200px] w-full lg:w-auto">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                             <input
                                 type="text"
-                                placeholder={activeTab === 'balance' ? "Digite ou bipe o cód. da peça / nome..." : "Localizar no estoque..."}
+                                placeholder={
+                                    activeTab === 'balance'
+                                        ? "Digite ou bipe o cód. da peça / nome..."
+                                        : activeTab === 'categories'
+                                        ? "Localizar categoria..."
+                                        : "Localizar no estoque..."
+                                }
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
                                 className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
@@ -1165,12 +1215,13 @@ export const StockManagement: React.FC = () => {
                         )}
                     </div>
                 </div>
-            </div>
+            )}
 
-            {/* Main Table Container */}
-            <div className="bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col flex-1 ring-1 ring-slate-200/80 stock-table-container">
-                {activeTab === 'items' ? (
-                    <>
+            {/* Standard System Table Container (Estoque e Categorias na tabela padrão do sistema) */}
+            {(activeTab === 'items' || activeTab === 'categories') && (
+                <div className="bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col flex-1 ring-1 ring-slate-200/80 stock-table-container">
+                    {activeTab === 'items' && (
+                        <>
                         <div className="hidden md:block flex-1 overflow-auto custom-scrollbar">
                             <table className="w-full border-collapse">
                                 <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm">
@@ -1417,121 +1468,126 @@ export const StockManagement: React.FC = () => {
                             }}
                         />
                     </>
-                ) : (
-                    <div className="p-4 sm:p-10 shrink-0">
-                        {activeTab === 'categories' && (
-                            <>
-                                <h3 className="text-xl font-black text-slate-800 uppercase  mb-6 flex items-center gap-3">
-                                    <Tag className="text-emerald-500" /> Gerenciar Categorias
-                                </h3>
-                                {categories.length === 0 ? (
-                                    <div className="text-center py-20 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
-                                        <Tag size={40} className="mx-auto text-slate-300 mb-4" />
-                                        <p className="text-slate-400 font-bold uppercase text-xs">Nenhuma categoria encontrada.</p>
-                                        <button onClick={() => handleOpenCategoryModal()} className="mt-4 text-emerald-600 font-black text-[10px] uppercase hover:underline">
-                                            Criar Primeira Categoria
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col flex-1 ring-1 ring-slate-200/80 stock-table-container">
-                                        {/* Desktop Table View */}
-                                        <div className="hidden md:block flex-1 overflow-auto custom-scrollbar">
-                                            <table className="w-full border-collapse">
-                                                <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm">
-                                                    <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left">
-                                                        <th className="px-6 py-3 font-semibold">Categoria</th>
-                                                        <th className="px-6 py-3 font-semibold text-center">Status</th>
-                                                        <th className="px-6 py-3 font-semibold text-right pr-6">Gestão</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="animate-fade-in duration-200">
-                                                    {categories.map(cat => (
-                                                        <tr key={cat.id} className="transition-all border-b border-slate-100 group bg-white hover:bg-slate-50">
-                                                            <td className="px-6 py-4">
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100">
-                                                                        <Layers size={14} />
-                                                                    </div>
-                                                                    <span className="text-[12px] font-bold text-slate-800 uppercase tracking-tight">{cat.name}</span>
-                                                                </div>
-                                                            </td>
-                                                            <td className="px-6 py-4 text-center">
-                                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${cat.active ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                                                                    {cat.active ? 'Ativo' : 'Inativo'}
-                                                                </span>
-                                                            </td>
-                                                            <td className="px-6 py-4 text-right pr-6">
-                                                                <div className="flex items-center justify-end gap-1.5 transition-opacity">
-                                                                    <Button onClick={(e) => {
-                                                                        if (!canEdit('stock')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
-                                                                        handleOpenCategoryModal(cat);
-                                                                    }} 
-                                                                    variant="secondary"
-                                                                    size="sm"
-                                                                    className={`p-2 text-primary-600 bg-primary-50 hover:bg-primary-600 hover:text-white rounded-lg border border-primary-200 transition-all ${!canEdit('stock') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
-                                                                    title="Editar">
-                                                                        <Edit3 size={14} />
-                                                                    </Button>
-                                                                    <Button onClick={(e) => {
-                                                                        if (!canDelete('stock')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
-                                                                        handleDeleteCategory(cat.id);
-                                                                    }} 
-                                                                    variant="danger"
-                                                                    size="sm"
-                                                                    className={`p-2 text-rose-400 bg-rose-50 hover:bg-rose-600 hover:text-white rounded-lg border border-transparent hover:border-rose-200 transition-all ${!canDelete('stock') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
-                                                                    title="Excluir">
-                                                                        <Trash2 size={14} />
-                                                                    </Button>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
+                    )}
 
-                                        {/* Mobile Cards View (PWA) */}
-                                        <div className="md:hidden flex-1 overflow-auto custom-scrollbar bg-slate-50/50 p-2.5 space-y-2 pb-28">
-                                            {categories.map(cat => (
-                                                <div key={cat.id} className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100 shrink-0">
-                                                            <Layers size={14} />
+                    {activeTab === 'categories' && (
+                        <>
+                            {/* Desktop Table View */}
+                            <div className="hidden md:block flex-1 overflow-auto custom-scrollbar">
+                                <table className="w-full border-collapse">
+                                    <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm">
+                                        <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left">
+                                            <th className="px-6 py-3 font-semibold">Categoria</th>
+                                            <th className="px-6 py-3 font-semibold text-center">Status</th>
+                                            <th className="px-6 py-3 font-semibold text-right pr-6">Gestão</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="animate-fade-in duration-200">
+                                        {categories.filter(cat => !searchTerm || cat.name?.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 ? (
+                                            <tr>
+                                                <td colSpan={3} className="py-20 text-center">
+                                                    <Tag size={40} className="mx-auto text-slate-300 mb-4" />
+                                                    <p className="text-slate-400 font-medium uppercase text-xs">Nenhuma categoria encontrada.</p>
+                                                    {canCreate('stock') && (
+                                                        <button onClick={() => handleOpenCategoryModal()} className="mt-4 text-emerald-600 font-semibold text-xs uppercase hover:underline">
+                                                            Criar Primeira Categoria
+                                                        </button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            categories
+                                                .filter(cat => !searchTerm || cat.name?.toLowerCase().includes(searchTerm.toLowerCase()))
+                                                .map(cat => (
+                                                <tr key={cat.id} className="transition-all border-b border-slate-100 group bg-white hover:bg-slate-50">
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100">
+                                                                <Layers size={14} />
+                                                            </div>
+                                                            <span className="text-[12px] font-medium text-slate-700 tracking-tight">{cat.name}</span>
                                                         </div>
-                                                        <div className="min-w-0">
-                                                            <p className="text-xs font-bold text-slate-800 uppercase truncate">{cat.name}</p>
-                                                            <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded mt-0.5 border ${cat.active ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                                                                {cat.active ? 'Ativo' : 'Inativo'}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5 shrink-0">
-                                                        <button 
-                                                            onClick={(e) => {
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider border ${cat.active ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                                                            {cat.active ? 'Ativo' : 'Inativo'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right pr-6">
+                                                        <div className="flex items-center justify-end gap-1.5 transition-opacity">
+                                                            <Button onClick={(e) => {
                                                                 if (!canEdit('stock')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
                                                                 handleOpenCategoryModal(cat);
                                                             }} 
-                                                            className="p-2 text-primary-600 bg-primary-50 rounded-lg border border-primary-100"
-                                                        >
-                                                            <Edit3 size={14} />
-                                                        </button>
-                                                        <button 
-                                                            onClick={(e) => {
+                                                            variant="secondary"
+                                                            size="sm"
+                                                            className={`p-2 text-primary-600 bg-primary-50 hover:bg-primary-600 hover:text-white rounded-lg border border-primary-200 transition-all ${!canEdit('stock') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
+                                                            title="Editar">
+                                                                <Edit3 size={14} />
+                                                            </Button>
+                                                            <Button onClick={(e) => {
                                                                 if (!canDelete('stock')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
                                                                 handleDeleteCategory(cat.id);
                                                             }} 
-                                                            className="p-2 text-rose-500 bg-rose-50 rounded-lg border border-rose-100"
-                                                        >
-                                                            <Trash2 size={14} />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                            variant="danger"
+                                                            size="sm"
+                                                            className={`p-2 text-rose-400 bg-rose-50 hover:bg-rose-600 hover:text-white rounded-lg border border-transparent hover:border-rose-200 transition-all ${!canDelete('stock') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
+                                                            title="Excluir">
+                                                                <Trash2 size={14} />
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Mobile Cards View (PWA) */}
+                            <div className="md:hidden flex-1 overflow-auto custom-scrollbar bg-slate-50/50 p-2.5 space-y-2 pb-28">
+                                {categories
+                                    .filter(cat => !searchTerm || cat.name?.toLowerCase().includes(searchTerm.toLowerCase()))
+                                    .map(cat => (
+                                    <div key={cat.id} className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100 shrink-0">
+                                                <Layers size={14} />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-medium text-slate-800 truncate">{cat.name}</p>
+                                                <span className={`inline-block text-[9px] font-medium px-1.5 py-0.5 rounded mt-0.5 border ${cat.active ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                                                    {cat.active ? 'Ativo' : 'Inativo'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            <button 
+                                                onClick={(e) => {
+                                                    if (!canEdit('stock')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                                                    handleOpenCategoryModal(cat);
+                                                }} 
+                                                className="p-2 text-primary-600 bg-primary-50 rounded-lg border border-primary-100"
+                                            >
+                                                <Edit3 size={14} />
+                                            </button>
+                                            <button 
+                                                onClick={(e) => {
+                                                    if (!canDelete('stock')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
+                                                    handleDeleteCategory(cat.id);
+                                                }} 
+                                                className="p-2 text-rose-500 bg-rose-50 rounded-lg border border-rose-100"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
                                         </div>
                                     </div>
-                                )}
-                            </>
-                        )}
+                                ))}
+                            </div>
+                        </>
+                    )}
+                </div>
+            )}
 
                         {activeTab === 'techs' && (
                             <div className="space-y-6 animate-fade-in font-poppins">
@@ -1748,8 +1804,8 @@ export const StockManagement: React.FC = () => {
                             }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
                             return (
                                 <div className="space-y-4 font-poppins">
-                                    <h3 className="text-lg sm:text-xl font-black text-slate-800 uppercase flex items-center gap-3">
-                                        <Scale className="text-slate-800" /> Auditoria de Movimentações
+                                    <h3 className="text-base font-semibold text-slate-800 flex items-center gap-2.5">
+                                        <Scale size={18} className="text-slate-700" /> Auditoria de Movimentações
                                     </h3>
                                     {/* Filtros Responsivos */}
                                     <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
@@ -1762,7 +1818,7 @@ export const StockManagement: React.FC = () => {
                                                     placeholder="Buscar por produto, código, OS ou responsável..."
                                                     value={movSearch}
                                                     onChange={e => setMovSearch(e.target.value)}
-                                                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all"
+                                                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 text-xs font-normal text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all"
                                                 />
                                             </div>
 
@@ -1773,7 +1829,7 @@ export const StockManagement: React.FC = () => {
                                                     <select
                                                         value={movTypeFilter}
                                                         onChange={e => setMovTypeFilter(e.target.value)}
-                                                        className="w-full bg-transparent text-xs font-bold uppercase text-slate-700 outline-none cursor-pointer truncate"
+                                                        className="w-full bg-transparent text-xs font-normal text-slate-700 outline-none cursor-pointer truncate"
                                                     >
                                                         <option value="ALL">Todos os Tipos</option>
                                                         <option value="TRANSFER">Transferência</option>
@@ -1787,28 +1843,28 @@ export const StockManagement: React.FC = () => {
                                             {/* Data De / Até (2 Colunas para não transbordar no mobile) */}
                                             <div className="sm:col-span-1 lg:col-span-4 grid grid-cols-2 gap-2">
                                                 <div className="flex flex-col gap-0.5">
-                                                    <label className="text-[9px] font-bold text-slate-400 uppercase px-0.5">De (Início)</label>
+                                                    <label className="text-[9px] font-medium text-slate-400 uppercase px-0.5">De (Início)</label>
                                                     <input
                                                         type="date"
                                                         value={movDateFrom}
                                                         onChange={e => handleDateValidation(e.target.value, movDateTo)}
-                                                        className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2 text-[11px] font-semibold text-slate-700 outline-none cursor-pointer"
+                                                        className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2 text-[11px] font-normal text-slate-700 outline-none cursor-pointer"
                                                     />
                                                 </div>
                                                 <div className="flex flex-col gap-0.5">
-                                                    <label className="text-[9px] font-bold text-slate-400 uppercase px-0.5">Até (Fim)</label>
+                                                    <label className="text-[9px] font-medium text-slate-400 uppercase px-0.5">Até (Fim)</label>
                                                     <input
                                                         type="date"
                                                         value={movDateTo}
                                                         onChange={e => handleDateValidation(movDateFrom, e.target.value)}
-                                                        className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2 text-[11px] font-semibold text-slate-700 outline-none cursor-pointer"
+                                                        className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2 text-[11px] font-normal text-slate-700 outline-none cursor-pointer"
                                                     />
                                                 </div>
                                             </div>
                                         </div>
 
                                         <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                            <span className="text-[10px] font-normal text-slate-400 uppercase tracking-wider">
                                                 {filtered.length} registro(s) localizado(s)
                                             </span>
                                             {(movSearch || movTypeFilter !== 'ALL' || movDateFrom || movDateTo) && (
@@ -1819,7 +1875,7 @@ export const StockManagement: React.FC = () => {
                                                         setMovDateFrom('');
                                                         setMovDateTo('');
                                                     }}
-                                                    className="text-[10px] font-bold uppercase text-rose-500 hover:text-rose-700 transition-colors"
+                                                    className="text-[10px] font-normal uppercase text-rose-500 hover:text-rose-700 transition-colors"
                                                 >
                                                     Limpar Filtros
                                                 </button>
@@ -1829,47 +1885,47 @@ export const StockManagement: React.FC = () => {
                                     <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto custom-scrollbar">
                                         <table className="w-full text-left border-collapse min-w-[650px]">
                                             <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm font-poppins">
-                                                <tr className="text-[10px] font-semibold text-slate-600 tracking-tight text-center uppercase">
-                                                    <th className="px-6 py-3 text-center">Data</th>
-                                                    <th className="px-6 py-3 text-center">Tipo</th>
-                                                    <th className="px-6 py-3">Item</th>
-                                                    <th className="px-6 py-3 text-center">Qtd.</th>
-                                                    <th className="px-6 py-3">Técnico / Admin</th>
-                                                    <th className="px-6 py-3">Referência (OS/ORC)</th>
-                                                    <th className="px-6 py-3 text-center">Fluxo</th>
+                                                <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center">
+                                                    <th className="px-6 py-3 text-center font-semibold">Data</th>
+                                                    <th className="px-6 py-3 text-center font-semibold">Tipo</th>
+                                                    <th className="px-6 py-3 text-left font-semibold">Item</th>
+                                                    <th className="px-6 py-3 text-center font-semibold">Qtd.</th>
+                                                    <th className="px-6 py-3 text-left font-semibold">Técnico / Admin</th>
+                                                    <th className="px-6 py-3 text-left font-semibold">Referência (OS/ORC)</th>
+                                                    <th className="px-6 py-3 text-center font-semibold">Fluxo</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
                                                 {filtered.length === 0 ? (
-                                                    <tr><td colSpan={7} className="py-16 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nenhuma movimentação encontrada</td></tr>
+                                                    <tr><td colSpan={7} className="py-16 text-center text-[10px] font-normal text-slate-400 uppercase tracking-widest">Nenhuma movimentação encontrada</td></tr>
                                                 ) : filtered.map(m => (
                                                     <tr key={m.id} className="text-[11px] hover:bg-slate-50/50">
-                                                        <td className="px-6 py-1.5 text-center text-slate-500 font-bold">{new Date(m.created_at).toLocaleString('pt-BR')}</td>
-                                                        <td className="px-6 py-1.5 text-center">
-                                                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${m.type === 'TRANSFER' ? 'bg-primary-50 text-primary-600' :
+                                                        <td className="px-6 py-2.5 text-center text-slate-500 font-normal">{new Date(m.created_at).toLocaleString('pt-BR')}</td>
+                                                        <td className="px-6 py-2.5 text-center">
+                                                            <span className={`px-2 py-0.5 rounded text-[10px] font-normal uppercase ${m.type === 'TRANSFER' ? 'bg-primary-50 text-primary-600' :
                                                                 m.type === 'CONSUMPTION' ? 'bg-amber-100 text-amber-700' :
                                                                     'bg-emerald-50 text-emerald-600'
                                                                 }`}>
                                                                 {m.type === 'TRANSFER' ? 'Transferência' : m.type === 'CONSUMPTION' ? 'Consumo' : m.type === 'RETURN' ? 'Devolução' : 'Entrada'}
                                                             </span>
                                                         </td>
-                                                        <td className="px-6 py-1.5">
-                                                            <p className="font-black text-slate-800 uppercase ">{m.stock_items?.description}</p>
-                                                            <p className="text-[9px] text-slate-400">Cód: {m.stock_items?.code}</p>
+                                                        <td className="px-6 py-2.5">
+                                                            <p className="font-normal text-slate-700">{m.stock_items?.description}</p>
+                                                            <p className="text-[10px] text-slate-400 font-normal">Cód: {m.stock_items?.code}</p>
                                                         </td>
-                                                        <td className="px-6 py-1.5 text-center font-bold text-slate-900">{m.quantity}</td>
-                                                        <td className="px-6 py-1.5">
+                                                        <td className="px-6 py-2.5 text-center font-normal text-slate-700">{m.quantity}</td>
+                                                        <td className="px-6 py-2.5">
                                                             <div className="flex flex-col">
-                                                                <span className="font-bold text-slate-700 uppercase truncate max-w-[120px]">{m.technician?.name || m.executor?.name || '-'}</span>
+                                                                <span className="font-normal text-slate-700 truncate max-w-[120px]">{m.technician?.name || m.executor?.name || '-'}</span>
                                                                 {m.executor?.name && m.executor.name !== m.technician?.name && (
-                                                                    <span className="text-[9px] text-slate-400 italic">Por: {m.executor.name}</span>
+                                                                    <span className="text-[10px] text-slate-400 italic font-normal">Por: {m.executor.name}</span>
                                                                 )}
                                                             </div>
                                                         </td>
-                                                        <td className="px-6 py-1.5">
-                                                            <span className="font-black text-primary-600 text-[10px]">{m.reference_id || '-'}</span>
+                                                        <td className="px-6 py-2.5">
+                                                            <span className="font-normal text-primary-600 text-xs">{m.reference_id || '-'}</span>
                                                         </td>
-                                                        <td className="px-6 py-1.5 text-center text-[10px] font-bold text-slate-400 ">
+                                                        <td className="px-6 py-2.5 text-center text-[10px] font-normal text-slate-400">
                                                             {m.source} → {m.destination}
                                                         </td>
                                                     </tr>
@@ -2165,9 +2221,6 @@ export const StockManagement: React.FC = () => {
                                 )}
                             </div>
                         )}
-                    </div>
-                )}
-            </div>
 
             {/* RESTOCK MODAL */}
             {isRestockModalOpen && (
@@ -2739,182 +2792,331 @@ export const StockManagement: React.FC = () => {
                     </div>
                 </div>
             )}
-            {/* TRANSFER MODAL */}
-            {isTransferModalOpen && (
-                <div className="fixed inset-0 z-[203] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
-                    <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-scale-up border border-slate-200 flex flex-col max-h-[90vh]">
-                        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
-                            <h2 className="text-base font-semibold text-slate-900 font-poppins flex items-center gap-3">
-                                <Box className="text-primary-600" size={20} /> Movimentação de Itens
-                            </h2>
-                            <button type="button" onClick={() => setIsTransferModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all rounded-lg shrink-0">
-                                <X size={20} />
-                            </button>
-                        </div>
+            {/* TRANSFER MODAL (Teleportado para document.body com z-[9999] para não ficar atrás do menu lateral e perfeitamente centralizado na tela inteira) */}
+            {isTransferModalOpen && createPortal((() => {
+                const filteredTechList = techs.filter(t => !transferTechSearch || t.name?.toLowerCase().includes(transferTechSearch.toLowerCase()));
+                const availableTransferItems = items
+                    .filter(i => (Number(i.quantity) || 0) > 0)
+                    .filter(i => !transferItemSearch || i.description?.toLowerCase().includes(transferItemSearch.toLowerCase()) || i.code?.toLowerCase().includes(transferItemSearch.toLowerCase()));
+                const availableReturnItems = techStock
+                    .filter(ts => (Number(ts.quantity) || 0) > 0)
+                    .filter(ts => !transferItemSearch || ts.item?.description?.toLowerCase().includes(transferItemSearch.toLowerCase()) || ts.item?.code?.toLowerCase().includes(transferItemSearch.toLowerCase()));
+                const selectedTechObj = techs.find(t => t.id === transferData.techId);
+                const selectedItemObj = transferData.direction === 'return'
+                    ? techStock.find(ts => ts.stockItemId === transferData.itemId || ts.id === transferData.itemId)?.item
+                    : items.find(i => i.id === transferData.itemId);
+                const selectedMaxQty = transferData.direction === 'return'
+                    ? techStock.find(ts => ts.stockItemId === transferData.itemId || ts.id === transferData.itemId)?.quantity
+                    : items.find(i => i.id === transferData.itemId)?.quantity;
 
-                        <form className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1" onSubmit={async (e) => {
-                            e.preventDefault();
-                            if (!transferData.itemId || !transferData.techId || !transferData.quantity) return;
-                            try {
-                                if (transferData.direction === 'return') {
-                                    await DataService.returnFromTech(transferData.techId, transferData.itemId, Number(transferData.quantity));
-                                    alert('Item devolvido ao estoque geral com sucesso!');
-                                } else {
-                                    await DataService.transferToTech(transferData.techId, transferData.itemId, Number(transferData.quantity));
-                                    alert('Transferência ao técnico concluída!');
-                                }
-                                setIsTransferModalOpen(false);
-                                loadItems(currentPage, searchTerm, categoryFilter, statusFilter);
-                                loadMovements();
-                                if (selectedTech?.id === transferData.techId) {
-                                    const stock = await DataService.getTechStock(selectedTech.id);
-                                    setTechStock(stock);
-                                }
-                            } catch (error: any) {
-                                alert(error.message || 'Erro ao transferir.');
-                            }
-                        }}>
-                            <div className="space-y-3">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
-                                    <div>
-                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Ação</label>
-                                        <div className="flex bg-slate-100 p-1 rounded-xl h-[42px]">
-                                            <button
-                                                type="button"
-                                                className={`flex-1 text-[10px] font-black uppercase rounded-lg transition-all ${transferData.direction === 'transfer' ? 'bg-white text-[#10b981] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                                                onClick={() => setTransferData({ ...transferData, direction: 'transfer', itemId: '' })}
-                                            >
-                                                Enviar p/ Técnico
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className={`flex-1 text-[10px] font-black uppercase rounded-lg transition-all ${transferData.direction === 'return' ? 'bg-white text-amber-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                                                onClick={async () => {
-                                                    setTransferData({ ...transferData, direction: 'return', itemId: '' });
-                                                    if (transferData.techId) {
-                                                        const stock = await DataService.getTechStock(transferData.techId);
-                                                        setTechStock(stock);
-                                                    }
-                                                }}
-                                            >
-                                                Devolver Estoque
-                                            </button>
-                                        </div>
+                return (
+                    <div 
+                        className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 md:p-6 animate-in fade-in duration-200"
+                        onClick={() => setIsTransferModalOpen(false)}
+                    >
+                        <div 
+                            className="bg-white w-full h-full md:h-auto md:max-h-[90vh] md:rounded-2xl max-w-6xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 font-poppins border border-slate-200"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            
+                            {/* HEADER */}
+                            <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl flex items-center justify-center border bg-slate-50 border-slate-200 text-[#1c2d4f] shrink-0">
+                                        <Box size={20} />
                                     </div>
                                     <div>
-                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Quantidade</label>
-                                        <input
-                                            type="number"
-                                            required
-                                            min="0.1"
-                                            step="0.1"
-                                            className="w-full px-3 py-2 h-[42px] rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-100"
-                                            value={transferData.quantity}
-                                            onChange={e => setTransferData({ ...transferData, quantity: e.target.value })}
-                                            placeholder="0"
-                                        />
+                                        <div className="flex items-center gap-2">
+                                            <h2 className="text-base sm:text-lg font-semibold text-slate-900 leading-tight">Movimentação de Itens de Estoque</h2>
+                                            <span className="hidden sm:inline-flex text-[10px] font-medium text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                                                {transferData.direction === 'transfer' ? 'Almoxarifado ➔ Colaborador' : 'Colaborador ➔ Almoxarifado'}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-slate-400 mt-0.5">Transferência e controle de carga custodiada entre o estoque central e colaboradores</p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsTransferModalOpen(false)}
+                                    className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all rounded-xl shrink-0"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <form className="flex flex-col flex-1 min-h-0 overflow-hidden" onSubmit={async (e) => {
+                                e.preventDefault();
+                                if (!transferData.itemId || !transferData.techId || !transferData.quantity || Number(transferData.quantity) <= 0) return;
+                                try {
+                                    if (transferData.direction === 'return') {
+                                        await DataService.returnFromTech(transferData.techId, transferData.itemId, Number(transferData.quantity));
+                                        showAlert('Item devolvido ao estoque geral com sucesso!');
+                                    } else {
+                                        await DataService.transferToTech(transferData.techId, transferData.itemId, Number(transferData.quantity));
+                                        showAlert('Transferência ao colaborador concluída com sucesso!');
+                                    }
+                                    setIsTransferModalOpen(false);
+                                    loadItems(currentPage, searchTerm, categoryFilter, statusFilter);
+                                    loadMovements();
+                                    if (selectedTech?.id === transferData.techId) {
+                                        const stock = await DataService.getTechStock(selectedTech.id);
+                                        setTechStock(stock);
+                                    }
+                                } catch (error: any) {
+                                    showAlert(error.message || 'Erro ao realizar movimentação.');
+                                }
+                            }}>
+                                {/* BARRA SUPERIOR: TIPO DE MOVIMENTAÇÃO E QUANTIDADE */}
+                                <div className="p-4 sm:p-6 bg-slate-50/70 border-b border-slate-100 shrink-0">
+                                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                                        <div className="md:col-span-8 flex flex-col gap-1.5">
+                                            <label className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Tipo de Movimentação</label>
+                                            <div className="grid grid-cols-2 gap-2 bg-slate-200/60 p-1 rounded-xl">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setTransferData({ ...transferData, direction: 'transfer', itemId: '' })}
+                                                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-semibold transition-all ${
+                                                        transferData.direction === 'transfer'
+                                                            ? 'bg-white text-[#1c2d4f] shadow-sm'
+                                                            : 'text-slate-500 hover:text-slate-800'
+                                                    }`}
+                                                >
+                                                    <ArrowUpRight size={16} className={transferData.direction === 'transfer' ? 'text-emerald-600' : 'text-slate-400'} />
+                                                    <span>Enviar para Técnico (Carga)</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        setTransferData({ ...transferData, direction: 'return', itemId: '' });
+                                                        if (transferData.techId) {
+                                                            const stock = await DataService.getTechStock(transferData.techId);
+                                                            setTechStock(stock);
+                                                        }
+                                                    }}
+                                                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-semibold transition-all ${
+                                                        transferData.direction === 'return'
+                                                            ? 'bg-white text-[#1c2d4f] shadow-sm'
+                                                            : 'text-slate-500 hover:text-slate-800'
+                                                    }`}
+                                                >
+                                                    <ArrowDownLeft size={16} className={transferData.direction === 'return' ? 'text-amber-600' : 'text-slate-400'} />
+                                                    <span>Devolver ao Estoque Geral</span>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="md:col-span-4 flex flex-col gap-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">Quantidade</label>
+                                                {selectedMaxQty !== undefined && selectedMaxQty !== null && (
+                                                    <span className="text-[11px] text-slate-500">
+                                                        Disponível: <strong className="text-slate-800">{selectedMaxQty}</strong>
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <input
+                                                type="number"
+                                                required
+                                                min="0.1"
+                                                step="0.1"
+                                                max={selectedMaxQty !== undefined && selectedMaxQty !== null ? selectedMaxQty : undefined}
+                                                className="w-full px-3 py-2 h-[42px] rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-[#1c2d4f]/20 focus:border-[#1c2d4f] transition-all shadow-sm"
+                                                value={transferData.quantity}
+                                                onChange={e => setTransferData({ ...transferData, quantity: e.target.value })}
+                                                placeholder="Informe a quantidade..."
+                                            />
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div className="flex flex-col border border-slate-200 rounded-xl overflow-hidden h-[160px] bg-white">
-                                        <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 flex flex-col gap-2 shrink-0">
-                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                                                Técnico {transferData.techId && <span className="text-primary-500">(Selecionado)</span>}
-                                            </label>
-                                            <div className="flex items-center bg-white border border-slate-200 rounded-md px-2 py-1">
-                                                <Search size={12} className="text-slate-400 shrink-0" />
-                                                <input 
-                                                    type="text" 
-                                                    placeholder="Filtrar técnico..." 
-                                                    className="w-full bg-transparent px-2 text-[10px] font-bold outline-none"
+                                {/* ÁREA DE SELEÇÃO: 2 COLUNAS LADO A LADO */}
+                                <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 overflow-y-auto custom-scrollbar min-h-0">
+                                    
+                                    {/* COLUNA 1: COLABORADOR / TÉCNICO */}
+                                    <div className="flex flex-col border border-slate-200 rounded-2xl bg-white overflow-hidden shadow-xs">
+                                        <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex flex-col gap-2 shrink-0">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <Users size={14} className="text-slate-500" /> 1. Colaborador / Técnico
+                                                </span>
+                                                {selectedTechObj && (
+                                                    <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                                        Selecionado
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="relative">
+                                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Buscar técnico por nome..."
+                                                    className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-700 placeholder-slate-400 outline-none focus:ring-1 focus:ring-[#1c2d4f] transition-all shadow-2xs"
                                                     value={transferTechSearch}
                                                     onChange={e => setTransferTechSearch(e.target.value)}
                                                 />
                                             </div>
                                         </div>
-                                        <select
-                                            required
-                                            className="w-full flex-1 px-2 py-1 text-[10px] font-bold text-slate-700 outline-none custom-scrollbar hover:cursor-pointer"
-                                            multiple
-                                            value={[transferData.techId]}
-                                            onChange={async (e) => {
-                                                const newTechId = e.target.value;
-                                                setTransferData({ ...transferData, techId: newTechId, itemId: '' });
-                                                if (newTechId && transferData.direction === 'return') {
-                                                    const stock = await DataService.getTechStock(newTechId);
-                                                    setTechStock(stock);
-                                                }
-                                            }}
-                                        >
-                                            {techs
-                                                .filter(t => t.name.toLowerCase().includes(transferTechSearch.toLowerCase()))
-                                                .map(t => (
-                                                    <option key={t.id} value={t.id} className="p-1.5 hover:bg-slate-50 border-b border-slate-50 last:border-0 rounded-md my-0.5 whitespace-normal leading-tight">
-                                                        {t.name}
-                                                    </option>
-                                                ))
-                                            }
-                                        </select>
+
+                                        <div className="p-2 space-y-1.5 flex-1 overflow-y-auto custom-scrollbar max-h-[300px] md:max-h-[360px]">
+                                            {filteredTechList.length === 0 ? (
+                                                <div className="py-12 text-center text-xs text-slate-400">Nenhum técnico localizado</div>
+                                            ) : (
+                                                filteredTechList.map(t => {
+                                                    const isSelected = transferData.techId === t.id;
+                                                    return (
+                                                        <div
+                                                            key={t.id}
+                                                            onClick={async () => {
+                                                                setTransferData({ ...transferData, techId: t.id, itemId: '' });
+                                                                if (transferData.direction === 'return') {
+                                                                    const stock = await DataService.getTechStock(t.id);
+                                                                    setTechStock(stock);
+                                                                }
+                                                            }}
+                                                            className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                                                                isSelected
+                                                                    ? 'bg-[#1c2d4f]/5 border-[#1c2d4f] ring-1 ring-[#1c2d4f] shadow-xs'
+                                                                    : 'bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center gap-3 min-w-0">
+                                                                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                                                                    isSelected ? 'bg-[#1c2d4f] text-white' : 'bg-slate-100 text-slate-600'
+                                                                }`}>
+                                                                    {t.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
+                                                                </div>
+                                                                <div className="min-w-0">
+                                                                    <p className={`text-xs font-semibold truncate ${isSelected ? 'text-[#1c2d4f]' : 'text-slate-800'}`}>{t.name}</p>
+                                                                    <p className="text-[10px] text-slate-400 uppercase tracking-wider">{t.role === 'ADMIN' ? 'Gestão' : 'Operacional'}</p>
+                                                                </div>
+                                                            </div>
+                                                            {isSelected && (
+                                                                <Check size={16} className="text-[#1c2d4f] shrink-0" />
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="flex flex-col border border-slate-200 rounded-xl overflow-hidden h-[160px] bg-white">
-                                        <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 flex flex-col gap-2 shrink-0">
-                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                                                Item {transferData.itemId && <span className="text-emerald-500">(Selecionado)</span>}
-                                            </label>
-                                            <div className="flex items-center bg-white border border-slate-200 rounded-md px-2 py-1">
-                                                <Search size={12} className="text-slate-400 shrink-0" />
-                                                <input 
-                                                    type="text" 
-                                                    placeholder="Filtrar item..." 
-                                                    className="w-full bg-transparent px-2 text-[10px] font-bold outline-none"
+
+                                    {/* COLUNA 2: PRODUTO / PEÇA */}
+                                    <div className="flex flex-col border border-slate-200 rounded-2xl bg-white overflow-hidden shadow-xs">
+                                        <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex flex-col gap-2 shrink-0">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <Package size={14} className="text-slate-500" /> 2. Produto / Peça
+                                                </span>
+                                                {selectedItemObj && (
+                                                    <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                                        Selecionado
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="relative">
+                                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Buscar peça por código ou descrição..."
+                                                    className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-700 placeholder-slate-400 outline-none focus:ring-1 focus:ring-[#1c2d4f] transition-all shadow-2xs"
                                                     value={transferItemSearch}
                                                     onChange={e => setTransferItemSearch(e.target.value)}
                                                 />
                                             </div>
                                         </div>
-                                        <select
-                                            required
-                                            className="w-full flex-1 px-2 py-1 text-[10px] font-bold text-slate-700 outline-none custom-scrollbar hover:cursor-pointer"
-                                            multiple
-                                            value={[transferData.itemId]}
-                                            onChange={e => setTransferData({ ...transferData, itemId: e.target.value })}
-                                        >
-                                            {transferData.direction === 'return' ? (
-                                                techStock
-                                                    .filter(ts => (Number(ts.quantity) || 0) > 0)
-                                                    .filter(ts => ts.item?.description?.toLowerCase().includes(transferItemSearch.toLowerCase()) || ts.item?.code?.toLowerCase().includes(transferItemSearch.toLowerCase()))
-                                                    .map(ts => (
-                                                        <option key={ts.id} value={ts.stockItemId} className="p-1.5 hover:bg-slate-50 border-b border-slate-50 last:border-0 rounded-md my-0.5 whitespace-normal leading-tight">
-                                                            (SKU {ts.item?.code}) {ts.item?.description || '...'} - Qtd: {ts.quantity}
-                                                        </option>
-                                                    ))
+
+                                        <div className="p-2 space-y-1.5 flex-1 overflow-y-auto custom-scrollbar max-h-[300px] md:max-h-[360px]">
+                                            {transferData.direction === 'return' && !transferData.techId ? (
+                                                <div className="py-16 text-center px-4">
+                                                    <Users size={32} className="mx-auto text-slate-300 mb-2" />
+                                                    <p className="text-xs font-medium text-slate-500">Selecione um técnico à esquerda</p>
+                                                    <p className="text-[10px] text-slate-400 mt-1">Os itens custodiados por ele serão listados aqui para devolução.</p>
+                                                </div>
+                                            ) : (transferData.direction === 'return' ? availableReturnItems : availableTransferItems).length === 0 ? (
+                                                <div className="py-16 text-center text-xs text-slate-400 px-4">
+                                                    {transferData.direction === 'return' ? 'Este técnico não possui itens em sua carga ativa.' : 'Nenhum item com saldo positivo localizado no estoque.'}
+                                                </div>
                                             ) : (
-                                                items
-                                                    .filter(i => (Number(i.quantity) || 0) > 0)
-                                                    .filter(i => i.description?.toLowerCase().includes(transferItemSearch.toLowerCase()) || i.code?.toLowerCase().includes(transferItemSearch.toLowerCase()))
-                                                    .map(i => (
-                                                        <option key={i.id} value={i.id} className="p-1.5 hover:bg-slate-50 border-b border-slate-50 last:border-0 rounded-md my-0.5 whitespace-normal leading-tight">
-                                                            (SKU {i.code}) {i.description} - Qtd: {i.quantity}
-                                                        </option>
-                                                    ))
+                                                (transferData.direction === 'return' ? availableReturnItems : availableTransferItems).map((it: any) => {
+                                                    const itId = transferData.direction === 'return' ? (it.stockItemId || it.id) : it.id;
+                                                    const itDesc = transferData.direction === 'return' ? it.item?.description : it.description;
+                                                    const itCode = transferData.direction === 'return' ? it.item?.code : it.code;
+                                                    const itUnit = transferData.direction === 'return' ? (it.item?.unit || 'UN') : (it.unit || 'UN');
+                                                    const itQty = it.quantity;
+                                                    const itCat = transferData.direction === 'return' ? (it.item?.category || 'Geral') : (it.category || 'Geral');
+                                                    const isSelected = transferData.itemId === itId;
+
+                                                    return (
+                                                        <div
+                                                            key={it.id}
+                                                            onClick={() => setTransferData({ ...transferData, itemId: itId })}
+                                                            className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                                                                isSelected
+                                                                    ? 'bg-[#1c2d4f]/5 border-[#1c2d4f] ring-1 ring-[#1c2d4f] shadow-xs'
+                                                                    : 'bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50'
+                                                            }`}
+                                                        >
+                                                            <div className="min-w-0 flex-1 pr-3">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                                                        #{itCode || '---'}
+                                                                    </span>
+                                                                    <p className={`text-xs font-semibold truncate ${isSelected ? 'text-[#1c2d4f]' : 'text-slate-800'}`}>
+                                                                        {itDesc}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-400">
+                                                                    <span>{itCat}</span>
+                                                                    <span>•</span>
+                                                                    <span className="text-slate-600 font-medium">Saldo: <strong className="text-slate-800">{itQty} {itUnit}</strong></span>
+                                                                </div>
+                                                            </div>
+                                                            {isSelected && (
+                                                                <Check size={16} className="text-[#1c2d4f] shrink-0" />
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })
                                             )}
-                                        </select>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <Button
-                                type="submit"
-                                variant="primary"
-                                className="w-full mt-2 py-3 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl font-black uppercase text-[11px] tracking-widest shadow-xl shadow-primary-900/20 transition-all active:scale-95 shrink-0"
-                            >
-                                {transferData.direction === 'transfer' ? 'Confirmar Transferência' : 'Confirmar Devolução'}
-                            </Button>
-                        </form>
+                                {/* FOOTER: RESUMO E AÇÕES */}
+                                <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                                    <div className="text-xs text-slate-600 text-center sm:text-left">
+                                        {selectedTechObj && selectedItemObj && transferData.quantity ? (
+                                            <p>
+                                                {transferData.direction === 'transfer' ? 'Transferindo ' : 'Devolvendo '}
+                                                <strong className="text-slate-900">{transferData.quantity} {selectedItemObj.unit || 'UN'}</strong> de <strong className="text-slate-900">{selectedItemObj.description}</strong> {transferData.direction === 'transfer' ? '➔ para o colaborador ' : '➔ do colaborador '} <strong className="text-[#1c2d4f]">{selectedTechObj.name}</strong>.
+                                            </p>
+                                        ) : (
+                                            <p className="text-slate-400">Selecione o colaborador, o produto e a quantidade desejada.</p>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsTransferModalOpen(false)}
+                                            className="flex-1 sm:flex-none px-4 py-2.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-medium transition-all"
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            disabled={!transferData.itemId || !transferData.techId || !transferData.quantity || Number(transferData.quantity) <= 0}
+                                            className="flex-1 sm:flex-none px-6 py-2.5 bg-[#1c2d4f] hover:bg-[#253a66] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-semibold shadow-lg shadow-primary-900/10 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <Check size={16} />
+                                            <span>{transferData.direction === 'transfer' ? 'Confirmar Transferência' : 'Confirmar Devolução'}</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
+                );
+            })(), document.body)}
 
             {/* Modal Confirm Balance */}
             {isConfirmBalanceModalOpen && (

@@ -42,14 +42,15 @@ import {
   RefreshCw,
   Paperclip,
   Image as ImageIcon,
-  Copy
+  Copy,
+  Hash
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '../../i18n';
 import { useDialog } from '../../contexts/DialogContext';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { usePagedOrders, useUsers, useServiceTypes, useForms } from '../../hooks/nexusHooks';
+import { usePagedOrders, useUsers, useServiceTypes, useForms, useDefectTypes } from '../../hooks/nexusHooks';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useOrderExport } from '../../hooks/useOrderExport';
 import { supabase } from '../../lib/supabase';
@@ -251,6 +252,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Fetch data for the new filters
   const { data: usersData = [] } = useUsers(auth?.isAuthenticated ?? false);
   const { data: serviceTypesData = [] } = useServiceTypes(auth?.isAuthenticated ?? false);
+  const { data: defectTypesList = [] } = useDefectTypes(auth?.isAuthenticated ?? false);
 
   // --- Geofencing State & Computation ---
   const { data: tenant } = useTenant();
@@ -836,6 +838,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       notes: selectedOrder.notes,
       priority: selectedOrder.priority,
       operationType: selectedOrder.operationType,
+      defectTypeId: selectedOrder.defectTypeId,
+      defectTypeCode: selectedOrder.defectTypeCode,
+      defectTypeName: selectedOrder.defectTypeName,
       items: selectedOrder.items || [],
       showValueToClient: selectedOrder.showValueToClient ?? false,
       linkedQuotes: selectedOrder.linkedQuotes || [],
@@ -1748,8 +1753,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       )}
 
       {selectedOrder && createPortal(
-        <div className="fixed inset-0 z-[1000] flex items-end md:items-center justify-center bg-slate-900/50 backdrop-blur-sm p-0 md:p-4 animate-in fade-in duration-300">
-          <div className="bg-white w-full h-full md:h-auto md:max-h-[92vh] md:rounded-2xl max-w-6xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-300">
+        <div className="fixed inset-0 z-[1000] flex items-end md:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 md:p-6 overflow-hidden animate-in fade-in duration-300">
+          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-[1400px] h-[95vh] md:h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200 animate-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-300">
 
             {/* HEADER */}
             <div className={`px-3 sm:px-6 py-3 sm:py-5 border-b border-slate-100 flex justify-between items-start sm:items-center shrink-0 transition-colors ${isEditing ? 'bg-blue-50' : 'bg-white'}`}>
@@ -1761,6 +1766,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div className="flex flex-wrap items-center gap-1.5 sm:gap-3">
                     <h2 className="text-sm sm:text-base font-semibold text-slate-900 font-poppins truncate">OS #{selectedOrder.displayId || selectedOrder.id}</h2>
                     <StatusBadge status={selectedOrder.status} />
+                    {selectedOrder.defectTypeCode && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
+                        <Hash size={10} className="text-amber-600" />
+                        {selectedOrder.defectTypeCode} • {selectedOrder.defectTypeName}
+                      </span>
+                    )}
                     {isEditing && (
                       <span className="text-[9px] sm:text-[10px] font-semibold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full uppercase tracking-widest animate-pulse">
                         Editando
@@ -2074,6 +2085,45 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <textarea rows={3} className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-2 py-1 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all resize-none" value={editDraft.description ?? ''} onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))} />
                           ) : (
                             <div className="text-sm text-slate-600 font-medium leading-relaxed whitespace-pre-wrap">{selectedOrder.description || 'Não informado'}</div>
+                          )}
+                        </div>
+
+                        {/* TIPO DE DEFEITO */}
+                        <div className="space-y-1.5 md:col-span-2">
+                          <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Tipo de Defeito</label>
+                          {isEditing ? (
+                            <select
+                              className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-2 py-1.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all cursor-pointer"
+                              value={editDraft.defectTypeId || ''}
+                              onChange={e => {
+                                const selectedDefect = defectTypesList.find(d => d.id === e.target.value);
+                                setEditDraft(d => ({
+                                  ...d,
+                                  defectTypeId: selectedDefect?.id || '',
+                                  defectTypeCode: selectedDefect?.code || '',
+                                  defectTypeName: selectedDefect?.name || ''
+                                }));
+                              }}
+                            >
+                              <option value="">Nenhum / Não informado</option>
+                              {defectTypesList.map(defect => (
+                                <option key={defect.id} value={defect.id}>
+                                  [{defect.code}] {defect.name}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            (selectedOrder.defectTypeCode || selectedOrder.defectTypeName) ? (
+                              <div className="flex items-center gap-2.5 p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-xl w-fit">
+                                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-mono text-[11px] font-bold border border-amber-300">
+                                  <Hash size={11} className="text-amber-600" />
+                                  {selectedOrder.defectTypeCode || '----'}
+                                </span>
+                                <span className="text-xs font-bold text-slate-800">{selectedOrder.defectTypeName}</span>
+                              </div>
+                            ) : (
+                              <div className="text-sm text-slate-400 font-medium leading-relaxed">Não informado</div>
+                            )
                           )}
                         </div>
                         <div className="space-y-1.5">
