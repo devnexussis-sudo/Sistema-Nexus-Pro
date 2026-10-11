@@ -25,6 +25,35 @@ export const QuoteService = {
             rejectionReason = data.notes.replace(/MOTIVO DA RECUSA:\s*/i, '').trim();
         }
 
+        // 🔒 Normalização soberana do status comercial do Orçamento:
+        // O status do orçamento NUNCA deve seguir status financeiro (PAID, PARTIALLY_PAID, PENDING, FATURADO, etc.).
+        // Se estiver aceito (assinado/aprovado ou com baixa financeira), seu status comercial é 'APROVADO' (ou 'CONVERTIDO' se vinculado a OS).
+        const rawStatus = String(data.status || 'ABERTO').trim().toUpperCase();
+        const isAccepted = Boolean(
+            data.approved_at || 
+            data.approval_signature || 
+            data.approved_by_name ||
+            rawStatus === 'APROVADO' ||
+            rawStatus === 'APPROVED' ||
+            rawStatus === 'PARTIALLY_PAID' ||
+            rawStatus === 'PAID' ||
+            rawStatus === 'FATURADO'
+        );
+
+        let operationalStatus = 'ABERTO';
+        if (data.linked_order_id || rawStatus === 'CONVERTIDO') {
+            operationalStatus = 'CONVERTIDO';
+        } else if (rejectionReason || rawStatus === 'REJEITADO') {
+            operationalStatus = 'REJEITADO';
+        } else if (isAccepted) {
+            operationalStatus = 'APROVADO';
+        }
+
+        // Se no banco estava com status financeiro residual, repara o registro em background no Supabase
+        if (data.id && ['PARTIALLY_PAID', 'PAID', 'APPROVED', 'FATURADO'].includes(rawStatus) && operationalStatus === 'APROVADO') {
+            supabase.from('quotes').update({ status: 'APROVADO' }).eq('id', data.id).then(() => {}).catch(() => {});
+        }
+
         return {
             id: data.id,
             // display_id: Identificador Soberano (ORC-...) gerado pela app.
@@ -42,7 +71,7 @@ export const QuoteService = {
             description: data.description,
             items: typeof data.items === 'string' ? JSON.parse(data.items) : (data.items || []),
             totalValue: data.total_value || data.total_amount || 0,
-            status: data.status || 'ABERTO',
+            status: operationalStatus,
             notes: data.notes,
             validUntil: data.valid_until,
             linkedOrderId: data.linked_order_id,

@@ -335,7 +335,6 @@ Deno.serve(async (req: Request) => {
             } else if (item.reference_type === 'QUOTE') {
               await supabase.from('quotes').update({
                 billing_status: invoiceStatus,
-                status: invoiceStatus === 'PAID' ? 'APPROVED' : invoiceStatus,
                 paid_at: invoiceStatus === 'PAID' ? paidAtDate : null,
                 tenant_id: installment.tenant_id,
                 updated_at: new Date().toISOString(),
@@ -416,7 +415,6 @@ Deno.serve(async (req: Request) => {
               } else if (item.reference_type === 'QUOTE') {
                 await supabase.from('quotes').update({
                   billing_status: newStatus,
-                  status: newStatus === 'PAID' ? 'APPROVED' : undefined,
                   paid_at: newStatus === 'PAID' ? paidAtDate : null,
                   tenant_id: invoice.tenant_id,
                   updated_at: new Date().toISOString(),
@@ -522,7 +520,6 @@ Deno.serve(async (req: Request) => {
               await supabase.from('quotes').update({
                 gateway_status: event,
                 billing_status: newStatus,
-                status: newStatus === 'PAID' ? 'APPROVED' : undefined,
                 paid_at: newStatus === 'PAID' ? paidAtDate : null,
                 tenant_id: q.tenant_id,
                 updated_at: new Date().toISOString(),
@@ -544,7 +541,6 @@ Deno.serve(async (req: Request) => {
           await supabase.from('quotes').update({
             gateway_status: event,
             billing_status: newStatus,
-            status: newStatus === 'PAID' ? 'APPROVED' : undefined,
             paid_at: newStatus === 'PAID' ? paidAtDate : null,
             tenant_id: qExt.tenant_id,
             updated_at: new Date().toISOString(),

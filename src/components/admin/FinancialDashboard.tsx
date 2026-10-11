@@ -2963,7 +2963,6 @@ ${container.innerHTML}
                                                                 .from('quotes')
                                                                 .update({ 
                                                                     billing_status: newBillingStatus,
-                                                                    status: fatIsPaid ? 'APPROVED' : (item.original as any)?.status || 'PENDING',
                                                                     paid_at: paidAtVal
                                                                 })
                                                                 .eq('id', item.id);

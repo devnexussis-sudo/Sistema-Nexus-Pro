@@ -42,17 +42,61 @@ import { Customer, OrderPriority, OrderStatus, Quote, QuoteItem, ServiceOrder, S
 import { NexusBranding } from '../ui/NexusBranding';
 import { Pagination } from '../ui/Pagination';
 
+export const getQuoteCommercialStatus = (quote?: {
+    status?: string | null;
+    approvedAt?: string | null;
+    approved_at?: string | null;
+    approvalSignature?: string | null;
+    approval_signature?: string | null;
+    approvedByName?: string | null;
+    approved_by_name?: string | null;
+    linkedOrderId?: string | null;
+    linked_order_id?: string | null;
+    rejectionReason?: string | null;
+    rejection_reason?: string | null;
+} | null): string => {
+    if (!quote) return 'ABERTO';
+    const rawStatus = String(quote.status || 'ABERTO').trim().toUpperCase();
+
+    if (quote.linkedOrderId || quote.linked_order_id || rawStatus === 'CONVERTIDO') {
+        return 'CONVERTIDO';
+    }
+    if (quote.rejectionReason || quote.rejection_reason || rawStatus === 'REJEITADO') {
+        return 'REJEITADO';
+    }
+
+    const isAccepted = Boolean(
+        quote.approvedAt ||
+        quote.approved_at ||
+        quote.approvalSignature ||
+        quote.approval_signature ||
+        quote.approvedByName ||
+        quote.approved_by_name ||
+        rawStatus === 'APROVADO' ||
+        rawStatus === 'APPROVED' ||
+        rawStatus === 'PARTIALLY_PAID' ||
+        rawStatus === 'PAID' ||
+        rawStatus === 'FATURADO'
+    );
+
+    if (isAccepted) {
+        return 'APROVADO';
+    }
+
+    return 'ABERTO';
+};
+
 const getQuoteStatusStyle = (s: string) => {
     switch (s) {
         case 'ABERTO':
             return { bg: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500 animate-pulse' };
         case 'APROVADO':
+        case 'APPROVED':
             return { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' };
         case 'CONVERTIDO':
-        case 'FATURADO':
             return { bg: 'bg-sky-50 text-sky-700 border-sky-200', dot: 'bg-sky-500' };
         case 'REJEITADO':
-            return { bg: 'bg-slate-100 text-slate-700 border-slate-300', dot: 'bg-slate-400' };
+            return { bg: 'bg-rose-50 text-rose-700 border-rose-200', dot: 'bg-rose-500' };
         default:
             return { bg: 'bg-slate-100 text-slate-700 border-slate-300', dot: 'bg-slate-400' };
     }
@@ -835,7 +879,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     </td>
                                     <td className="px-4 py-1.5 text-center whitespace-nowrap">
                                         {(() => {
-                                            const displayStatus = (quote.billingStatus === 'PAID' || quote.status === 'FATURADO') ? 'FATURADO' : quote.status;
+                                            const displayStatus = getQuoteCommercialStatus(quote);
                                             const style = getQuoteStatusStyle(displayStatus);
                                             return (
                                                 <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-medium border ${style.bg}`}>
@@ -917,7 +961,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
                                     <span className="text-[10px] text-slate-500 truncate max-w-[150px]">{quote.title}</span>
                                     {(() => {
-                                        const displayStatus = (quote.billingStatus === 'PAID' || quote.status === 'FATURADO') ? 'FATURADO' : quote.status;
+                                        const displayStatus = getQuoteCommercialStatus(quote);
                                         const style = getQuoteStatusStyle(displayStatus);
                                         return (
                                             <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-medium border ${style.bg}`}>
@@ -1597,11 +1641,12 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <h2 className="text-sm sm:text-base font-semibold text-slate-900 font-poppins">Orçamento #{getQuoteDisplayId(viewQuote)}</h2>
                                             {(() => {
-                                                const style = getQuoteStatusStyle(viewQuote.status);
+                                                const displayStatus = getQuoteCommercialStatus(viewQuote);
+                                                const style = getQuoteStatusStyle(displayStatus);
                                                 return (
                                                     <div className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-medium uppercase tracking-wider border flex items-center gap-1.5 ${style.bg}`}>
                                                         <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
-                                                        {viewQuote.status}
+                                                        {displayStatus}
                                                     </div>
                                                 );
                                             })()}

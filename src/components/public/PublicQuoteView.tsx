@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     Hexagon, Calculator, CheckCircle, Clock, MapPin,
     User, FileText, AlertCircle, Share2, Printer, Download,
@@ -61,7 +61,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
 
     // Form States
     const [approverName, setApproverName] = useState('');
-    const [document, setDocument] = useState('');
+    const [approverDoc, setApproverDoc] = useState('');
     const [birthDate, setBirthDate] = useState('');
     const [rejectionReason, setRejectionReason] = useState('');
     const [coords, setCoords] = useState<{ lat: number, lng: number } | null>(null);
@@ -149,9 +149,8 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                 if (data) {
                     console.log('✍️ URL da assinatura:', data.approvalSignature?.substring(0, 100));
                     setQuote(data);
-                    setLoading(false); // Libera IMEDIATAMENTE a UI principal
 
-                    // 2. Fetch Assíncrono do Tenant (Background) - Somente se não veio via prop
+                    // 2. Fetch do Tenant - Somente se não veio via prop
                     if (tenantProp) {
                         setTenant(tenantProp);
                     } else {
@@ -159,12 +158,13 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                         if (tenantId) {
                             try {
                                 const tenantData = await DataService.getTenantById(tenantId);
-                                if (isMounted) setTenant(tenantData);
+                                if (isMounted && tenantData) setTenant(tenantData);
                             } catch (tenantErr) {
                                 console.warn("Erro ao buscar dados da empresa em background", tenantErr);
                             }
                         }
                     }
+                    if (isMounted) setLoading(false);
                 } else {
                     setError('Orçamento não localizado ou expirado.');
                     setLoading(false);
@@ -200,6 +200,38 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
 
     const approveFormRef = useRef<HTMLDivElement>(null);
     const rejectFormRef = useRef<HTMLDivElement>(null);
+    const hasAutoPrintedRef = useRef(false);
+
+    // Formata o nome do arquivo para impressão/salvamento em PDF: [Prefixo do Orçamento] - [Nome da Empresa]
+    const getPrintDocumentTitle = useCallback(() => {
+        if (!quote) return 'Orçamento';
+        const rawPrefix = (quote.displayId || quote.id?.slice(0, 8) || 'ORCAMENTO')
+            .replace(/^#/, '')
+            .trim();
+        const quotePrefix = rawPrefix.toUpperCase().startsWith('ORC') || rawPrefix.includes('-')
+            ? rawPrefix
+            : `ORC-${rawPrefix}`;
+        const cleanCompany = (companyName || 'Empresa')
+            .replace(/[/\\?%*:|"<>#]/g, '')
+            .trim();
+        return `${quotePrefix} - ${cleanCompany}`;
+    }, [quote, companyName]);
+
+    // Mantém o título da aba e o nome sugerido para o arquivo PDF sincronizados
+    useEffect(() => {
+        if (!quote) return;
+        const printTitle = getPrintDocumentTitle();
+        window.document.title = printTitle;
+
+        const handleBeforePrint = () => {
+            window.document.title = getPrintDocumentTitle();
+        };
+
+        window.addEventListener('beforeprint', handleBeforePrint);
+        return () => {
+            window.removeEventListener('beforeprint', handleBeforePrint);
+        };
+    }, [quote, companyName, getPrintDocumentTitle]);
 
     useEffect(() => {
         if (isApproveMode) {
@@ -217,18 +249,48 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
         }
     }, [isRejectMode]);
 
+    // Impressão automática inteligente quando acionado com ?print=true (via painel admin ou link direto)
     useEffect(() => {
         try {
             const hash = window.location.hash;
-            if (hash.includes('print=true') && !loading && quote) {
-                setTimeout(() => {
-                    window.print();
-                }, 800);
+            const search = window.location.search;
+            const isPrintParam = hash.includes('print=true') || search.includes('print=true');
+
+            if (isPrintParam && !loading && quote && !hasAutoPrintedRef.current) {
+                hasAutoPrintedRef.current = true;
+                window.document.title = getPrintDocumentTitle();
+
+                const doPrint = () => {
+                    setTimeout(() => {
+                        window.document.title = getPrintDocumentTitle();
+                        window.print();
+                    }, 400);
+                };
+
+                // Garante que todas as imagens (logotipo da empresa, assinatura, etc.) terminaram de carregar
+                const imgs = Array.from(window.document.querySelectorAll('img')) as HTMLImageElement[];
+                const pending = imgs.filter(img => !img.complete || img.naturalWidth === 0);
+
+                if (pending.length === 0) {
+                    doPrint();
+                } else {
+                    let loadedCount = 0;
+                    const totalPending = pending.length;
+                    const onImgDone = () => {
+                        loadedCount++;
+                        if (loadedCount >= totalPending) doPrint();
+                    };
+                    pending.forEach(img => {
+                        img.addEventListener('load', onImgDone, { once: true });
+                        img.addEventListener('error', onImgDone, { once: true });
+                    });
+                    setTimeout(doPrint, 1500); // Fallback de tempo limite seguro
+                }
             }
         } catch(e) {
             console.error('Erro ao verificar param de impressão', e);
         }
-    }, [loading, quote]);
+    }, [loading, quote, getPrintDocumentTitle]);
 
     const enterSignatureMode = async (mode: 'approve' | 'reject') => {
         if (mode === 'approve') setIsApproveMode(true);
@@ -241,6 +303,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
     };
 
     const handlePrintQuote = () => {
+        window.document.title = getPrintDocumentTitle();
         window.print();
     };
 
@@ -470,65 +533,65 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
     const PrintLayout = () => (
         <>
         <style type="text/css" media="print">
-            {`@page { size: A4 portrait; margin: 10mm 4mm 10mm 4mm; }`}
+            {`@page { size: A4 portrait; margin: 10mm 4mm 15mm 4mm; }`}
         </style>
-        <div className="bg-white text-xs leading-relaxed font-poppins p-4 sm:p-6 min-h-[297mm] w-full max-w-full mx-auto border sm:border-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', boxSizing: 'border-box' }}>
+        <div className="bg-white text-[10px] leading-relaxed font-poppins p-3 w-full max-w-full mx-auto border sm:border-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', boxSizing: 'border-box', fontFamily: "'Poppins', sans-serif" }}>
             {/* Header: Company & Quote Info */}
-            <div className="flex justify-between items-start pb-4 border-b-2 border-slate-800 mb-4">
+            <div className="flex justify-between items-start pb-2 border-b-2 border-slate-800 mb-2">
                 <div className="flex gap-4 items-center">
                     {companyLogo
-                        ? <img src={companyLogo} alt="Logo" className="h-16 w-auto object-contain" />
-                        : <div className="bg-slate-900 p-2 rounded-lg flex items-center justify-center min-w-[60px] min-h-[60px] text-white"><Hexagon size={32} className="text-white fill-white/10" /></div>
+                        ? <img src={companyLogo} alt="Logo" className="h-16 w-auto max-w-[180px] object-contain" />
+                        : <div className="bg-slate-900 p-2 rounded-lg flex items-center justify-center min-w-[50px] min-h-[50px] text-white"><Hexagon size={28} className="text-white fill-white/10" /></div>
                     }
-                    <div className="space-y-1">
-                        <h1 className="text-xl font-bold text-slate-900 uppercase tracking-tight">{companyName}</h1>
-                        <div className="text-xs text-slate-600 max-w-[400px]">
+                    <div className="space-y-0.5">
+                        <h1 className="text-lg font-bold text-slate-900 uppercase tracking-tight">{companyName}</h1>
+                        <div className="text-[10px] text-slate-600 max-w-[400px]">
                             {companyAddress && <div>{companyAddress}</div>}
-                            <div className="flex gap-3 mt-0.5">
+                            <div className="flex gap-3">
                                 {companyPhone && <span className="font-semibold">Tel: {companyPhone}</span>}
                                 {companyEmail && <span>Email: {companyEmail}</span>}
                             </div>
-                            {companyDoc && <div className="mt-0.5">CNPJ: {companyDoc}</div>}
+                            {companyDoc && <div>CNPJ: {companyDoc}</div>}
                         </div>
                     </div>
                 </div>
                 <div className="text-right shrink-0 min-w-fit">
-                    <div className="border-2 border-slate-800 px-4 py-2 rounded-lg bg-slate-50">
-                        <div className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-1">Orçamento N°</div>
+                    <div className="border-2 border-slate-800 px-3 py-1.5 rounded-lg bg-slate-50">
+                        <div className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Orçamento N°</div>
                         <div className="text-sm font-bold text-slate-900 tracking-tighter leading-none whitespace-nowrap">
                             #{quote.displayId || quote.id.slice(0, 8).toUpperCase()}
                         </div>
                     </div>
-                    <div className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-wide">
+                    <div className="text-[10px] font-bold text-slate-400 mt-1.5 uppercase tracking-wide">
                         Emissão: {new Date(quote.createdAt).toLocaleDateString()}
                     </div>
-                    <div className="text-xs font-bold text-slate-400 uppercase mt-0.5">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">
                         Validade: {quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : 'A combinar'}
                     </div>
-                    <div className="text-xs font-bold text-slate-500 uppercase mt-1">
-                        Status: <span className="text-slate-900 font-bold px-2 py-0.5 rounded border border-slate-300 bg-white inline-block">{quote.status}</span>
+                    <div className="text-[10px] font-bold text-slate-500 uppercase mt-0.5">
+                        Status: <span className="text-slate-900 font-bold px-1.5 py-0.5 rounded border border-slate-300 bg-white inline-block">{quote.status}</span>
                     </div>
                 </div>
             </div>
 
             {/* Customer Information */}
-            <div className="border border-slate-300 rounded-xl overflow-hidden mb-3 break-inside-avoid shadow-sm">
-                <div className="bg-slate-100 px-4 py-2 border-b border-slate-300">
-                    <h3 className="font-bold text-xs uppercase tracking-widest text-slate-700">Dados do Cliente / Solicitante</h3>
+            <div className="border border-slate-300 rounded-xl overflow-hidden mb-2 break-inside-avoid shadow-sm">
+                <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300">
+                    <h3 className="font-bold text-[10px] uppercase tracking-widest text-slate-700">Dados do Cliente / Solicitante</h3>
                 </div>
-                <div className="p-4 grid grid-cols-2 gap-4 bg-white">
+                <div className="p-2 grid grid-cols-2 gap-2 bg-white">
                     <div>
-                        <span className="block text-xs font-bold text-slate-400 uppercase tracking-widest">Identificação do Cliente</span>
-                        <span className="font-bold text-slate-900 text-sm uppercase">{quote.customerName}</span>
+                        <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest">Identificação do Cliente</span>
+                        <span className="font-bold text-slate-900 text-xs uppercase">{quote.customerName}</span>
                     </div>
                     <div>
-                        <span className="block text-xs font-bold text-slate-400 uppercase tracking-widest">Local de Execução / Faturamento</span>
-                        <span className="font-medium text-slate-700 text-sm uppercase">{freshCustomerAddress || quote.customerAddress || 'Não Informado'}</span>
+                        <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest">Local de Execução / Faturamento</span>
+                        <span className="font-medium text-slate-700 text-xs uppercase">{freshCustomerAddress || quote.customerAddress || 'Não Informado'}</span>
                     </div>
                     {(freshCustomerPhone || freshCustomerEmail) && (
-                        <div className="col-span-2 pt-2 border-t border-slate-100 flex flex-col gap-0.5">
-                            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Contato</span>
-                            <span className="font-medium text-slate-700 text-xs uppercase">
+                        <div className="col-span-2 pt-1 border-t border-slate-100 flex flex-col">
+                            <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-widest">Contato</span>
+                            <span className="font-medium text-slate-700 text-[10px] uppercase">
                                 {freshCustomerPhone && <span>{freshCustomerPhone}</span>}
                                 {freshCustomerPhone && freshCustomerEmail && <span className="mx-2">•</span>}
                                 {freshCustomerEmail && <span className="lowercase">{freshCustomerEmail}</span>}
@@ -540,13 +603,13 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
 
             {/* Object/Description */}
             {(quote.title || quote.description) && (
-                <div className="border border-slate-300 rounded-xl overflow-hidden mb-3 break-inside-avoid">
-                    <div className="bg-slate-100 px-4 py-2 border-b border-slate-300">
-                        <h3 className="font-bold text-xs uppercase tracking-widest text-slate-700">Objeto e Escopo Técnico</h3>
+                <div className="border border-slate-300 rounded-xl overflow-hidden mb-2 break-inside-avoid">
+                    <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300">
+                        <h3 className="font-bold text-[10px] uppercase tracking-widest text-slate-700">Objeto e Escopo Técnico</h3>
                     </div>
-                    <div className="p-4 bg-white text-sm text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">
-                        {quote.title && <div className="font-bold uppercase mb-2">{quote.title}</div>}
-                        {quote.description && <div className="italic">{quote.description}</div>}
+                    <div className="p-2 bg-white text-[10px] text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">
+                        {quote.title && <div className="font-bold uppercase mb-1">{quote.title}</div>}
+                        {quote.description && <div className="italic text-[10px]">{quote.description}</div>}
                     </div>
                 </div>
             )}
@@ -606,27 +669,27 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                                 </colgroup>
                                 <thead>
                                     <tr style={{ backgroundColor: '#1c2d4f', color: 'white', fontSize: '8px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                        <th style={{ padding: '8px 5px', textAlign: 'left', borderRight: '1px solid rgba(255,255,255,0.2)', borderRadius: '11px 0 0 0' }}>#</th>
-                                        <th style={{ padding: '8px 5px', textAlign: 'left', borderRight: '1px solid rgba(255,255,255,0.2)' }}>Código</th>
-                                        <th style={{ padding: '8px 5px', textAlign: 'left', borderRight: '1px solid rgba(255,255,255,0.2)' }}>Descrição</th>
-                                        <th style={{ padding: '8px 5px', textAlign: 'left', borderRight: '1px solid rgba(255,255,255,0.2)' }}>Qtd</th>
-                                        <th style={{ padding: '8px 5px', textAlign: 'left', borderRight: '1px solid rgba(255,255,255,0.2)' }}>V. Unit.</th>
-                                        <th style={{ padding: '8px 5px', textAlign: 'left', borderRadius: '0 11px 0 0' }}>Total</th>
+                                        <th style={{ padding: '4px 4px', textAlign: 'left', borderRight: '1px solid rgba(255,255,255,0.2)', borderRadius: '11px 0 0 0' }}>#</th>
+                                        <th style={{ padding: '4px 4px', textAlign: 'left', borderRight: '1px solid rgba(255,255,255,0.2)' }}>Código</th>
+                                        <th style={{ padding: '4px 4px', textAlign: 'left', borderRight: '1px solid rgba(255,255,255,0.2)' }}>Descrição</th>
+                                        <th style={{ padding: '4px 4px', textAlign: 'left', borderRight: '1px solid rgba(255,255,255,0.2)' }}>Qtd</th>
+                                        <th style={{ padding: '4px 4px', textAlign: 'left', borderRight: '1px solid rgba(255,255,255,0.2)' }}>V. Unit.</th>
+                                        <th style={{ padding: '4px 4px', textAlign: 'left', borderRadius: '0 11px 0 0' }}>Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {quote.items.map((it: any, i: number) => (
                                         <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: i % 2 === 0 ? '#fff' : '#f8fafc' }}>
-                                            <td style={{ padding: '8px 5px', textAlign: 'left', fontWeight: 700, color: '#94a3b8', fontSize: '9px', borderRight: '1px solid #e2e8f0' }}>{String(i + 1).padStart(2, '0')}</td>
-                                            <td style={{ padding: '8px 5px', textAlign: 'left', fontSize: '9px', fontWeight: 700, color: '#3e5b99', fontFamily: 'monospace', letterSpacing: '0.05em', borderRight: '1px solid #e2e8f0', wordBreak: 'break-all' }}>
+                                            <td style={{ padding: '4px 4px', textAlign: 'left', fontWeight: 700, color: '#94a3b8', fontSize: '9px', borderRight: '1px solid #e2e8f0' }}>{String(i + 1).padStart(2, '0')}</td>
+                                            <td style={{ padding: '4px 4px', textAlign: 'left', fontSize: '9px', fontWeight: 700, color: '#3e5b99', fontFamily: "'Poppins', sans-serif", letterSpacing: '0.05em', borderRight: '1px solid #e2e8f0', wordBreak: 'break-all' }}>
                                                 {it.stockCode || it.stock_code || <span style={{ color: '#cbd5e1', fontStyle: 'italic', fontWeight: 400 }}>—</span>}
                                             </td>
-                                            <td style={{ padding: '8px 5px', fontSize: '9px', fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', borderRight: '1px solid #e2e8f0', wordBreak: 'break-word', overflowWrap: 'break-word' }}>{it.description || it.title}</td>
-                                            <td style={{ padding: '8px 5px', textAlign: 'left', fontWeight: 700, fontSize: '9px', color: '#475569', borderRight: '1px solid #e2e8f0' }}>{it.quantity}</td>
-                                            <td style={{ padding: '8px 5px', textAlign: 'left', fontSize: '9px', color: '#475569', borderRight: '1px solid #e2e8f0', wordBreak: 'break-all' }}>
+                                            <td style={{ padding: '4px 4px', fontSize: '9px', fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', borderRight: '1px solid #e2e8f0', wordBreak: 'break-word', overflowWrap: 'break-word' }}>{it.description || it.title}</td>
+                                            <td style={{ padding: '4px 4px', textAlign: 'left', fontWeight: 700, fontSize: '9px', color: '#475569', borderRight: '1px solid #e2e8f0' }}>{it.quantity}</td>
+                                            <td style={{ padding: '4px 4px', textAlign: 'left', fontSize: '9px', color: '#475569', borderRight: '1px solid #e2e8f0', wordBreak: 'break-all' }}>
                                                 R$ {(it.unitPrice || it.unit_price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                             </td>
-                                            <td style={{ padding: '8px 5px', textAlign: 'left', fontWeight: 700, fontSize: '9px', color: '#1c2d4f', wordBreak: 'break-all' }}>
+                                            <td style={{ padding: '4px 4px', textAlign: 'left', fontWeight: 700, fontSize: '9px', color: '#1c2d4f', wordBreak: 'break-all' }}>
                                                 R$ {(it.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                             </td>
                                         </tr>
@@ -636,15 +699,15 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
 
                             {/* ── CONDIÇÕES DE PAGAMENTO (PRINT) ── */}
                             {(quote.paymentMethod || quote.paymentNotes) && (
-                                <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(0,0,0,0.1)', backgroundColor: '#f8fafc' }}>
-                                    <div style={{ fontSize: '9px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>Condições de Pagamento</div>
+                                <div style={{ padding: '6px 12px', borderTop: '1px solid rgba(0,0,0,0.1)', backgroundColor: '#f8fafc' }}>
+                                    <div style={{ fontSize: '9px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '2px' }}>Condições de Pagamento</div>
                                     {quote.paymentMethod && (
-                                        <div style={{ fontSize: '10px', fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', marginBottom: '2px' }}>
+                                        <div style={{ fontSize: '10px', fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', marginBottom: '0' }}>
                                             Forma: {quote.paymentMethod.replace('_', ' ')} {quote.installments > 1 ? `(${quote.installments}x)` : ''}
                                         </div>
                                     )}
                                     {quote.paymentNotes && (
-                                        <div style={{ fontSize: '9px', fontWeight: 400, color: '#475569', whiteSpace: 'pre-wrap' }}>
+                                        <div style={{ fontSize: '9px', fontWeight: 400, color: '#475569', whiteSpace: 'pre-wrap', marginTop: '2px' }}>
                                             {quote.paymentNotes}
                                         </div>
                                     )}
@@ -653,122 +716,121 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
 
                             {/* ── TOTAL FOOTER (always visible inside desktop/print) ── */}
                             <div className="flex flex-col md:flex-row print:flex-row bg-[#1c2d4f] text-white">
-                            <div className="flex-1 p-3 md:p-4 print:p-4 border-b md:border-b-0 print:border-b-0 md:border-r print:border-r border-white/20 flex flex-col justify-center">
-                                <span className="text-[9px] sm:text-xs font-bold text-white/70 uppercase mb-1">Notas sobre Condições Financeiras:</span>
-                                <span className="text-[9px] sm:text-xs font-medium text-white/90 uppercase tracking-tighter italic">Valores expressos em Reais (BRL). O aceite eletrônico via portal possui validade jurídica.</span>
-                            </div>
-                            <div className="w-full md:w-auto print:w-auto min-w-[200px] md:min-w-[250px] print:min-w-[250px] p-3 md:p-4 print:p-4 flex flex-col justify-center items-end bg-[#132039]">
-                                {dv > 0 && (
-                                    <>
-                                        <span className="text-[9px] sm:text-xs uppercase font-bold tracking-widest text-[#a8b8d8]/70 mb-0.5">Subtotal</span>
-                                        <span className="text-xs sm:text-sm font-bold tracking-tighter text-white/60 line-through">
-                                            R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                        </span>
-                                        <span className="text-[9px] sm:text-xs uppercase font-bold tracking-widest text-rose-300 mt-1">
-                                            Desconto {type === 'percent' ? `(${disc}%)` : ''}
-                                        </span>
-                                        <span className="text-xs sm:text-sm font-bold text-rose-300">- R$ {dv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                        <div className="w-full border-t border-white/20 mt-2 pt-2 text-right">
-                                            <span className="text-[8px] uppercase font-bold tracking-widest text-[#a8b8d8] mb-1 block">Investimento Total</span>
-                                            <span className="text-sm font-bold tracking-tighter">
+                                <div className="flex-1 p-2 print:p-2 border-b md:border-b-0 print:border-b-0 md:border-r print:border-r border-white/20 flex flex-col justify-center">
+                                    <span className="text-[8px] font-bold text-white/70 uppercase mb-0.5">Notas sobre Condições Financeiras:</span>
+                                    <span className="text-[8px] font-medium text-white/90 uppercase tracking-tight italic">Valores expressos em Reais (BRL). O aceite eletrônico via portal possui validade jurídica.</span>
+                                </div>
+                                <div className="w-full md:w-auto print:w-auto min-w-[200px] md:min-w-[250px] print:min-w-[250px] p-2 print:p-2 flex flex-col justify-center items-end bg-[#132039]">
+                                    {dv > 0 && (
+                                        <>
+                                            <span className="text-[8px] uppercase font-bold tracking-widest text-[#a8b8d8]/70 mb-0.5">Subtotal</span>
+                                            <span className="text-[9px] font-bold tracking-tight text-white/60 line-through">
+                                                R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            </span>
+                                            <span className="text-[8px] uppercase font-bold tracking-widest text-rose-300 mt-0.5">
+                                                Desconto {type === 'percent' ? `(${disc}%)` : ''}
+                                            </span>
+                                            <span className="text-[9px] font-bold text-rose-300">- R$ {dv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                            <div className="w-full border-t border-white/20 mt-1 pt-1 text-right">
+                                                <span className="text-[8px] uppercase font-bold tracking-widest text-[#a8b8d8] mb-0.5 block">Investimento Total</span>
+                                                <span className="text-[11px] font-bold tracking-tight">
+                                                    R$ {totalFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                </span>
+                                            </div>
+                                        </>
+                                    )}
+                                    {dv <= 0 && (
+                                        <>
+                                            <span className="text-[8px] uppercase font-bold tracking-widest text-[#a8b8d8] mb-0.5">Investimento Total</span>
+                                            <span className="text-[11px] font-bold tracking-tight">
                                                 R$ {totalFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                             </span>
-                                        </div>
-                                    </>
-                                )}
-                                {dv <= 0 && (
-                                    <>
-                                        <span className="text-[8px] uppercase font-bold tracking-widest text-[#a8b8d8] mb-1">Investimento Total</span>
-                                        <span className="text-sm font-black tracking-tighter">
-                                            R$ {totalFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                        </span>
-                                    </>
-                                )}
+                                        </>
+                                    )}
                                 </div>
+                            </div>
                         </div>
-                    </div>
                     </div>
                 );
             })()}
 
             {/* Approval / Signature Area */}
             {(quote.status === 'APROVADO' || quote.status === 'CONVERTIDO') ? (
-                <div className="border-2 border-emerald-500 rounded-xl overflow-hidden break-inside-avoid mb-3 bg-emerald-50/20">
-                    <div className="bg-emerald-50 px-4 py-2 border-b border-emerald-200 flex items-center gap-2">
-                        <CheckCircle size={16} className="text-emerald-600" />
-                        <span className="font-bold text-xs uppercase tracking-widest text-emerald-800">Protocolo de Aceite Digital Validado</span>
+                <div className="border border-emerald-400 rounded-lg overflow-hidden break-inside-avoid mb-2 bg-emerald-50/20">
+                    <div className="bg-emerald-50 px-3 py-1.5 border-b border-emerald-200 flex items-center gap-1.5">
+                        <CheckCircle size={13} className="text-emerald-600" />
+                        <span className="font-bold text-[9px] uppercase tracking-widest text-emerald-800">Protocolo de Aceite Digital Validado</span>
                     </div>
-                    <div className="p-6 grid grid-cols-2 gap-6 bg-white">
-                        <div className="flex flex-col gap-2">
-                            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Responsável pela Aprovação</span>
-                            <span className="text-sm font-bold text-slate-900 uppercase">{quote.approvedByName}</span>
-                            <span className="text-xs font-bold text-slate-500 uppercase">Data e hora da assinatura: {new Date(quote.approvedAt).toLocaleString('pt-BR')}</span>
+                    <div className="p-2.5 grid grid-cols-2 gap-3 bg-white">
+                        <div className="flex flex-col justify-center gap-1">
+                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none">Responsável pela Aprovação</span>
+                            <span className="text-[10px] font-bold text-slate-900 uppercase">{quote.approvedByName}</span>
+                            <span className="text-[8px] font-medium text-slate-500 uppercase">Data e hora da assinatura: {new Date(quote.approvedAt).toLocaleString('pt-BR')}</span>
                         </div>
-                        <div className="border border-slate-200 rounded-lg h-24 flex flex-col items-center justify-center relative bg-slate-50/50">
+                        <div className="border border-slate-200 rounded-lg h-16 flex flex-col items-center justify-center relative bg-slate-50/50 p-1">
                             {quote.approvalSignature ? (
                                 <>
-                                    <img src={quote.approvalSignature} className="max-h-16 max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
-                                    <p className="text-xs font-bold text-slate-900 uppercase mt-1">Assinado por {quote.approvedByName || 'Cliente'}</p>
+                                    <img src={quote.approvalSignature} className="max-h-10 max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
+                                    <p className="text-[8px] font-bold text-slate-800 uppercase mt-0.5">Assinado por {quote.approvedByName || 'Cliente'}</p>
                                 </>
                             ) : (
-                                <span className="text-slate-300 italic text-xs font-bold uppercase">Token de Assinatura Certificada</span>
+                                <span className="text-slate-400 italic text-[8px] font-bold uppercase">Token de Assinatura Certificada</span>
                             )}
                         </div>
                     </div>
                 </div>
             ) : quote.status === 'REJEITADO' ? (
-                <div className="border-2 border-rose-500 rounded-xl overflow-hidden break-inside-avoid mb-6 bg-rose-50/20">
-                    <div className="bg-rose-50 px-4 py-2 border-b border-rose-200 flex items-center gap-2">
-                        <XCircle size={16} className="text-rose-600" />
-                        <span className="font-bold text-xs uppercase tracking-widest text-rose-800">Recusa do Orçamento Formalizada</span>
+                <div className="border border-rose-400 rounded-lg overflow-hidden break-inside-avoid mb-2 bg-rose-50/20">
+                    <div className="bg-rose-50 px-3 py-1.5 border-b border-rose-200 flex items-center gap-1.5">
+                        <XCircle size={13} className="text-rose-600" />
+                        <span className="font-bold text-[9px] uppercase tracking-widest text-rose-800">Recusa do Orçamento Formalizada</span>
                     </div>
-                    <div className="p-6 bg-white flex flex-col gap-4">
-                        <div className="text-rose-900 font-bold italic text-sm uppercase tracking-tight">
+                    <div className="p-2.5 bg-white flex flex-col gap-2">
+                        <div className="text-rose-900 font-bold italic text-[9px] uppercase tracking-tight">
                             Motivo Registrado: {quote.rejectionReason || 'Recusa efetuada via link público pelo cliente.'}
                         </div>
-                        <div className="grid grid-cols-2 gap-6 border-t border-rose-100 pt-4">
-                            <div className="flex flex-col gap-2">
-                                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Recusado por</span>
-                                <span className="text-sm font-bold text-slate-900 uppercase">{quote.approvedByName || 'Cliente'}</span>
-                                <span className="text-xs font-bold text-slate-500 uppercase">Data e hora: {quote.approvedAt ? new Date(quote.approvedAt).toLocaleString('pt-BR') : 'N/D'}</span>
+                        <div className="grid grid-cols-2 gap-3 border-t border-rose-100 pt-2">
+                            <div className="flex flex-col justify-center gap-1">
+                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none">Recusado por</span>
+                                <span className="text-[10px] font-bold text-slate-900 uppercase">{quote.approvedByName || 'Cliente'}</span>
+                                <span className="text-[8px] font-medium text-slate-500 uppercase">Data e hora: {quote.approvedAt ? new Date(quote.approvedAt).toLocaleString('pt-BR') : 'N/D'}</span>
                             </div>
-                            <div className="border border-rose-100 rounded-lg h-24 flex flex-col items-center justify-center relative bg-rose-50/30">
+                            <div className="border border-rose-100 rounded-lg h-16 flex flex-col items-center justify-center relative bg-rose-50/30 p-1">
                                 {quote.approvalSignature ? (
                                     <>
-                                        <img src={quote.approvalSignature} className="max-h-16 max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
+                                        <img src={quote.approvalSignature} className="max-h-10 max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
                                     </>
                                 ) : (
-                                    <span className="text-slate-300 italic text-xs font-bold uppercase">Registro de Recusa Auditado</span>
+                                    <span className="text-slate-400 italic text-[8px] font-bold uppercase">Registro de Recusa Auditado</span>
                                 )}
-                                <div className="absolute bottom-1 right-2 text-xs text-rose-400 uppercase tracking-widest"></div>
                             </div>
                         </div>
                     </div>
                 </div>
             ) : (
-                <div className="mt-12 pt-12 border-t-2 border-dashed border-slate-300 grid grid-cols-2 gap-12 break-inside-avoid">
+                <div className="mt-4 pt-4 border-t-2 border-dashed border-slate-300 grid grid-cols-2 gap-6 break-inside-avoid">
                     <div className="flex flex-col items-center">
-                        <div className="w-full border-b border-slate-800 mb-2"></div>
-                        <span className="text-xs font-bold text-slate-800 uppercase text-center truncate w-full">{companyName}</span>
-                        <span className="text-xs font-bold text-slate-500 uppercase mt-0.5">Autorizante / Comercial</span>
+                        <div className="w-full border-b border-slate-800 mb-1.5"></div>
+                        <span className="text-[9px] font-bold text-slate-800 uppercase text-center truncate w-full">{companyName}</span>
+                        <span className="text-[8px] font-bold text-slate-500 uppercase mt-0.5">Autorizante / Comercial</span>
                     </div>
                     <div className="flex flex-col items-center">
-                        <div className="w-full border-b border-slate-800 mb-2"></div>
-                        <span className="text-xs font-bold text-slate-800 uppercase text-center truncate w-full">{quote.customerName}</span>
-                        <span className="text-xs font-bold text-slate-500 uppercase mt-0.5">De Acordo / Carimbo e Assinatura</span>
+                        <div className="w-full border-b border-slate-800 mb-1.5"></div>
+                        <span className="text-[9px] font-bold text-slate-800 uppercase text-center truncate w-full">{quote.customerName}</span>
+                        <span className="text-[8px] font-bold text-slate-500 uppercase mt-0.5">De Acordo / Carimbo e Assinatura</span>
                     </div>
                 </div>
             )}
 
             {/* Print Footer */}
-            <div className="mt-12 pt-4 border-t-2 border-[#1c2d4f] flex justify-between items-start opacity-70">
-                <div className="flex flex-col gap-1">
+            <div className="print:fixed print:bottom-0 print:left-0 print:w-full print:px-6 print:pb-1 print:pt-2 print:bg-white mt-8 pt-4 border-t-2 border-[#1c2d4f] flex justify-between items-start opacity-70">
+                <div className="flex flex-col gap-0.5">
                     <NexusBranding size="lg" className="scale-75 origin-left -translate-y-2" />
-                    <p className="text-xs font-bold text-slate-500 uppercase leading-none">Uma solução Duno.</p>
+                    <p className="text-[9px] font-bold text-slate-500 uppercase leading-none">Uma solução Duno.</p>
                 </div>
                 <div className="text-right">
-                    <p className="text-xs font-bold uppercase tracking-widest text-[#1c2d4f] mb-0.5">Documento digital Duno</p>
-                    <p className="text-xs uppercase tracking-tight font-medium text-slate-500 max-w-xs ml-auto leading-tight italic">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-[#1c2d4f] mb-0.5">Documento digital Duno</p>
+                    <p className="text-[8px] uppercase tracking-tight font-medium text-slate-500 max-w-[250px] ml-auto leading-tight italic">
                         A assinatura ou o aceite eletrônico constituem prova de concordância comercial.
                     </p>
                 </div>

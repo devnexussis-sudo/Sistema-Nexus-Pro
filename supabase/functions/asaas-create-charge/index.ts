@@ -409,7 +409,7 @@ Deno.serve(async (req: Request) => {
       if (currentItemType === 'ORDER') {
         await supabase.from('orders').update({ status: finalStatus, billing_status: finalStatus }).eq('id', invoiceIdToSync);
       } else if (currentItemType === 'QUOTE') {
-        await supabase.from('quotes').update({ status: finalStatus === 'PAID' ? 'APPROVED' : finalStatus, billing_status: finalStatus }).eq('id', invoiceIdToSync);
+        await supabase.from('quotes').update({ billing_status: finalStatus }).eq('id', invoiceIdToSync);
       } else {
         await Promise.all(paymentsToSync.map(async (pay) => {
           let statusBR = 'PENDING';

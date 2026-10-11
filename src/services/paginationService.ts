@@ -137,7 +137,11 @@ export const getQuotesPage = async (
         .order('created_at', { ascending: false });
 
     if (filters.status && filters.status !== 'ALL') {
-        query = query.eq('status', filters.status);
+        if (filters.status === 'APROVADO') {
+            query = query.or('status.eq.APROVADO,status.eq.APPROVED,status.eq.PARTIALLY_PAID,status.eq.PAID,status.eq.FATURADO,approved_at.not.is.null');
+        } else {
+            query = query.eq('status', filters.status);
+        }
     }
     if (filters.startDate) {
         query = query.gte('created_at', filters.startDate);
