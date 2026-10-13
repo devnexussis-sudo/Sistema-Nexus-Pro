@@ -1033,6 +1033,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   const [freshCustomerAddress, setFreshCustomerAddress] = React.useState<string | null>(null);
   const [formTemplates, setFormTemplates] = React.useState<Record<string, any>>({});
   const [orderVisits, setOrderVisits] = React.useState<any[]>([]);
+  const hasAutoPrintedRef = React.useRef(false);
 
   // 📝 1. Consolidação de Dados (Merge OS + Visitas) - Senior Pattern
   const formDataPrint = React.useMemo(() => {
@@ -1233,7 +1234,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   }, [order?.id, order?.publicToken]);
 
   // Handle auto-print when opening from Admin with ?print=true
-  // Waits for ALL images to finish loading before calling print (bigtech pattern)
+  // Waits for images to finish loading before calling print (matching PublicQuoteView reliability)
   const triggerSmartPrint = React.useCallback((closeAfter = false) => {
     const getPrintDocumentTitle = () => {
       const rawPrefix = (order?.displayId || order?.serviceOrderNumber || order?.id?.substring(0, 8) || 'OS')
@@ -1246,19 +1247,21 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     };
 
     const doPrint = () => {
-      window.document.title = getPrintDocumentTitle();
-      try {
-        window.focus();
-        window.print();
-      } catch (err) {
-        console.error('Falha ao acionar window.print():', err);
-      }
-      try {
-        window.parent?.postMessage({ type: 'NEXUS_ORDER_PRINT_TRIGGERED' }, '*');
-      } catch {}
+      setTimeout(() => {
+        window.document.title = getPrintDocumentTitle();
+        try {
+          window.focus();
+          window.print();
+        } catch (err) {
+          console.error('Falha ao acionar window.print():', err);
+        }
+        try {
+          window.parent?.postMessage({ type: 'NEXUS_ORDER_PRINT_TRIGGERED' }, '*');
+        } catch {}
+      }, 350);
     };
 
-    // Collect all images that are not yet complete
+    // Garante que imagens (logotipo da empresa, anexos, assinaturas) terminaram de carregar
     const imgs = Array.from(document.querySelectorAll('img')) as HTMLImageElement[];
     const pending = imgs.filter(img => !img.complete || img.naturalWidth === 0);
 
@@ -1267,48 +1270,43 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
       return;
     }
 
-    // Show a small loading overlay while images load
-    const overlay = document.createElement('div');
-    overlay.id = '__print-loading-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(255,255,255,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-family:system-ui,sans-serif';
-    overlay.innerHTML = `
-      <div style="width:48px;height:48px;border:3px solid #e2e8f0;border-top-color:#1c2d4f;border-radius:50%;animation:__spin 0.8s linear infinite"></div>
-      <p style="font-size:13px;color:#475569;letter-spacing:0.05em;text-transform:uppercase">Carregando imagens para impressão…</p>
-      <style>@keyframes __spin{to{transform:rotate(360deg)}}</style>
-    `;
-    document.body.appendChild(overlay);
-
     let loaded = 0;
     const total = pending.length;
+    let fallbackTimer: any = null;
+
     const onLoad = () => {
       loaded++;
       if (loaded >= total) {
-        overlay.remove();
-        // Small extra delay for browser paint
-        setTimeout(doPrint, 300);
+        if (fallbackTimer) clearTimeout(fallbackTimer);
+        doPrint();
       }
     };
 
     pending.forEach(img => {
       img.addEventListener('load', onLoad, { once: true });
-      img.addEventListener('error', onLoad, { once: true }); // count errors too so we never hang
+      img.addEventListener('error', onLoad, { once: true });
     });
 
-    // Absolute safety timeout: 20s max regardless of load state
-    setTimeout(() => {
-      overlay.remove();
-      doPrint();
-    }, 20000);
+    // Fallback de tempo limite seguro (1500ms max, igual orçamentos)
+    fallbackTimer = setTimeout(doPrint, 1500);
   }, [order]);
 
   React.useEffect(() => {
-    // Wait for all data to be fully loaded: order, visits, AND tenant (company info)
-    if (typeof window !== 'undefined' && window.location.href.includes('print=true') && order && orderVisits !== undefined && tenantProp) {
-      // Wait a bit longer (1000ms instead of 500ms) to ensure CSS/Tailwind rules are fully painted
-      const timer = setTimeout(() => triggerSmartPrint(false), 1000);
-      return () => clearTimeout(timer);
+    try {
+      const hash = typeof window !== 'undefined' ? window.location.hash : '';
+      const search = typeof window !== 'undefined' ? window.location.search : '';
+      const href = typeof window !== 'undefined' ? window.location.href : '';
+      const isPrintParam = hash.includes('print=true') || search.includes('print=true') || href.includes('print=true');
+
+      if (isPrintParam && order && !hasAutoPrintedRef.current) {
+        hasAutoPrintedRef.current = true;
+        const timer = setTimeout(() => triggerSmartPrint(false), 500);
+        return () => clearTimeout(timer);
+      }
+    } catch (e) {
+      console.error('Erro ao verificar param de impressão na OS:', e);
     }
-  }, [order, orderVisits, tenantProp, triggerSmartPrint]);
+  }, [order, triggerSmartPrint]);
 
   React.useEffect(() => {
     const handleBeforePrint = () => {
@@ -1501,67 +1499,21 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
       if (text !== null || photos.length > 0) formItemsPrint.push({ key, text, photos });
     });
 
-  // ── COMPONENTE DE MINIATURA OTIMIZADA PARA PDF (REDUZ DE 35MB PARA < 1MB) ──
+  // ── COMPONENTE DE MINIATURA OTIMIZADA PARA PDF (SEGURO E SEM BLOQUEIO CORS) ──
   const PrintThumbnailImage: React.FC<{
     src: string;
     alt?: string;
     className?: string;
   }> = ({ src, alt, className }) => {
-    const [thumbSrc, setThumbSrc] = React.useState<string>(src);
-
-    React.useEffect(() => {
-      let isMounted = true;
-      if (!src || typeof src !== 'string') return;
-
-      const createThumb = () => {
-        try {
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.onload = () => {
-            if (!isMounted) return;
-            try {
-              const nw = img.naturalWidth || img.width;
-              const nh = img.naturalHeight || img.height;
-              if (nw <= 320 && nh <= 320) return;
-
-              const maxDim = 320;
-              let w = nw;
-              let h = nh;
-              if (w > h) {
-                h = Math.round((h * maxDim) / w);
-                w = maxDim;
-              } else {
-                w = Math.round((w * maxDim) / h);
-                h = maxDim;
-              }
-
-              const canvas = document.createElement('canvas');
-              canvas.width = w;
-              canvas.height = h;
-              const ctx = canvas.getContext('2d');
-              if (!ctx) return;
-
-              ctx.drawImage(img, 0, 0, w, h);
-              const dataUrl = canvas.toDataURL('image/jpeg', 0.70);
-              if (isMounted && dataUrl && dataUrl.length > 50) {
-                setThumbSrc(dataUrl);
-              }
-            } catch {
-              // Fallback silencioso para URL original em caso de restrição CORS
-            }
-          };
-          img.onerror = () => {};
-          img.src = src;
-        } catch {}
-      };
-
-      createThumb();
-      return () => {
-        isMounted = false;
-      };
-    }, [src]);
-
-    return <img src={thumbSrc} alt={alt || ''} className={className} loading="eager" />;
+    return (
+      <img
+        src={src}
+        alt={alt || ''}
+        className={className}
+        loading="eager"
+        decoding="async"
+      />
+    );
   };
 
   // ── PRINT LAYOUT COMPONENT ──
