@@ -498,16 +498,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     iframe.setAttribute('title', 'Impressão de Ordem de Serviço');
     iframe.setAttribute('aria-hidden', 'true');
 
-    // Configuração invisível fora da tela com dimensões desktop para garantir fidelidade A4
+    // 🍎 Safari macOS & WebKit CoreGraphics: o iframe DEVE ter coordenadas dentro do viewport (top: 0, left: 0)
+    // e pointerEvents: 'auto', caso contrário o motor Quartz PDF do macOS computa CGRect como (0,0) ou descarta
+    // anotações de hyperlinks clicáveis no PDF exportado.
     Object.assign(iframe.style, {
       position: 'fixed',
-      top: '-9999px',
-      left: '-9999px',
+      top: '0',
+      left: '0',
       width: '1024px',
-      height: '1000px',
+      height: '768px',
       border: '0',
-      opacity: '0',
-      pointerEvents: 'none',
+      opacity: '0.001',
+      pointerEvents: 'auto',
       zIndex: '-9999'
     });
 
@@ -533,25 +535,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     };
 
     const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'NEXUS_ORDER_PRINT_TRIGGERED' || event.data?.type === 'NEXUS_ORDER_PRINT_FINISHED') {
+      if (event.data?.type === 'NEXUS_ORDER_PRINT_TRIGGERED') {
+        // Libera o spinner do botão na interface imediatamente
+        setPrintingOrderId(null);
+        restoreTitle();
+        // ⚠️ No Safari, NÃO removemos o iframe aqui! Se o iframe for removido enquanto o
+        // diálogo do sistema macOS está aberto, o WebKit destrói o contexto de anotações PDF.
+      } else if (event.data?.type === 'NEXUS_ORDER_PRINT_FINISHED') {
         setPrintingOrderId(null);
         restoreTitle();
         if (timeoutId) clearTimeout(timeoutId);
         setTimeout(() => {
           iframe.remove();
           window.removeEventListener('message', handleMessage);
-        }, 2000);
+        }, 1500);
       }
     };
 
     window.addEventListener('message', handleMessage);
 
-    // Fallback de segurança para liberar o botão caso o diálogo seja cancelado
+    // Fallback de segurança para liberar o botão e limpar o iframe após 60s se o diálogo for mantido aberto
     timeoutId = setTimeout(() => {
       setPrintingOrderId(null);
       restoreTitle();
+      iframe.remove();
       window.removeEventListener('message', handleMessage);
-    }, 12000);
+    }, 60000);
 
     iframe.src = printUrl;
     document.body.appendChild(iframe);

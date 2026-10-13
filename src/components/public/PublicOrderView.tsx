@@ -1499,14 +1499,19 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
       if (text !== null || photos.length > 0) formItemsPrint.push({ key, text, photos });
     });
 
-  // ── SANITIZADOR DE URL PARA ANOTAÇÕES DE LINK NO QUARTZ PDF (SAFARI) & CHROMIUM ──
+  // ── SANITIZADOR DE URL PARA ANOTAÇÕES DE LINK NO QUARTZ PDF (SAFARI macOS) & CHROMIUM ──
   const formatPdfMediaUrl = (rawUrl: string | null | undefined): string => {
     if (!rawUrl || typeof rawUrl !== 'string') return '';
     const trimmed = rawUrl.trim();
     if (!trimmed) return '';
     if (trimmed.startsWith('data:')) return trimmed;
     try {
-      return encodeURI(decodeURI(trimmed));
+      // Garante URL absoluta para que o macOS Preview / Safari não tente abrir como arquivo local
+      const isAbsolute = /^https?:\/\//i.test(trimmed);
+      const fullUrl = isAbsolute
+        ? trimmed
+        : `${window.location.origin}${trimmed.startsWith('/') ? '' : '/'}${trimmed}`;
+      return encodeURI(decodeURI(fullUrl));
     } catch {
       return encodeURI(trimmed);
     }
@@ -1529,7 +1534,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     );
   };
 
-  // ── CARTÃO DE MÍDIA COM LINK EMBUTIDO DIRETO NA IMAGEM (SEM TEXTOS ADICIONAIS) ──
+  // ── CARTÃO DE MÍDIA COM LINK EMBUTIDO DIRETO NA IMAGEM (APPLE WEBKIT QUARTZ COMPATÍVEL) ──
   const PrintMediaCard: React.FC<{
     url: string;
     alt?: string;
@@ -1540,7 +1545,10 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     const cleanUrl = formatPdfMediaUrl(url);
 
     return (
-      <div className={`${widthClass} ${mediaHeightClass} border border-slate-200 rounded-lg overflow-hidden bg-slate-50 shadow-sm shrink-0 break-inside-avoid print-media-box relative`}>
+      <div
+        className={`${widthClass} ${mediaHeightClass} border border-slate-300 rounded-lg overflow-hidden bg-slate-50 shadow-sm shrink-0 break-inside-avoid print-media-box relative`}
+        style={{ position: 'relative' }}
+      >
         <a
           href={cleanUrl}
           target="_blank"
@@ -1551,22 +1559,15 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             width: '100%',
             height: '100%',
             textDecoration: 'none',
-            position: 'relative'
+            position: 'relative',
+            cursor: 'pointer'
           }}
-          title="Clique para abrir imagem original"
+          title="Clique para abrir mídia original"
         >
           {isVideo ? (
-            <div className="w-full h-full relative flex items-center justify-center bg-black">
-              <video
-                src={`${cleanUrl}#t=0.1`}
-                preload="metadata"
-                className="w-full h-full object-cover opacity-60"
-                style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <Play size={16} className="text-white opacity-90" />
-              </div>
-              <span className="absolute bottom-1 bg-black/70 text-white text-[7px] px-1.5 py-0.5 rounded uppercase leading-none font-medium pointer-events-none">
+            <div className="w-full h-full relative flex flex-col items-center justify-center bg-slate-900 text-white p-2 select-none">
+              <Play size={22} className="text-white opacity-95 mb-1" />
+              <span className="bg-white/20 text-white text-[8px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
                 Vídeo
               </span>
             </div>
@@ -1575,16 +1576,45 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               src={cleanUrl}
               alt={alt}
               loading="eager"
-              decoding="async"
-              className="w-full h-full object-contain"
+              decoding="sync"
+              className="w-full h-full object-contain print-thumbnail-img"
               style={{
                 display: 'block',
                 width: '100%',
                 height: '100%',
-                objectFit: 'contain'
+                objectFit: 'contain',
+                pointerEvents: 'none'
               }}
             />
           )}
+
+          {/* 🍎 Superfície de ativação para WebKit Quartz PDF (Safari no macOS):
+              WebKit exige nós de texto no fluxo inline para registrar anotações CGPDFContextSetURLForRect.
+              Um <span> transparente cobrindo 100% da área da imagem faz com que o WebKit CoreGraphics
+              emita a anotação clicável em toda a dimensão da foto, sem exibir nenhum texto visualmente. */}
+          <span
+            aria-hidden="true"
+            className="print-quartz-link-surface"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              display: 'block',
+              color: 'transparent',
+              opacity: 0.001,
+              fontSize: '10px',
+              lineHeight: '1',
+              userSelect: 'none',
+              pointerEvents: 'auto',
+              cursor: 'pointer',
+              zIndex: 10,
+              overflow: 'hidden'
+            }}
+          >
+            &zwnj;&nbsp;Mídia&nbsp;&zwnj;
+          </span>
         </a>
       </div>
     );
@@ -2585,7 +2615,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             break-inside: avoid !important;
             page-break-inside: avoid !important;
           }
-          .print-photos a, .print-photos a:visited, a.print-media-link {
+          .print-photos a, .print-photos a:visited, a.print-media-link, .print-media-link {
             text-decoration: none !important;
             color: inherit !important;
             display: block !important;
@@ -2593,11 +2623,29 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             height: 100% !important;
             pointer-events: auto !important;
             cursor: pointer !important;
+            position: relative !important;
+          }
+          .print-quartz-link-surface {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            display: block !important;
+            color: transparent !important;
+            opacity: 0.001 !important;
+            font-size: 8px !important;
+            line-height: 100% !important;
+            pointer-events: auto !important;
+            cursor: pointer !important;
+            z-index: 10 !important;
+            overflow: hidden !important;
           }
           .print-media-box {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
             -webkit-column-break-inside: avoid !important;
+            position: relative !important;
           }
           /* Blocos que NUNCA devem ser cortados (assinatura, total, peças) */
           .print-no-break {
@@ -2767,7 +2815,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               break-inside: avoid !important;
               page-break-inside: avoid !important;
             }
-            .print-photos a, .print-photos a:visited, a.print-media-link {
+            .print-photos a, .print-photos a:visited, a.print-media-link, .print-media-link {
               text-decoration: none !important;
               color: inherit !important;
               display: block !important;
@@ -2775,11 +2823,29 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               height: 100% !important;
               pointer-events: auto !important;
               cursor: pointer !important;
+              position: relative !important;
+            }
+            .print-quartz-link-surface {
+              position: absolute !important;
+              top: 0 !important;
+              left: 0 !important;
+              width: 100% !important;
+              height: 100% !important;
+              display: block !important;
+              color: transparent !important;
+              opacity: 0.001 !important;
+              font-size: 8px !important;
+              line-height: 100% !important;
+              pointer-events: auto !important;
+              cursor: pointer !important;
+              z-index: 10 !important;
+              overflow: hidden !important;
             }
             .print-media-box {
               break-inside: avoid !important;
               page-break-inside: avoid !important;
               -webkit-column-break-inside: avoid !important;
+              position: relative !important;
             }
             /* Blocos que NUNCA devem ser cortados (assinatura, total, peças) */
             .print-no-break {
