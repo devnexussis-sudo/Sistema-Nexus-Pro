@@ -1,4 +1,4 @@
-import { supabase, publicSupabase } from '../lib/supabase';
+import { supabase, publicSupabase, safeKey } from '../lib/supabase';
 
 import { getCurrentTenantId } from '../lib/tenantContext';
 import { logger } from '../lib/logger';
@@ -102,7 +102,7 @@ export const StorageService = {
                     finalHumanPath = `Ordem de Servico/${code}/${subHuman}`;
                 } else {
                     // Fallback for public dropzone
-                    const { data: pData } = await publicSupabase.rpc('get_public_document', { p_token: orderId, p_type: 'order' });
+                    const { data: pData } = await publicSupabase.rpc('get_public_document', { doc_token: orderId, doc_type: 'order' });
                     if (pData) {
                         if (!tenantIdToUse) tenantIdToUse = pData.tenant_id;
                         const code = pData.display_id || pData.id?.substring(0, 8) || orderId.substring(0, 8);
@@ -131,7 +131,7 @@ export const StorageService = {
                     finalHumanPath = `Orcamentos/${code}/${subHuman}`;
                 } else {
                     // Fallback for public dropzone
-                    const { data: pData } = await publicSupabase.rpc('get_public_document', { p_token: quoteId, p_type: 'quote' });
+                    const { data: pData } = await publicSupabase.rpc('get_public_document', { doc_token: quoteId, doc_type: 'quote' });
                     if (pData) {
                         if (!tenantIdToUse) tenantIdToUse = pData.tenant_id;
                         const code = pData.display_id || pData.id?.substring(0, 8) || quoteId.substring(0, 8);
@@ -222,14 +222,17 @@ export const StorageService = {
             try {
                 // 1. Pede a URL assinada para a Edge Function
                 const { data: signData, error: signError } = await supabase.functions.invoke('r2-operations', {
-                    body: { action: 'upload', path: fullPath, bucketType: 'private', contentType }
+                    body: { action: 'upload', path: fullPath, bucketType: 'private', contentType },
+                    headers: {
+                        apikey: safeKey
+                    }
                 });
 
                 if (signError || !signData?.signedUrl) {
-                    throw new Error(signError?.message || 'Failed to get signed URL');
+                    throw new Error(signError?.message || 'Falha ao obter URL assinada do Cloudflare R2');
                 }
 
-                // 2. Faz o upload direto pro R2
+                // 2. Faz o upload direto via PUT HTTP pro Cloudflare R2
                 const uploadPromise = fetch(signData.signedUrl, {
                     method: 'PUT',
                     body: blobOrFile,
@@ -246,8 +249,7 @@ export const StorageService = {
                     throw new Error(`R2 Upload Failed: ${response.status} ${response.statusText}`);
                 }
 
-                // URL pública: se usar a do signData (Edge Function), ela já vem com o path!
-                // Só concatena o fullPath se for a URL base do .env
+                // URL pública Cloudflare R2
                 const envUrl = import.meta.env.VITE_R2_PUBLIC_URL;
                 if (envUrl) {
                     return envUrl.endsWith('/') ? `${envUrl}${fullPath}` : `${envUrl}/${fullPath}`;
@@ -258,43 +260,16 @@ export const StorageService = {
                 if (err.name === 'AbortError' || signal?.aborted) throw err;
                 console.warn(`[Storage/R2] ⚠️ Tentativa ${i + 1} falhou:`, err.message);
 
-                // OTIMIZAÇÃO VERCEL: Fast-fail para CORS (TypeError: Failed to fetch)
-                const isCorsOrNetworkError = err instanceof TypeError || err.message.includes('Failed to fetch');
-                if (i === retryCount || isCorsOrNetworkError) {
-                    // 🛡️ FALLBACK CIRÚRGICO: Se o R2 falhar (CORS no Vercel, credenciais, etc.), usa o Supabase Storage diretamente!
-                    console.log(`[Storage/Fallback] 🔄 Tentando upload de fallback via Supabase Storage ('nexus-files')...`);
-                    try {
-                        const { error: sbError } = await supabase.storage
-                            .from('nexus-files')
-                            .upload(fullPath, blobOrFile, {
-                                contentType,
-                                upsert: true
-                            });
-
-                        if (!sbError) {
-                            const { data: { publicUrl } } = supabase.storage
-                                .from('nexus-files')
-                                .getPublicUrl(fullPath);
-                            console.log(`[Storage/Fallback] ✅ Upload concluído com sucesso via Supabase Storage:`, publicUrl);
-                            return publicUrl;
-                        }
-                        console.error('[Storage/Fallback] ❌ Supabase Storage erro:', sbError.message);
-                    } catch (sbErr) {
-                        console.error('[Storage/Fallback] ❌ Exceção no Supabase Storage:', sbErr);
-                    }
-                    if (isCorsOrNetworkError) throw err;
-                }
-                if (!isCorsOrNetworkError) {
-                    await new Promise(resolve => setTimeout(resolve, 1500));
-                }
+                if (i === retryCount) throw err;
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
         }
 
-        throw new Error("STORAGE_UNREACHABLE");
+        throw new Error("STORAGE_R2_UNREACHABLE");
     },
 
     /**
-     * 🛡️ BigTech Public Dropzone Engine (Anonymous Isolated Uploads)
+     * 🛡️ Cloudflare R2 Public Dropzone Engine (Upload direto e exclusivo para R2)
      */
     _uploadDropzoneCore: async (blobOrFile: Blob | File, path: string, retryCount = 2, signal?: AbortSignal): Promise<string> => {
         const resolved = await StorageService._resolveHumanPath(path);
@@ -303,22 +278,26 @@ export const StorageService = {
         const fullPath = `${resolved.finalPath}/${fileName}`.replace(/\/+/g, '/');
         const contentType = 'image/webp';
 
-        console.log(`[Storage/Dropzone-R2] 📤 Uploading ${fullPath} (${(blobOrFile.size / 1024).toFixed(0)}KB)...`);
+        console.log(`[Storage/Dropzone-R2] 📤 Uploading strictly to Cloudflare R2: ${fullPath} (${(blobOrFile.size / 1024).toFixed(0)}KB)...`);
 
         for (let i = 0; i <= retryCount; i++) {
             if (signal?.aborted) throw new Error('AbortError');
 
             try {
-                // 1. Pede a URL assinada publicSupabase
+                // 1. Pede a URL assinada publicSupabase com credenciais explícitas de anon
                 const { data: signData, error: signError } = await publicSupabase.functions.invoke('r2-operations', {
-                    body: { action: 'upload', path: fullPath, bucketType: 'dropzone', contentType }
+                    body: { action: 'upload', path: fullPath, bucketType: 'dropzone', contentType },
+                    headers: {
+                        Authorization: `Bearer ${safeKey}`,
+                        apikey: safeKey
+                    }
                 });
 
                 if (signError || !signData?.signedUrl) {
-                    throw new Error(signError?.message || 'Failed to get dropzone signed URL');
+                    throw new Error(signError?.message || 'Falha ao obter URL assinada do Cloudflare R2');
                 }
 
-                // 2. Faz o upload direto pro R2
+                // 2. Faz o upload direto via PUT HTTP pro Cloudflare R2
                 const uploadPromise = fetch(signData.signedUrl, {
                     method: 'PUT',
                     body: blobOrFile,
@@ -335,17 +314,18 @@ export const StorageService = {
                     throw new Error(`R2 Dropzone Upload Failed: ${response.status} ${response.statusText}`);
                 }
 
-                return signData.publicUrl; // Já vem montado pela Edge Function
+                console.log(`[Storage/Dropzone-R2] ✅ Upload concluído com sucesso no Cloudflare R2:`, signData.publicUrl);
+                return signData.publicUrl; // URL pública direta do Cloudflare R2
             } catch (err: any) {
                 if (err.name === 'AbortError' || signal?.aborted) throw err;
                 console.warn(`[Storage/Dropzone-R2] ⚠️ Tentativa ${i + 1} falhou:`, err.message);
 
                 if (i === retryCount) throw err;
-                await new Promise(resolve => setTimeout(resolve, 1500));
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
         }
 
-        throw new Error("STORAGE_DROPZONE_UNREACHABLE");
+        throw new Error("STORAGE_DROPZONE_R2_UNREACHABLE");
     },
 
     /**
@@ -470,24 +450,26 @@ export const StorageService = {
     },
 
     /**
-     * 🛡️ BigTech Public Dropzone Interface (Base64 wrapper para anônimos)
+     * 🛡️ Cloudflare R2 Public Dropzone Interface (Upload estrito no R2)
      */
     uploadDropzoneFile: async (base64: string, path: string): Promise<string> => {
-        if (!isCloudEnabled || !base64.startsWith('data:image')) return base64;
-        try {
-            const compressedBase64 = await StorageService.compressImage(base64);
-            const base64Data = compressedBase64.split(',')[1];
-            const binaryData = atob(base64Data);
-            const uint8Array = new Uint8Array(binaryData.length);
-            for (let i = 0; i < binaryData.length; i++) {
-                uint8Array[i] = binaryData.charCodeAt(i);
-            }
-            const blob = new Blob([uint8Array], { type: 'image/webp' });
-            return await StorageService._uploadDropzoneCore(blob, path);
-        } catch (err) {
-            console.error("DropzoneUploadFile Error:", err);
-            throw err;
+        if (!isCloudEnabled) return base64;
+        if (!base64.startsWith('data:image')) {
+            // Já é uma URL (ex: do R2)
+            return base64;
         }
+
+        const compressedBase64 = await StorageService.compressImage(base64);
+        const base64Data = compressedBase64.split(',')[1];
+        const binaryData = atob(base64Data);
+        const uint8Array = new Uint8Array(binaryData.length);
+        for (let i = 0; i < binaryData.length; i++) {
+            uint8Array[i] = binaryData.charCodeAt(i);
+        }
+        const blob = new Blob([uint8Array], { type: 'image/webp' });
+        
+        // Envio estrito e exclusivo para o Cloudflare R2
+        return await StorageService._uploadDropzoneCore(blob, path);
     },
 
     /**
@@ -525,7 +507,8 @@ export const StorageService = {
         const folderPath = `tenants/${tenantId || 'company'}/logo`;
         if (!isCloudEnabled) return URL.createObjectURL(file);
         try {
-            const compressedBlob = await StorageService.processAndCompress(file, signal);
+            const fileToProcess = file instanceof File ? file : new File([file], 'logo.png', { type: file.type || 'image/png' });
+            const compressedBlob = await StorageService.processAndCompress(fileToProcess, signal);
             const webpFile = new File([compressedBlob], `logo_${Date.now()}.webp`, { type: 'image/webp' });
             return await StorageService._uploadCore(webpFile, folderPath, 2, signal, { contentType: 'image/webp', extension: 'webp' });
         } catch (err: any) {

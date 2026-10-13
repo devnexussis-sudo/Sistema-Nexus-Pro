@@ -475,13 +475,86 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }, 1500);
   };
 
+  const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
+
+  // 🖨️ Impressão e Exportação em PDF de OS via Iframe Invisível em Segundo Plano
   const handlePrintOrder = (orderId: string) => {
     const orderToPrint = pagedOrders.find(o => o.id === orderId) || selectedOrder;
-    if (!orderToPrint) return;
+    if (!orderToPrint || printingOrderId) return;
 
-    const publicUrl = `${window.location.origin}/#/order/view/${orderToPrint.publicToken || orderToPrint.id}?print=true`;
-    console.log('[AdminDashboard] Abrindo viewer público para impressão:', publicUrl);
-    window.open(publicUrl, '_blank');
+    const orderKey = orderToPrint.id || orderToPrint.displayId || orderToPrint.publicToken;
+    if (!orderKey) return;
+
+    setPrintingOrderId(orderKey);
+
+    // Remove qualquer iframe de impressão residual
+    const existingIframe = document.getElementById('nexus-order-print-iframe');
+    if (existingIframe) {
+      existingIframe.remove();
+    }
+
+    const iframe = document.createElement('iframe');
+    iframe.id = 'nexus-order-print-iframe';
+    iframe.setAttribute('title', 'Impressão de Ordem de Serviço');
+    iframe.setAttribute('aria-hidden', 'true');
+
+    // Configuração invisível fora da tela com dimensões desktop para garantir fidelidade A4
+    Object.assign(iframe.style, {
+      position: 'fixed',
+      top: '-9999px',
+      left: '-9999px',
+      width: '1024px',
+      height: '1000px',
+      border: '0',
+      opacity: '0',
+      pointerEvents: 'none',
+      zIndex: '-9999'
+    });
+
+    const rawPrefix = (orderToPrint.displayId || (orderToPrint as any).serviceOrderNumber || orderToPrint.id?.slice(0, 8) || 'OS')
+      .replace(/^#/, '')
+      .trim();
+    const orderPrefix = rawPrefix.toUpperCase().startsWith('OS') || rawPrefix.includes('-')
+      ? rawPrefix
+      : `OS-${rawPrefix}`;
+
+    const originalTitle = document.title;
+    document.title = orderPrefix;
+
+    const targetToken = orderToPrint.publicToken || orderToPrint.id;
+    const printUrl = `${window.location.origin}/#/order/view/${targetToken}?print=true&t=${Date.now()}`;
+
+    let timeoutId: any = null;
+
+    const restoreTitle = () => {
+      setTimeout(() => {
+        document.title = originalTitle;
+      }, 2500);
+    };
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'NEXUS_ORDER_PRINT_TRIGGERED' || event.data?.type === 'NEXUS_ORDER_PRINT_FINISHED') {
+        setPrintingOrderId(null);
+        restoreTitle();
+        if (timeoutId) clearTimeout(timeoutId);
+        setTimeout(() => {
+          iframe.remove();
+          window.removeEventListener('message', handleMessage);
+        }, 2000);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    // Fallback de segurança para liberar o botão caso o diálogo seja cancelado
+    timeoutId = setTimeout(() => {
+      setPrintingOrderId(null);
+      restoreTitle();
+      window.removeEventListener('message', handleMessage);
+    }, 12000);
+
+    iframe.src = printUrl;
+    document.body.appendChild(iframe);
   };
 
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
@@ -1880,10 +1953,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <Button
                       variant="secondary"
                       size="sm"
+                      disabled={printingOrderId === (selectedOrder.id || selectedOrder.displayId || selectedOrder.publicToken)}
                       onClick={() => handlePrintOrder(selectedOrder.id)}
-                      className="h-9 px-2 sm:px-4 gap-1.5 hidden sm:flex !bg-slate-50 border-slate-200 text-slate-700 hover:!bg-slate-100"
+                      className="h-9 px-2 sm:px-4 gap-1.5 hidden sm:flex !bg-slate-50 border-slate-200 text-slate-700 hover:!bg-slate-100 disabled:opacity-60 cursor-pointer"
+                      title="Gerar PDF / Imprimir Ordem de Serviço"
                     >
-                      <Printer size={14} /> <span className="hidden md:inline">Gerar PDF</span>
+                      {printingOrderId === (selectedOrder.id || selectedOrder.displayId || selectedOrder.publicToken) ? (
+                        <>
+                          <Loader2 size={14} className="animate-spin text-[#1c2d4f]" />
+                          <span className="hidden md:inline">Preparando PDF...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Printer size={14} /> <span className="hidden md:inline">Gerar PDF</span>
+                        </>
+                      )}
                     </Button>
                     {selectedOrder.status !== OrderStatus.COMPLETED && selectedOrder.status !== OrderStatus.CANCELED && (
                       <Button

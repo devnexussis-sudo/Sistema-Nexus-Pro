@@ -147,3 +147,6 @@ verify_jwt = false
 
 [functions.asaas-create-charge]
 verify_jwt = true
+
+[functions.r2-operations]
+verify_jwt = false

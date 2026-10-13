@@ -13,9 +13,11 @@ import { FloatingBatchBar } from './FloatingBatchBar';
 interface CashFlowTabProps {
     tenantId: string;
     receivables: any[]; // Itens de recebimento unificados (orders, quotes) já calculados no FinancialDashboard
+    invoices?: any[];
+    invoiceItems?: any[];
 }
 
-export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables }) => {
+export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables = [], invoices = [], invoiceItems = [] }) => {
     const { t } = useI18n();
     const { showAlert } = useDialog();
     const [startDate, setStartDate] = useState(() => {
@@ -37,9 +39,35 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
     const [selectedEntryIds, setSelectedEntryIds] = useState<string[]>([]);
     const ITEMS_PER_PAGE = 10;
 
-    const cleanDateStr = (rawDate?: string) => {
+    const cleanDateStr = (rawDate?: any): string => {
         if (!rawDate) return '';
-        return String(rawDate).split('T')[0].split(' ')[0].trim();
+        const str = String(rawDate).trim();
+        if (!str) return '';
+        const brMatch = str.match(/^(\d{2})[/-](\d{2})[/-](\d{4})/);
+        if (brMatch) {
+            return `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}`;
+        }
+        const isoPrefixMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (isoPrefixMatch) {
+            if (str.includes('T') || str.includes(':')) {
+                const d = new Date(str);
+                if (!isNaN(d.getTime())) {
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+                    return `${y}-${m}-${day}`;
+                }
+            }
+            return `${isoPrefixMatch[1]}-${isoPrefixMatch[2]}-${isoPrefixMatch[3]}`;
+        }
+        const d = new Date(str);
+        if (!isNaN(d.getTime())) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+        return str.split('T')[0].split(' ')[0].trim();
     };
 
     const fetchData = async () => {
@@ -65,10 +93,10 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
             dStart.setFullYear(dStart.getFullYear() - 2);
             
             const [cfData, payablesData, instRes, invRes] = await Promise.all([
-                FinancialService.getCashFlow({ start: dStart.toISOString().split('T')[0], end: endDate }).catch(e => { console.error("CF Error", e); return []; }),
+                FinancialService.getCashFlow({ start: dStart.toISOString().split('T')[0], end: endDate, tenantId: activeTenantId }).catch(e => { console.error("CF Error", e); return []; }),
                 FinancialService.getAccountsPayable({ start: startDate, end: endDate, status: 'ALL' }).catch(e => { console.error("AP Error", e); return []; }),
-                supabase.from('invoice_installments').select('id, invoice_id, due_date, status, amount, value').eq('tenant_id', activeTenantId).neq('status', 'PAID').neq('status', 'CANCELED').limit(200).then(res => res).catch(e => ({ data: [], error: e })),
-                supabase.from('invoices').select('id, due_date, created_at, status, gateway_status, total_amount, discount_amount, shipping_amount, other_additions_amount').eq('tenant_id', activeTenantId).neq('status', 'PAID').neq('status', 'CANCELED').limit(200).then(res => res).catch(e => ({ data: [], error: e }))
+                supabase.from('invoice_installments').select('id, invoice_id, due_date, status, amount, value').eq('tenant_id', activeTenantId).neq('status', 'PAID').neq('status', 'CANCELED').limit(200).then(res => res, e => ({ data: [], error: e })),
+                supabase.from('invoices').select('id, due_date, created_at, status, gateway_status, total_amount, discount_amount, shipping_amount, other_additions_amount').eq('tenant_id', activeTenantId).neq('status', 'PAID').neq('status', 'CANCELED').limit(200).then(res => res, e => ({ data: [], error: e }))
             ]);
 
             setCashFlow(cfData || []);
@@ -88,18 +116,120 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
         fetchData();
     }, [tenantId, startDate, endDate]);
 
+    // Ouvir eventos de liquidação financeira e atualizar giro de caixa em tempo real
+    useEffect(() => {
+        const handleRefresh = () => {
+            fetchData();
+        };
+        window.addEventListener('refresh_invoices', handleRefresh);
+        window.addEventListener('refresh_financial', handleRefresh);
+        return () => {
+            window.removeEventListener('refresh_invoices', handleRefresh);
+            window.removeEventListener('refresh_financial', handleRefresh);
+        };
+    }, [tenantId, startDate, endDate]);
+
     // Reset página e seleção ao mudar o período de datas
     useEffect(() => {
         setCurrentPage(1);
         setSelectedEntryIds([]);
     }, [startDate, endDate]);
 
+    // Consolidação Completa de Entradas Realizadas (cash_flow DB + faturas pagas + O.S./Orçamentos pagos)
+    const consolidatedCashFlow = useMemo(() => {
+        const result: CashFlowEntry[] = [...cashFlow];
+        const existingRefIds = new Set(result.map(r => r.referenceId).filter(Boolean));
+        
+        // Mapear faturas que já foram representadas em result
+        const invoicedIdsInResult = new Set<string>();
+        result.forEach(r => {
+            if (r.referenceType === 'INVOICE' && r.referenceId) {
+                invoicedIdsInResult.add(r.referenceId);
+            }
+            if (r.referenceType === 'INSTALLMENT' && r.referenceId) {
+                const parts = String(r.referenceId).split('_');
+                if (parts[0]) invoicedIdsInResult.add(parts[0]);
+            }
+        });
+
+        // 1. Consolidar Faturas Pagas passadas via props que possam não estar ainda no backend cash_flow
+        (invoices || []).forEach((inv: any) => {
+            const statusStr = String(inv.status || '').toUpperCase();
+            const isInvPaid = ['PAID', 'RECEIVED', 'CONFIRMED', 'APPROVED', 'ANTICIPATED'].includes(statusStr) || inv.gateway_status === 'approved' || !!inv.paid_at;
+            
+            if (isInvPaid && !existingRefIds.has(inv.id) && !invoicedIdsInResult.has(inv.id)) {
+                const finalVal = Number((inv.total_amount || 0) - (inv.discount_amount || 0) + (inv.shipping_amount || 0) + (inv.other_additions_amount || 0));
+                if (finalVal > 0) {
+                    const entryDate = inv.paid_at || inv.updated_at || inv.created_at || new Date().toISOString();
+                    const custName = inv.customer_name ? ` (${inv.customer_name})` : '';
+                    result.push({
+                        id: `prop_inv_${inv.id}`,
+                        tenantId: inv.tenant_id || tenantId,
+                        type: 'INCOME',
+                        category: 'Recebimento de Fatura',
+                        amount: finalVal,
+                        description: `Pagamento Integral — Fatura ${inv.display_id || String(inv.id).slice(0, 8)}${custName}`,
+                        referenceId: inv.id,
+                        referenceType: 'INVOICE',
+                        paymentMethod: inv.payment_method || inv.gateway_payment_method || 'Outros',
+                        entryDate: entryDate,
+                        createdAt: inv.created_at || new Date().toISOString(),
+                        createdBy: 'sistema-fat'
+                    });
+                    existingRefIds.add(inv.id);
+                    invoicedIdsInResult.add(inv.id);
+                }
+            }
+        });
+
+        // Mapear itens de O.S. ou Orçamento já cobertos por faturas pagas
+        const itemsCoveredByPaidInvoices = new Set<string>();
+        (invoiceItems || []).forEach((item: any) => {
+            if (invoicedIdsInResult.has(item.invoice_id) || existingRefIds.has(item.invoice_id)) {
+                if (item.reference_id) itemsCoveredByPaidInvoices.add(item.reference_id);
+            }
+        });
+
+        // 2. Consolidar Recebíveis (O.S. e Orçamentos) Pagos
+        (receivables || []).forEach((r: any) => {
+            const statusStr = String(r.status || '').toUpperCase();
+            const isPaid = statusStr === 'PAID' || (r.billingStatus || '').toUpperCase() === 'PAID' || !!r.paidAt;
+            const itemVal = Number(r.value || r.netValue || 0);
+
+            if (isPaid && itemVal > 0) {
+                // Verificar se já não está registrado diretamente nem coberto por fatura paga
+                if (!existingRefIds.has(r.id) && !itemsCoveredByPaidInvoices.has(r.id)) {
+                    const entryDate = r.paidAt || r.updatedAt || r.date || r.createdAt || new Date().toISOString();
+                    const custName = r.customerName ? ` — ${r.customerName}` : '';
+                    result.push({
+                        id: `rec_cf_${r.id}`,
+                        tenantId: tenantId,
+                        type: 'INCOME',
+                        category: r.type === 'ORDER' ? 'Serviço (O.S.)' : 'Venda (Orçamento)',
+                        amount: itemVal,
+                        description: `${r.type === 'ORDER' ? 'O.S.' : 'Orçamento'} ${r.displayId || '#' + String(r.id).slice(0, 8)}${custName}`,
+                        referenceId: r.id,
+                        referenceType: r.type,
+                        paymentMethod: r.paymentMethod || 'Outros',
+                        entryDate: entryDate,
+                        createdAt: r.createdAt || new Date().toISOString(),
+                        createdBy: 'sistema-rec'
+                    });
+                    existingRefIds.add(r.id);
+                }
+            }
+        });
+
+        result.sort((a, b) => new Date(b.entryDate).getTime() - new Date(a.entryDate).getTime());
+        return result;
+    }, [cashFlow, invoices, invoiceItems, receivables, tenantId]);
+
     const filteredEntries = useMemo(() => {
-        return cashFlow.filter(entry => {
+        return consolidatedCashFlow.filter(entry => {
             const entryDate = cleanDateStr(entry.entryDate);
             return (!startDate || entryDate >= startDate) && (!endDate || entryDate <= endDate);
         }).sort((a, b) => new Date(b.entryDate).getTime() - new Date(a.entryDate).getTime());
-    }, [cashFlow, startDate, endDate]);
+    }, [consolidatedCashFlow, startDate, endDate]);
 
     const totalPages = Math.ceil(filteredEntries.length / ITEMS_PER_PAGE);
 
@@ -131,14 +261,35 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
             .reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
     }, [filteredEntries, selectedEntryIds]);
 
-    // 1. Cálculo de Saldo Atual (Todo o histórico até a data final selecionada)
-    const saldoAtual = useMemo(() => {
-        return cashFlow.reduce((acc, entry) => {
-            if (entry.type === 'INCOME') return acc + Number(entry.amount);
-            if (entry.type === 'EXPENSE') return acc - Number(entry.amount);
+    // 1. Entradas e Saídas Realizadas estritamente no período selecionado (startDate até endDate)
+    const entradasRealizadas = useMemo(() => {
+        return filteredEntries
+            .filter(e => e.type === 'INCOME')
+            .reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+    }, [filteredEntries]);
+
+    const saidasRealizadas = useMemo(() => {
+        return filteredEntries
+            .filter(e => e.type === 'EXPENSE')
+            .reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+    }, [filteredEntries]);
+
+    // Saldo Realizado do Período (Entradas Realizadas - Saídas Realizadas do período)
+    const saldoRealizado = useMemo(() => {
+        return entradasRealizadas - saidasRealizadas;
+    }, [entradasRealizadas, saidasRealizadas]);
+
+    // Saldo acumulado histórico total até o fim do período
+    const saldoAcumuladoHistorico = useMemo(() => {
+        return consolidatedCashFlow.reduce((acc, entry) => {
+            const entryDate = cleanDateStr(entry.entryDate);
+            if (!endDate || entryDate <= endDate) {
+                if (entry.type === 'INCOME') return acc + Number(entry.amount);
+                if (entry.type === 'EXPENSE') return acc - Number(entry.amount);
+            }
             return acc;
         }, 0);
-    }, [cashFlow]);
+    }, [consolidatedCashFlow, endDate]);
 
     // 2. Cálculo de Entradas Previstas no Período (Parcelas de Faturas + Faturas Pendentes + Recebíveis não Faturados)
     const entradasPrevistas = useMemo(() => {
@@ -170,17 +321,30 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
         });
 
         // C) Recebíveis diretos (OS/Orçamentos não faturados) pendentes
-        receivables.forEach(item => {
-            const isPending = item.status !== 'PAID';
-            const itemDate = cleanDateStr(item.dueDate || item.date);
-            const inRange = (!startDate || itemDate >= startDate) && (!endDate || itemDate <= endDate);
-            if (isPending && inRange) {
-                total += Number(item.value || 0);
+        const pendingInvoiceIdSet = new Set(pendingInvoices.map(i => i.id));
+        const itemsInPendingInvoices = new Set<string>();
+        (invoiceItems || []).forEach(ii => {
+            if (pendingInvoiceIdSet.has(ii.invoice_id) && ii.reference_id) {
+                itemsInPendingInvoices.add(ii.reference_id);
+            }
+        });
+
+        (receivables || []).forEach(item => {
+            const statusStr = String(item.status || '').toUpperCase();
+            const isPending = statusStr !== 'PAID' && statusStr !== 'CANCELED';
+            const isCovered = itemsInPendingInvoices.has(item.id);
+
+            if (isPending && !isCovered) {
+                const itemDate = cleanDateStr(item.dueDate || item.date);
+                const inRange = (!startDate || itemDate >= startDate) && (!endDate || itemDate <= endDate);
+                if (inRange) {
+                    total += Number(item.value || 0);
+                }
             }
         });
 
         return total;
-    }, [pendingInstallments, pendingInvoices, receivables, startDate, endDate]);
+    }, [pendingInstallments, pendingInvoices, receivables, invoiceItems, startDate, endDate]);
 
     // 3. Cálculo de Saídas Previstas no Período (Contas a Pagar pendentes)
     const saidasPrevistas = useMemo(() => {
@@ -192,8 +356,8 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
         }).reduce((acc, curr) => acc + Number(curr.amount), 0);
     }, [payables, startDate, endDate]);
 
-    // 4. Saldo Projetado
-    const saldoProjetado = saldoAtual + entradasPrevistas - saidasPrevistas;
+    // 4. Saldo Projetado do Período
+    const saldoProjetado = saldoRealizado + entradasPrevistas - saidasPrevistas;
 
     // 5. Agrupamento para Gráfico Diário (Entradas vs Saídas no período selecionado)
     const dailyData = useMemo(() => {
@@ -206,12 +370,15 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
         
         // Inicializar dias no mapa
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-            const iso = d.toISOString().split('T')[0];
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const iso = `${y}-${m}-${day}`;
             daysMap[iso] = { income: 0, expense: 0, dateStr: iso };
         }
 
-        // Adicionar Entradas Realizadas (Cash Flow)
-        cashFlow.forEach(c => {
+        // Adicionar Entradas Realizadas (Cash Flow Consolidado)
+        consolidatedCashFlow.forEach(c => {
             const dateStr = cleanDateStr(c.entryDate);
             if (daysMap[dateStr]) {
                 if (c.type === 'INCOME') daysMap[dateStr].income += Number(c.amount);
@@ -246,11 +413,21 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
             }
         });
 
-        // Adicionar Recebíveis diretos (OS/Orçamentos não faturados)
-        receivables.forEach(r => {
-            if (r.status !== 'PAID') {
+        // Adicionar Recebíveis diretos (OS/Orçamentos não faturados) pendentes
+        const pendingInvoiceIdSet = new Set(pendingInvoices.map(i => i.id));
+        const itemsInPendingInvoices = new Set<string>();
+        (invoiceItems || []).forEach(ii => {
+            if (pendingInvoiceIdSet.has(ii.invoice_id) && ii.reference_id) {
+                itemsInPendingInvoices.add(ii.reference_id);
+            }
+        });
+
+        (receivables || []).forEach(r => {
+            const statusStr = String(r.status || '').toUpperCase();
+            const isPending = statusStr !== 'PAID' && statusStr !== 'CANCELED';
+            if (isPending && !itemsInPendingInvoices.has(r.id)) {
                 const dateStr = cleanDateStr(r.dueDate || r.date);
-                if (daysMap[dateStr]) daysMap[dateStr].income += Number(r.value);
+                if (daysMap[dateStr]) daysMap[dateStr].income += Number(r.value || 0);
             }
         });
 
@@ -263,7 +440,7 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
         });
 
         return Object.values(daysMap).sort((a, b) => a.dateStr.localeCompare(b.dateStr));
-    }, [cashFlow, pendingInstallments, pendingInvoices, receivables, payables, startDate, endDate]);
+    }, [consolidatedCashFlow, pendingInstallments, pendingInvoices, receivables, payables, invoiceItems, startDate, endDate]);
 
     const maxVolume = useMemo(() => {
         let max = 0;
@@ -301,13 +478,16 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
             'Valor (R$)'
         ];
 
-        const rows = entriesToExport.map(e => [
-            e.entryDate ? new Date(e.entryDate + (e.entryDate.length === 10 ? 'T12:00:00' : '')).toLocaleDateString('pt-BR') : '—',
-            e.description || 'Lançamento',
-            e.category || 'Geral',
-            e.type === 'INCOME' ? 'Entrada' : 'Saída',
-            e.type === 'INCOME' ? Number(e.amount) : -Number(e.amount)
-        ]);
+        const rows = entriesToExport.map(e => {
+            const cDate = cleanDateStr(e.entryDate);
+            return [
+                cDate ? new Date(cDate + 'T12:00:00').toLocaleDateString('pt-BR') : '—',
+                e.description || 'Lançamento',
+                e.category || 'Geral',
+                e.type === 'INCOME' ? 'Entrada' : 'Saída',
+                e.type === 'INCOME' ? Number(e.amount) : -Number(e.amount)
+            ];
+        });
 
         const colWidths = [
             { wch: 15 },
@@ -346,13 +526,16 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
             'Valor'
         ];
 
-        const rows = entriesToPrint.map(e => [
-            e.entryDate ? new Date(e.entryDate + (e.entryDate.length === 10 ? 'T12:00:00' : '')).toLocaleDateString('pt-BR') : '—',
-            e.description || 'Lançamento',
-            e.category || 'Geral',
-            e.type === 'INCOME' ? 'ENTRADA' : 'SAÍDA',
-            formatCurrency(Number(e.amount))
-        ]);
+        const rows = entriesToPrint.map(e => {
+            const cDate = cleanDateStr(e.entryDate);
+            return [
+                cDate ? new Date(cDate + 'T12:00:00').toLocaleDateString('pt-BR') : '—',
+                e.description || 'Lançamento',
+                e.category || 'Geral',
+                e.type === 'INCOME' ? 'ENTRADA' : 'SAÍDA',
+                formatCurrency(Number(e.amount))
+            ];
+        });
 
         const totalIncome = entriesToPrint.filter(e => e.type === 'INCOME').reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
         const totalExpense = entriesToPrint.filter(e => e.type === 'EXPENSE').reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
@@ -466,23 +649,33 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
                 <>
                     {/* Resumo Financeiro (Cards) */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                        {/* Saldo Atual */}
+                        {/* Saldo / Entradas Realizadas do Período */}
                         <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-sm flex flex-col justify-between group hover:-translate-y-0.5 transition-transform duration-300">
                             <div className="flex justify-between items-start mb-2">
-                                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Saldo Realizado</p>
-                                <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg group-hover:scale-110 transition-transform"><DollarSign size={14} /></div>
+                                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                                    {saidasRealizadas > 0 ? 'Saldo Realizado' : 'Entradas Realizadas'}
+                                </p>
+                                <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg group-hover:scale-110 transition-transform"><DollarSign size={14} /></div>
                             </div>
-                            <h3 className="text-lg font-black text-slate-800">{formatCurrency(saldoAtual)}</h3>
-                            <p className="text-[9px] text-slate-400 font-medium mt-1">Acumulado até hoje</p>
+                            <h3 className={`text-lg font-black ${saldoRealizado >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {formatCurrency(saidasRealizadas > 0 ? saldoRealizado : entradasRealizadas)}
+                            </h3>
+                            <div className="text-[9px] text-slate-400 font-medium mt-1 truncate">
+                                {saidasRealizadas > 0 ? (
+                                    <>Recebido: <span className="text-emerald-600 font-bold">{formatCurrency(entradasRealizadas)}</span> • Pago: <span className="text-rose-600 font-bold">{formatCurrency(saidasRealizadas)}</span></>
+                                ) : (
+                                    <span>Recebido no período selecionado</span>
+                                )}
+                            </div>
                         </div>
 
                         {/* Entradas Previstas */}
                         <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-sm flex flex-col justify-between group hover:-translate-y-0.5 transition-transform duration-300">
                             <div className="flex justify-between items-start mb-2">
                                 <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Entradas Previstas</p>
-                                <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg group-hover:scale-110 transition-transform"><ArrowUpRight size={14} /></div>
+                                <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg group-hover:scale-110 transition-transform"><ArrowUpRight size={14} /></div>
                             </div>
-                            <h3 className="text-lg font-black text-emerald-600">{formatCurrency(entradasPrevistas)}</h3>
+                            <h3 className="text-lg font-black text-indigo-600">{formatCurrency(entradasPrevistas)}</h3>
                             <p className="text-[9px] text-slate-400 font-medium mt-1">A receber no período</p>
                         </div>
 
@@ -503,7 +696,7 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
                                 <div className="p-1.5 bg-white/10 text-white rounded-lg group-hover:scale-110 transition-transform border border-white/10"><TrendingUp size={14} /></div>
                             </div>
                             <h3 className="text-lg font-black relative z-10 drop-shadow-md">{formatCurrency(saldoProjetado)}</h3>
-                            <p className="text-[9px] text-white/70 font-medium mt-1 relative z-10">Projeção no fim do período</p>
+                            <p className="text-[9px] text-white/70 font-medium mt-1 relative z-10">Projeção líquida do período</p>
                             
                             <div className="absolute top-0 right-0 w-20 h-20 bg-white/5 rounded-full blur-xl -mr-6 -mt-6 pointer-events-none" />
                         </div>
@@ -634,7 +827,7 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
                                                     />
                                                 </td>
                                                 <td className="py-2.5 px-3 text-xs text-slate-600 font-medium">
-                                                    {formatDateShort(entry.entryDate.split('T')[0])}
+                                                    {formatDateShort(cleanDateStr(entry.entryDate))}
                                                 </td>
                                                 <td className="py-2.5 px-3 text-xs text-slate-800 font-medium max-w-[200px] truncate" title={entry.description}>
                                                     {entry.description}

@@ -1349,13 +1349,14 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const handleInvoiceBatch = () => {
         if (selectedIds.length === 0) return;
 
-        const hasPaidItems = selectedIds.some(id => {
+        const alreadyBilledOrPaid = selectedIds.some(id => {
             const item = filteredItems.find(i => i.id === id);
-            return item?.status === 'PAID' || item?.original?.billingStatus === 'PAID' || item?.original?.billing_status === 'PAID';
+            const isFaturado = invoiceItems.some(invItem => invItem.reference_id === id);
+            return isFaturado || item?.status === 'PAID' || item?.original?.billingStatus === 'PAID' || item?.original?.billing_status === 'PAID';
         });
 
-        if (hasPaidItems) {
-            showAlert('Não é possível faturar itens que já constam como faturados/pagos.', 'error');
+        if (alreadyBilledOrPaid) {
+            showAlert('Não é possível faturar itens que já constam como faturados ou pagos. Desmarque os itens já faturados/pagos para prosseguir com novo faturamento em lote.', 'error');
             return;
         }
 
@@ -1837,6 +1838,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 setSelectedIds([]);
                 await onRefresh();
                 await loadInvoices();
+                window.dispatchEvent(new Event('refresh_financial'));
+                window.dispatchEvent(new Event('refresh_invoices'));
             }
             
 
@@ -2362,7 +2365,12 @@ ${container.innerHTML}
 
             {mainTab === 'CASH_FLOW' && (
                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-8">
-                    <CashFlowTab tenantId={tenant?.id || ''} receivables={allItems} />
+                    <CashFlowTab 
+                        tenantId={tenant?.id || tenantIdStr || ''} 
+                        receivables={allItems} 
+                        invoices={invoices} 
+                        invoiceItems={invoiceItems} 
+                    />
                 </div>
             )}
 
@@ -2759,8 +2767,7 @@ ${container.innerHTML}
                             <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">
                                 <th className="px-2 py-2.5 w-8 text-center">
                                     <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-200 text-[#1c2d4f] cursor-pointer" checked={paginatedItems.length > 0 && paginatedItems.every(i => selectedIds.includes(i.id))} onChange={() => { 
-                                        const unbilledPageItems = paginatedItems.filter(i => !invoiceItems.some(inv => inv.reference_id === i.id));
-                                        const pageIds = unbilledPageItems.map(i => i.id);
+                                        const pageIds = paginatedItems.map(i => i.id);
                                         const allSelected = pageIds.length > 0 && pageIds.every(id => selectedIds.includes(id));
                                         if (allSelected) {
                                             setSelectedIds(prev => prev.filter(id => !pageIds.includes(id)));
@@ -2826,7 +2833,7 @@ ${container.innerHTML}
                                     onClick={() => { setDetailTab('overview'); setSelectedItem(item); setEditingDueDate(''); setIsSidebarOpen(true); }}
                                 >
                                     <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
-                                        <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-300 text-[#1c2d4f] cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed" disabled={isFaturado} checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} />
+                                        <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-300 text-[#1c2d4f] cursor-pointer" checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} />
                                     </td>
                                     <td className="px-2 py-2 whitespace-nowrap">
                                         <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border w-fit block ${item.type === 'QUOTE' ? 'bg-[#1c2d4f]/10 text-[#1c2d4f] border-[#1c2d4f]/20' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
@@ -3067,9 +3074,9 @@ ${container.innerHTML}
                             {/* Checkbox absoluto para seleção rápida (Longo Press ou click direto) */}
                             <div 
                                 className="absolute top-3 right-3 p-2 -m-2 z-10"
-                                onClick={(e) => { e.stopPropagation(); if (!isFaturado) toggleSelect(item.id); }}
+                                onClick={(e) => { e.stopPropagation(); toggleSelect(item.id); }}
                             >
-                                <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-[#1c2d4f] disabled:opacity-30 disabled:cursor-not-allowed" disabled={isFaturado} checked={selectedIds.includes(item.id)} readOnly />
+                                <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-[#1c2d4f] cursor-pointer" checked={selectedIds.includes(item.id)} readOnly />
                             </div>
 
                             <div className="flex items-start justify-between gap-2 pr-8">
@@ -4669,7 +4676,7 @@ ${container.innerHTML}
                             <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Pré-visualização do Recibo</p>
                             <div className="flex items-center gap-3">
                                 <button
-                                    onClick={executePrint}
+                                    onClick={() => executePrint()}
                                     className="flex items-center gap-2 px-5 py-2.5 bg-[#1c2d4f] text-white rounded-xl text-xs font-semibold uppercase shadow-md hover:bg-[#253a66] transition-all"
                                 >
                                     <Printer size={14} /> Imprimir
@@ -4841,7 +4848,7 @@ ${container.innerHTML}
                                                     <td className="px-3 py-2 text-[10px] uppercase font-medium text-slate-800 break-words whitespace-pre-wrap align-top">Valor Acordado ({printItem.type === 'QUOTE' ? 'Orçamento Base' : 'Ordem de Serviço Base'})</td>
                                                     <td className="px-3 py-2 text-[10px] text-center font-medium text-slate-600 align-top">{printItem.type === 'QUOTE' ? 'ORC' : 'O.S.'}</td>
                                                     <td className="px-3 py-2 text-[10px] text-right font-semibold text-slate-900 font-mono align-top">
-                                                        {`R$ ${(printItem?.value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                                                        {`R$ ${((printItem as any)?.grossValue ?? ((printItem?.value || 0) + Number(printItem?.billingDiscount ?? printItem?.original?.discount ?? 0)) ?? printItem?.value ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                                                     </td>
                                                 </tr>
                                                 {printItem.type === 'ORDER' && printItem.original?.linkedQuotes?.length > 0 && (() => {
@@ -4859,8 +4866,33 @@ ${container.innerHTML}
                                         </table>
                                         <div className="bg-slate-50 border-t border-slate-200 divide-y divide-slate-100">
                                             {(() => {
+                                                const grossValue = Number((printItem as any)?.grossValue ?? (
+                                                    (printItem?.value || 0) + Number(printItem?.billingDiscount ?? printItem?.original?.discount ?? 0)
+                                                )) || 0;
+                                                const storedDisc = Number((printItem as any)?.discountAmount ?? printItem?.billingDiscount ?? printItem?.original?.discount ?? 0);
+                                                const storedDiscType = printItem?.billingDiscountType ?? printItem?.original?.discountType ?? 'fixed';
 
-                                                const netValue = Math.max(0, grossValue - discountAmount);
+                                                let discountAmount = 0;
+                                                let discLabel = '';
+
+                                                if ((printItem as any)?.discountAmount !== undefined && (printItem as any)?.discountAmount !== null && Number((printItem as any).discountAmount) > 0) {
+                                                    discountAmount = Number((printItem as any).discountAmount);
+                                                    if (storedDiscType === 'percent') {
+                                                        const pVal = printItem?.billingDiscount ?? printItem?.original?.discount;
+                                                        if (pVal) discLabel = `(${pVal}%)`;
+                                                    }
+                                                } else if (storedDisc > 0) {
+                                                    if (storedDiscType === 'percent') {
+                                                        discountAmount = grossValue * (storedDisc / 100);
+                                                        discLabel = `(${storedDisc}%)`;
+                                                    } else {
+                                                        discountAmount = storedDisc;
+                                                    }
+                                                }
+
+                                                const netValue = (printItem as any)?.netValue !== undefined
+                                                    ? Number((printItem as any).netValue)
+                                                    : Math.max(0, grossValue - discountAmount);
                                                 const hasDiscount = discountAmount > 0.01;
 
                                                 return (

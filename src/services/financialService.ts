@@ -10,6 +10,37 @@ const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.V
 
 
 
+const cleanDateStr = (rawDate?: any): string => {
+    if (!rawDate) return '';
+    const str = String(rawDate).trim();
+    if (!str) return '';
+    const brMatch = str.match(/^(\d{2})[/-](\d{2})[/-](\d{4})/);
+    if (brMatch) {
+        return `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}`;
+    }
+    const isoPrefixMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoPrefixMatch) {
+        if (str.includes('T') || str.includes(':')) {
+            const d = new Date(str);
+            if (!isNaN(d.getTime())) {
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${y}-${m}-${day}`;
+            }
+        }
+        return `${isoPrefixMatch[1]}-${isoPrefixMatch[2]}-${isoPrefixMatch[3]}`;
+    }
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+    return str.split('T')[0].split(' ')[0].trim();
+};
+
 export const FinancialService = {
 
     // --- Fluxo de Caixa ---
@@ -59,17 +90,23 @@ export const FinancialService = {
         }
     },
 
-    getCashFlow: async (filters?: { start?: string, end?: string }): Promise<CashFlowEntry[]> => {
-        const tenantId = getCurrentTenantId();
+    getCashFlow: async (filters?: { start?: string, end?: string, tenantId?: string }): Promise<CashFlowEntry[]> => {
+        const tenantId = filters?.tenantId || getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
             let query = supabase.from('cash_flow')
                 .select('id, tenant_id, type, category, amount, description, reference_id, reference_type, payment_method, entry_date, customer_id, technician_id, created_at, created_by')
                 .eq('tenant_id', tenantId);
-            if (filters?.start) query = query.gte('entry_date', filters.start);
-            if (filters?.end) query = query.lte('entry_date', filters.end);
+            if (filters?.start) {
+                const sStr = filters.start.includes('T') ? filters.start : `${filters.start}T00:00:00.000Z`;
+                query = query.gte('entry_date', sStr);
+            }
+            if (filters?.end) {
+                const eStr = filters.end.includes('T') ? filters.end : `${filters.end}T23:59:59.999Z`;
+                query = query.lte('entry_date', eStr);
+            }
 
-            const { data, error } = await query.order('entry_date', { ascending: false }).limit(200);
-            if (error) throw error;
+            const { data, error } = await query.order('entry_date', { ascending: false }).limit(500);
+            if (error) console.warn('Aviso ao carregar cash_flow direto:', error);
 
             const result: CashFlowEntry[] = (data || []).map(d => ({
                 id: d.id,
@@ -90,89 +127,108 @@ export const FinancialService = {
 
             const existingRefIds = new Set(result.map(r => r.referenceId).filter(Boolean));
 
-            // Buscar parcelas de faturas pagas (invoice_installments) com projeção leve e filtro no banco
+            // Buscar parcelas de faturas e faturas para consolidar no giro de caixa
             try {
-                let instQuery = supabase.from('invoice_installments')
-                    .select('id, tenant_id, invoice_id, installment_number, amount, value, status, payment_method, due_date, paid_at, updated_at, created_at, invoices(display_id, customer_name)')
-                    .eq('tenant_id', tenantId)
-                    .in('status', ['PAID', 'RECEIVED', 'CONFIRMED', 'approved']);
-                if (filters?.start) instQuery = instQuery.gte('due_date', filters.start);
-                if (filters?.end) instQuery = instQuery.lte('due_date', filters.end);
+                const [instRes, invRes] = await Promise.all([
+                    supabase.from('invoice_installments')
+                        .select('id, tenant_id, invoice_id, installment_number, total_installments, amount, value, status, payment_method, due_date, paid_at, updated_at, created_at')
+                        .eq('tenant_id', tenantId)
+                        .limit(1000),
+                    supabase.from('invoices')
+                        .select('id, tenant_id, display_id, customer_name, status, gateway_status, total_amount, discount_amount, shipping_amount, other_additions_amount, payment_method, gateway_payment_method, due_date, paid_at, updated_at, created_at')
+                        .eq('tenant_id', tenantId)
+                        .limit(1000)
+                ]);
 
-                const { data: instData } = await instQuery.limit(200);
-                if (instData && instData.length > 0) {
-                    instData.forEach((inst: any) => {
-                        const isInstPaid = inst.status === 'PAID' || inst.status === 'RECEIVED' || inst.status === 'CONFIRMED' || inst.status === 'approved' || !!inst.paid_at;
-                        if (isInstPaid) {
-                            const instRefId = inst.id;
-                            const altRefId = inst.invoice_id + '_' + inst.installment_number;
-                            if (!existingRefIds.has(instRefId) && !existingRefIds.has(altRefId)) {
-                                const invDisplay = inst.invoices?.display_id || (inst.invoice_id ? inst.invoice_id.slice(0, 8) : 'FAT');
-                                const custName = inst.invoices?.customer_name ? ` (${inst.invoices.customer_name})` : '';
-                                const instAmt = Number(inst.amount || inst.value || 0);
-                                if (instAmt > 0) {
-                                    result.push({
-                                        id: `inst_cf_${inst.id}`,
-                                        tenantId: inst.tenant_id,
-                                        type: 'INCOME',
-                                        category: 'Recebimento de Fatura (Parcela)',
-                                        amount: instAmt,
-                                        description: `Pagamento Parcela ${inst.installment_number} — Fatura ${invDisplay}${custName}`,
-                                        referenceId: inst.id,
-                                        referenceType: 'INSTALLMENT',
-                                        paymentMethod: inst.payment_method || 'Outros',
-                                        entryDate: inst.paid_at || inst.updated_at || inst.due_date || new Date().toISOString(),
-                                        createdAt: inst.created_at || new Date().toISOString(),
-                                        createdBy: 'sistema-fat'
-                                    });
-                                    existingRefIds.add(inst.id);
-                                }
-                            }
-                        }
-                    });
-                }
-            } catch (e) {
-                console.warn('Aviso ao carregar parcelas de faturas para giro de caixa:', e);
-            }
+                const invoicesList = invRes.data || [];
+                const installmentsList = instRes.data || [];
+                const invoicesMap = new Map(invoicesList.map((inv: any) => [inv.id, inv]));
+                const invoicesWithPaidInstallments = new Set<string>();
 
-            // Buscar faturas pagas integrais (invoices) com projeção leve e filtro no banco
-            try {
-                let invQuery = supabase.from('invoices')
-                    .select('id, tenant_id, display_id, customer_name, status, gateway_status, total_amount, discount_amount, shipping_amount, other_additions_amount, payment_method, gateway_payment_method, due_date, paid_at, updated_at, created_at')
-                    .eq('tenant_id', tenantId)
-                    .in('status', ['PAID', 'approved']);
-                if (filters?.start) invQuery = invQuery.gte('created_at', filters.start);
-                if (filters?.end) invQuery = invQuery.lte('created_at', filters.end);
+                // 1. Processar parcelas pagas/liquidadas (liquidação parcial ou total de faturas)
+                installmentsList.forEach((inst: any) => {
+                    const statusStr = String(inst.status || '').toUpperCase();
+                    const isInstPaid = ['PAID', 'RECEIVED', 'CONFIRMED', 'APPROVED', 'ANTICIPATED'].includes(statusStr) || !!inst.paid_at;
 
-                const { data: invData } = await invQuery.limit(200);
-                if (invData && invData.length > 0) {
-                    invData.forEach((inv: any) => {
-                        const isInvPaid = inv.status === 'PAID' || inv.gateway_status === 'approved' || !!inv.paid_at;
-                        if (isInvPaid && !existingRefIds.has(inv.id)) {
-                            const finalVal = Number(inv.total_amount - (inv.discount_amount || 0) + (inv.shipping_amount || 0) + (inv.other_additions_amount || 0));
-                            if (finalVal > 0) {
-                                const custName = inv.customer_name ? ` (${inv.customer_name})` : '';
+                    if (isInstPaid) {
+                        const instRefId = inst.id;
+                        const altRefId = `${inst.invoice_id}_${inst.installment_number}`;
+                        
+                        // Marca que esta fatura teve parcelas pagas para evitar duplicar na leitura da fatura inteira
+                        invoicesWithPaidInstallments.add(inst.invoice_id);
+
+                        if (!existingRefIds.has(instRefId) && !existingRefIds.has(altRefId)) {
+                            const inv = invoicesMap.get(inst.invoice_id);
+                            const invDisplay = inv?.display_id || (inst.invoice_id ? String(inst.invoice_id).slice(0, 8) : 'FAT');
+                            const custName = inv?.customer_name ? ` (${inv.customer_name})` : '';
+                            const instAmt = Number(inst.amount || inst.value || 0);
+
+                            const entryDate = inst.paid_at || inst.updated_at || inst.due_date || inst.created_at || new Date().toISOString();
+                            const entryDateClean = cleanDateStr(entryDate);
+
+                            // Validar se cai dentro do filtro de período (se houver)
+                            const inRange = (!filters?.start || entryDateClean >= filters.start) && (!filters?.end || entryDateClean <= filters.end);
+
+                            if (instAmt > 0 && inRange) {
+                                const totalInstStr = inst.total_installments ? `/${inst.total_installments}` : '';
                                 result.push({
-                                    id: `inv_cf_${inv.id}`,
-                                    tenantId: inv.tenant_id,
+                                    id: `inst_cf_${inst.id}`,
+                                    tenantId: inst.tenant_id,
                                     type: 'INCOME',
-                                    category: 'Recebimento de Fatura',
-                                    amount: finalVal,
-                                    description: `Pagamento Integral — Fatura ${inv.display_id || inv.id.slice(0, 8)}${custName}`,
-                                    referenceId: inv.id,
-                                    referenceType: 'INVOICE',
-                                    paymentMethod: inv.payment_method || inv.gateway_payment_method || 'Outros',
-                                    entryDate: inv.paid_at || inv.updated_at || inv.created_at || new Date().toISOString(),
-                                    createdAt: inv.created_at || new Date().toISOString(),
+                                    category: 'Recebimento de Fatura (Parcela)',
+                                    amount: instAmt,
+                                    description: `Pagamento Parcela ${inst.installment_number}${totalInstStr} — Fatura ${invDisplay}${custName}`,
+                                    referenceId: inst.id,
+                                    referenceType: 'INSTALLMENT',
+                                    paymentMethod: inst.payment_method || inv?.payment_method || 'Outros',
+                                    entryDate: entryDate,
+                                    createdAt: inst.created_at || new Date().toISOString(),
                                     createdBy: 'sistema-fat'
                                 });
-                                existingRefIds.add(inv.id);
+                                existingRefIds.add(instRefId);
+                                existingRefIds.add(altRefId);
                             }
                         }
-                    });
-                }
-            } catch (e) {
-                console.warn('Aviso ao carregar faturas integrais para giro de caixa:', e);
+                    }
+                });
+
+                // 2. Processar faturas pagas integrais que NÃO possuem parcelas individuais na tabela invoice_installments
+                invoicesList.forEach((inv: any) => {
+                    // Se a fatura teve parcelas processadas acima, não adicionamos o valor total para evitar duplicidade
+                    if (invoicesWithPaidInstallments.has(inv.id)) return;
+
+                    const statusStr = String(inv.status || '').toUpperCase();
+                    const isInvPaid = ['PAID', 'RECEIVED', 'CONFIRMED', 'APPROVED', 'ANTICIPATED'].includes(statusStr) || inv.gateway_status === 'approved' || !!inv.paid_at;
+
+                    if (isInvPaid && !existingRefIds.has(inv.id)) {
+                        const finalVal = Number(inv.total_amount - (inv.discount_amount || 0) + (inv.shipping_amount || 0) + (inv.other_additions_amount || 0));
+                        const entryDate = inv.paid_at || inv.updated_at || inv.created_at || new Date().toISOString();
+                        const entryDateClean = cleanDateStr(entryDate);
+
+                        const inRange = (!filters?.start || entryDateClean >= filters.start) && (!filters?.end || entryDateClean <= filters.end);
+
+                        if (finalVal > 0 && inRange) {
+                            const custName = inv.customer_name ? ` (${inv.customer_name})` : '';
+                            result.push({
+                                id: `inv_cf_${inv.id}`,
+                                tenantId: inv.tenant_id,
+                                type: 'INCOME',
+                                category: 'Recebimento de Fatura',
+                                amount: finalVal,
+                                description: `Pagamento Integral — Fatura ${inv.display_id || String(inv.id).slice(0, 8)}${custName}`,
+                                referenceId: inv.id,
+                                referenceType: 'INVOICE',
+                                paymentMethod: inv.payment_method || inv.gateway_payment_method || 'Outros',
+                                entryDate: entryDate,
+                                createdAt: inv.created_at || new Date().toISOString(),
+                                createdBy: 'sistema-fat'
+                            });
+                            existingRefIds.add(inv.id);
+                        }
+                    }
+                });
+            } catch (fatErr) {
+                console.warn('Aviso ao consolidar faturas e parcelas para giro de caixa:', fatErr);
             }
 
             result.sort((a, b) => new Date(b.entryDate).getTime() - new Date(a.entryDate).getTime());

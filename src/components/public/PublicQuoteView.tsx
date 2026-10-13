@@ -10,6 +10,7 @@ import {
 import { DataService } from '../../services/dataService';
 import { NexusBranding } from '../ui/NexusBranding';
 import SignatureCanvas from 'react-signature-canvas';
+import { cropSignatureCanvas } from '../../utils/signatureOptimizer';
 
 // 🛡️ Nexus Logic: Proteção contra falha de import de componente CJS/ESM
 let SignaturePad: any = null;
@@ -202,7 +203,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
     const rejectFormRef = useRef<HTMLDivElement>(null);
     const hasAutoPrintedRef = useRef(false);
 
-    // Formata o nome do arquivo para impressão/salvamento em PDF: [Prefixo do Orçamento] - [Nome da Empresa]
+    // Formata o nome do arquivo para impressão/salvamento em PDF: [Prefixo do Orçamento]
     const getPrintDocumentTitle = useCallback(() => {
         if (!quote) return 'Orçamento';
         const rawPrefix = (quote.displayId || quote.id?.slice(0, 8) || 'ORCAMENTO')
@@ -211,11 +212,8 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
         const quotePrefix = rawPrefix.toUpperCase().startsWith('ORC') || rawPrefix.includes('-')
             ? rawPrefix
             : `ORC-${rawPrefix}`;
-        const cleanCompany = (companyName || 'Empresa')
-            .replace(/[/\\?%*:|"<>#]/g, '')
-            .trim();
-        return `${quotePrefix} - ${cleanCompany}`;
-    }, [quote, companyName]);
+        return quotePrefix;
+    }, [quote]);
 
     // Mantém o título da aba e o nome sugerido para o arquivo PDF sincronizados
     useEffect(() => {
@@ -227,9 +225,17 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
             window.document.title = getPrintDocumentTitle();
         };
 
+        const handleAfterPrint = () => {
+            try {
+                window.parent?.postMessage({ type: 'NEXUS_QUOTE_PRINT_FINISHED' }, '*');
+            } catch {}
+        };
+
         window.addEventListener('beforeprint', handleBeforePrint);
+        window.addEventListener('afterprint', handleAfterPrint);
         return () => {
             window.removeEventListener('beforeprint', handleBeforePrint);
+            window.removeEventListener('afterprint', handleAfterPrint);
         };
     }, [quote, companyName, getPrintDocumentTitle]);
 
@@ -263,7 +269,15 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                 const doPrint = () => {
                     setTimeout(() => {
                         window.document.title = getPrintDocumentTitle();
-                        window.print();
+                        try {
+                            window.focus();
+                            window.print();
+                        } catch (err) {
+                            console.error('Falha ao acionar window.print():', err);
+                        }
+                        try {
+                            window.parent?.postMessage({ type: 'NEXUS_QUOTE_PRINT_TRIGGERED' }, '*');
+                        } catch {}
                     }, 400);
                 };
 
@@ -331,14 +345,14 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
             }
 
             const metadata = captureDeviceMetadata();
-            // 🛡️ Fix para erro de 'trim-canvas' no Vite
-            // Tentamos usar o trimmed, se falhar, usamos o canvas bruto para não travar a aprovação
+            // 🛡️ Nexus Logic: Recorte profissional sem bordas brancas/transparentes excessivas
             let signatureBase64 = '';
             try {
-                signatureBase64 = sigCanvas.current.getTrimmedCanvas().toDataURL('image/png');
+                const rawCanvas = sigCanvas.current.getCanvas();
+                signatureBase64 = cropSignatureCanvas(rawCanvas);
             } catch (e) {
-                console.warn("Nexus: Falha ao trimar assinatura, usando canvas base.", e);
-                signatureBase64 = sigCanvas.current.getCanvas().toDataURL('image/png');
+                console.warn("Nexus: Falha no cropSignatureCanvas, fallback para getCanvas.", e);
+                signatureBase64 = sigCanvas.current?.getCanvas?.().toDataURL('image/png') || '';
             }
 
             await DataService.approveQuote(id, {
@@ -397,9 +411,10 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
             const metadata = captureDeviceMetadata();
             let signatureBase64 = '';
             try {
-                signatureBase64 = sigCanvas.current.getTrimmedCanvas().toDataURL('image/png');
+                const rawCanvas = sigCanvas.current.getCanvas();
+                signatureBase64 = cropSignatureCanvas(rawCanvas);
             } catch (e) {
-                signatureBase64 = sigCanvas.current.getCanvas().toDataURL('image/png');
+                signatureBase64 = sigCanvas.current?.getCanvas?.().toDataURL('image/png') || '';
             }
 
             await DataService.rejectQuote(id, {
@@ -767,11 +782,11 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                             <span className="text-[10px] font-bold text-slate-900 uppercase">{quote.approvedByName}</span>
                             <span className="text-[8px] font-medium text-slate-500 uppercase">Data e hora da assinatura: {new Date(quote.approvedAt).toLocaleString('pt-BR')}</span>
                         </div>
-                        <div className="border border-slate-200 rounded-lg h-16 flex flex-col items-center justify-center relative bg-slate-50/50 p-1">
+                        <div className="border border-slate-200 rounded-lg h-20 flex flex-col items-center justify-center relative bg-white p-2">
                             {quote.approvalSignature ? (
                                 <>
-                                    <img src={quote.approvalSignature} className="max-h-10 max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
-                                    <p className="text-[8px] font-bold text-slate-800 uppercase mt-0.5">Assinado por {quote.approvedByName || 'Cliente'}</p>
+                                    <img src={quote.approvalSignature} className="h-12 max-h-12 max-w-[220px] object-contain mix-blend-multiply" alt="Assinatura" />
+                                    <p className="text-[8px] font-bold text-slate-800 uppercase mt-1">Assinado por {quote.approvedByName || 'Cliente'}</p>
                                 </>
                             ) : (
                                 <span className="text-slate-400 italic text-[8px] font-bold uppercase">Token de Assinatura Certificada</span>
@@ -795,10 +810,10 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                                 <span className="text-[10px] font-bold text-slate-900 uppercase">{quote.approvedByName || 'Cliente'}</span>
                                 <span className="text-[8px] font-medium text-slate-500 uppercase">Data e hora: {quote.approvedAt ? new Date(quote.approvedAt).toLocaleString('pt-BR') : 'N/D'}</span>
                             </div>
-                            <div className="border border-rose-100 rounded-lg h-16 flex flex-col items-center justify-center relative bg-rose-50/30 p-1">
+                            <div className="border border-rose-100 rounded-lg h-20 flex flex-col items-center justify-center relative bg-white p-2">
                                 {quote.approvalSignature ? (
                                     <>
-                                        <img src={quote.approvalSignature} className="max-h-10 max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
+                                        <img src={quote.approvalSignature} className="h-12 max-h-12 max-w-[220px] object-contain mix-blend-multiply" alt="Assinatura" />
                                     </>
                                 ) : (
                                     <span className="text-slate-400 italic text-[8px] font-bold uppercase">Registro de Recusa Auditado</span>

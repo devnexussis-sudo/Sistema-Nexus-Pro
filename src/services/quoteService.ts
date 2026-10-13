@@ -51,7 +51,7 @@ export const QuoteService = {
 
         // Se no banco estava com status financeiro residual, repara o registro em background no Supabase
         if (data.id && ['PARTIALLY_PAID', 'PAID', 'APPROVED', 'FATURADO'].includes(rawStatus) && operationalStatus === 'APROVADO') {
-            supabase.from('quotes').update({ status: 'APROVADO' }).eq('id', data.id).then(() => {}).catch(() => {});
+            (supabase.from('quotes').update({ status: 'APROVADO' }).eq('id', data.id) as any)?.then?.(() => {})?.catch?.(() => {});
         }
 
         return {
@@ -112,11 +112,11 @@ export const QuoteService = {
 
             const cacheKey = `quotes_${tenantId}`;
             const cached = CacheManager.get<any[]>(cacheKey);
-            if (cached) return cached;
+            if (cached && Array.isArray(cached) && (cached.length === 0 || cached.some(c => c.approvalSignature))) return cached;
 
             return CacheManager.deduplicate(cacheKey, async (currentSignal) => {
                 let query = supabase.from('quotes')
-                    .select('id, display_id, public_token, tenant_id, customer_id, created_by_name, customer_name, customer_address, title, description, total_value, status, notes, valid_until, linked_order_id, approved_by_name, approved_at, created_at, updated_at, billing_status, payment_method, paid_at, discount, discount_type, gateway_status, items')
+                    .select('*')
                     .eq('tenant_id', tenantId)
                     .order('created_at', { ascending: false })
                     .limit(100);
@@ -269,53 +269,72 @@ export const QuoteService = {
     },
 
     getPublicQuoteById: async (id: string, signal?: AbortSignal): Promise<any> => {
-        if (!isCloudEnabled) return null;
+        if (!isCloudEnabled || !id) return null;
 
-        console.log(`[QuoteService] Buscando orçamento: "${id}"`);
+        const cleanId = id.toString().replace(/^#/, '').trim();
+        console.log(`[QuoteService] Buscando orçamento: "${cleanId}" (original: "${id}")`);
 
-        // 🛡️ Estratégia 1: RPC get_public_document (SECURITY DEFINER — bypassa RLS com segurança)
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
+
+        // 🛡️ Estratégia 1: Se for UUID, busca direta e autenticada por id no Supabase
+        if (isUuid) {
+            try {
+                let query = supabase.from('quotes').select('*').eq('id', cleanId);
+                if (signal) query = query.abortSignal(signal);
+                const { data } = await query.maybeSingle();
+                if (data) {
+                    console.log('[QuoteService] ✅ Encontrado via auth + UUID direto');
+                    return QuoteService._mapQuoteFromDB(data);
+                }
+            } catch (err: any) {
+                if (err?.name === 'AbortError') return null;
+            }
+        }
+
+        // 🛡️ Estratégia 2: RPC get_public_document (SECURITY DEFINER — bypassa RLS com segurança)
         try {
-            let rpcQuery = publicSupabase.rpc('get_public_document', { doc_token: id, doc_type: 'quote' });
+            let rpcQuery = publicSupabase.rpc('get_public_document', { doc_token: cleanId, doc_type: 'quote' });
             if (signal) rpcQuery = rpcQuery.abortSignal(signal);
             const { data, error } = await rpcQuery;
-            if (!error && data) { console.log('[QuoteService] ✅ Encontrado via RPC get_public_document'); return QuoteService._mapQuoteFromDB(data); }
+            if (!error && data) {
+                console.log('[QuoteService] ✅ Encontrado via RPC get_public_document');
+                return QuoteService._mapQuoteFromDB(data);
+            }
         } catch (err: any) {
             if (err?.name === 'AbortError') return null;
         }
 
-        // 🛡️ Estratégia 2: supabase autenticado por public_token (admin em nova aba)
+        // 🛡️ Estratégia 3: Busca autenticada por display_id
         try {
             const { data } = await supabase
                 .from('quotes')
                 .select('*')
-                .eq('public_token', id)
+                .eq('display_id', cleanId)
                 .maybeSingle();
-            if (data) { console.log('[QuoteService] ✅ Encontrado via auth + public_token'); return QuoteService._mapQuoteFromDB(data); }
+            if (data) {
+                console.log('[QuoteService] ✅ Encontrado via auth + display_id');
+                return QuoteService._mapQuoteFromDB(data);
+            }
         } catch (err: any) {
             if (err?.name === 'AbortError') return null;
         }
 
-        // 🛡️ Estratégia 3: supabase autenticado por id (admin em nova aba)
+        // 🛡️ Estratégia 4: supabase autenticado por public_token (admin em nova aba)
         try {
             const { data } = await supabase
                 .from('quotes')
                 .select('*')
-                .eq('id', id)
+                .eq('public_token', cleanId)
                 .maybeSingle();
-            if (data) { console.log('[QuoteService] ✅ Encontrado via auth + id'); return QuoteService._mapQuoteFromDB(data); }
+            if (data) {
+                console.log('[QuoteService] ✅ Encontrado via auth + public_token');
+                return QuoteService._mapQuoteFromDB(data);
+            }
         } catch (err: any) {
             if (err?.name === 'AbortError') return null;
         }
 
-        // 🛡️ Estratégia 4: display_id via RPC
-        try {
-            let rpcQuery = publicSupabase.rpc('get_public_document', { doc_token: id, doc_type: 'quote' });
-            if (signal) rpcQuery = rpcQuery.abortSignal(signal);
-            const { data } = await rpcQuery;
-            if (data) { console.log('[QuoteService] ✅ Encontrado via RPC (display_id retry)'); return QuoteService._mapQuoteFromDB(data); }
-        } catch { /* silent */ }
-
-        console.error(`[QuoteService] ❌ Orçamento não encontrado após todas as tentativas. ID: "${id}"`);
+        console.error(`[QuoteService] ❌ Orçamento não encontrado após todas as tentativas. ID: "${cleanId}"`);
         return null;
     },
 
@@ -326,16 +345,15 @@ export const QuoteService = {
             // Obter display_id para manter Storage organizado
             let folderId = id;
             try {
-                const { data: pData } = await publicSupabase.rpc('get_public_document', { p_token: id, p_type: 'quote' });
+                const { data: pData } = await publicSupabase.rpc('get_public_document', { doc_token: id, doc_type: 'quote' });
                 if (pData?.display_id) folderId = pData.display_id;
             } catch(e) { }
 
             let finalSignature = approvalData.signature;
             if (finalSignature && finalSignature.startsWith('data:image')) {
-                console.log(`[📝 Nexus Approve] Comprimindo assinatura e enviando para o Dropzone Secundário...`);
-                // Arquitetura BigTech: Envia para bucket público de "dropzone" e isola o UUID gerado
+                console.log(`[📝 Nexus Approve] Comprimindo assinatura e enviando diretamente para o Cloudflare R2...`);
                 finalSignature = await StorageService.uploadDropzoneFile(finalSignature, `quotes/${folderId}/signatures`);
-                console.log(`[📝 Nexus Approve] Assinatura otimizada e armazenada com sucesso no dropzone!`);
+                console.log(`[📝 Nexus Approve] Assinatura armazenada com sucesso no Cloudflare R2:`, finalSignature);
             }
 
             console.log(`[📝 Nexus Approve] Chamando função RPC approve_quote_public (SECURITY DEFINER)...`);
@@ -376,14 +394,15 @@ export const QuoteService = {
             // Obter display_id para manter Storage organizado
             let folderId = id;
             try {
-                const { data: pData } = await publicSupabase.rpc('get_public_document', { p_token: id, p_type: 'quote' });
+                const { data: pData } = await publicSupabase.rpc('get_public_document', { doc_token: id, doc_type: 'quote' });
                 if (pData?.display_id) folderId = pData.display_id;
             } catch(e) { }
 
             let finalSignature = rejectionData.signature;
             if (finalSignature && finalSignature.startsWith('data:image')) {
-                console.log(`[🚫 Nexus Reject] Comprimindo assinatura de recusa e enviando para o Dropzone...`);
+                console.log(`[🚫 Nexus Reject] Comprimindo assinatura de recusa e enviando diretamente para o Cloudflare R2...`);
                 finalSignature = await StorageService.uploadDropzoneFile(finalSignature, `quotes/${folderId}/rejections`);
+                console.log(`[🚫 Nexus Reject] Assinatura de recusa armazenada com sucesso no Cloudflare R2:`, finalSignature);
             }
 
             console.log(`[🚫 Nexus Reject] Chamando RPC reject_quote_public (SECURITY DEFINER)...`);

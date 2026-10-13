@@ -1235,19 +1235,27 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   // Handle auto-print when opening from Admin with ?print=true
   // Waits for ALL images to finish loading before calling print (bigtech pattern)
   const triggerSmartPrint = React.useCallback((closeAfter = false) => {
-    const setTitle = () => {
-      const cleanCustomer = (order?.customerName || 'Cliente').substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim();
-      document.title = `OS_${order?.displayId || order?.serviceOrderNumber || order?.id?.substring(0, 8)}_${cleanCustomer}`;
+    const getPrintDocumentTitle = () => {
+      const rawPrefix = (order?.displayId || order?.serviceOrderNumber || order?.id?.substring(0, 8) || 'OS')
+        .replace(/^#/, '')
+        .trim();
+      const orderPrefix = rawPrefix.toUpperCase().startsWith('OS') || rawPrefix.includes('-')
+        ? rawPrefix
+        : `OS-${rawPrefix}`;
+      return orderPrefix;
     };
 
     const doPrint = () => {
-      const originalTitle = document.title;
-      setTitle();
-      window.print();
-      document.title = originalTitle;
-      // Removido auto window.close() porque em browsers non-blocking (Safari/Mobile)
-      // isso fecha a janela antes de terminar o spool da impressão, gerando PDF em branco
-      // ou cancelando a ação. O usuário pode fechar a aba manualmente.
+      window.document.title = getPrintDocumentTitle();
+      try {
+        window.focus();
+        window.print();
+      } catch (err) {
+        console.error('Falha ao acionar window.print():', err);
+      }
+      try {
+        window.parent?.postMessage({ type: 'NEXUS_ORDER_PRINT_TRIGGERED' }, '*');
+      } catch {}
     };
 
     // Collect all images that are not yet complete
@@ -1301,6 +1309,31 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
       return () => clearTimeout(timer);
     }
   }, [order, orderVisits, tenantProp, triggerSmartPrint]);
+
+  React.useEffect(() => {
+    const handleBeforePrint = () => {
+      const rawPrefix = (order?.displayId || order?.serviceOrderNumber || order?.id?.substring(0, 8) || 'OS')
+        .replace(/^#/, '')
+        .trim();
+      const orderPrefix = rawPrefix.toUpperCase().startsWith('OS') || rawPrefix.includes('-')
+        ? rawPrefix
+        : `OS-${rawPrefix}`;
+      window.document.title = orderPrefix;
+    };
+
+    const handleAfterPrint = () => {
+      try {
+        window.parent?.postMessage({ type: 'NEXUS_ORDER_PRINT_FINISHED' }, '*');
+      } catch {}
+    };
+
+    window.addEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
+    return () => {
+      window.removeEventListener('beforeprint', handleBeforePrint);
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+  }, [order]);
 
   // Busca endereço atualizado do cliente na tabela customers
   const [freshCustomerPhone, setFreshCustomerPhone] = React.useState<string | null>(null);
@@ -1468,10 +1501,77 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
       if (text !== null || photos.length > 0) formItemsPrint.push({ key, text, photos });
     });
 
+  // ── COMPONENTE DE MINIATURA OTIMIZADA PARA PDF (REDUZ DE 35MB PARA < 1MB) ──
+  const PrintThumbnailImage: React.FC<{
+    src: string;
+    alt?: string;
+    className?: string;
+  }> = ({ src, alt, className }) => {
+    const [thumbSrc, setThumbSrc] = React.useState<string>(src);
+
+    React.useEffect(() => {
+      let isMounted = true;
+      if (!src || typeof src !== 'string') return;
+
+      const createThumb = () => {
+        try {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            if (!isMounted) return;
+            try {
+              const nw = img.naturalWidth || img.width;
+              const nh = img.naturalHeight || img.height;
+              if (nw <= 320 && nh <= 320) return;
+
+              const maxDim = 320;
+              let w = nw;
+              let h = nh;
+              if (w > h) {
+                h = Math.round((h * maxDim) / w);
+                w = maxDim;
+              } else {
+                w = Math.round((w * maxDim) / h);
+                h = maxDim;
+              }
+
+              const canvas = document.createElement('canvas');
+              canvas.width = w;
+              canvas.height = h;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) return;
+
+              ctx.drawImage(img, 0, 0, w, h);
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.70);
+              if (isMounted && dataUrl && dataUrl.length > 50) {
+                setThumbSrc(dataUrl);
+              }
+            } catch {
+              // Fallback silencioso para URL original em caso de restrição CORS
+            }
+          };
+          img.onerror = () => {};
+          img.src = src;
+        } catch {}
+      };
+
+      createThumb();
+      return () => {
+        isMounted = false;
+      };
+    }, [src]);
+
+    return <img src={thumbSrc} alt={alt || ''} className={className} loading="eager" />;
+  };
+
   // ── PRINT LAYOUT COMPONENT ──
   const PrintLayout = () => (
-    <div className="bg-white text-[10px] leading-tight font-poppins pb-16 print:pb-16" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', padding: '0' }}>
-      {/* Print Header */}
+    <div className="bg-white text-[10px] leading-tight font-poppins pb-20 print:pb-20" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+      <table className="print-doc-table w-full border-collapse" style={{ width: '100%', borderCollapse: 'collapse', border: 'none', margin: 0, padding: 0 }}>
+        <tbody>
+          <tr>
+            <td style={{ border: 'none', padding: 0, verticalAlign: 'top' }}>
+              {/* Print Header */}
       <div className="flex justify-between items-start pb-2 border-b-2 border-slate-800 mb-2">
         <div className="flex gap-3 items-center">
           {companyLogo
@@ -1721,43 +1821,48 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     <span className="text-[9px] text-slate-500">S/N: {eq.equipment_serial || eq.equipmentSerial}</span>
                   )}
                 </div>
-                <div className="flex flex-col gap-2 bg-white p-2">
+                <div className="p-2 bg-white space-y-2 print-checklist-container">
                   {items.map((item, iIdx) => (
-                    // print-checklist-row: bloco atômico da pergunta+resposta
-                    <div key={iIdx} className="print-checklist-row border border-slate-200 rounded bg-white">
-                      <div className="grid grid-cols-2 divide-x divide-slate-200 print-qa-block">
-                        <div className="p-2 bg-slate-50/50 flex items-center print-question">
-                           <p className="text-[10px] font-medium uppercase tracking-tight text-slate-600">
-                             {resolvePublicLabel(item.key)}
-                           </p>
-                        </div>
-                        <div className="p-2 flex flex-col justify-center print-answer">
-                           {item.text && (
-                             <p className={`text-xs uppercase font-semibold leading-tight ${item.text.toLowerCase() === 'sim' || item.text.toLowerCase() === 'ok' ? 'text-emerald-700 font-bold' : 'text-slate-900'}`}>
-                               {formatPublicValue(item.text)}
-                             </p>
-                           )}
-                           {item.photos.length > 0 && (
-                             <div className="print-photos flex flex-wrap gap-2 mt-2">
-                               {item.photos.map((p: string, pIdx: number) => (
-                                 <div key={pIdx} className="w-[140px] h-[140px] border border-slate-200 rounded-lg overflow-hidden flex items-center justify-center bg-slate-50 shadow-sm">
-                                   {isVideoUrl(p) ? (
-                                     <div className="w-full h-full relative flex items-center justify-center bg-black">
-                                       <video src={`${p}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
-                                       <div className="absolute inset-0 flex items-center justify-center">
-                                         <Play size={10} className="text-white opacity-80" />
-                                       </div>
-                                       <span className="absolute bottom-1 bg-black/60 text-white text-[6px] px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
-                                     </div>
-                                   ) : (
-                                     <img src={p} className="w-full h-full object-contain" />
-                                   )}
-                                 </div>
-                               ))}
-                             </div>
-                           )}
-                        </div>
-                      </div>
+                    <div key={iIdx} className="print-checklist-row border border-slate-200 rounded bg-white overflow-hidden mb-2">
+                      <table className="w-full border-collapse table-fixed print-qa-table" style={{ width: '100%', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                        <tbody>
+                          <tr>
+                            <td className="w-1/2 p-2 bg-slate-50/50 align-top border-r border-slate-200 print-question">
+                              <p className="text-[10px] font-medium uppercase tracking-tight text-slate-600">
+                                {resolvePublicLabel(item.key)}
+                              </p>
+                            </td>
+                            <td className="w-1/2 p-2 align-top print-answer bg-white">
+                              {item.text && (
+                                <p className={`text-xs uppercase font-semibold leading-tight ${item.text.toLowerCase() === 'sim' || item.text.toLowerCase() === 'ok' ? 'text-emerald-700 font-bold' : 'text-slate-900'}`}>
+                                  {formatPublicValue(item.text)}
+                                </p>
+                              )}
+                              {item.photos.length > 0 && (
+                                <div className="print-photos flex flex-wrap gap-2 mt-2">
+                                  {item.photos.map((p: string, pIdx: number) => (
+                                    <div key={pIdx} className="w-[140px] h-[140px] border border-slate-200 rounded-lg overflow-hidden flex items-center justify-center bg-slate-50 shadow-sm">
+                                      {isVideoUrl(p) ? (
+                                        <a href={p} target="_blank" rel="noopener noreferrer" className="w-full h-full relative flex items-center justify-center bg-black cursor-pointer print-media-link">
+                                          <video src={`${p}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                                          <div className="absolute inset-0 flex items-center justify-center">
+                                            <Play size={10} className="text-white opacity-80" />
+                                          </div>
+                                          <span className="absolute bottom-1 bg-black/60 text-white text-[6px] px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
+                                        </a>
+                                      ) : (
+                                        <a href={p} target="_blank" rel="noopener noreferrer" className="w-full h-full block cursor-pointer print-media-link">
+                                          <PrintThumbnailImage src={p} className="w-full h-full object-contain" alt={`Anexo ${pIdx + 1}`} />
+                                        </a>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
                   ))}
                 </div>
@@ -1842,17 +1947,21 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   const vidArr = typeof rawVid === 'string' ? rawVid.split(',').map(u => u.trim()).filter(Boolean) : [];
                   return vidArr.map((vUrl: string, vI: number) => (
                     <div key={`pvid-${vI}`} className="border border-slate-200 rounded-lg p-1.5 w-[220px] h-[160px] overflow-hidden flex items-center justify-center bg-black break-inside-avoid shadow-inner relative">
-                      <video src={`${vUrl}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Play size={16} className="text-white opacity-80" />
-                      </div>
-                      <span className="absolute bottom-1 bg-black/60 text-white text-[8px] px-1.5 py-0.5 rounded uppercase leading-none">Vídeo</span>
+                      <a href={vUrl} target="_blank" rel="noopener noreferrer" className="w-full h-full relative flex items-center justify-center cursor-pointer print-media-link">
+                        <video src={`${vUrl}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Play size={16} className="text-white opacity-80" />
+                        </div>
+                        <span className="absolute bottom-1 bg-black/60 text-white text-[8px] px-1.5 py-0.5 rounded uppercase leading-none">Vídeo</span>
+                      </a>
                     </div>
                   ));
                 })()}
                 {allValidExtrasPrint.map((url: string, i: number) => (
                   <div key={i} className="border border-slate-200 rounded-lg p-1.5 w-[220px] h-[160px] overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid shadow-sm">
-                    <img src={url} className="w-full h-full object-contain" alt={`Evidência Adicional ${i + 1}`} />
+                    <a href={url} target="_blank" rel="noopener noreferrer" className="w-full h-full block cursor-pointer print-media-link">
+                      <PrintThumbnailImage src={url} className="w-full h-full object-contain" alt={`Evidência Adicional ${i + 1}`} />
+                    </a>
                   </div>
                 ))}
               </div>
@@ -2003,7 +2112,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                   <span className="text-[9px] text-slate-500 mt-0.5">S/N: {eq.equipment_serial || eq.equipmentSerial}</span>
                                 )}
                               </div>
-                              <div className="print-checklist-columns columns-2 gap-1.5 p-2 bg-white">
+                              <div className="p-2 bg-white space-y-2 print-checklist-container">
                                 {Object.entries(gData).sort((a, b) => {
                                   const matchA = a[0].replace(/^\[.*?\]\s*-\s*/, '').match(/(?:#\s*(\d+)|^(\d+)\s*#)/);
                                   const matchB = b[0].replace(/^\[.*?\]\s*-\s*/, '').match(/(?:#\s*(\d+)|^(\d+)\s*#)/);
@@ -2026,39 +2135,46 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                   if (!text && photos.length === 0) return null;
                                   
                                   return (
-                                    // print-checklist-row: bloco atômico indivisível de pergunta + resposta
-                                    <div key={idx} className="print-checklist-row border border-slate-200 rounded-md bg-white p-2 break-inside-avoid mb-1.5">
-                                      <div className="print-qa-block">
-                                        <div className="print-question text-[10px] font-medium uppercase tracking-tight text-slate-600 mb-0.5">
-                                          {resolvePublicLabel(key)}
-                                        </div>
-                                        {text && (
-                                          <div className={`print-answer text-xs uppercase leading-tight font-semibold ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok' ? 'text-emerald-600 font-bold' : 'text-slate-800'}`}>
-                                            {formatPublicValue(text)}
-                                          </div>
-                                        )}
-                                      </div>
-                                      {photos.length > 0 && (
-                                        <div className="print-photos flex flex-wrap gap-1 mt-1 pt-1 border-t border-slate-100">
-                                          {Array.from(new Set(photos)).map((p, pIdx) => (
-                                            <div key={pIdx} className="w-[120px] h-[120px] border border-slate-200 rounded flex items-center justify-center bg-white shadow-sm shrink-0">
-                                              {isVideoUrl(p) ? (
-                                                <a href={p} target="_blank" rel="noopener noreferrer" className="w-full h-full relative flex items-center justify-center bg-black cursor-pointer">
-                                                  <video src={`${p}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
-                                                  <div className="absolute inset-0 flex items-center justify-center">
-                                                    <Play size={10} className="text-white opacity-80" />
-                                                  </div>
-                                                  <span className="absolute bottom-1 bg-black/60 text-white text-[6px] px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
-                                                </a>
-                                              ) : (
-                                                <a href={p} target="_blank" rel="noopener noreferrer" className="w-full h-full block cursor-pointer">
-                                                  <img src={p} className="w-full h-full object-contain" />
-                                                </a>
+                                    <div key={idx} className="print-checklist-row border border-slate-200 rounded bg-white overflow-hidden mb-2">
+                                      <table className="w-full border-collapse table-fixed print-qa-table" style={{ width: '100%', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                                        <tbody>
+                                          <tr>
+                                            <td className="w-1/2 p-2 bg-slate-50/50 align-top border-r border-slate-200 print-question">
+                                              <p className="text-[10px] font-medium uppercase tracking-tight text-slate-600">
+                                                {resolvePublicLabel(key)}
+                                              </p>
+                                            </td>
+                                            <td className="w-1/2 p-2 align-top print-answer bg-white">
+                                              {text && (
+                                                <p className={`text-xs uppercase font-semibold leading-tight ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok' ? 'text-emerald-600 font-bold' : 'text-slate-800'}`}>
+                                                  {formatPublicValue(text)}
+                                                </p>
                                               )}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
+                                              {photos.length > 0 && (
+                                                <div className="print-photos flex flex-wrap gap-2 mt-2">
+                                                  {Array.from(new Set(photos)).map((p, pIdx) => (
+                                                    <div key={pIdx} className="w-[120px] h-[120px] border border-slate-200 rounded-lg overflow-hidden flex items-center justify-center bg-slate-50 shadow-sm shrink-0">
+                                                      {isVideoUrl(p) ? (
+                                                        <a href={p} target="_blank" rel="noopener noreferrer" className="w-full h-full relative flex items-center justify-center bg-black cursor-pointer print-media-link">
+                                                          <video src={`${p}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                                                          <div className="absolute inset-0 flex items-center justify-center">
+                                                            <Play size={10} className="text-white opacity-80" />
+                                                          </div>
+                                                          <span className="absolute bottom-1 bg-black/60 text-white text-[6px] px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
+                                                        </a>
+                                                      ) : (
+                                                        <a href={p} target="_blank" rel="noopener noreferrer" className="w-full h-full block cursor-pointer print-media-link">
+                                                          <PrintThumbnailImage src={p} className="w-full h-full object-contain" alt={`Anexo ${pIdx + 1}`} />
+                                                        </a>
+                                                      )}
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </td>
+                                          </tr>
+                                        </tbody>
+                                      </table>
                                     </div>
                                   );
                                 })}
@@ -2176,7 +2292,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                       </a>
                                     ) : (
                                       <a href={url} target="_blank" rel="noopener noreferrer" className="w-full h-full block cursor-pointer">
-                                        <img src={url} className="w-full h-full object-contain" alt={`Foto ${pIdx + 1}`} />
+                                        <PrintThumbnailImage src={url} className="w-full h-full object-contain" alt={`Foto ${pIdx + 1}`} />
                                       </a>
                                     )}
                                   </div>
@@ -2259,7 +2375,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                             {blockPhotos.map((url, pIdx) => (
                               <div key={`imp-p-${pIdx}`} className="border border-red-200 rounded p-1 w-[140px] h-[105px] overflow-hidden flex items-center justify-center bg-white shadow-sm">
                                 <a href={url} target="_blank" rel="noopener noreferrer" className="w-full h-full block cursor-pointer">
-                                  <img src={url} className="w-full h-full object-cover" alt={`Evidência Impedimento ${pIdx + 1}`} />
+                                  <PrintThumbnailImage src={url} className="w-full h-full object-cover" alt={`Evidência Impedimento ${pIdx + 1}`} />
                                 </a>
                               </div>
                             ))}
@@ -2343,14 +2459,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         )}
 
         {/* Assinatura e Validação */}
-        <div className="border border-slate-300 rounded-lg overflow-hidden print-no-break mt-4">
+        <div className="border border-slate-300 rounded-lg overflow-hidden print-no-break mt-4 mb-4">
           <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 text-xs uppercase tracking-wider text-slate-700">Validação e Assinaturas (Auditoria Digital)</div>
           <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white text-center">
             <div className="p-4 flex flex-col items-center justify-center gap-3">
               <p className="text-xs text-slate-400 uppercase tracking-widest">Responsável Técnico</p>
               <div className="h-[80px] w-full flex items-center justify-center border-2 border-dashed border-slate-200 rounded-lg p-2 overflow-hidden">
                 {tech?.avatar ? (
-                  <img src={tech.avatar} alt="Avatar" className="max-h-full max-w-full object-contain mix-blend-multiply rounded-md" />
+                  <PrintThumbnailImage src={tech.avatar} alt="Avatar" className="max-h-full max-w-full object-contain mix-blend-multiply rounded-md" />
                 ) : (
                   <div className="flex flex-col items-center opacity-60">
                     <UserIcon size={24} className="text-slate-400 mb-1" />
@@ -2380,9 +2496,20 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
         </div>
       </div>
+            </td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td style={{ border: 'none', padding: 0, height: '56px' }}>
+              <div className="print-footer-spacer" style={{ height: '56px', visibility: 'hidden', pointerEvents: 'none' }}>&nbsp;</div>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
 
       {/* ── Print Footer Fixo ── */}
-      <div className="print-fixed-footer print:fixed print:bottom-0 print:left-0 print:w-full print:px-6 print:pb-1 print:pt-2 print:bg-white mt-8 pt-3 border-t-2 border-slate-800 flex justify-between items-center text-slate-500 opacity-80">
+      <div className="print-fixed-footer print:fixed print:bottom-0 print:left-0 print:w-full print:px-6 print:pb-1 print:pt-2 print:bg-white border-t-2 border-slate-800 flex justify-between items-center text-slate-500 opacity-80">
         <div className="flex items-center gap-2">
           <NexusBranding size="lg" className="origin-left scale-75" />
         </div>
@@ -2403,7 +2530,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         }
         @media print {
           @page {
-            margin: 10mm 4mm 15mm 4mm;
+            margin: 8mm 6mm 16mm 6mm;
             size: A4 portrait;
           }
           html, body {
@@ -2413,6 +2540,13 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             height: auto !important;
             min-height: auto !important;
             overflow: visible !important;
+          }
+          .print-doc-table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            border: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
           /* Permite que o conteúdo flua entre páginas naturalmente sem corte de bordas */
           .print-section {
@@ -2431,28 +2565,42 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             page-break-inside: avoid !important;
             -webkit-column-break-inside: avoid !important;
           }
-          /* Grid/Colunas de checklist em impressão */
+          .print-checklist-container {
+            display: block !important;
+            width: 100% !important;
+          }
           .print-checklist-columns {
-            column-count: 2 !important;
-            column-gap: 6px !important;
-            break-inside: auto !important;
-            page-break-inside: auto !important;
+            column-count: 1 !important;
+            columns: 1 !important;
+            display: block !important;
+            width: 100% !important;
           }
           /* Bloco de item de checklist: INDIVISÍVEL, nunca corta pergunta nem resposta */
           .print-checklist-row {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
             -webkit-column-break-inside: avoid !important;
-            display: inline-block !important;
+            display: block !important;
             width: 100% !important;
             box-sizing: border-box !important;
             overflow: visible !important;
-            margin-bottom: 6px !important;
-            vertical-align: top !important;
-            orphans: 2;
-            widows: 2;
+            margin-bottom: 8px !important;
+            page-break-after: auto !important;
+            break-after: auto !important;
           }
-          /* Par pergunta + resposta protegido contra quebra interna */
+          .print-qa-table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            table-layout: fixed !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            -webkit-column-break-inside: avoid !important;
+          }
+          .print-qa-table tr, .print-qa-table td {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            -webkit-column-break-inside: avoid !important;
+          }
           .print-qa-block {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
@@ -2473,11 +2621,23 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             page-break-inside: avoid !important;
             -webkit-column-break-inside: avoid !important;
           }
+          .print-photos > div, .print-photos img {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .print-photos a, .print-photos a:visited, a.print-media-link {
+            text-decoration: none !important;
+            color: inherit !important;
+            display: block !important;
+            width: 100% !important;
+            height: 100% !important;
+          }
           /* Blocos que NUNCA devem ser cortados (assinatura, total, peças) */
           .print-no-break {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
             -webkit-column-break-inside: avoid !important;
+            display: block !important;
             overflow: visible !important;
           }
           /* Rodapé fixo na impressão */
@@ -2487,9 +2647,16 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             left: 0 !important;
             right: 0 !important;
             width: 100% !important;
+            height: 44px !important;
             background-color: white !important;
             z-index: 9999 !important;
             box-sizing: border-box !important;
+            margin: 0 !important;
+          }
+          .print-footer-spacer {
+            height: 56px !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
           }
           /* Evita página em branco no final */
           .print-last-section {
@@ -2538,7 +2705,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
           @media print {
             @page {
-              margin: 10mm 4mm 15mm 4mm;
+              margin: 8mm 6mm 16mm 6mm;
               size: A4 portrait;
             }
             html, body {
@@ -2548,6 +2715,13 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               height: auto !important;
               min-height: auto !important;
               overflow: visible !important;
+            }
+            .print-doc-table {
+              width: 100% !important;
+              border-collapse: collapse !important;
+              border: none !important;
+              margin: 0 !important;
+              padding: 0 !important;
             }
             /* Permite que o conteúdo flua entre páginas naturalmente sem corte de bordas */
             .print-section {
@@ -2566,31 +2740,45 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               page-break-inside: avoid !important;
               -webkit-column-break-inside: avoid !important;
             }
-            /* Grid/Colunas de checklist em impressão */
+            .print-checklist-container {
+              display: block !important;
+              width: 100% !important;
+            }
             .print-checklist-columns {
-              column-count: 2 !important;
-              column-gap: 6px !important;
-              break-inside: auto !important;
-              page-break-inside: auto !important;
+              column-count: 1 !important;
+              columns: 1 !important;
+              display: block !important;
+              width: 100% !important;
             }
             /* Bloco de item de checklist: INDIVISÍVEL, nunca corta pergunta nem resposta */
             .print-checklist-row {
               break-inside: avoid !important;
               page-break-inside: avoid !important;
               -webkit-column-break-inside: avoid !important;
-              display: inline-block !important;
+              display: block !important;
               width: 100% !important;
               box-sizing: border-box !important;
               overflow: visible !important;
-              margin-bottom: 6px !important;
-              vertical-align: top !important;
-              orphans: 2;
-              widows: 2;
+              margin-bottom: 8px !important;
+              page-break-after: auto !important;
+              break-after: auto !important;
             }
-            /* Par pergunta + resposta protegido contra quebra interna */
+            .print-qa-table {
+              width: 100% !important;
+              border-collapse: collapse !important;
+              table-layout: fixed !important;
+              break-inside: avoid !important;
+              page-break-inside: avoid !important;
+              -webkit-column-break-inside: avoid !important;
+            }
+            .print-qa-table tr, .print-qa-table td {
+              break-inside: avoid !important;
+              page-break-inside: avoid !important;
+              -webkit-column-break-inside: avoid !important;
+            }
             .print-qa-block {
               break-inside: avoid !important;
-              page-break-inside: auto !important;
+              page-break-inside: avoid !important;
               -webkit-column-break-inside: avoid !important;
             }
             .print-question {
@@ -2608,11 +2796,23 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               page-break-inside: avoid !important;
               -webkit-column-break-inside: avoid !important;
             }
+            .print-photos > div, .print-photos img {
+              break-inside: avoid !important;
+              page-break-inside: avoid !important;
+            }
+            .print-photos a, .print-photos a:visited, a.print-media-link {
+              text-decoration: none !important;
+              color: inherit !important;
+              display: block !important;
+              width: 100% !important;
+              height: 100% !important;
+            }
             /* Blocos que NUNCA devem ser cortados (assinatura, total, peças) */
             .print-no-break {
               break-inside: avoid !important;
               page-break-inside: avoid !important;
               -webkit-column-break-inside: avoid !important;
+              display: block !important;
               overflow: visible !important;
             }
             /* Rodapé fixo na impressão */
@@ -2622,9 +2822,16 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               left: 0 !important;
               right: 0 !important;
               width: 100% !important;
+              height: 44px !important;
               background-color: white !important;
               z-index: 9999 !important;
               box-sizing: border-box !important;
+              margin: 0 !important;
+            }
+            .print-footer-spacer {
+              height: 56px !important;
+              visibility: hidden !important;
+              pointer-events: none !important;
             }
             /* Evita página em branco no final */
             .print-last-section {

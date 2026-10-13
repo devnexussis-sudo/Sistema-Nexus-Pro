@@ -772,7 +772,7 @@ export interface CashFlowEntry {
   amount: number;
   description: string;
   referenceId?: string;
-  referenceType?: 'ORDER' | 'QUOTE';
+  referenceType?: 'ORDER' | 'QUOTE' | 'INVOICE' | 'INSTALLMENT' | string;
   paymentMethod?: string;
   entryDate: string;
   createdAt: string;

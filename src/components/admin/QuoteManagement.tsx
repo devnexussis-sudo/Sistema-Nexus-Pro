@@ -41,6 +41,8 @@ import { useI18n } from '../../i18n';
 import { Customer, OrderPriority, OrderStatus, Quote, QuoteItem, ServiceOrder, StockItem } from '../../types';
 import { NexusBranding } from '../ui/NexusBranding';
 import { Pagination } from '../ui/Pagination';
+import { supabase } from '../../lib/supabase';
+import { QuoteService } from '../../services/quoteService';
 
 export const getQuoteCommercialStatus = (quote?: {
     status?: string | null;
@@ -112,10 +114,11 @@ interface QuoteManagementProps {
     onCreateQuote: (quote: any) => Promise<void>;
     onDeleteQuote: (id: string) => Promise<void>;
     stockItems: StockItem[];
+    tenant?: any;
 }
 
 export const QuoteManagement: React.FC<QuoteManagementProps> = ({
-    quotes, customers, orders, stockItems, onUpdateQuotes, onCreateOrder, onEditQuote, onCreateQuote, onDeleteQuote
+    quotes, customers, orders, stockItems, tenant: tenantProp, onUpdateQuotes, onCreateOrder, onEditQuote, onCreateQuote, onDeleteQuote
 }) => {
     const { t } = useI18n();
     const { showAlert, showConfirm } = useDialog();
@@ -125,7 +128,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [activeModalTab, setActiveModalTab] = useState<'gerais' | 'produtos'>('gerais');
     const [isConverting, setIsConverting] = useState(false);
-    const [isPrinting, setIsPrinting] = useState(false);
+    const [printingQuoteId, setPrintingQuoteId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [showFilters, setShowFilters] = useState(false);
     const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
@@ -224,7 +227,23 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
         , [subtotal, discount, discountType]);
     const totalValue = useMemo(() => Math.max(0, subtotal - discountAmount), [subtotal, discountAmount]);
 
-    const { data: tenant } = useTenant(auth.isAuthenticated);
+    const { data: tenantHook } = useTenant(auth.isAuthenticated);
+    const tenant = useMemo(() => tenantProp || tenantHook, [tenantProp, tenantHook]);
+
+    const resolvedCompanyLogo = useMemo(() => {
+        const t = tenant || {};
+        let logo = t.logo_url || t.logoUrl;
+        if (!logo) {
+            try {
+                const rawCompany = JSON.parse(localStorage.getItem('nexus_settings_company') || '{}');
+                const rawSettings = JSON.parse(localStorage.getItem('nexus_settings') || '{}');
+                const rawTenant = JSON.parse(localStorage.getItem('current_tenant') || '{}');
+                const comp = (rawCompany?.logoUrl || rawCompany?.logo_url) ? rawCompany : (rawSettings?.company || {});
+                logo = comp.logoUrl || comp.logo_url || comp.logo || rawTenant.logo_url || rawTenant.logoUrl;
+            } catch {}
+        }
+        return logo || null;
+    }, [tenant]);
 
     const getQuoteDisplayId = (quote: Quote): string => {
         if (quote.displayId) return quote.displayId;
@@ -635,6 +654,129 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
         }
     };
 
+    const openQuoteView = async (quote: Quote) => {
+        setViewQuote(quote);
+        setIsViewModalOpen(true);
+
+        let signature = quote.approvalSignature || (quote as any).approval_signature;
+        let approvedName = quote.approvedByName || (quote as any).approved_by_name;
+        let approvedTime = quote.approvedAt || (quote as any).approved_at;
+
+        if (!signature && (quote.id || quote.displayId || quote.publicToken)) {
+            try {
+                const fullQuote = await QuoteService.getPublicQuoteById(quote.id || quote.displayId || quote.publicToken || '');
+                if (fullQuote && (fullQuote.approvalSignature || fullQuote.approval_signature)) {
+                    signature = fullQuote.approvalSignature || fullQuote.approval_signature;
+                    approvedName = fullQuote.approvedByName || (fullQuote as any).approved_by_name || approvedName;
+                    approvedTime = fullQuote.approvedAt || (fullQuote as any).approved_at || approvedTime;
+                }
+            } catch (e) {}
+        }
+
+        if (!signature && quote.id) {
+            try {
+                const { data: dbQ } = await supabase.from('quotes')
+                    .select('approval_signature, approved_by_name, approved_at')
+                    .eq('id', quote.id)
+                    .maybeSingle();
+                if (dbQ?.approval_signature) {
+                    signature = dbQ.approval_signature;
+                    approvedName = dbQ.approved_by_name || approvedName;
+                    approvedTime = dbQ.approved_at || approvedTime;
+                }
+            } catch (e) {}
+        }
+
+        if (signature) {
+            const updated = {
+                ...quote,
+                approvalSignature: signature,
+                approvedByName: approvedName,
+                approvedAt: approvedTime
+            };
+            setViewQuote(updated);
+        }
+    };
+
+    // 🖨️ Impressão e Exportação em PDF via Iframe Invisível em Segundo Plano
+    const handlePrintQuote = (quoteToPrint: Quote) => {
+        if (!quoteToPrint || printingQuoteId) return;
+
+        const quoteKey = quoteToPrint.id || quoteToPrint.displayId || quoteToPrint.publicToken;
+        if (!quoteKey) return;
+
+        setPrintingQuoteId(quoteKey);
+
+        // Remove qualquer iframe de impressão residual
+        const existingIframe = document.getElementById('nexus-quote-print-iframe');
+        if (existingIframe) {
+            existingIframe.remove();
+        }
+
+        const iframe = document.createElement('iframe');
+        iframe.id = 'nexus-quote-print-iframe';
+        iframe.setAttribute('title', 'Impressão de Orçamento');
+        iframe.setAttribute('aria-hidden', 'true');
+
+        // Configuração invisível fora da tela com dimensões desktop para garantir fidelidade A4
+        Object.assign(iframe.style, {
+            position: 'fixed',
+            top: '-9999px',
+            left: '-9999px',
+            width: '1024px',
+            height: '1000px',
+            border: '0',
+            opacity: '0',
+            pointerEvents: 'none',
+            zIndex: '-9999'
+        });
+
+        const rawPrefix = (quoteToPrint.displayId || quoteToPrint.id?.slice(0, 8) || 'ORCAMENTO')
+            .replace(/^#/, '')
+            .trim();
+        const quotePrefix = rawPrefix.toUpperCase().startsWith('ORC') || rawPrefix.includes('-')
+            ? rawPrefix
+            : `ORC-${rawPrefix}`;
+
+        const originalTitle = document.title;
+        document.title = quotePrefix;
+
+        const targetToken = quoteToPrint.publicToken || quoteToPrint.id;
+        const printUrl = `${window.location.origin}/#/view-quote/${targetToken}?print=true&t=${Date.now()}`;
+
+        let timeoutId: any = null;
+
+        const restoreTitle = () => {
+            setTimeout(() => {
+                document.title = originalTitle;
+            }, 2500);
+        };
+
+        const handleMessage = (event: MessageEvent) => {
+            if (event.data?.type === 'NEXUS_QUOTE_PRINT_TRIGGERED' || event.data?.type === 'NEXUS_QUOTE_PRINT_FINISHED') {
+                setPrintingQuoteId(null);
+                restoreTitle();
+                if (timeoutId) clearTimeout(timeoutId);
+                setTimeout(() => {
+                    iframe.remove();
+                    window.removeEventListener('message', handleMessage);
+                }, 2000);
+            }
+        };
+
+        window.addEventListener('message', handleMessage);
+
+        // Fallback de segurança para liberar o botão caso o diálogo seja cancelado
+        timeoutId = setTimeout(() => {
+            setPrintingQuoteId(null);
+            restoreTitle();
+            window.removeEventListener('message', handleMessage);
+        }, 10000);
+
+        iframe.src = printUrl;
+        document.body.appendChild(iframe);
+    };
+
     return (
         <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
             <div className="mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-[#1c2d4f]/20 bg-white/40 shadow-sm backdrop-blur-md flex flex-col gap-3">
@@ -828,7 +970,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                 <tr
                                     key={quote.id}
                                     className={`bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md cursor-pointer ${selectedQuoteIds.includes(quote.id) ? 'bg-indigo-50/40' : ''}`}
-                                    onClick={() => { setViewQuote(quote); setIsViewModalOpen(true); }}
+                                    onClick={() => openQuoteView(quote)}
                                 >
                                     <td className="px-3 py-2 text-center shrink-0 w-12" onClick={(e) => { e.stopPropagation(); setSelectedQuoteIds(prev => prev.includes(quote.id) ? prev.filter(id => id !== quote.id) : [...prev, quote.id]); }}>
                                         <input
@@ -892,14 +1034,23 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     <td className="px-4 py-2 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                         <div className="flex justify-center items-center gap-1">
                                             <button
-                                                onClick={() => {
-                                                    setViewQuote(quote);
-                                                    setIsViewModalOpen(true);
-                                                }}
+                                                onClick={() => openQuoteView(quote)}
                                                 className="p-1 text-slate-400 hover:text-primary-700 hover:bg-primary-50 rounded transition-colors"
                                                 title="Visualizar Orçamento"
                                             >
                                                 <Eye size={14} />
+                                            </button>
+                                            <button
+                                                onClick={() => handlePrintQuote(quote)}
+                                                disabled={printingQuoteId === (quote.id || quote.displayId || quote.publicToken)}
+                                                className="p-1 text-slate-400 hover:text-primary-700 hover:bg-primary-50 rounded transition-colors disabled:opacity-50"
+                                                title="Imprimir / Salvar em PDF"
+                                            >
+                                                {printingQuoteId === (quote.id || quote.displayId || quote.publicToken) ? (
+                                                    <Loader2 size={14} className="animate-spin text-[#1c2d4f]" />
+                                                ) : (
+                                                    <Printer size={14} />
+                                                )}
                                             </button>
                                         </div>
                                     </td>
@@ -926,7 +1077,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                             <div 
                                 key={quote.id}
                                 className={`bg-white p-3 rounded-2xl shadow-sm border ${selectedQuoteIds.includes(quote.id) ? 'border-primary-400 ring-1 ring-primary-100' : 'border-slate-200/60'} active:scale-[0.98] transition-all flex flex-col gap-2 relative overflow-hidden`}
-                                onClick={() => { setViewQuote(quote); setIsViewModalOpen(true); }}
+                                onClick={() => openQuoteView(quote)}
                             >
                                 <div 
                                     className="absolute top-3 right-3 p-2 -m-2 z-10"
@@ -1712,14 +1863,22 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                 </button>
 
                                 <button
-                                    onClick={() => {
-                                        const url = `${window.location.origin}/#/view-quote/${viewQuote.publicToken || viewQuote.id}?print=true`;
-                                        window.open(url, '_blank');
-                                    }}
-                                    className="inline-flex items-center justify-center min-w-max h-8 sm:h-9 px-3 sm:px-3.5 gap-1.5 border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg text-xs font-medium transition-all shrink-0 whitespace-nowrap"
+                                    onClick={() => handlePrintQuote(viewQuote)}
+                                    disabled={printingQuoteId === (viewQuote.id || viewQuote.displayId || viewQuote.publicToken)}
+                                    className="inline-flex items-center justify-center min-w-max h-8 sm:h-9 px-3 sm:px-3.5 gap-1.5 border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg text-xs font-medium transition-all shrink-0 whitespace-nowrap disabled:opacity-60 cursor-pointer"
+                                    title="Imprimir / Salvar Orçamento em PDF"
                                 >
-                                    <Printer size={14} className="shrink-0" />
-                                    <span className="leading-none hidden sm:inline">PDF</span>
+                                    {printingQuoteId === (viewQuote.id || viewQuote.displayId || viewQuote.publicToken) ? (
+                                        <>
+                                            <Loader2 size={14} className="shrink-0 animate-spin text-[#1c2d4f]" />
+                                            <span className="leading-none hidden sm:inline">Preparando PDF...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Printer size={14} className="shrink-0" />
+                                            <span className="leading-none hidden sm:inline">PDF</span>
+                                        </>
+                                    )}
                                 </button>
 
                                 <button
@@ -2045,7 +2204,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     <label className="text-[11px] font-medium text-slate-400 block mb-3">Assinatura Digital</label>
                                                     {viewQuote.approvalSignature ? (
                                                         <div className="bg-slate-50 border border-slate-100 rounded-lg p-4 flex items-center justify-center">
-                                                            <img src={viewQuote.approvalSignature} alt="Assinatura" className="h-16 grayscale" />
+                                                            <img src={viewQuote.approvalSignature} alt="Assinatura" className="max-h-16 max-w-full object-contain" />
                                                         </div>
                                                     ) : (
                                                         <div className="bg-slate-50 border border-dashed border-slate-200 rounded-lg p-6 flex flex-col items-center gap-2 opacity-30">
@@ -2086,305 +2245,6 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                 </div>
             , document.body)}
 
-            {/* ── HIDDEN PRINT CONTAINER ── */}
-            {viewQuote && (
-                <div className="hidden print:hidden" id="quote-print-container">
-                    <QuotePrintLayout quote={viewQuote} tenant={tenant} />
-                </div>
-            )}
-        </div>
-    );
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// QUOTE PRINT LAYOUT — Mirrors the OS PrintLayout structure exactly
-// ─────────────────────────────────────────────────────────────────────────────
-const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tenant }) => {
-    const companyName = tenant?.company_name || tenant?.name || tenant?.companyName || 'Nexus Pro';
-    const companyLogo = tenant?.logo_url || tenant?.logoUrl;
-    const companyAddress = useMemo(() => {
-        if (!tenant) return '';
-        // Prioritiza campos individuais, fallbacks para 'address'
-        const street = tenant.street || tenant.address || '';
-        if (!street) return '';
-
-        const parts = [];
-        parts.push(street);
-        if (tenant.number) parts.push(`, ${tenant.number}`);
-        if (tenant.complement) parts.push(` - ${tenant.complement}`);
-        if (tenant.neighborhood) parts.push(` - ${tenant.neighborhood}`);
-        if (tenant.city) parts.push(`, ${tenant.city}`);
-        if (tenant.state) parts.push(`/${tenant.state}`);
-
-        return parts.join('');
-    }, [tenant]);
-
-    const companyPhone = tenant?.phone || '';
-    const companyEmail = tenant?.admin_email || tenant?.email || '';
-    const companyDoc = tenant?.cnpj || tenant?.document || '';
-
-    useEffect(() => {
-        if (tenant) {
-            console.log('[QuotePrintLayout] Tenant data:', {
-                name: companyName,
-                address: companyAddress,
-                street: tenant.street,
-                rawAddress: tenant.address
-            });
-        }
-    }, [tenant, companyName, companyAddress]);
-
-    const fmt = (d?: string) => {
-        if (!d) return '—';
-        const date = d.includes('T') ? new Date(d) : new Date(d + 'T12:00:00');
-        return date.toLocaleDateString('pt-BR');
-    };
-
-    return (
-        <div className="bg-white text-[10px] leading-tight font-poppins p-6 print:break-inside-avoid" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', overflow: 'hidden', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
-            {/* Print Header — same as OS */}
-            <div className="flex justify-between items-start pb-4 border-b-2 border-slate-800 mb-4">
-                <div className="flex gap-4 items-center">
-                    {companyLogo
-                        ? <img src={companyLogo} alt="Logo" className="h-16 w-auto object-contain" />
-                        : <div className="bg-slate-900 p-2 rounded-lg flex items-center justify-center min-w-[60px] min-h-[60px] text-white"><Hexagon size={32} className="text-white fill-white/10" /></div>
-                    }
-                    <div className="space-y-1">
-                        <h1 className="text-xl font-medium text-slate-900 uppercase tracking-tight">{companyName}</h1>
-                        <div className="text-[9px] text-slate-600 max-w-[400px]">
-                            {companyAddress && <div>{companyAddress}</div>}
-                            <div className="flex gap-3 mt-0.5">
-                                {companyPhone && <span className="font-semibold">Tel: {companyPhone}</span>}
-                                {companyEmail && <span>Email: {companyEmail}</span>}
-                            </div>
-                            {companyDoc && <div className="mt-0.5">CNPJ: {companyDoc}</div>}
-                        </div>
-                    </div>
-                </div>
-                <div className="text-right shrink-0">
-                    <div className="border-2 border-slate-800 px-5 py-2 rounded-lg bg-slate-50 min-w-[160px]">
-                        <div className="text-[8px] font-medium text-slate-500 uppercase tracking-wider mb-1">Proposta Comercial</div>
-                        <div className="text-base font-semibold text-slate-900 tracking-tight whitespace-nowrap">{quote.displayId || quote.id.slice(0, 8).toUpperCase()}</div>
-                    </div>
-                    <div className="text-[8px] font-medium text-slate-400 mt-2 uppercase tracking-wide">
-                        Emissão: {new Date().toLocaleDateString()} às {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                </div>
-            </div>
-
-            <div className="space-y-3">
-                {/* Dados do Cliente */}
-                <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-                    <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-medium text-[9px] uppercase tracking-wider text-slate-700">Dados do Cliente e Proposta</div>
-                    <div className="grid grid-cols-12 divide-x divide-slate-200">
-                        <div className="col-span-7 p-2.5 space-y-2">
-                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Cliente</label><div className="font-medium text-slate-900 text-sm uppercase">{quote.customerName}</div></div>
-                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Endereço</label><div className="font-medium text-slate-700 text-xs uppercase">{quote.customerAddress || 'N/A'}</div></div>
-                            {quote.customerDocument && (
-                                <div><label className="block text-[8px] font-medium text-slate-400 uppercase">CPF / CNPJ</label><div className="font-medium text-slate-700 text-xs">{quote.customerDocument}</div></div>
-                            )}
-                        </div>
-                        <div className="col-span-5 p-2.5 grid grid-cols-2 gap-3 bg-slate-50/30">
-                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase mb-0.5">Criação</label><div className="font-medium">{fmt(quote.createdAt)}</div></div>
-                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase mb-0.5">Validade</label><div className="font-medium">{quote.validUntil ? fmt(quote.validUntil) : '—'}</div></div>
-                            <div className="flex flex-col justify-start">
-                                <span className="block text-[8px] font-medium text-slate-400 uppercase mb-1">Status</span>
-                                <div style={{ display: 'flex', alignItems: 'center' }}>
-                                    <span
-                                        style={{
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            height: '20px',
-                                            padding: '0 8px',
-                                            fontSize: '9px',
-                                            fontWeight: 600,
-                                            letterSpacing: '0.05em',
-                                            textTransform: 'uppercase',
-                                            border: '1px solid #cbd5e1',
-                                            borderRadius: '4px',
-                                            backgroundColor: '#ffffff',
-                                            color: '#1e293b',
-                                            boxSizing: 'border-box',
-                                            lineHeight: '20px'
-                                        }}
-                                    >
-                                        {quote.status}
-                                    </span>
-                                </div>
-                            </div>
-                            {quote.linkedOrderId && (
-                                <div><label className="block text-[8px] font-medium text-slate-400 uppercase mb-0.5">O.S. Vinculada</label><div className="font-medium uppercase">{quote.linkedOrderId.slice(0, 8)}</div></div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Objeto / Descrição */}
-                <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-                    <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-medium text-[9px] uppercase tracking-wider text-slate-700">Objeto da Proposta</div>
-                    <div className="p-3 bg-white space-y-2">
-                        <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Título</label><div className="font-medium text-slate-900 text-xs uppercase">{quote.title}</div></div>
-                        {quote.description && (
-                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase mt-2">Descrição</label><div className="text-[11px] text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">{quote.description}</div></div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Itens / Composição */}
-                <div className="border border-slate-300 rounded-lg" style={{ overflow: 'hidden', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
-                    <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-medium text-[9px] uppercase tracking-wider text-slate-700">Composição da Proposta (Itens e Serviços)</div>
-                    <table style={{ width: '100%', maxWidth: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', boxSizing: 'border-box' }}>
-                        <colgroup>
-                            <col style={{ width: '5%' }} />
-                            <col style={{ width: '12%' }} />
-                            <col style={{ width: '38%' }} />
-                            <col style={{ width: '9%' }} />
-                            <col style={{ width: '18%' }} />
-                            <col style={{ width: '18%' }} />
-                        </colgroup>
-                        <thead>
-                            <tr className="bg-slate-50 text-[8px] font-semibold text-slate-500 uppercase border-b border-slate-200">
-                                <th className="px-2 py-2">#</th>
-                                <th className="px-2 py-2 text-left">Código</th>
-                                <th className="px-2 py-2 text-left">Descrição do Item</th>
-                                <th className="px-2 py-2 text-center">Qtd</th>
-                                <th className="px-2 py-2 text-right">V. Unitário</th>
-                                <th className="px-2 py-2 text-right">Total</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200 bg-white">
-                            {quote.items.map((item, idx) => (
-                                <tr key={idx} className="break-inside-avoid">
-                                    <td className="px-2 py-2 text-[10px] font-medium text-slate-400 align-top">{String(idx + 1).padStart(2, '0')}</td>
-                                    <td className="px-2 py-2 text-[9px] font-medium text-[#3e5b99] align-top font-mono tracking-wider uppercase" style={{ wordBreak: 'break-all', overflow: 'hidden' }}>
-                                        {item.stockCode || <span style={{ color: '#cbd5e1', fontStyle: 'italic', fontWeight: 400 }}>—</span>}
-                                    </td>
-                                    <td className="px-2 py-2 text-[10px] uppercase font-medium text-slate-800 align-top" style={{ wordWrap: 'break-word', overflowWrap: 'break-word', overflow: 'hidden' }}>{item.description}</td>
-                                    <td className="px-2 py-2 text-[10px] text-center font-medium text-slate-600 align-top">{item.quantity}</td>
-                                    <td className="px-2 py-2 text-[10px] text-right text-slate-600 font-mono" style={{ overflow: 'hidden' }}>R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                    <td className="px-2 py-2 text-[10px] text-right font-semibold text-slate-900 font-mono" style={{ overflow: 'hidden' }}>R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                    <div className="bg-slate-50 border-t border-slate-200 divide-y divide-slate-100">
-                        {(() => {
-                            const subtotal = quote.items.reduce((acc, item) => acc + (item.total || 0), 0);
-                            let discountValue = quote.discountType === 'percent'
-                                ? (subtotal * (Number(quote.discount) || 0) / 100)
-                                : (Number(quote.discount) || 0);
-
-                            if (discountValue <= 0 && subtotal > (quote.totalValue || subtotal)) {
-                                discountValue = subtotal - (quote.totalValue || subtotal);
-                            }
-
-                            return (
-                                <>
-                                    <div className="px-6 py-2 flex justify-end gap-12 items-center">
-                                        <span className="text-[8px] uppercase font-medium tracking-widest text-slate-400">Subtotal Bruto</span>
-                                        <span className="text-[10px] font-medium text-slate-600 font-mono">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                    </div>
-                                    {discountValue > 0 && (
-                                        <div className="px-6 py-2 flex justify-end gap-12 items-center">
-                                            <span className="text-[8px] uppercase font-medium tracking-widest text-rose-400 italic">Desconto Aplicado ({quote.discountType === 'percent' ? `${quote.discount}%` : 'Fixo'})</span>
-                                            <span className="text-[10px] font-medium text-rose-500 font-mono italic">- R$ {discountValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                        </div>
-                                    )}
-                                    <div className="bg-slate-800 text-white px-6 py-3 flex justify-end gap-12 items-center">
-                                        <span className="text-[10px] uppercase font-semibold tracking-[0.2em] text-slate-300">Total Líquido</span>
-                                        <span className="text-xl font-semibold tracking-tighter">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                    </div>
-                                </>
-                            );
-                        })()}
-                    </div>
-                </div>
-
-                {/* Observações */}
-                {quote.notes && (
-                    <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-medium text-[9px] uppercase tracking-wider text-slate-700">Observações e Condições</div>
-                        <div className="p-3 bg-white text-[11px] text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">
-                            {quote.notes}
-                        </div>
-                    </div>
-                )}
-
-                {/* Aprovação / Recusa (Auditoria Digital) */}
-                {(quote.status === 'APROVADO' || quote.status === 'CONVERTIDO' || quote.status === 'REJEITADO') ? (
-                    <div className={`border rounded-lg overflow-hidden break-inside-avoid mt-4 ${quote.status === 'REJEITADO' ? 'border-rose-300' : 'border-emerald-300'}`}>
-                        <div className={`${quote.status === 'REJEITADO' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'} px-3 py-1.5 border-b font-medium text-[9px] uppercase tracking-wider`}>
-                            {quote.status === 'REJEITADO' ? 'Formalização de Recusa — Auditoria Digital' : 'Validação e Assinaturas — Auditoria Digital'}
-                        </div>
-                        <div className="bg-white">
-                            {quote.status === 'REJEITADO' && (
-                                <div className="p-3 bg-rose-50/50 border-b border-rose-100 italic text-[11px] text-rose-900 font-medium uppercase">
-                                    Motivo da Recusa: {quote.rejectionReason || 'Recusa efetuada via link público pelo cliente.'}
-                                </div>
-                            )}
-                            <div className="grid grid-cols-2 divide-x divide-slate-300 text-center">
-                                <div className="p-4 flex flex-col items-center justify-center gap-3">
-                                    <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">Emitente / Comercial</p>
-                                    <div className="h-[60px] flex items-center justify-center text-slate-200 italic text-[10px] font-medium uppercase">
-                                        Visto Eletrônico Nexus
-                                    </div>
-                                    <div className="w-full border-t border-slate-300 pt-2">
-                                        <p className="text-[12px] font-semibold text-slate-900 uppercase">{companyName}</p>
-                                    </div>
-                                </div>
-                                <div className="p-4 flex flex-col items-center justify-center gap-3">
-                                    <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">
-                                        {quote.status === 'REJEITADO' ? 'Recusado pelo Cliente' : 'Aprovação do Cliente'}
-                                    </p>
-                                    <div className="h-[80px] flex items-center justify-center">
-                                        {quote.approvalSignature ? (
-                                            <img src={quote.approvalSignature} className="max-h-full max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
-                                        ) : (
-                                            <span className="text-slate-300 italic text-[10px] font-medium uppercase">Registro digital certificado</span>
-                                        )}
-                                    </div>
-                                    <div className="w-full border-t border-slate-300 pt-2">
-                                        <p className="text-[12px] font-semibold text-slate-900 uppercase">{quote.approvedByName || 'Cliente'}</p>
-                                        {quote.approvedAt && <p className="text-[9px] font-medium text-slate-500 uppercase tracking-widest">{new Date(quote.approvedAt).toLocaleString('pt-BR')}</p>}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
-                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-medium text-[9px] uppercase tracking-wider text-slate-700">Aceite e Conformidade</div>
-                        <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white text-center">
-                            <div className="p-4 flex flex-col items-center justify-center gap-3">
-                                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">Emitente</p>
-                                <div className="h-[60px] flex items-center justify-center" />
-                                <div className="w-full border-t border-slate-300 pt-2">
-                                    <p className="text-[12px] font-semibold text-slate-900 uppercase">{companyName}</p>
-                                </div>
-                            </div>
-                            <div className="p-4 flex flex-col items-center justify-center gap-3">
-                                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">De Acordo — Assinatura do Cliente</p>
-                                <div className="h-[80px] flex items-center justify-center" />
-                                <div className="w-full border-t border-slate-300 pt-2">
-                                    <p className="text-[12px] font-semibold text-slate-300 uppercase">Nome:</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Footer — same as OS */}
-            <div className="mt-8 pt-4 border-t-2 border-slate-800 flex justify-between items-center text-slate-500">
-                <div className="flex items-center gap-2">
-                    <NexusBranding size="lg" className="opacity-80 origin-left scale-75" />
-                </div>
-                <div className="text-right">
-                    <p className="text-[8px] font-medium uppercase tracking-widest text-[#1c2d4f]">Uma solução DUNO</p>
-                    <p className="text-[7px] uppercase tracking-tight mt-0.5">Documento emitido eletronicamente. Auditável na plataforma central.</p>
-                </div>
-            </div>
         </div>
     );
 };
