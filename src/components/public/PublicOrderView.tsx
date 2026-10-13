@@ -1499,6 +1499,19 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
       if (text !== null || photos.length > 0) formItemsPrint.push({ key, text, photos });
     });
 
+  // ── SANITIZADOR DE URL PARA ANOTAÇÕES DE LINK NO QUARTZ PDF (SAFARI) & CHROMIUM ──
+  const formatPdfMediaUrl = (rawUrl: string | null | undefined): string => {
+    if (!rawUrl || typeof rawUrl !== 'string') return '';
+    const trimmed = rawUrl.trim();
+    if (!trimmed) return '';
+    if (trimmed.startsWith('data:')) return trimmed;
+    try {
+      return encodeURI(decodeURI(trimmed));
+    } catch {
+      return encodeURI(trimmed);
+    }
+  };
+
   // ── COMPONENTE DE MINIATURA OTIMIZADA PARA PDF (SEGURO E SEM BLOQUEIO CORS) ──
   const PrintThumbnailImage: React.FC<{
     src: string;
@@ -1507,7 +1520,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   }> = ({ src, alt, className }) => {
     return (
       <img
-        src={src}
+        src={formatPdfMediaUrl(src)}
         alt={alt || ''}
         className={className}
         loading="eager"
@@ -1516,41 +1529,62 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     );
   };
 
-  // ── CARTÃO DE MÍDIA CLICÁVEL COMPATÍVEL COM SAFARI / QUARTZ PDF & CHROMIUM ──
+  // ── CARTÃO DE MÍDIA COM LINK EMBUTIDO DIRETO NA IMAGEM (SEM TEXTOS ADICIONAIS) ──
   const PrintMediaCard: React.FC<{
     url: string;
     alt?: string;
     widthClass?: string;
     mediaHeightClass?: string;
-  }> = ({ url, alt = 'Anexo', widthClass = 'w-[130px]', mediaHeightClass = 'h-[95px]' }) => {
+  }> = ({ url, alt = 'Anexo', widthClass = 'w-[140px]', mediaHeightClass = 'h-[105px]' }) => {
     const isVideo = isVideoUrl(url);
-    const label = isVideo ? 'Abrir Vídeo' : 'Abrir Foto';
+    const cleanUrl = formatPdfMediaUrl(url);
 
     return (
-      <div className={`${widthClass} border border-slate-200 rounded-lg overflow-hidden bg-slate-50 shadow-sm p-1 shrink-0 break-inside-avoid print-media-card`}>
+      <div className={`${widthClass} ${mediaHeightClass} border border-slate-200 rounded-lg overflow-hidden bg-slate-50 shadow-sm shrink-0 break-inside-avoid print-media-box relative`}>
         <a
-          href={url}
+          href={cleanUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="w-full flex flex-col items-center justify-center cursor-pointer print-media-link"
-          style={{ textDecoration: 'none' }}
+          className="print-media-link"
+          style={{
+            display: 'block',
+            width: '100%',
+            height: '100%',
+            textDecoration: 'none',
+            position: 'relative'
+          }}
+          title="Clique para abrir imagem original"
         >
-          <div className={`w-full ${mediaHeightClass} rounded overflow-hidden flex items-center justify-center bg-white relative`}>
-            {isVideo ? (
-              <div className="w-full h-full relative flex items-center justify-center bg-black">
-                <video src={`${url}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Play size={14} className="text-white opacity-90" />
-                </div>
-                <span className="absolute bottom-1 bg-black/70 text-white text-[6.5px] px-1 py-0.5 rounded uppercase leading-none font-medium">Vídeo</span>
+          {isVideo ? (
+            <div className="w-full h-full relative flex items-center justify-center bg-black">
+              <video
+                src={`${cleanUrl}#t=0.1`}
+                preload="metadata"
+                className="w-full h-full object-cover opacity-60"
+                style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <Play size={16} className="text-white opacity-90" />
               </div>
-            ) : (
-              <PrintThumbnailImage src={url} className="w-full h-full object-contain" alt={alt} />
-            )}
-          </div>
-          <span className="mt-1 text-[7.5px] font-semibold text-blue-600 underline flex items-center gap-0.5 leading-tight print-media-label">
-            🔗 {label}
-          </span>
+              <span className="absolute bottom-1 bg-black/70 text-white text-[7px] px-1.5 py-0.5 rounded uppercase leading-none font-medium pointer-events-none">
+                Vídeo
+              </span>
+            </div>
+          ) : (
+            <img
+              src={cleanUrl}
+              alt={alt}
+              loading="eager"
+              decoding="async"
+              className="w-full h-full object-contain"
+              style={{
+                display: 'block',
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain'
+              }}
+            />
+          )}
         </a>
       </div>
     );
@@ -2553,28 +2587,17 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           }
           .print-photos a, .print-photos a:visited, a.print-media-link {
             text-decoration: none !important;
-            color: #1d4ed8 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            align-items: center !important;
+            color: inherit !important;
+            display: block !important;
             width: 100% !important;
+            height: 100% !important;
             pointer-events: auto !important;
+            cursor: pointer !important;
           }
-          .print-media-card {
+          .print-media-box {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
             -webkit-column-break-inside: avoid !important;
-          }
-          .print-media-label {
-            display: inline-block !important;
-            color: #1d4ed8 !important;
-            font-size: 7.5px !important;
-            font-weight: 600 !important;
-            text-decoration: underline !important;
-            margin-top: 2px !important;
-            line-height: 1 !important;
-            pointer-events: auto !important;
-            white-space: nowrap !important;
           }
           /* Blocos que NUNCA devem ser cortados (assinatura, total, peças) */
           .print-no-break {
@@ -2746,28 +2769,17 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             }
             .print-photos a, .print-photos a:visited, a.print-media-link {
               text-decoration: none !important;
-              color: #1d4ed8 !important;
-              display: flex !important;
-              flex-direction: column !important;
-              align-items: center !important;
+              color: inherit !important;
+              display: block !important;
               width: 100% !important;
+              height: 100% !important;
               pointer-events: auto !important;
+              cursor: pointer !important;
             }
-            .print-media-card {
+            .print-media-box {
               break-inside: avoid !important;
               page-break-inside: avoid !important;
               -webkit-column-break-inside: avoid !important;
-            }
-            .print-media-label {
-              display: inline-block !important;
-              color: #1d4ed8 !important;
-              font-size: 7.5px !important;
-              font-weight: 600 !important;
-              text-decoration: underline !important;
-              margin-top: 2px !important;
-              line-height: 1 !important;
-              pointer-events: auto !important;
-              white-space: nowrap !important;
             }
             /* Blocos que NUNCA devem ser cortados (assinatura, total, peças) */
             .print-no-break {
