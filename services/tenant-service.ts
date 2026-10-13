@@ -1,7 +1,9 @@
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from './auth-service';
 import { logger } from './logger';
 import { supabase } from './supabase';
+import { syncService } from './sync-service';
 
 export interface TenantSettings {
     showStockPrice: boolean;
@@ -87,6 +89,13 @@ export class TenantService {
     }
 
     /**
+     * Limpa o cache interno
+     */
+    static clearCache() {
+        this.settingsCache = {};
+    }
+
+    /**
      * Busca as configurações globais do tenant do usuário logado
      * @param forceRefresh Se true, ignora o cache e busca direto do banco
      */
@@ -103,8 +112,20 @@ export class TenantService {
                 return { ...DEFAULT_SETTINGS };
             }
 
-            if (!forceRefresh && this.settingsCache[userId]) {
+            if (this.settingsCache[userId] && (!forceRefresh || syncService.isOfflineModeEnabled())) {
                 return this.settingsCache[userId];
+            }
+
+            if (syncService.isOfflineModeEnabled()) {
+                try {
+                    const raw = await AsyncStorage.getItem('@nexus:tenant_settings');
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        this.settingsCache[userId] = parsed;
+                        return parsed;
+                    }
+                } catch (_) {}
+                return { ...DEFAULT_SETTINGS };
             }
 
             console.log(`[TenantService] 🔄 Buscando configurações para o usuário: ${userId} (force: ${forceRefresh})`);
@@ -175,6 +196,7 @@ export class TenantService {
             console.log(`[TenantService] ✅ Configuração final -> showStockPrice: ${settings.showStockPrice}, showClientContact: ${settings.showClientContact}, showStockHistory: ${settings.showStockHistory}, allowImpediment: ${settings.allowImpediment}, showVisitHistory: ${settings.showVisitHistory}, allowOsSharing: ${settings.allowOsSharing}`);
 
             this.settingsCache[userId] = settings;
+            AsyncStorage.setItem('@nexus:tenant_settings', JSON.stringify(settings)).catch(() => {});
             return settings;
         } catch (error) {
             console.error('[TenantService] 💥 Exceção:', error);

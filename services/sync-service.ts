@@ -142,7 +142,10 @@ class SyncService {
     async getQueue(): Promise<SyncTask[]> {
         try {
             const data = await AsyncStorage.getItem(SYNC_QUEUE_KEY);
-            return data ? JSON.parse(data) : [];
+            if (!data) return [];
+            const docDir = FileSystem.documentDirectory || '';
+            const restored = data.split('<DOC_DIR>').join(docDir);
+            return JSON.parse(restored);
         } catch (e) {
             console.error('[Sync] Erro ao ler fila:', e);
             return [];
@@ -151,7 +154,9 @@ class SyncService {
 
     private async saveQueue(queue: SyncTask[]) {
         try {
-            await AsyncStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
+            const docDir = FileSystem.documentDirectory || '';
+            const safeQueueString = JSON.stringify(queue).split(docDir).join('<DOC_DIR>');
+            await AsyncStorage.setItem(SYNC_QUEUE_KEY, safeQueueString);
             this.notifySubscribers(queue);
         } catch (e) {
             console.error('[Sync] Erro ao salvar fila:', e);
@@ -168,20 +173,24 @@ class SyncService {
         };
 
         // Cache local photos into document directory to ensure they aren't deleted by temp cache clearer
+        let updatedPayloadString = JSON.stringify(newTask.payload);
         if (newTask.localPhotos && newTask.localPhotos.length > 0) {
             const safePhotos = [];
             for (const uri of newTask.localPhotos) {
                 if (uri.startsWith('file://')) {
                     const filename = uri.split('/').pop();
                     const newPath = FileSystem.documentDirectory + 'offline_' + filename;
-                    await FileSystem.copyAsync({ from: uri, to: newPath });
+                    await FileSystem.copyAsync({ from: uri, to: newPath }).catch(() => {});
                     safePhotos.push(newPath);
+                    // Update all references in the payload to point to the safe copy
+                    updatedPayloadString = updatedPayloadString.split(uri).join(newPath);
                 } else if (uri.startsWith('data:image')) {
                     // Signature base64, keep it as is
                     safePhotos.push(uri);
                 }
             }
             newTask.localPhotos = safePhotos;
+            newTask.payload = JSON.parse(updatedPayloadString);
         }
 
         queue.push(newTask);
@@ -249,7 +258,7 @@ class SyncService {
 
     private async syncCompleteOS(task: SyncTask) {
         const { orderId, payload } = task;
-        const { OrderService } = await import('./order-service');
+        const { OrderService } = require('./order-service');
 
         const tenantId = payload.tenantId;
 
@@ -262,11 +271,27 @@ class SyncService {
             console.warn('[Sync] Could not fetch DB order for displayId, defaulting to orderId');
         }
 
-        // 1. Processar fotos extras — substituir file:// por URLs remotas
+        const isLocalPath = (str: any): boolean => {
+            if (typeof str !== 'string') return false;
+            const s = str.trim();
+            if (!s || s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:')) return false;
+            return (
+                s.startsWith('file://') ||
+                s.startsWith('/var/') ||
+                s.startsWith('/private/') ||
+                s.includes('/Containers/') ||
+                s.includes('/Library/') ||
+                s.includes('/Caches/') ||
+                s.includes('/Camera/') ||
+                (FileSystem.documentDirectory && s.startsWith(FileSystem.documentDirectory))
+            );
+        };
+
+        // 1. Processar fotos extras — substituir file:// ou rotas locais por URLs remotas
         const processedExtraPhotos: string[] = [];
         if (payload.extraPhotos && Array.isArray(payload.extraPhotos)) {
             for (const uri of payload.extraPhotos) {
-                if (typeof uri === 'string' && (uri.startsWith('file://') || (FileSystem.documentDirectory && uri.startsWith(FileSystem.documentDirectory)))) {
+                if (isLocalPath(uri)) {
                     try {
                         const url = await OrderService.uploadFile(uri, `orders/${targetFolderId}/extra_photos`, tenantId);
                         if (url) processedExtraPhotos.push(url);
@@ -277,45 +302,50 @@ class SyncService {
             }
         }
 
-        // 2. Processar fotos de formulário nas execution_forms
-        const executionForms = payload.execution_forms;
-        const finalFormData: Record<string, any> = {};
-
-        if (executionForms) {
-            for (const eqKey of Object.keys(executionForms)) {
-                const config = executionForms[eqKey];
-                const eqName = config?.equipamento?.equipment_model || config?.equipamento?.equipment_name || 'Equipamento';
-                const prefix = `[${eqName}${config?.equipamento?.equipment_serial ? ` S/N: ${config.equipamento.equipment_serial}` : ''}] - `;
-
-                if (config?.template?.fields) {
-                    for (const field of config.template.fields) {
-                        let value = config.data?.[field.id];
-
-                        // Upload de fotos locais dentro do formulário
-                        if (Array.isArray(value)) {
-                            const uploadedUrls: string[] = [];
-                            for (const item of value) {
-                                if (typeof item === 'string' && (item.startsWith('file://') || (FileSystem.documentDirectory && item.startsWith(FileSystem.documentDirectory)))) {
-                                    try {
-                                        const url = await OrderService.uploadFile(item, `orders/${targetFolderId}/form_photos`, tenantId);
-                                        if (url) uploadedUrls.push(url);
-                                    } catch (e) { console.error('[Sync] Falha foto form:', e); }
-                                } else {
-                                    uploadedUrls.push(item);
-                                }
-                            }
-                            value = uploadedUrls;
-                        } else if (typeof value === 'string' && (value.startsWith('file://') || (FileSystem.documentDirectory && value.startsWith(FileSystem.documentDirectory)))) {
-                            try {
-                                const url = await OrderService.uploadFile(value, `orders/${targetFolderId}/form_photos`, tenantId);
-                                if (url) value = url;
-                            } catch (e) { console.error('[Sync] Falha foto form:', e); }
+        // 2. UPLOAD DE MÍDIAS DENTRO DOS FORMULÁRIOS DINÂMICOS
+        const finalFormData: Record<string, any> = payload.formData || {};
+        for (const key of Object.keys(finalFormData)) {
+            let value = finalFormData[key];
+            if (Array.isArray(value)) {
+                const uploadedUrls: string[] = [];
+                for (const item of value) {
+                    if (isLocalPath(item)) {
+                        try {
+                            const isVideo = item.toLowerCase().endsWith('.mov') || item.toLowerCase().endsWith('.mp4');
+                            const url = await OrderService.uploadFile(item, `orders/${targetFolderId}/${isVideo ? 'videos' : 'form_photos'}`, tenantId, isVideo ? 'video/mp4' : undefined);
+                            if (url) uploadedUrls.push(url);
+                            else uploadedUrls.push(item);
+                        } catch (e) {
+                            console.error('[Sync] Falha foto/vídeo form:', e);
+                            uploadedUrls.push(item);
                         }
-
-                        if (value !== undefined && value !== '') {
-                            finalFormData[`${prefix}${field.label}`] = value;
+                    } else {
+                        uploadedUrls.push(item);
+                    }
+                }
+                finalFormData[key] = uploadedUrls;
+            } else if (typeof value === 'string') {
+                const urls = value.split(',').map(u => u.trim()).filter(Boolean);
+                const hasLocalFiles = urls.some(u => isLocalPath(u));
+                
+                if (hasLocalFiles) {
+                    const uploadedUrls: string[] = [];
+                    for (const item of urls) {
+                        if (isLocalPath(item)) {
+                            try {
+                                const isVideo = item.toLowerCase().endsWith('.mov') || item.toLowerCase().endsWith('.mp4');
+                                const url = await OrderService.uploadFile(item, `orders/${targetFolderId}/${isVideo ? 'videos' : 'form_photos'}`, tenantId, isVideo ? 'video/mp4' : undefined);
+                                if (url) uploadedUrls.push(url);
+                                else uploadedUrls.push(item);
+                            } catch (e) {
+                                console.error('[Sync] Falha foto/vídeo form:', e);
+                                uploadedUrls.push(item);
+                            }
+                        } else {
+                            uploadedUrls.push(item);
                         }
                     }
+                    finalFormData[key] = uploadedUrls.join(',');
                 }
             }
         }
@@ -373,7 +403,7 @@ class SyncService {
 
     private async syncBlockOS(task: SyncTask) {
         const { orderId, payload } = task;
-        const { OrderService } = await import('./order-service');
+        const { OrderService } = require('./order-service');
         const tenantId = payload.tenantId;
 
         let targetFolderId = orderId;
@@ -403,13 +433,15 @@ class SyncService {
             const urls = processedVideoUrl.split(',').map(u => u.trim()).filter(Boolean);
             const uploadedUrls: string[] = [];
             for (const vUri of urls) {
-                if (vUri.startsWith('file://') || (FileSystem.documentDirectory && vUri.startsWith(FileSystem.documentDirectory))) {
+                if (vUri.startsWith('file://') || vUri.startsWith('/var/') || vUri.startsWith('/private/') || (FileSystem.documentDirectory && vUri.startsWith(FileSystem.documentDirectory))) {
                     try {
                         const url = await OrderService.uploadFile(vUri, `orders/${targetFolderId}/videos`, tenantId, 'video/mp4');
                         if (url) uploadedUrls.push(url);
-                        else uploadedUrls.push(vUri);
+                        // NÃO adiciona URI local como fallback — LAST-GATE no OrderService tratará
+                        else console.warn(`[Sync] ⚠️ Upload de vídeo retornou null, será tratado pelo LAST-GATE: ${vUri.substring(0, 50)}`);
                     } catch (e) {
-                        uploadedUrls.push(vUri);
+                        console.warn(`[Sync] ⚠️ Falha no upload de vídeo, será tratado pelo LAST-GATE: ${vUri.substring(0, 50)}`);
+                        // NÃO adiciona URI local como fallback
                     }
                 } else {
                     uploadedUrls.push(vUri);
@@ -421,6 +453,55 @@ class SyncService {
         const finalFormData = payload.additionalData?.formData || {};
         if (processedVideoUrl) {
             finalFormData.video_url = processedVideoUrl;
+        }
+
+        // 3.5 UPLOAD DE MÍDIAS DENTRO DOS FORMULÁRIOS DINÂMICOS (Fotos/Vídeos nos templates de impedimento)
+        for (const key of Object.keys(finalFormData)) {
+            let value = finalFormData[key];
+            if (Array.isArray(value)) {
+                const uploadedUrls: string[] = [];
+                for (const item of value) {
+                    if (typeof item === 'string' && (item.startsWith('file://') || item.startsWith('/var/') || item.startsWith('/private/') || (FileSystem.documentDirectory && item.startsWith(FileSystem.documentDirectory)))) {
+                        try {
+                            const isVideo = item.toLowerCase().endsWith('.mov') || item.toLowerCase().endsWith('.mp4');
+                            const url = await OrderService.uploadFile(item, `orders/${targetFolderId}/${isVideo ? 'videos' : 'form_photos'}`, tenantId, isVideo ? 'video/mp4' : undefined);
+                            if (url) uploadedUrls.push(url);
+                            // NÃO adiciona URI local como fallback
+                            else console.warn('[Sync] ⚠️ Upload de mídia do form retornou null, será tratado pelo LAST-GATE');
+                        } catch (e) {
+                            console.error('[Sync] Falha foto/vídeo form impedido:', e);
+                            // NÃO adiciona URI local como fallback
+                        }
+                    } else {
+                        uploadedUrls.push(item);
+                    }
+                }
+                finalFormData[key] = uploadedUrls;
+            } else if (typeof value === 'string') {
+                const urls = value.split(',').map(u => u.trim()).filter(Boolean);
+                const hasLocalFiles = urls.some(u => u.startsWith('file://') || (FileSystem.documentDirectory && u.startsWith(FileSystem.documentDirectory)));
+                
+                if (hasLocalFiles) {
+                    const uploadedUrls: string[] = [];
+                    for (const item of urls) {
+                        if (item.startsWith('file://') || item.startsWith('/var/') || item.startsWith('/private/') || (FileSystem.documentDirectory && item.startsWith(FileSystem.documentDirectory))) {
+                            try {
+                                const isVideo = item.toLowerCase().endsWith('.mov') || item.toLowerCase().endsWith('.mp4');
+                                const url = await OrderService.uploadFile(item, `orders/${targetFolderId}/${isVideo ? 'videos' : 'form_photos'}`, tenantId, isVideo ? 'video/mp4' : undefined);
+                                if (url) uploadedUrls.push(url);
+                                // NÃO adiciona URI local como fallback
+                                else console.warn('[Sync] ⚠️ Upload de mídia string-split retornou null, será tratado pelo LAST-GATE');
+                            } catch (e) {
+                                console.error('[Sync] Falha foto/vídeo form impedido:', e);
+                                // NÃO adiciona URI local como fallback
+                            }
+                        } else {
+                            uploadedUrls.push(item);
+                        }
+                    }
+                    finalFormData[key] = uploadedUrls.join(',');
+                }
+            }
         }
 
         await OrderService.blockOrder(orderId, payload.reason, processedBlockPhotos.length > 0 ? processedBlockPhotos : null, { formData: finalFormData, items: payload.additionalData?.items });

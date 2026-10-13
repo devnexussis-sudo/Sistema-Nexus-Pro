@@ -18,43 +18,7 @@ export default function TabLayout() {
   const deviceTheme = useDeviceColorScheme();
   const isDarkDevice = deviceTheme === 'dark';
   const [isMenuVisible, setMenuVisible] = useState(false);
-  const [hasUnread, setHasUnread] = useState(false);
   const { t } = useI18n();
-
-  const checkUnreadNotifications = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return;
-      
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('id')
-        .eq('is_read', false)
-        .or(`user_id.eq.${session.user.id},user_id.is.null`)
-        .limit(1);
-        
-      if (!error && data && data.length > 0) {
-        setHasUnread(true);
-      } else {
-        setHasUnread(false);
-      }
-    } catch (e) {
-      // quiet fail
-    }
-  };
-
-  useFocusEffect(
-    useCallback(() => {
-      checkUnreadNotifications();
-    }, [])
-  );
-
-  useEffect(() => {
-    const sub = DeviceEventEmitter.addListener('refreshNotifications', () => {
-      checkUnreadNotifications();
-    });
-    return () => sub.remove();
-  }, []);
 
   return (
     <>
@@ -72,6 +36,7 @@ export default function TabLayout() {
           headerStyle: {
             backgroundColor: '#1c2d4f',
           },
+          headerTitleAlign: 'left',
           headerTintColor: '#fff',
           headerLeft: () => (
             <Pressable
@@ -79,19 +44,6 @@ export default function TabLayout() {
               onPress={() => setMenuVisible(true)}
             >
               <IconSymbol name="line.3.horizontal" size={28} color="#fff" />
-              {hasUnread && (
-                <View style={{
-                  position: 'absolute',
-                  top: -2,
-                  right: -2,
-                  width: 10,
-                  height: 10,
-                  borderRadius: 5,
-                  backgroundColor: '#ef4444',
-                  borderWidth: 2,
-                  borderColor: '#1c2d4f'
-                }} />
-              )}
             </Pressable>
           ),
         }}>
@@ -142,11 +94,7 @@ export default function TabLayout() {
 
       <MenuModal
         visible={isMenuVisible}
-        onClose={() => {
-          setMenuVisible(false);
-          checkUnreadNotifications();
-        }}
-        hasUnread={hasUnread}
+        onClose={() => setMenuVisible(false)}
       />
     </>
   );

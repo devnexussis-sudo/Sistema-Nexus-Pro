@@ -212,6 +212,22 @@ class ResilientUploadService {
         return this.queue.filter(t => t.status !== 'completed');
     }
 
+    /** Check if a localUri or filename has a completed remote URL */
+    getCompletedUrl(localUri: string): string | null {
+        if (!localUri) return null;
+        const norm = localUri.toLowerCase();
+        const filename = norm.split('/').pop();
+        const task = this.queue.find(t => {
+            if (t.status !== 'completed' || !t.resultUrl) return false;
+            if (t.localUri === localUri) return true;
+            if (norm.includes(t.remotePath.toLowerCase())) return true;
+            if (filename && t.localUri.toLowerCase().endsWith(filename)) return true;
+            if (filename && t.remotePath.toLowerCase().endsWith(filename)) return true;
+            return false;
+        });
+        return task?.resultUrl || null;
+    }
+
     /**
      * Notify the service that the user toggled manual offline mode.
      * When false (going online), promotes offline_pending → queued.
@@ -414,7 +430,9 @@ class ResilientUploadService {
             this.queue = this.queue.filter(t =>
                 t.createdAt > cutoff || t.status !== 'completed'
             );
-            await AsyncStorage.setItem(UPLOAD_QUEUE_KEY, JSON.stringify(this.queue));
+            const docDir = FileSystem.documentDirectory || '';
+            const safeString = JSON.stringify(this.queue).split(docDir).join('<DOC_DIR>');
+            await AsyncStorage.setItem(UPLOAD_QUEUE_KEY, safeString);
         } catch (e) {
             console.warn('[Upload] ⚠️ Failed to persist queue:', e);
         }
@@ -424,7 +442,9 @@ class ResilientUploadService {
         try {
             const raw = await AsyncStorage.getItem(UPLOAD_QUEUE_KEY);
             if (raw) {
-                this.queue = JSON.parse(raw);
+                const docDir = FileSystem.documentDirectory || '';
+                const restored = raw.split('<DOC_DIR>').join(docDir);
+                this.queue = JSON.parse(restored);
                 console.log(`[Upload] 📦 Loaded ${this.queue.length} tasks from disk`);
             }
         } catch (e) {

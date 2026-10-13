@@ -225,6 +225,7 @@ class AuthService {
 
                 this.isAuthenticated = true;
                 this.userId = data.user.id;
+                this.bootCheckCompleted = true; // Mark boot check as complete since this is a fresh manual login
                 logger.log(`Login successful: Technician Verified (Keep connected: ${keepConnected})`, 'info');
                 return { success: true };
             }

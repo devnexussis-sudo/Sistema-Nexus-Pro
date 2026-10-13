@@ -2,10 +2,17 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { supabase } from '@/services/supabase';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useI18n } from '@/services/i18n';
+import Constants from 'expo-constants';
+
+// Importação condicional do expo-notifications (crash no Expo Go Android)
+const isExpoGoAndroid = Platform.OS === 'android' && Constants.appOwnership === 'expo';
+const Notifications = isExpoGoAndroid ? null : require('expo-notifications');
+
+import { NotificationService } from '@/services/notification-service';
 
 export default function NotificationsScreen() {
     const router = useRouter();
@@ -58,13 +65,16 @@ export default function NotificationsScreen() {
             setHasMore(fetchedData.length === LIMIT);
             setPage(pageIndex);
 
-            const unreadIds = fetchedData.filter(n => !n.is_read && n.user_id === session.user.id).map(n => n.id);
+            const unreadIds = fetchedData.filter(n => !n.is_read).map(n => n.id);
             if (unreadIds.length > 0) {
-                // Fire and forget unread update
+                // Marca as notificações lidas no Supabase
                 supabase.from('notifications').update({ is_read: true }).in('id', unreadIds).then(() => {
-                    DeviceEventEmitter.emit('refreshNotifications');
+                    DeviceEventEmitter?.emit?.('refreshNotifications');
+                    NotificationService.syncAppIconBadge().catch(() => {});
                 });
             }
+            // Zera o badge no ícone do sistema operacional do celular
+            NotificationService.syncAppIconBadge().catch(() => {});
         } catch (error) {
             console.error('Error fetching notifications:', error);
         } finally {
@@ -95,35 +105,64 @@ export default function NotificationsScreen() {
         }
     };
 
-    const renderItem = ({ item }: { item: any }) => (
-        <Pressable 
-            style={[styles.card, !item.is_read ? styles.unreadCard : null]}
-            onPress={() => handleNotificationPress(item)}
-        >
-            <View style={styles.cardHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Ionicons name="notifications" size={18} color={!item.is_read ? '#6366f1' : '#94a3b8'} />
-                    <Text style={[styles.title, !item.is_read && styles.unreadTitle]}>{item.title}</Text>
+    const renderItem = ({ item }: { item: any }) => {
+        let title = item.title;
+        let body = item.body;
+
+        if (title) {
+            if (title.includes('Nova OS Atribuída')) title = t('homeNewOsNotif');
+            else if (title.includes('Alteração de Agendamento')) title = t('notifTitleRescheduled');
+            else if (title.includes('OS Alterada')) title = t('notifTitleAltered');
+            else if (title.includes('OS Agendada')) title = t('notifTitleScheduled');
+            else if (title.includes('OS Cancelada')) title = t('notifTitleCanceled');
+        }
+        
+        if (body) {
+            if (body.includes('Você recebeu uma nova Ordem de Serviço')) {
+                body = body.replace(/Você recebeu uma nova Ordem de Serviço:?/g, t('homeNewOsNotifBody'));
+            } else if (body.includes('foi atribuída a você')) {
+                const match = body.match(/OS (.*?) foi atribuída/i);
+                if (match && match[1]) {
+                    body = t('notifBodyAssignedToYou').replace('%s', match[1].trim());
+                }
+            } else if (body.includes('horário da OS')) {
+                const match = body.match(/OS (.*?) foi alterado/i);
+                if (match && match[1]) {
+                    body = t('notifBodyRescheduled').replace('%s', match[1].trim());
+                }
+            } else if (body.includes('Ordem de Serviço foi alterada')) {
+                body = body.replace(/A? ?Ordem de Serviço foi alterada:?/g, t('notifBodyAltered'));
+            } else if (body.includes('Ordem de Serviço foi agendada')) {
+                body = body.replace(/A? ?Ordem de Serviço foi agendada para:?/g, t('notifBodyScheduled'));
+            } else if (body.includes('Ordem de Serviço foi cancelada')) {
+                body = body.replace(/A? ?Ordem de Serviço foi cancelada:?/g, t('notifBodyCanceled'));
+            }
+        }
+
+        return (
+            <Pressable 
+                style={[styles.card, !item.is_read ? styles.unreadCard : null]}
+                onPress={() => handleNotificationPress(item)}
+            >
+                <View style={styles.cardHeader}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Ionicons name="notifications" size={18} color={!item.is_read ? '#6366f1' : '#94a3b8'} />
+                        <Text style={[styles.title, !item.is_read && styles.unreadTitle]}>{title}</Text>
+                    </View>
+                    {!item.is_read && <View style={styles.unreadDot} />}
                 </View>
-                {!item.is_read && <View style={styles.unreadDot} />}
-            </View>
-            <Text style={styles.body}>{item.body}</Text>
-            <View style={styles.footer}>
-                <Ionicons name="time-outline" size={12} color="#94a3b8" />
-                <Text style={styles.date}>{formatDate(item.created_at)}</Text>
-            </View>
-        </Pressable>
-    );
+                <Text style={styles.body}>{body}</Text>
+                <View style={styles.footer}>
+                    <Ionicons name="time-outline" size={12} color="#94a3b8" />
+                    <Text style={styles.date}>{formatDate(item.created_at)}</Text>
+                </View>
+            </Pressable>
+        );
+    };
 
     return (
         <ThemedView style={styles.container}>
-            <View style={styles.header}>
-                <Pressable onPress={() => router.back()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="#1c2d4f" />
-                </Pressable>
-                <ThemedText type="title" style={styles.headerTitle}>Notificações</ThemedText>
-                <View style={{ width: 24 }} />
-            </View>
+            <Stack.Screen options={{ title: t('notificationsTitle') }} />
 
             {loading ? (
                 <View style={styles.centerContainer}>
@@ -132,7 +171,7 @@ export default function NotificationsScreen() {
             ) : notifications.length === 0 ? (
                 <View style={styles.centerContainer}>
                     <Ionicons name="notifications-off-outline" size={48} color="#cbd5e1" />
-                    <Text style={styles.emptyText}>Nenhuma notificação encontrada.</Text>
+                    <Text style={styles.emptyText}>{t('notificationsEmpty')}</Text>
                 </View>
             ) : (
                 <FlatList

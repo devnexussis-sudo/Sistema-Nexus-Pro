@@ -10,9 +10,33 @@ import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
 import { useState, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Dimensions } from 'react-native';
+import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Dimensions } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useI18n } from '@/services/i18n';
+
+const TopBlueBand = () => {
+    const { width: windowWidth, height: windowHeight } = Dimensions.get('window');
+    return (
+        <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+            {/* The solid blue top half */}
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: windowHeight * 0.5, backgroundColor: '#1c2d4f' }} />
+            
+            {/* The charming wave attached slightly above the bottom edge to avoid 1px gaps */}
+            <Svg 
+                height="80" 
+                width={windowWidth} 
+                viewBox={`0 0 ${windowWidth} 80`} 
+                style={{ position: 'absolute', top: (windowHeight * 0.5) - 1, left: 0 }}
+                preserveAspectRatio="none"
+            >
+                <Path 
+                    fill="#1c2d4f" 
+                    d={`M0 0 C ${windowWidth * 0.4} 80, ${windowWidth * 0.6} -10, ${windowWidth} 50 L ${windowWidth} 0 Z`}
+                />
+            </Svg>
+        </View>
+    );
+};
 
 export default function LoginScreen() {
     const router = useRouter();
@@ -95,32 +119,7 @@ export default function LoginScreen() {
             showAlert('Alerta!', t('loginForgotError'));
         }
     };
-
-const { width: windowWidth, height: windowHeight } = Dimensions.get('window');
-
-const TopBlueBand = () => {
     const { width: windowWidth, height: windowHeight } = Dimensions.get('window');
-    return (
-        <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
-            {/* The solid blue top half */}
-            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: windowHeight * 0.5, backgroundColor: '#1c2d4f' }} />
-            
-            {/* The charming wave attached slightly above the bottom edge to avoid 1px gaps */}
-            <Svg 
-                height="80" 
-                width={windowWidth} 
-                viewBox={`0 0 ${windowWidth} 80`} 
-                style={{ position: 'absolute', top: (windowHeight * 0.5) - 1, left: 0 }}
-                preserveAspectRatio="none"
-            >
-                <Path 
-                    fill="#1c2d4f" 
-                    d={`M0 0 C ${windowWidth * 0.4} 80, ${windowWidth * 0.6} -10, ${windowWidth} 50 L ${windowWidth} 0 Z`}
-                />
-            </Svg>
-        </View>
-    );
-};
 
     return (
         <View style={styles.container}>
@@ -213,8 +212,14 @@ const TopBlueBand = () => {
                             </Pressable>
                         </View>
 
-                        <Pressable style={styles.forgotButton} onPress={handleForgotPassword}>
-                            <Text style={styles.forgotText}>{t('loginForgotPassword')}</Text>
+                        <Pressable 
+                            style={styles.forgotButton} 
+                            onPress={handleForgotPassword}
+                            disabled={isLoading}
+                        >
+                            <Text style={[styles.forgotText, isLoading && { opacity: 0.5 }]}>
+                                {t('loginForgotPassword')}
+                            </Text>
                         </Pressable>
                     </View>
 
@@ -240,7 +245,14 @@ const TopBlueBand = () => {
 
             {/* Footer restored to original position, strictly outside KeyboardAvoidingView so it never moves up */}
             <View style={styles.footer}>
-                <Text style={styles.footerText}>{t('menuVersion')} {Constants.expoConfig?.version || '03.01.26'}</Text>
+                <Pressable 
+                    onPress={() => Linking.openURL('https://www.dunoup.com.br/privacidade').catch(() => Linking.openURL('https://www.dunoup.com.br'))}
+                    hitSlop={10}
+                    style={{ marginBottom: 6 }}
+                >
+                    <Text style={styles.privacyLinkText}>Termos de Uso e Política de Privacidade</Text>
+                </Pressable>
+                <Text style={styles.footerText}>{t('menuVersion')} {Constants.expoConfig?.version || '3.1.26'}</Text>
             </View>
         </View>
     );
@@ -402,6 +414,12 @@ const styles = StyleSheet.create({
     footerText: {
         color: '#1c2d4f', // Version number in blue
         fontSize: 12,
+        fontWeight: '500',
+    },
+    privacyLinkText: {
+        color: '#64748b',
+        fontSize: 12,
+        textDecorationLine: 'underline',
         fontWeight: '500',
     },
 });

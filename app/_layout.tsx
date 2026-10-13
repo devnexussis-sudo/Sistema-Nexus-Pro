@@ -19,10 +19,10 @@
  * 6. Shows "Sincronizando..." overlay when bootstrap >1s
  */
 
+import 'react-native-reanimated';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
-import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { I18nProvider, useI18n } from '@/services/i18n';
@@ -30,11 +30,14 @@ import { appLifecycle } from '@/services/app-lifecycle';
 import { BootstrapService } from '@/services/bootstrap-service';
 import { resilientUpload } from '@/services/upload-resilient';
 import { autoCheckinEvents, AUTO_CHECKIN_EVENT } from '@/services/auto-checkin-service';
+import { CacheCleanupService } from '@/services/cache-cleanup-service';
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
+
+import * as ScreenOrientation from 'expo-screen-orientation';
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -64,6 +67,9 @@ function LayoutContent() {
 
   useEffect(() => {
     const initialize = async () => {
+      // Lock screen globally to Portrait (since app.json is now "default" to allow signature rotation)
+      await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+
       // Bootstrap checks if session exists:
       // - No session → returns immediately (no smoke test!) → go to login
       // - Session exists → smoke test → validate → proceed
@@ -90,6 +96,8 @@ function LayoutContent() {
       } else {
         // Resume any uploads that were pending before app was closed
         resilientUpload.resumeAll();
+        // BigTech: Limpeza de cache em background (5s delay para não bloquear UI)
+        setTimeout(() => { CacheCleanupService.runCleanup(); }, 5000);
         await SplashScreen.hideAsync();
       }
     };
@@ -139,7 +147,8 @@ function LayoutContent() {
           headerStyle: { backgroundColor: '#1c2d4f' },
           headerTintColor: '#fff',
           headerTitleStyle: { fontWeight: 'bold' },
-          headerBackTitle: '',
+          headerBackTitleVisible: false,
+          headerBackTitle: 'Voltar',
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ title: t('menuSettings') }} />

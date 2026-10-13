@@ -8,7 +8,7 @@ import { useI18n, Lang } from '@/services/i18n';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 const LANG_LABELS: Record<Lang, string> = { pt: 'Português', en: 'English', es: 'Español' };
 
@@ -121,6 +121,24 @@ export default function SettingsScreen() {
                 <Text style={styles.logDescription}>
                     {t('settingsLogDesc')}
                 </Text>
+            </View>
+
+            {/* Privacy & Legal Section */}
+            <View style={styles.section}>
+                <ThemedText type="subtitle" style={styles.sectionHeader}>Sobre & Privacidade</ThemedText>
+
+                <Pressable 
+                    style={styles.settingRow} 
+                    onPress={() => Linking.openURL('https://www.dunoup.com.br/privacidade').catch(() => Linking.openURL('https://www.dunoup.com.br'))}
+                >
+                    <View style={styles.settingInfo}>
+                        <Text style={styles.settingLabel}>Termos e Política de Privacidade</Text>
+                        <Text style={styles.settingDescription}>
+                            Consulte os termos de serviço e diretrizes de proteção de dados.
+                        </Text>
+                    </View>
+                    <Ionicons name="open-outline" size={20} color="#1c2d4f" />
+                </Pressable>
             </View>
 
         </ThemedView>

@@ -2,27 +2,41 @@
   "expo": {
     "name": "Duno",
     "slug": "nexus-mobile",
-    "version": "03.01.26",
-    "orientation": "portrait",
+    "version": "3.1.26",
+    "orientation": "default",
     "backgroundColor": "#ffffff",
     "icon": "./assets/images/app-icon-duno-v6.png",
     "scheme": "nexusmobile",
     "userInterfaceStyle": "automatic",
+    "locales": {
+      "pt": "./services/i18n.tsx",
+      "pt-BR": "./services/i18n.tsx"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nexus.mobile",
-      "buildNumber": "03.01.26",
+      "buildNumber": "3.1.26",
       "infoPlist": {
+        "CFBundleDevelopmentRegion": "pt_BR",
+        "CFBundleAllowMixedLocalizations": true,
+        "CFBundleLocalizations": [
+          "pt",
+          "pt_BR",
+          "pt-BR",
+          "portuguese"
+        ],
         "UIBackgroundModes": [
           "location",
           "fetch"
         ],
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow Nexus Mobile to use your location to track service routes even when the app is backgrounded.",
-        "NSLocationWhenInUseUsageDescription": "Allow Nexus Mobile to use your location to register check-in and check-out at service locations.",
-        "NSMicrophoneUsageDescription": "Permitir acesso ao microfone para transcrição do relatório.",
-        "NSSpeechRecognitionUsageDescription": "Permitir reconhecimento de voz para transcrever o relatório técnico.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Permitir acesso contínuo à localização para rastrear rotas de atendimento e registrar deslocamento técnico em tempo real, mesmo com o aplicativo em segundo plano.",
+        "NSLocationAlwaysUsageDescription": "Permitir que o aplicativo utilize sua localização em segundo plano para rastrear rotas e registrar check-in nos atendimentos.",
+        "NSLocationWhenInUseUsageDescription": "Permitir que o aplicativo utilize sua localização para validar check-in e check-out nos atendimentos técnicos.",
+        "NSMicrophoneUsageDescription": "Permitir acesso ao microfone para transcrição do relatório e laudos por voz.",
+        "NSSpeechRecognitionUsageDescription": "Permitir reconhecimento de voz para transcrever o relatório técnico automaticamente.",
         "NSCameraUsageDescription": "Permitir acesso à câmera para tirar fotos e gravar vídeos de evidências das ordens de serviço.",
-        "NSPhotoLibraryUsageDescription": "Permitir acesso à galeria para selecionar fotos de evidências das ordens de serviço."
+        "NSPhotoLibraryUsageDescription": "Permitir acesso à galeria para anexar fotos de evidências das ordens de serviço.",
+        "NSMotionUsageDescription": "Permitir detecção de movimento para otimizar o consumo de bateria durante o rastreamento em rotas de atendimento."
       }
     },
     "android": {
@@ -44,17 +58,7 @@
         "POST_NOTIFICATIONS",
         "MODIFY_AUDIO_SETTINGS",
         "INTERNET",
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_BACKGROUND_LOCATION",
-        "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_LOCATION",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.CAMERA"
+        "CAMERA"
       ]
     },
     "web": {
@@ -77,7 +81,7 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow Nexus Mobile to use your location to track service routes even when the app is backgrounded.",
+          "locationAlwaysAndWhenInUsePermission": "Permitir que o aplicativo utilize sua localização para rastrear rotas de atendimento mesmo em segundo plano.",
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }
@@ -114,7 +118,7 @@
       ],
       "react-native-compressor",
       [
-        "@react-native-voice/voice",
+        "expo-speech-recognition",
         {
           "microphonePermission": "Permitir acesso ao microfone para transcrição de voz nos laudos.",
           "speechRecognitionPermission": "Permitir reconhecimento de fala para preencher os formulários automaticamente."

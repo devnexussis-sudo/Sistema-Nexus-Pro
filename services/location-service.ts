@@ -134,6 +134,28 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
     }
 });
 
+// ─── Google Play Compliant Prominent Disclosure Helper ───────────────────────
+const showBackgroundLocationDisclosure = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+        Alert.alert(
+            'Uso da Localização em Segundo Plano',
+            'O aplicativo Duno coleta seus dados de localização para permitir o rastreamento contínuo de rotas de atendimento e registrar seu deslocamento técnico em tempo real, MESMO QUANDO O APLICATIVO ESTIVER FECHADO OU EM SEGUNDO PLANO.\n\nEsses dados são utilizados exclusivamente para a execução das ordens de serviço da sua empresa.',
+            [
+                {
+                    text: 'Agora Não',
+                    style: 'cancel',
+                    onPress: () => resolve(false),
+                },
+                {
+                    text: 'Entendi e Concordo',
+                    onPress: () => resolve(true),
+                },
+            ],
+            { cancelable: false }
+        );
+    });
+};
+
 // ─── Public API ──────────────────────────────────────────────────────────────
 export const startBackgroundLocation = async () => {
     try {
@@ -150,6 +172,13 @@ export const startBackgroundLocation = async () => {
             const { status: bgStatus, canAskAgain } = await Location.getBackgroundPermissionsAsync();
             if (bgStatus !== 'granted') {
                 if (canAskAgain) {
+                    // 🛡️ Prominent Disclosure exigida pelas políticas do Google Play
+                    const userAccepted = await showBackgroundLocationDisclosure();
+                    if (!userAccepted) {
+                        console.warn('[GPS] Background permission disclosure declined by user');
+                        return false;
+                    }
+
                     const { status } = await Location.requestBackgroundPermissionsAsync();
                     if (status !== 'granted') throw new Error('BACKGROUND_DENIED');
                 } else {

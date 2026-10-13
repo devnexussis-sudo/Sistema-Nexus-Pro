@@ -14,12 +14,20 @@ const translations = {
     // ── Menu Drawer ──
     menuProfile: 'Perfil',
     menuSettings: 'Configurações',
+    menuChangePassword: 'Alterar Senha',
     menuSync: 'Sincronizar',
     menuLogout: 'Sair',
     menuLogoutConfirm: 'Deseja realmente sair do aplicativo?',
     menuCancel: 'Cancelar',
     menuVersion: 'Versão',
     menuLoading: 'Carregando...',
+    menuSyncSuccess: 'Sincronização forçada concluída com sucesso!',
+    menuSyncError: 'Ocorreu um erro durante a sincronização.',
+    menuResetPasswordSuccess: 'E-mail de redefinição de senha enviado com sucesso! Verifique sua caixa de entrada.',
+    menuResetPasswordError: 'Não foi possível enviar o e-mail de redefinição de senha. Verifique sua conexão e tente novamente.',
+    menuResetPasswordDesc: 'Envia um link de redefinição para o seu e-mail cadastrado.',
+    notificationsTitle: 'Notificações',
+    notificationsEmpty: 'Nenhuma notificação encontrada.',
 
     // ── Login ──
     loginWelcome: 'Bem vindo(a) ao app Duno!',
@@ -105,6 +113,15 @@ const translations = {
     homeOfflineSwitch: 'Mude para Online para enviar',
     homeNewOsNotif: 'Nova OS Atribuída!',
     homeNewOsNotifBody: 'Você recebeu uma nova Ordem de Serviço:',
+    notifTitleAltered: 'OS Alterada',
+    notifBodyAltered: 'Ordem de Serviço foi alterada',
+    notifTitleScheduled: 'OS Agendada',
+    notifBodyScheduled: 'Ordem de Serviço foi agendada',
+    notifTitleCanceled: 'OS Cancelada',
+    notifBodyCanceled: 'Ordem de Serviço foi cancelada',
+    notifTitleRescheduled: 'Alteração de Agendamento',
+    notifBodyAssignedToYou: 'A OS %s foi atribuída a você',
+    notifBodyRescheduled: 'O horário da OS %s foi alterado',
 
     // ── Offline/Online Toggle ──
     toggleSyncing: 'Sincronizando...',
@@ -312,6 +329,8 @@ const translations = {
     execInsufficientBalance: 'Saldo insuficiente',
     execBackToForm: 'Voltar ao Formulário',
     execTechnicalReport: 'Relatório Técnico',
+    execServiceReport: 'Resumo do Atendimento',
+    execReportPlaceholder: 'Descreva de forma detalhada o resumo dos serviços executados nesta Ordem de Serviço...',
     execAll: 'Todos',
 
     // ── Duno AI ──
@@ -346,12 +365,20 @@ const translations = {
     // ── Menu Drawer ──
     menuProfile: 'Profile',
     menuSettings: 'Settings',
+    menuChangePassword: 'Change Password',
     menuSync: 'Sync',
     menuLogout: 'Exit',
     menuLogoutConfirm: 'Do you really want to log out?',
     menuCancel: 'Cancel',
     menuVersion: 'Version',
     menuLoading: 'Loading...',
+    menuSyncSuccess: 'Forced sync completed successfully!',
+    menuSyncError: 'An error occurred during synchronization.',
+    menuResetPasswordSuccess: 'Password reset email sent successfully! Please check your inbox.',
+    menuResetPasswordError: 'Could not send password reset email. Please check your connection and try again.',
+    menuResetPasswordDesc: 'Sends a reset link to your registered email.',
+    notificationsTitle: 'Notifications',
+    notificationsEmpty: 'No notifications found.',
 
     // ── Login ──
     loginWelcome: 'Welcome to the Duno app!',
@@ -437,6 +464,15 @@ const translations = {
     homeOfflineSwitch: 'Switch to Online to send',
     homeNewOsNotif: 'New OS Assigned!',
     homeNewOsNotifBody: 'You received a new Service Order:',
+    notifTitleAltered: 'OS Updated',
+    notifBodyAltered: 'Service Order was updated',
+    notifTitleScheduled: 'OS Scheduled',
+    notifBodyScheduled: 'Service Order was scheduled',
+    notifTitleCanceled: 'OS Canceled',
+    notifBodyCanceled: 'Service Order was canceled',
+    notifTitleRescheduled: 'Schedule Change',
+    notifBodyAssignedToYou: 'OS %s was assigned to you',
+    notifBodyRescheduled: 'The schedule for OS %s was changed',
 
     // ── Offline/Online Toggle ──
     toggleSyncing: 'Syncing...',
@@ -640,6 +676,8 @@ const translations = {
     execInsufficientBalance: 'Insufficient balance',
     execBackToForm: 'Back to Form',
     execTechnicalReport: 'Technical Report',
+    execServiceReport: 'Service Summary',
+    execReportPlaceholder: 'Describe in detail the summary of services executed in this Service Order...',
     execAll: 'All',
 
     // ── Duno AI ──
@@ -674,12 +712,20 @@ const translations = {
     // ── Menu Drawer ──
     menuProfile: 'Perfil',
     menuSettings: 'Configuración',
+    menuChangePassword: 'Cambiar Contraseña',
     menuSync: 'Sincronizar',
     menuLogout: 'Salir',
     menuLogoutConfirm: '¿Desea realmente cerrar sesión?',
     menuCancel: 'Cancelar',
     menuVersion: 'Versión',
     menuLoading: 'Cargando...',
+    menuSyncSuccess: '¡Sincronización forzada completada con éxito!',
+    menuSyncError: 'Ocurrió un error durante la sincronización.',
+    menuResetPasswordSuccess: '¡Correo de restablecimiento de contraseña enviado con éxito! Verifique su bandeja de entrada.',
+    menuResetPasswordError: 'No se pudo enviar el correo de restablecimiento de contraseña. Intente de nuevo más tarde.',
+    menuResetPasswordDesc: 'Envía un enlace de restablecimiento a su correo registrado.',
+    notificationsTitle: 'Notificaciones',
+    notificationsEmpty: 'No se encontraron notificaciones.',
 
     // ── Login ──
     loginWelcome: '¡Bienvenido(a) a la aplicación Duno!',
@@ -765,6 +811,15 @@ const translations = {
     homeOfflineSwitch: 'Cambie a Online para enviar',
     homeNewOsNotif: '¡Nueva OS Asignada!',
     homeNewOsNotifBody: 'Recibiste una nueva Orden de Servicio:',
+    notifTitleAltered: 'OS Modificada',
+    notifBodyAltered: 'La Orden de Servicio fue modificada',
+    notifTitleScheduled: 'OS Programada',
+    notifBodyScheduled: 'La Orden de Servicio fue programada',
+    notifTitleCanceled: 'OS Cancelada',
+    notifBodyCanceled: 'La Orden de Servicio fue cancelada',
+    notifTitleRescheduled: 'Cambio de Programación',
+    notifBodyAssignedToYou: 'La OS %s te fue asignada',
+    notifBodyRescheduled: 'El horario de la OS %s fue cambiado',
 
     // ── Offline/Online Toggle ──
     toggleSyncing: 'Sincronizando...',
@@ -968,6 +1023,8 @@ const translations = {
     execInsufficientBalance: 'Saldo insuficiente',
     execBackToForm: 'Volver al Formulario',
     execTechnicalReport: 'Informe Técnico',
+    execServiceReport: 'Resumen de Atención',
+    execReportPlaceholder: 'Describa de forma detallada el resumen de los servicios ejecutados en esta Orden de Servicio...',
     execAll: 'Todos',
 
     // ── Duno AI ──

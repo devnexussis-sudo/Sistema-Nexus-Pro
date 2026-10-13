@@ -175,4 +175,48 @@ export const NotificationService = {
     async showLocalNotification(title: string, body: string, data: any = {}) {
         return this.triggerLocalNotification(title, body, data);
     },
+
+    /**
+     * Remove incondicionalmente a bolinha (badge) do ícone do aplicativo e limpa a bandeja de notificações.
+     */
+    async clearAppIconBadge() {
+        if (isExpoGoAndroid || !Notifications) return;
+        try {
+            await Notifications.setBadgeCountAsync(0).catch(() => {});
+            await Notifications.dismissAllNotificationsAsync().catch(() => {});
+        } catch (e) {}
+    },
+
+    /**
+     * Sincroniza a bolinha/badge do ícone do aplicativo (no celular) com o número REAL de notificações não lidas DO USUÁRIO.
+     * Se 0 -> remove a bolinha do ícone e descarta notificações da bandeja do sistema.
+     */
+    async syncAppIconBadge() {
+        if (isExpoGoAndroid || !Notifications) return;
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.user) {
+                await Notifications.setBadgeCountAsync(0).catch(() => {});
+                await Notifications.dismissAllNotificationsAsync().catch(() => {});
+                return;
+            }
+
+            // Busca estritamente notificações não lidas atribuídas a ESTE usuário específico.
+            // Notificações com user_id nulo (broadcasts antigos) não devem travar a bolinha do ícone.
+            const { count, error } = await supabase
+                .from('notifications')
+                .select('id', { count: 'exact', head: true })
+                .eq('is_read', false)
+                .eq('user_id', session.user.id);
+
+            const unreadCount = (!error && typeof count === 'number') ? count : 0;
+            await Notifications.setBadgeCountAsync(unreadCount).catch(() => {});
+
+            if (unreadCount === 0) {
+                await Notifications.dismissAllNotificationsAsync().catch(() => {});
+            }
+        } catch (e) {
+            await Notifications.setBadgeCountAsync(0).catch(() => {});
+        }
+    },
 };

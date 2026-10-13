@@ -1,4 +1,3 @@
-
 import { HeaderRightToggle } from '@/components/header-right-toggle';
 import { ImageViewerModal } from '@/components/image-viewer-modal';
 import { VideoViewerModal } from '@/components/video-viewer-modal';
@@ -21,8 +20,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Tabs, useFocusEffect, useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { useGlobalLoading } from '@/contexts/GlobalLoadingContext';
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, KeyboardAvoidingView, Share } from 'react-native';
+import { ActivityIndicator, ActionSheetIOS, Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, KeyboardAvoidingView, Share } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import NexusCamera from '@/components/nexus-camera';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -103,6 +103,7 @@ export default function OrderDetailsScreen() {
     };
     // Block photo state
     const [impedimentPhotoUris, setImpedimentPhotoUris] = useState<string[]>([]);
+    const [cameraModalVisible, setCameraModalVisible] = useState(false);
     const [isUploadingBlock, setIsUploadingBlock] = useState(false);
     const [isPhotoSourceModalVisible, setIsPhotoSourceModalVisible] = useState(false);
     // Concurrent OS control
@@ -144,8 +145,8 @@ export default function OrderDetailsScreen() {
             const startTime = Date.now();
             const fetchOrder = async () => {
                 try {
-                    // Load tenant settings for concurrent OS control (force refresh on screen load)
-                    TenantService.getSettings(true).then(settings => {
+                    // Load tenant settings for concurrent OS control (force refresh only when online)
+                    TenantService.getSettings(!syncService.isOfflineModeEnabled()).then(settings => {
                         if (isActive) {
                             setAllowMultipleInProgress(settings.allowMultipleInProgress);
                             setShowPrices(settings.showStockPrice);
@@ -165,6 +166,8 @@ export default function OrderDetailsScreen() {
                             const mapped = OrderService.mapDbOrderToApp(raw);
                             mapped.equipments = raw.equipments || [];
                             setOrder(mapped);
+                            setLoading(false);
+                            hideLoading();
                             return; // Dado encontrado no cache — não vai para rede
                         }
                         // Sem cache local: cai no fluxo normal de rede abaixo
@@ -482,6 +485,45 @@ export default function OrderDetailsScreen() {
         return true;
     };
 
+    const getFastLocation = async (): Promise<{ lat?: number, lon?: number }> => {
+        try {
+            const fetchLocationWithTimeout = async () => {
+                const { status } = await Location.requestForegroundPermissionsAsync().catch(() => ({ status: 'denied' }));
+                if (status !== 'granted') return {};
+
+                const gpsEnabled = await Location.hasServicesEnabledAsync().catch(() => false);
+                if (!gpsEnabled) return {};
+
+                // Try last known first with short timeout
+                try {
+                    const lastKnown = await Location.getLastKnownPositionAsync({ maxAge: 60000 }).catch(() => null);
+                    if (lastKnown && 'coords' in lastKnown && lastKnown.coords?.latitude) {
+                        return { lat: lastKnown.coords.latitude, lon: lastKnown.coords.longitude };
+                    }
+                } catch {}
+
+                // Fallback to getCurrentPositionAsync (Accuracy.Lowest para ser instantâneo e não travar o emulador iOS)
+                const pos = await Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.Lowest,
+                }).catch(() => null);
+
+                if (pos && 'coords' in pos && pos.coords?.latitude) {
+                    return { lat: pos.coords.latitude, lon: pos.coords.longitude };
+                }
+                return {};
+            };
+
+            const timeoutPromise = new Promise<{ lat?: number, lon?: number }>((resolve) =>
+                setTimeout(() => resolve({}), 2000)
+            );
+
+            return await Promise.race([fetchLocationWithTimeout(), timeoutPromise]);
+        } catch (e) {
+            console.warn('[OSDetail] getFastLocation error:', e);
+            return {};
+        }
+    };
+
     const handleExecute = async () => {
         // MODO OFFLINE: ir direto para execução
         if (syncService.isOfflineModeEnabled()) {
@@ -492,90 +534,37 @@ export default function OrderDetailsScreen() {
         const canProceed = await checkConcurrentOS();
         if (!canProceed) return;
 
-        // Ao clicar, aciona o respectivo fluxo de forma contextual mostrando o spinner (loading)
-        setLoading(true);
-        showLoading('Iniciando...');
         try {
-            // Capture location if possible
-            let lat: number | undefined;
-            let lon: number | undefined;
+            // Capturar localização ANTES de abrir a modal global de loading (evita colisão de modal no iOS)
             const needsLocation = requireLocationForExecution && !syncService.isOfflineModeEnabled();
-            
-            try {
-                const { status } = await Location.requestForegroundPermissionsAsync();
-                if (status !== 'granted') {
-                    if (needsLocation) {
-                        setAlertConfig({
-                            visible: true,
-                            title: 'Permissão de GPS Necessária',
-                            message: 'Você precisa autorizar o uso do GPS (Localização) para iniciar a OS. Verifique as configurações do seu celular.',
-                            buttons: [{ text: 'Entendi', style: 'default' }]
-                        });
-                        setLoading(false);
-                        hideLoading();
-                        return;
-                    }
-                } else {
-                    const gpsEnabled = await Location.hasServicesEnabledAsync();
-                    if (!gpsEnabled) {
-                        if (needsLocation) {
-                            setAlertConfig({
-                                visible: true,
-                                title: 'GPS Desativado',
-                                message: 'Seu GPS está desligado. Por favor, ative a localização do aparelho para podermos validar sua distância até o cliente.',
-                                buttons: [{ text: 'Entendi', style: 'default' }]
-                            });
-                            setLoading(false);
-                            hideLoading();
-                            return;
-                        }
-                    } else {
-                        // Force high accuracy to get a real reading now
-                        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
-                        lat = loc.coords.latitude;
-                        lon = loc.coords.longitude;
-                    }
-                }
-            } catch (err) {
-                console.log('[OSDetail] Location fetch error:', err);
-            }
+            const { lat, lon } = await getFastLocation();
 
-            if (order.status === 'assigned') {
-                setLoading(false);
+            showLoading('Iniciando...');
+
+            if (needsLocation && (lat === undefined || lon === undefined)) {
                 hideLoading();
-                setActionLocation({ lat, lon });
-                setIsActionModalVisible(true);
-                return; // Early return
+                setAlertConfig({
+                    visible: true,
+                    title: 'Localização Indisponível',
+                    message: 'Não foi possível obter sua localização com o GPS. Verifique se a localização do aparelho está ativada e tente novamente.',
+                    buttons: [{ text: 'OK', style: 'default' }]
+                });
+                return;
             }
 
             // Check location restriction if enabled and online
-            if (needsLocation) {
-                if (lat === undefined || lon === undefined) {
-                    setAlertConfig({
-                        visible: true,
-                        title: 'Localização Indisponível',
-                        message: 'Não foi possível ler sua localização. Verifique se o GPS está ativado e tente novamente.',
-                        buttons: [{ text: 'OK', style: 'default' }]
-                    });
-                    setLoading(false);
-                    hideLoading();
-                    return;
-                }
-
-                // Resolve client coordinates — from order data or geocode by address
+            if (needsLocation && lat !== undefined && lon !== undefined) {
                 let clientLat: number | null = order.customerLat ?? null;
                 let clientLng: number | null = order.customerLng ?? null;
 
                 if (!clientLat || !clientLng) {
-                    // Try to geocode the address
                     const address = order.address;
                     if (address && address !== 'Endereço não informado') {
                         try {
-                            const geocoded = await Location.geocodeAsync(address);
+                            const geocoded = await Location.geocodeAsync(address).catch(() => []);
                             if (geocoded && geocoded.length > 0) {
                                 clientLat = geocoded[0].latitude;
                                 clientLng = geocoded[0].longitude;
-                                console.log(`[OSDetail] 📍 Geocoding OK: ${address} → ${clientLat}, ${clientLng}`);
                             }
                         } catch (geoErr) {
                             console.warn('[OSDetail] Geocoding failed:', geoErr);
@@ -584,15 +573,13 @@ export default function OrderDetailsScreen() {
                 }
 
                 if (!clientLat || !clientLng) {
-                    // Sem coordenadas nem geocoding: bloqueia por segurança
+                    hideLoading();
                     setAlertConfig({
                         visible: true,
                         title: 'Localização do Cliente Indisponível',
-                        message: 'Não foi possível obter as coordenadas do cliente para verificar sua proximidade. Verifique se o endereço da OS está correto ou contate o administrador.',
+                        message: 'Não foi possível obter as coordenadas do cliente para verificar sua proximidade.',
                         buttons: [{ text: 'Entendi', style: 'default' }]
                     });
-                    setLoading(false);
-                    hideLoading();
                     return;
                 }
 
@@ -601,37 +588,38 @@ export default function OrderDetailsScreen() {
                     ? `${(distance / 1000).toFixed(1)} km` 
                     : `${distance.toFixed(0)} metros`;
                     
-                console.log(`[OSDetail] 📏 Distância ao cliente: ${distanceStr} (limite: 300m)`);
                 if (distance > 300) {
+                    hideLoading();
                     setAlertConfig({
                         visible: true,
                         title: 'Fora do Raio Permitido',
-                        message: `Você está a ${distanceStr} do endereço do cliente. O administrador exige que você esteja num raio máximo de 300 metros para iniciar esta OS.`,
+                        message: `Você está a ${distanceStr} do endereço do cliente. O raio máximo permitido é de 300 metros para iniciar esta OS.`,
                         buttons: [{ text: 'Entendi', style: 'default' }]
                     });
-                    setLoading(false);
-                    hideLoading();
                     return;
                 }
             }
 
+            if (order.status === 'assigned') {
+                hideLoading();
+                setActionLocation({ lat, lon });
+                setIsActionModalVisible(true);
+                return;
+            }
+
             // Normal flow for already traveling or in_progress
             if (order.status !== 'in_progress' && order.status !== 'EM ANDAMENTO') {
-                await AsyncStorage.removeItem(`os_cache_${id}`);
+                await AsyncStorage.removeItem(`os_cache_${id}`).catch(() => {});
                 await OrderService.startExecution(id as string, lat, lon);
             }
+            hideLoading();
             router.push({ pathname: '/os/execute', params: { id: id as string } });
         } catch (e: any) {
-            setAlertConfig({
-                visible: true,
-                title: t('alertError'),
-                message: e.message,
-                buttons: [{ text: 'OK', style: 'default' }]
-            });
+            console.error('[OSDetail] handleExecute error:', e);
+            hideLoading();
+            Alert.alert(t('alertError'), e.message || 'Erro ao iniciar OS.');
         } finally {
-            if (order.status !== 'assigned') {
-                setLoading(false);
-            }
+            setLoading(false);
             hideLoading();
         }
     };
@@ -645,22 +633,50 @@ export default function OrderDetailsScreen() {
             Alert.alert(t('homeWarning'), t('osMaxPhotos'));
             return;
         }
-        setIsPhotoSourceModalVisible(true);
+        if (Platform.OS === 'ios') {
+            ActionSheetIOS.showActionSheetWithOptions(
+                {
+                    options: [t('menuCancel'), t('osTakePhotoNow'), t('osChooseGallery')],
+                    cancelButtonIndex: 0,
+                },
+                (buttonIndex) => {
+                    if (buttonIndex === 1) {
+                        processPhotoChoice('camera');
+                    } else if (buttonIndex === 2) {
+                        processPhotoChoice('library');
+                    }
+                }
+            );
+        } else {
+            setIsPhotoSourceModalVisible(true);
+        }
     };
 
     const processPhotoChoice = async (source: 'camera' | 'library') => {
         try {
-            const options: ImagePicker.ImagePickerOptions = {
+            if (source === 'camera') {
+                const permission = await ImagePicker.requestCameraPermissionsAsync();
+                if (permission.status !== "granted") {
+                    Alert.alert(t('alertPermission'), 'Precisamos de permissão para acessar a câmera.');
+                    return;
+                }
+                setCameraModalVisible(true);
+                return;
+            } else {
+                const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (permission.status !== "granted") {
+                    Alert.alert(t('alertPermission'), 'Precisamos de permissão para acessar a galeria de fotos.');
+                    return;
+                }
+            }
+
+            const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ['images'],
                 quality: 0.8,
                 allowsEditing: false,
                 allowsMultipleSelection: true,
                 selectionLimit: 10 - impedimentPhotoUris.length
-            };
-
-            const result = source === 'camera'
-                ? await ImagePicker.launchCameraAsync(options)
-                : await ImagePicker.launchImageLibraryAsync({ ...options });
+            });
 
             if (!result.canceled && result.assets && result.assets.length > 0) {
                 // Compress each image before adding
@@ -675,7 +691,8 @@ export default function OrderDetailsScreen() {
                 }
                 setImpedimentPhotoUris(prev => [...prev, ...newUris].slice(0, 10));
             }
-        } catch {
+        } catch (err) {
+            console.error('[processPhotoChoice] Error:', err);
             Alert.alert(t('alertError'), t('osCouldNotMedia'));
         }
     };
@@ -967,11 +984,27 @@ export default function OrderDetailsScreen() {
 
                 {/* ====================== HISTÓRICO DE VISITAS (MOVIMENTADO PARA CIMA) ====================== */}
                 {(() => {
-                    const completedOrBlockedVisits = orderVisits.filter(v => ['completed', 'blocked'].includes(v.status));
+                    const completedOrBlockedVisits = [...orderVisits.filter(v => ['completed', 'blocked'].includes(v.status))];
+
+                    // Se a OS está com status impedido/blocked mas não existe nenhum registro de visita impedida na tabela service_visits,
+                    // injeta um registro de visita virtual para garantir a exibição do card de impedimento com fotos
+                    if ((order.status === 'blocked' || order.status === 'IMPEDIDO') && !completedOrBlockedVisits.some(v => v.status === 'blocked')) {
+                        completedOrBlockedVisits.push({
+                            id: `virtual_blocked_${order.id}`,
+                            order_id: order.id,
+                            technician_id: currentUserId,
+                            visit_number: completedOrBlockedVisits.length + 1,
+                            status: 'blocked',
+                            impediment_reason: order.formData?.blockReason || order.formData?.impediment_reason || 'OS Impedida',
+                            departure_time: order.blockedDate || order.updatedAt || new Date().toISOString(),
+                            form_data: order.formData || {}
+                        });
+                    }
+
                     // Se showVisitHistory é true: mostra todas as visitas de todos os técnicos.
-                    // Se showVisitHistory é false: mostra apenas as visitas feitas pelo próprio técnico logado.
+                    // Se showVisitHistory é false: mostra apenas as visitas feitas pelo próprio técnico logado (ou visita virtual).
                     const visibleVisits = completedOrBlockedVisits.filter(v =>
-                        showVisitHistory || (currentUserId && (v.technician_id === currentUserId || v.technicianId === currentUserId))
+                        showVisitHistory || (currentUserId && (v.technician_id === currentUserId || v.technicianId === currentUserId)) || String(v.id).startsWith('virtual_')
                     );
 
                     if (visibleVisits.length === 0) return null;
@@ -984,12 +1017,12 @@ export default function OrderDetailsScreen() {
                             {visibleVisits.map((visit, idx, filteredArr) => {
                                 const isLast = idx === filteredArr.length - 1;
                                 const rawFd = visit.form_data || {};
-                                const ignoredFdKeys = new Set(['blockReason', 'blockPhotoUrls', 'blockedAt', 'completedAt', 'signature', 'clientName', 'clientDoc', 'extra_photos', 'technical_report', 'parts_used', 'impediment_signature', 'impediment_responsible', 'impediment_reason', 'blockPhotoUrl', 'video_url', 'impediment_history', 'items', 'videoUrl', 'execution_forms', 'signatureName']);
+                                const ignoredFdKeys = new Set(['blockReason', 'blockPhotoUrls', 'block_photo_urls', 'blockPhotoUrl', 'block_photo_url', 'blockedAt', 'completedAt', 'signature', 'clientName', 'clientDoc', 'extra_photos', 'technical_report', 'parts_used', 'impediment_signature', 'impediment_responsible', 'impediment_reason', 'video_url', 'impediment_history', 'items', 'videoUrl', 'execution_forms', 'signatureName', 'photoUrl', 'photo_url', 'photo', 'attachment', 'attachments', 'photos', 'impedimento_fotos', 'impediment_photos']);
                                 
                                 // Determina se é legacy baseado em ter keys válidas de formulário salvo
                                 const hasFormKeys = Object.keys(rawFd).some(k => !ignoredFdKeys.has(k) && !k.startsWith('_'));
                                 const isLegacy = Object.keys(rawFd).length === 0 || !hasFormKeys;
-                                const fd: any = isLegacy && isLast ? (order.formData || {}) : rawFd;
+                                const fd: any = isLegacy && isLast ? { ...(order.formData || {}), ...rawFd } : rawFd;
                                 
                                 // Signatures and Responsible info should be specific to the visit's form data.
                                 // The fallback to order.formData should only happen for the 'Legacy' last visit (handled by 'fd' initialization).
@@ -1014,10 +1047,82 @@ export default function OrderDetailsScreen() {
                                 );
 
                                 const blockPhotos: string[] = (() => {
-                                    const src = fd.blockPhotoUrls;
-                                    if (Array.isArray(src)) return src.filter(Boolean);
-                                    if (typeof src === 'string') { try { return JSON.parse(src); } catch { return [src]; } }
-                                    return [];
+                                    let src = fd.blockPhotoUrls 
+                                           || fd.block_photo_urls 
+                                           || fd.blockPhotoUrl 
+                                           || fd.block_photo_url 
+                                           || fd.impediment_photos 
+                                           || fd.impedimento_fotos 
+                                           || fd.photo_url 
+                                           || fd.photoUrl
+                                           || fd.photo
+                                           || fd.attachment
+                                           || fd.attachments
+                                           || fd.photos
+                                           || visit.photo_url 
+                                           || visit.block_photo_urls
+                                           || visit.blockPhotoUrls
+                                           || visit.impediment_photos;
+
+                                    // Fallback agressivo no order.formData e no próprio order
+                                    if (!src || (Array.isArray(src) && src.length === 0)) {
+                                        src = order.formData?.blockPhotoUrls 
+                                           || order.formData?.block_photo_urls 
+                                           || order.formData?.blockPhotoUrl 
+                                           || order.formData?.block_photo_url 
+                                           || order.formData?.impediment_photos 
+                                           || order.formData?.impedimento_fotos 
+                                           || order.formData?.photo_url
+                                           || order.formData?.photoUrl
+                                           || order.formData?.photo
+                                           || order.formData?.attachment
+                                           || order.formData?.attachments
+                                           || order.block_photo_urls
+                                           || order.impediment_photos
+                                           || order.photo_url;
+                                    }
+
+                                    let arr: string[] = [];
+                                    if (Array.isArray(src)) {
+                                        arr = src;
+                                    } else if (typeof src === 'string' && src.trim()) {
+                                        const trimmed = src.trim();
+                                        if (trimmed.startsWith('[')) {
+                                            try { arr = JSON.parse(trimmed); } catch { arr = [trimmed]; }
+                                        } else {
+                                            arr = [trimmed];
+                                        }
+                                    }
+
+                                    // Tenta procurar dinamicamente por chaves de foto/anexo se ainda estiver vazio e for blocked
+                                    if (arr.length === 0 && isBlocked) {
+                                        const searchObjs = [fd, order.formData || {}];
+                                        for (const obj of searchObjs) {
+                                            for (const [k, v] of Object.entries(obj)) {
+                                                const lowerK = k.toLowerCase();
+                                                if (lowerK.includes('photo') || lowerK.includes('foto') || lowerK.includes('anexo') || lowerK.includes('evidência') || lowerK.includes('attachment')) {
+                                                    let vArr: string[] = [];
+                                                    if (Array.isArray(v)) vArr = v;
+                                                    else if (typeof v === 'string') {
+                                                        const t = v.trim();
+                                                        if (t.startsWith('[')) {
+                                                            try { vArr = JSON.parse(t); } catch { vArr = [t]; }
+                                                        } else {
+                                                            vArr = [t];
+                                                        }
+                                                    }
+                                                    const valid = vArr.filter((p: any) => typeof p === 'string' && (p.startsWith('http') || p.startsWith('file://') || p.startsWith('data:')));
+                                                    if (valid.length > 0) {
+                                                        arr = valid;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                            if (arr.length > 0) break;
+                                        }
+                                    }
+
+                                    return arr.filter((p: any) => typeof p === 'string' && (p.startsWith('http') || p.startsWith('file://') || p.startsWith('data:')));
                                 })();
                                 const extraPhotos: string[] = (() => {
                                     let src = fd.extra_photos || fd.photos;
@@ -1037,7 +1142,7 @@ export default function OrderDetailsScreen() {
                                             arr = [src];
                                         }
                                     }
-                                    return arr.filter((p: any) => typeof p === 'string' && p.startsWith('http'));
+                                    return arr.filter((p: any) => typeof p === 'string' && (p.startsWith('http') || p.startsWith('file://') || p.startsWith('data:')));
                                 })();
                                 const videoUrl: string | null =
                                     fd.video_url ||           // Current: saved in visit form_data
@@ -1428,6 +1533,7 @@ export default function OrderDetailsScreen() {
                                                         <Text style={{ fontSize: 13, color: '#7f1d1d', fontWeight: '500', lineHeight: 20 }}>
                                                             {fd.blockReason || visit.impediment_reason || fd.impediment_reason}
                                                         </Text>
+
                                                     </View>
                                                 )}
 
@@ -1851,6 +1957,25 @@ export default function OrderDetailsScreen() {
                     </View>
                 </View>
             </Modal>
+
+            {/* NexusCamera Modal */}
+            {cameraModalVisible && (
+                <Modal visible={true} transparent={false} animationType="slide" onRequestClose={() => setCameraModalVisible(false)}>
+                    <NexusCamera 
+                        mode="photo"
+                        onClose={() => setCameraModalVisible(false)} 
+                        onPhotoCaptured={async (uri) => {
+                            setCameraModalVisible(false);
+                            try {
+                                const compressedUri = await ImageService.compressImage(uri);
+                                setImpedimentPhotoUris(prev => [...prev, compressedUri].slice(0, 10));
+                            } catch (e) {
+                                setImpedimentPhotoUris(prev => [...prev, uri].slice(0, 10));
+                            }
+                        }} 
+                    />
+                </Modal>
+            )}
 
             {/* Global Screen Alert */}
             <NexusAlert 

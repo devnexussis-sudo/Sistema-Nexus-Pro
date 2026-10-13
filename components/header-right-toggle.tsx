@@ -2,7 +2,12 @@ import { useI18n } from '@/services/i18n';
 import { syncService } from '@/services/sync-service';
 import NetInfo from '@react-native-community/netinfo';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Switch, Text, View, Pressable, DeviceEventEmitter } from 'react-native';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useRouter } from 'expo-router';
+import { supabase } from '@/services/supabase';
+
+import { NotificationService } from '@/services/notification-service';
 
 export function HeaderRightToggle() {
     const { t } = useI18n();
@@ -12,7 +17,48 @@ export function HeaderRightToggle() {
     const [isLoading, setIsLoading] = useState(false);
     const [label, setLabel] = useState('');
 
+    const [hasUnread, setHasUnread] = useState(false);
+    const router = useRouter();
+
+    const checkUnreadNotifications = async () => {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.user) return;
+            const { data, error } = await supabase
+                .from('notifications')
+                .select('id')
+                .eq('is_read', false)
+                .eq('user_id', session.user.id)
+                .limit(1);
+            const unreadFound = !error && data && data.length > 0;
+            setHasUnread(unreadFound);
+
+            // Sincroniza o ícone do app no sistema operacional do celular
+            NotificationService.syncAppIconBadge().catch(() => {});
+        } catch (e) {
+            // quiet fail
+        }
+    };
+
     useEffect(() => {
+        checkUnreadNotifications();
+        
+        // Proteção para plataformas (ex: Web) onde DeviceEventEmitter não existe
+        const unNotif = DeviceEventEmitter?.addListener?.('refreshNotifications', checkUnreadNotifications);
+        
+        // Real-time listener para atualizar a bolinha instantaneamente
+        // Usando nome de canal único para evitar erro de reuso em Hot Reloads
+        const channelName = `realtime-notifs-${Date.now()}`;
+        const notifChannel = supabase.channel(channelName)
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'notifications'
+            }, () => {
+                checkUnreadNotifications();
+            })
+            .subscribe();
+
         const unNet = NetInfo.addEventListener(s => setIsConnected(!!s.isConnected));
         const unQueue = syncService.subscribe(() => {
             setIsOfflineMode(syncService.isOfflineModeEnabled());
@@ -21,7 +67,14 @@ export function HeaderRightToggle() {
             setIsSyncing(syncing);
             setLabel(syncing ? t('toggleSyncing') : '');
         });
-        return () => { unNet(); unQueue(); unSync(); };
+
+        return () => { 
+            unNet(); 
+            unQueue(); 
+            unSync(); 
+            unNotif?.remove?.();
+            supabase.removeChannel(notifChannel);
+        };
     }, []);
 
     const isBusy = isLoading || isSyncing;
@@ -142,6 +195,18 @@ export function HeaderRightToggle() {
 
     return (
         <View style={styles.container}>
+            {/* Notification Bell */}
+            <Pressable 
+                onPress={() => router.push('/notifications')} 
+                style={styles.bellContainer}
+                hitSlop={15}
+            >
+                <IconSymbol name="bell.fill" size={22} color="#cbd5e1" />
+                {hasUnread && (
+                    <View style={styles.unreadBadge} />
+                )}
+            </Pressable>
+
             {isBusy ? (
                 <View style={[styles.pill, { borderColor: '#f59e0b', paddingHorizontal: 8 }]}>
                     <ActivityIndicator size="small" color="#f59e0b" />
@@ -169,9 +234,25 @@ export function HeaderRightToggle() {
 
 const styles = StyleSheet.create({
     container: {
-        marginRight: 12,
-        justifyContent: 'center',
+        marginRight: 16,
+        flexDirection: 'row',
         alignItems: 'center',
+    },
+    bellContainer: {
+        marginRight: 14,
+        position: 'relative',
+        justifyContent: 'center',
+    },
+    unreadBadge: {
+        position: 'absolute',
+        top: -3,
+        right: -2,
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: '#ef4444',
+        borderWidth: 2,
+        borderColor: '#1c2d4f',
     },
     pill: {
         flexDirection: 'row',

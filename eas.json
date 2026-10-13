@@ -4,6 +4,9 @@
       "node": "20.19.4",
       "developmentClient": true,
       "distribution": "internal",
+      "ios": {
+        "simulator": true
+      },
       "env": {
         "NODE_ENV": "development"
       }

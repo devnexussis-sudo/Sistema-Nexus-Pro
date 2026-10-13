@@ -78,9 +78,24 @@ serve(async (req) => {
             .from('orders')
             .select('*', { count: 'exact' })
 
+        // Check user role for technician isolation
+        const { data: userProfile } = await supabaseClient
+            .from('users')
+            .select('role')
+            .eq('id', user.id)
+            .maybeSingle()
+
+        const role = userProfile?.role?.toUpperCase() || ''
+        const isAdmin = ['ADMIN', 'MANAGER', 'SUPER_ADMIN', 'MASTER', 'ADMINISTRADOR', 'GESTOR'].includes(role)
+
+        let targetAssignedTo = assignedTo
+        if (!isAdmin) {
+            targetAssignedTo = user.id
+        }
+
         // Apply filters
         if (tenantId) {
-            query = query.eq('tenantId', tenantId)
+            query = query.eq('tenant_id', tenantId)
         }
 
         if (status) {
@@ -91,8 +106,8 @@ serve(async (req) => {
             query = query.eq('priority', priority)
         }
 
-        if (assignedTo) {
-            query = query.eq('assignedTo', assignedTo)
+        if (targetAssignedTo) {
+            query = query.eq('assigned_to', targetAssignedTo)
         }
 
         // Apply pagination

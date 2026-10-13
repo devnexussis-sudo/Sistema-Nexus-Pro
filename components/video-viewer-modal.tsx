@@ -71,26 +71,38 @@ export function VideoViewerModal({ visible, videoUri, onClose }: VideoViewerModa
 
     if (!visible || !videoUri) return null;
 
-    // Cálculo das margens seguras para Android e Apple (iOS)
+    // Calculate safe margins
     const topInset = Math.max(insets.top, Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight || 28));
     const bottomInset = Math.max(insets.bottom, Platform.OS === 'ios' ? 24 : 16);
 
-    const htmlContent = resolvedUri ? `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <style>
-            * { box-sizing: border-box; }
-            body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000000; display: flex; justify-content: center; align-items: center; overflow: hidden; }
-            video { width: 100%; height: 100%; object-fit: contain; background: #000000; border-radius: 8px; }
-        </style>
-    </head>
-    <body>
-        <video src="${resolvedUri}" controls autoplay playsinline controlsList="nodownload"></video>
-    </body>
-    </html>
-    ` : '';
+    let htmlContent = '';
+    let baseUrl = '';
+
+    if (resolvedUri) {
+        let videoSrc = resolvedUri;
+        if (resolvedUri.startsWith('file://')) {
+            // Fix iOS local file playback: use directory as baseUrl and filename as src
+            baseUrl = resolvedUri.substring(0, resolvedUri.lastIndexOf('/') + 1);
+            videoSrc = resolvedUri.substring(resolvedUri.lastIndexOf('/') + 1);
+        }
+
+        htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+            <style>
+                * { box-sizing: border-box; }
+                body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000000; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+                video { width: 100%; height: 100%; object-fit: contain; background: #000000; border-radius: 8px; }
+            </style>
+        </head>
+        <body>
+            <video src="${videoSrc}" controls autoplay playsinline controlsList="nodownload"></video>
+        </body>
+        </html>
+        `;
+    }
 
     return (
         <Modal 
@@ -128,15 +140,15 @@ export function VideoViewerModal({ visible, videoUri, onClose }: VideoViewerModa
                         </View>
                     ) : resolvedUri ? (
                         <WebView
-                            source={{ html: htmlContent, baseUrl: '' }}
+                            source={{ html: htmlContent, baseUrl }}
                             style={styles.webview}
                             allowsFullscreenVideo
                             allowsInlineMediaPlayback
                             mediaPlaybackRequiresUserAction={false}
                             originWhitelist={['*']}
-                            allowFileAccess
-                            allowFileAccessFromFileURLs
-                            allowUniversalAccessFromFileURLs
+                            allowFileAccess={true}
+                            allowFileAccessFromFileURLs={true}
+                            allowUniversalAccessFromFileURLs={true}
                         />
                     ) : null}
                 </View>

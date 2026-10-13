@@ -35,6 +35,7 @@ import { BootstrapService } from './bootstrap-service';
 import { CLARO_FIX_FLAGS, detectCarrier, pingSupabase } from './connection-diagnostics';
 import { resilientUpload } from './upload-resilient';
 import NetInfo from '@react-native-community/netinfo';
+import { syncService } from './sync-service';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
     setAutoCheckinEnabled,
@@ -291,6 +292,7 @@ class AppLifecycleManager {
                 err => console.warn('[Lifecycle] Push registration failed:', err)
             );
             this.setupNotificationListeners();
+            NotificationService.syncAppIconBadge().catch(() => {});
 
             // 6.5 Solicitar permissões de Microfone para Transcrição de Voz
             try {
@@ -489,6 +491,9 @@ class AppLifecycleManager {
      *   DISCONNECTED     → Offline
      */
     getConnectionStatusMessage(): { text: string; severity: 'ok' | 'info' | 'warn' | 'error' } {
+        if (syncService.isOfflineModeEnabled()) {
+            return { text: 'Modo offline', severity: 'info' };
+        }
         switch (this.globalNetworkState) {
             case 'CONNECTED':
                 return { text: 'Sincronizado', severity: 'ok' };
@@ -501,7 +506,7 @@ class AppLifecycleManager {
             case 'ERROR':
                 return { text: 'Erro de conexão — tentando recuperar', severity: 'error' };
             case 'DISCONNECTED':
-                return { text: 'Modo offline — dados podem estar desatualizados', severity: 'error' };
+                return { text: 'Modo offline', severity: 'info' };
             default:
                 return { text: 'Sincronizando dados…', severity: 'info' };
         }
@@ -760,6 +765,9 @@ class AppLifecycleManager {
                 console.log('[Lifecycle] 💓 App returned to foreground');
                 this.lastWakeUpTime = Date.now(); // Armazena timestamp real de Acordada do FG (Grace Period)
                 
+                // Sincroniza a bolinha de notificação do ícone do app com o Supabase
+                NotificationService.syncAppIconBadge().catch(() => {});
+
                 // 🚀 BIG TECH PATTERN: UI Otimista. Independente da saúde do socket, 
                 // forçamos as telas principais a buscarem o estado mais fresco via HTTP Rest.
                 this.forceUISync();
@@ -929,6 +937,7 @@ class AppLifecycleManager {
         this.notificationReceivedSub = Notifications.addNotificationReceivedListener(
             (notification: any) => {
                 console.log('[Lifecycle] 🔔 Notification Received:', notification?.request?.content?.title);
+                NotificationService.syncAppIconBadge().catch(() => {});
             }
         );
 
@@ -1007,6 +1016,7 @@ class AppLifecycleManager {
                             notif.title || `OS #${notif.order_id}`,
                             { orderId: notif.order_id }
                         );
+                        NotificationService.syncAppIconBadge().catch(() => {});
                     }
                 )
                 // Implementação de ping ativo via listener system

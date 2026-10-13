@@ -31,6 +31,7 @@ const MAPPING = {
   'rectangle.portrait.and.arrow.right': 'logout',
   'bell.fill': 'notifications',
   'sparkles': 'auto-awesome',
+  'lock.fill': 'lock',
 } as Partial<Record<string, ComponentProps<typeof MaterialIcons>['name']>>;
 
 /**

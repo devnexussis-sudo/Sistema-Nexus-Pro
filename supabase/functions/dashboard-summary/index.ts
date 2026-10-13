@@ -46,6 +46,21 @@ serve(async (req) => {
             )
         }
 
+        // Check user role for technician isolation
+        const { data: userProfile } = await supabaseClient
+            .from('users')
+            .select('role')
+            .eq('id', user.id)
+            .maybeSingle();
+
+        const role = userProfile?.role?.toUpperCase() || '';
+        const isAdmin = ['ADMIN', 'MANAGER', 'SUPER_ADMIN', 'MASTER', 'ADMINISTRADOR', 'GESTOR'].includes(role);
+
+        let ordersQuery = supabaseClient.from('orders').select('*').eq('tenant_id', tenantId);
+        if (!isAdmin) {
+            ordersQuery = ordersQuery.eq('assigned_to', user.id);
+        }
+
         // Parallel data fetching for Dashboard
         const [
             { data: orders },
@@ -58,9 +73,7 @@ serve(async (req) => {
             { data: rules },
             { data: contracts }
         ] = await Promise.all([
-            // Limit orders to prevent massive payloads, ideally we should filter by date/status
-            // but preserving the original logic which just fetches all (or recent 500)
-            supabaseClient.from('orders').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(500),
+            ordersQuery.order('created_at', { ascending: false }).limit(500),
             supabaseClient.from('technicians').select('*').eq('tenant_id', tenantId),
             supabaseClient.from('customers').select('*').eq('tenant_id', tenantId),
             supabaseClient.from('users').select('*').eq('tenant_id', tenantId),
