@@ -1516,6 +1516,46 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     );
   };
 
+  // ── CARTÃO DE MÍDIA CLICÁVEL COMPATÍVEL COM SAFARI / QUARTZ PDF & CHROMIUM ──
+  const PrintMediaCard: React.FC<{
+    url: string;
+    alt?: string;
+    widthClass?: string;
+    mediaHeightClass?: string;
+  }> = ({ url, alt = 'Anexo', widthClass = 'w-[130px]', mediaHeightClass = 'h-[95px]' }) => {
+    const isVideo = isVideoUrl(url);
+    const label = isVideo ? 'Abrir Vídeo' : 'Abrir Foto';
+
+    return (
+      <div className={`${widthClass} border border-slate-200 rounded-lg overflow-hidden bg-slate-50 shadow-sm p-1 shrink-0 break-inside-avoid print-media-card`}>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full flex flex-col items-center justify-center cursor-pointer print-media-link"
+          style={{ textDecoration: 'none' }}
+        >
+          <div className={`w-full ${mediaHeightClass} rounded overflow-hidden flex items-center justify-center bg-white relative`}>
+            {isVideo ? (
+              <div className="w-full h-full relative flex items-center justify-center bg-black">
+                <video src={`${url}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Play size={14} className="text-white opacity-90" />
+                </div>
+                <span className="absolute bottom-1 bg-black/70 text-white text-[6.5px] px-1 py-0.5 rounded uppercase leading-none font-medium">Vídeo</span>
+              </div>
+            ) : (
+              <PrintThumbnailImage src={url} className="w-full h-full object-contain" alt={alt} />
+            )}
+          </div>
+          <span className="mt-1 text-[7.5px] font-semibold text-blue-600 underline flex items-center gap-0.5 leading-tight print-media-label">
+            🔗 {label}
+          </span>
+        </a>
+      </div>
+    );
+  };
+
   // ── PRINT LAYOUT COMPONENT ──
   const PrintLayout = () => (
     <div className="bg-white text-[10px] leading-tight font-poppins pb-20 print:pb-20" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
@@ -1793,21 +1833,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                               {item.photos.length > 0 && (
                                 <div className="print-photos flex flex-wrap gap-2 mt-2">
                                   {item.photos.map((p: string, pIdx: number) => (
-                                    <div key={pIdx} className="w-[140px] h-[140px] border border-slate-200 rounded-lg overflow-hidden flex items-center justify-center bg-slate-50 shadow-sm">
-                                      {isVideoUrl(p) ? (
-                                        <a href={p} target="_blank" rel="noopener noreferrer" className="w-full h-full relative flex items-center justify-center bg-black cursor-pointer print-media-link">
-                                          <video src={`${p}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
-                                          <div className="absolute inset-0 flex items-center justify-center">
-                                            <Play size={10} className="text-white opacity-80" />
-                                          </div>
-                                          <span className="absolute bottom-1 bg-black/60 text-white text-[6px] px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
-                                        </a>
-                                      ) : (
-                                        <a href={p} target="_blank" rel="noopener noreferrer" className="w-full h-full block cursor-pointer print-media-link">
-                                          <PrintThumbnailImage src={p} className="w-full h-full object-contain" alt={`Anexo ${pIdx + 1}`} />
-                                        </a>
-                                      )}
-                                    </div>
+                                    <PrintMediaCard key={pIdx} url={p} alt={`Anexo ${pIdx + 1}`} widthClass="w-[130px]" mediaHeightClass="h-[95px]" />
                                   ))}
                                 </div>
                               )}
@@ -1898,23 +1924,11 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   const rawVid = order.videoUrl || formDataPrint.videoUrl || formDataPrint.video_url || '';
                   const vidArr = typeof rawVid === 'string' ? rawVid.split(',').map(u => u.trim()).filter(Boolean) : [];
                   return vidArr.map((vUrl: string, vI: number) => (
-                    <div key={`pvid-${vI}`} className="border border-slate-200 rounded-lg p-1.5 w-[220px] h-[160px] overflow-hidden flex items-center justify-center bg-black break-inside-avoid shadow-inner relative">
-                      <a href={vUrl} target="_blank" rel="noopener noreferrer" className="w-full h-full relative flex items-center justify-center cursor-pointer print-media-link">
-                        <video src={`${vUrl}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <Play size={16} className="text-white opacity-80" />
-                        </div>
-                        <span className="absolute bottom-1 bg-black/60 text-white text-[8px] px-1.5 py-0.5 rounded uppercase leading-none">Vídeo</span>
-                      </a>
-                    </div>
+                    <PrintMediaCard key={`pvid-${vI}`} url={vUrl} alt="Vídeo de Conclusão" widthClass="w-[180px]" mediaHeightClass="h-[125px]" />
                   ));
                 })()}
                 {allValidExtrasPrint.map((url: string, i: number) => (
-                  <div key={i} className="border border-slate-200 rounded-lg p-1.5 w-[220px] h-[160px] overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid shadow-sm">
-                    <a href={url} target="_blank" rel="noopener noreferrer" className="w-full h-full block cursor-pointer print-media-link">
-                      <PrintThumbnailImage src={url} className="w-full h-full object-contain" alt={`Evidência Adicional ${i + 1}`} />
-                    </a>
-                  </div>
+                  <PrintMediaCard key={i} url={url} alt={`Evidência Adicional ${i + 1}`} widthClass="w-[180px]" mediaHeightClass="h-[125px]" />
                 ))}
               </div>
             </div>
@@ -2105,21 +2119,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                               {photos.length > 0 && (
                                                 <div className="print-photos flex flex-wrap gap-2 mt-2">
                                                   {Array.from(new Set(photos)).map((p, pIdx) => (
-                                                    <div key={pIdx} className="w-[120px] h-[120px] border border-slate-200 rounded-lg overflow-hidden flex items-center justify-center bg-slate-50 shadow-sm shrink-0">
-                                                      {isVideoUrl(p) ? (
-                                                        <a href={p} target="_blank" rel="noopener noreferrer" className="w-full h-full relative flex items-center justify-center bg-black cursor-pointer print-media-link">
-                                                          <video src={`${p}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
-                                                          <div className="absolute inset-0 flex items-center justify-center">
-                                                            <Play size={10} className="text-white opacity-80" />
-                                                          </div>
-                                                          <span className="absolute bottom-1 bg-black/60 text-white text-[6px] px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
-                                                        </a>
-                                                      ) : (
-                                                        <a href={p} target="_blank" rel="noopener noreferrer" className="w-full h-full block cursor-pointer print-media-link">
-                                                          <PrintThumbnailImage src={p} className="w-full h-full object-contain" alt={`Anexo ${pIdx + 1}`} />
-                                                        </a>
-                                                      )}
-                                                    </div>
+                                                    <PrintMediaCard key={pIdx} url={p} alt={`Anexo ${pIdx + 1}`} widthClass="w-[120px]" mediaHeightClass="h-[90px]" />
                                                   ))}
                                                 </div>
                                               )}
@@ -2221,33 +2221,11 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                   const rawVid = vFd.videoUrl || vFd.video_url || '';
                                   const vidArr = typeof rawVid === 'string' ? rawVid.split(',').map((u: string) => u.trim()).filter(Boolean) : [];
                                   return vidArr.map((vUrl: string, vI: number) => (
-                                    <div key={`vid-${vI}`} className="border border-slate-200 rounded p-1 w-[140px] h-[105px] overflow-hidden flex items-center justify-center bg-black relative shadow-sm">
-                                      <a href={vUrl} target="_blank" rel="noopener noreferrer" className="w-full h-full relative flex items-center justify-center cursor-pointer">
-                                        <video src={`${vUrl}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                          <Play size={10} className="text-white opacity-80" />
-                                        </div>
-                                        <span className="absolute bottom-1 bg-black/60 text-white text-[7px] px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
-                                      </a>
-                                    </div>
+                                    <PrintMediaCard key={`vid-${vI}`} url={vUrl} alt="Vídeo da Visita" widthClass="w-[130px]" mediaHeightClass="h-[95px]" />
                                   ));
                                 })()}
                                 {visitPhotos.map((url: string, pIdx: number) => (
-                                  <div key={pIdx} className="border border-slate-200 rounded p-1 w-[140px] h-[105px] overflow-hidden flex items-center justify-center bg-slate-50 shadow-sm">
-                                    {isVideoUrl(url) ? (
-                                      <a href={url} target="_blank" rel="noopener noreferrer" className="w-full h-full relative flex items-center justify-center bg-black cursor-pointer">
-                                        <video src={`${url}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                          <Play size={10} className="text-white opacity-80" />
-                                        </div>
-                                        <span className="absolute bottom-1 bg-black/60 text-white text-[7px] px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
-                                      </a>
-                                    ) : (
-                                      <a href={url} target="_blank" rel="noopener noreferrer" className="w-full h-full block cursor-pointer">
-                                        <PrintThumbnailImage src={url} className="w-full h-full object-contain" alt={`Foto ${pIdx + 1}`} />
-                                      </a>
-                                    )}
-                                  </div>
+                                  <PrintMediaCard key={pIdx} url={url} alt={`Foto ${pIdx + 1}`} widthClass="w-[130px]" mediaHeightClass="h-[95px]" />
                                 ))}
                               </div>
                             </div>
@@ -2325,11 +2303,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                           <span className="uppercase text-[8px] text-red-500 block mb-1.5">Fotos de Evidência do Impedimento</span>
                           <div className="flex flex-wrap gap-2">
                             {blockPhotos.map((url, pIdx) => (
-                              <div key={`imp-p-${pIdx}`} className="border border-red-200 rounded p-1 w-[140px] h-[105px] overflow-hidden flex items-center justify-center bg-white shadow-sm">
-                                <a href={url} target="_blank" rel="noopener noreferrer" className="w-full h-full block cursor-pointer">
-                                  <PrintThumbnailImage src={url} className="w-full h-full object-cover" alt={`Evidência Impedimento ${pIdx + 1}`} />
-                                </a>
-                              </div>
+                              <PrintMediaCard key={`imp-p-${pIdx}`} url={url} alt={`Evidência Impedimento ${pIdx + 1}`} widthClass="w-[130px]" mediaHeightClass="h-[95px]" />
                             ))}
                           </div>
                         </div>
@@ -2579,10 +2553,28 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           }
           .print-photos a, .print-photos a:visited, a.print-media-link {
             text-decoration: none !important;
-            color: inherit !important;
-            display: block !important;
+            color: #1d4ed8 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
             width: 100% !important;
-            height: 100% !important;
+            pointer-events: auto !important;
+          }
+          .print-media-card {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            -webkit-column-break-inside: avoid !important;
+          }
+          .print-media-label {
+            display: inline-block !important;
+            color: #1d4ed8 !important;
+            font-size: 7.5px !important;
+            font-weight: 600 !important;
+            text-decoration: underline !important;
+            margin-top: 2px !important;
+            line-height: 1 !important;
+            pointer-events: auto !important;
+            white-space: nowrap !important;
           }
           /* Blocos que NUNCA devem ser cortados (assinatura, total, peças) */
           .print-no-break {
@@ -2754,10 +2746,28 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             }
             .print-photos a, .print-photos a:visited, a.print-media-link {
               text-decoration: none !important;
-              color: inherit !important;
-              display: block !important;
+              color: #1d4ed8 !important;
+              display: flex !important;
+              flex-direction: column !important;
+              align-items: center !important;
               width: 100% !important;
-              height: 100% !important;
+              pointer-events: auto !important;
+            }
+            .print-media-card {
+              break-inside: avoid !important;
+              page-break-inside: avoid !important;
+              -webkit-column-break-inside: avoid !important;
+            }
+            .print-media-label {
+              display: inline-block !important;
+              color: #1d4ed8 !important;
+              font-size: 7.5px !important;
+              font-weight: 600 !important;
+              text-decoration: underline !important;
+              margin-top: 2px !important;
+              line-height: 1 !important;
+              pointer-events: auto !important;
+              white-space: nowrap !important;
             }
             /* Blocos que NUNCA devem ser cortados (assinatura, total, peças) */
             .print-no-break {
