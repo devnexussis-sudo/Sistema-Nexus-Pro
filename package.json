@@ -21,7 +21,6 @@
     "base64-arraybuffer": "^1.0.2",
     "date-fns": "^4.1.0",
     "expo": "~57.0.24",
-    "expo-av": "^16.0.8",
     "expo-battery": "~57.0.3",
     "expo-blur": "~57.0.3",
     "expo-build-properties": "~57.0.21",
@@ -89,7 +88,6 @@
     "doctor": {
       "reactNativeDirectoryCheck": {
         "exclude": [
-          "expo-av",
           "base64-arraybuffer"
         ]
       }

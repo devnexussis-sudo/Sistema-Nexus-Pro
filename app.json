@@ -2,7 +2,7 @@
   "expo": {
     "name": "Duno",
     "slug": "nexus-mobile",
-    "version": "3.1.26",
+    "version": "3.1.27",
     "orientation": "default",
     "backgroundColor": "#ffffff",
     "icon": "./assets/images/app-icon-duno-v6.png",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nexus.mobile",
-      "buildNumber": "3.1.26",
+      "buildNumber": "3.1.27",
       "infoPlist": {
         "CFBundleDevelopmentRegion": "pt_BR",
         "CFBundleAllowMixedLocalizations": true,
@@ -36,10 +36,9 @@
         "NSMotionUsageDescription": "Permitir detecção de movimento para otimizar o consumo de bateria durante o rastreamento em rotas de atendimento."
       }
     },
-    "newArchEnabled": false,
     "android": {
       "package": "com.nexus.mobile",
-      "versionCode": 12,
+      "versionCode": 13,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",

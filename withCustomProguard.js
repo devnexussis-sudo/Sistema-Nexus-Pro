@@ -11,8 +11,6 @@ module.exports = function withProguardRules(config) {
 # Fix Expo modules crash on Release (LazyKType NoClassDefFoundError)
 -keep class expo.modules.kotlin.types.** { *; }
 -keep interface expo.modules.kotlin.types.** { *; }
--keep class expo.modules.av.** { *; }
--keep interface expo.modules.av.** { *; }
 -keep class kotlin.Metadata { *; }
 -keep class kotlin.reflect.** { *; }
 -keep class kotlin.coroutines.** { *; }

@@ -295,17 +295,6 @@ class AppLifecycleManager {
             this.setupNotificationListeners();
             NotificationService.syncAppIconBadge().catch(() => {});
 
-            // 6.5 Solicitar permissões de Microfone para Transcrição de Voz
-            try {
-                if (NativeModules.ExponentAV) {
-                    const { Audio } = require('expo-av');
-                    await Audio.requestPermissionsAsync();
-                } else {
-                    console.log('[Lifecycle] ExponentAV nativo não encontrado (Build antigo ou Expo Go). Pulando permissão de microfone.');
-                }
-            } catch (err) {
-                console.warn('[Lifecycle] Erro ao pedir permissão do microfone:', err);
-            }
 
             // 7. START PRIMARY HTTP POLLING (always-on, CGNAT-proof)
             this.startPrimaryPolling();
