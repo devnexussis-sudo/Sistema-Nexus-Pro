@@ -166,6 +166,9 @@ export default function HomeScreen() {
   const [endDate, setEndDate] = useState<Date | null>(new Date());
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
+  const [tempStartDate, setTempStartDate] = useState<Date>(new Date());
+  const [tempEndDate, setTempEndDate] = useState<Date>(new Date());
+  const pickerLocale = lang === 'es' ? 'es-ES' : lang === 'en' ? 'en-US' : 'pt-BR';
   const [currentPage, setCurrentPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
   const params = useLocalSearchParams();
@@ -394,10 +397,7 @@ export default function HomeScreen() {
 
   const MAX_RANGE_DAYS = 183; // ~6 meses
 
-  const onChangeStartDate = (event: any, selectedDate?: Date) => {
-    setShowStartPicker(false);
-    if (!selectedDate) return;
-
+  const applyStartDate = (selectedDate: Date) => {
     // Valida se o novo início não cria um intervalo maior que 6 meses com a data fim atual
     if (endDate) {
       const diffMs = endDate.getTime() - selectedDate.getTime();
@@ -422,10 +422,7 @@ export default function HomeScreen() {
     setStartDate(selectedDate);
   };
 
-  const onChangeEndDate = (event: any, selectedDate?: Date) => {
-    setShowEndPicker(false);
-    if (!selectedDate) return;
-
+  const applyEndDate = (selectedDate: Date) => {
     // Valida se o novo fim não cria um intervalo maior que 6 meses com a data início atual
     if (startDate) {
       const diffMs = selectedDate.getTime() - startDate.getTime();
@@ -448,6 +445,18 @@ export default function HomeScreen() {
       }
     }
     setEndDate(selectedDate);
+  };
+
+  const onChangeStartDate = (event: any, selectedDate?: Date) => {
+    setShowStartPicker(false);
+    if (event?.type === 'dismissed' || !selectedDate) return;
+    applyStartDate(selectedDate);
+  };
+
+  const onChangeEndDate = (event: any, selectedDate?: Date) => {
+    setShowEndPicker(false);
+    if (event?.type === 'dismissed' || !selectedDate) return;
+    applyEndDate(selectedDate);
   };
 
   const dashboardStats = useMemo(() => {
@@ -567,14 +576,26 @@ export default function HomeScreen() {
 
       <View style={styles.listContainer}>
         <View style={styles.dateFilterContainer}>
-          <Pressable style={styles.dateInput} onPress={() => setShowStartPicker(true)}>
+          <Pressable 
+            style={styles.dateInput} 
+            onPress={() => {
+              setTempStartDate(startDate || new Date());
+              setShowStartPicker(true);
+            }}
+          >
             <Text style={startDate ? styles.dateTextActive : styles.dateTextPlaceholder}>
               {startDate ? startDate.toLocaleDateString('pt-BR') : t('homeDateStart')}
             </Text>
             <Ionicons name="calendar-outline" size={16} color="#666" />
           </Pressable>
 
-          <Pressable style={styles.dateInput} onPress={() => setShowEndPicker(true)}>
+          <Pressable 
+            style={styles.dateInput} 
+            onPress={() => {
+              setTempEndDate(endDate || new Date());
+              setShowEndPicker(true);
+            }}
+          >
             <Text style={endDate ? styles.dateTextActive : styles.dateTextPlaceholder}>
               {endDate ? endDate.toLocaleDateString('pt-BR') : t('homeDateEnd')}
             </Text>
@@ -582,30 +603,120 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        {showStartPicker && (
+        {Platform.OS === 'android' && showStartPicker && (
           <DateTimePicker
             value={startDate || new Date()}
             mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            display="default"
+            locale={pickerLocale}
             themeVariant="light"
             textColor="#000000"
-            onValueChange={onChangeStartDate}
-            onDismiss={() => setShowStartPicker(false)}
+            onChange={onChangeStartDate}
             maximumDate={new Date()}
           />
         )}
 
-        {showEndPicker && (
+        {Platform.OS === 'android' && showEndPicker && (
           <DateTimePicker
             value={endDate || new Date()}
             mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            display="default"
+            locale={pickerLocale}
             themeVariant="light"
             textColor="#000000"
-            onValueChange={onChangeEndDate}
-            onDismiss={() => setShowEndPicker(false)}
+            onChange={onChangeEndDate}
             minimumDate={startDate || undefined}
           />
+        )}
+
+        {Platform.OS === 'ios' && (
+          <>
+            <Modal
+              visible={showStartPicker}
+              transparent={true}
+              animationType="fade"
+              onRequestClose={() => setShowStartPicker(false)}
+            >
+              <Pressable style={styles.modalOverlay} onPress={() => setShowStartPicker(false)}>
+                <View style={styles.calendarModalContent} onStartShouldSetResponder={() => true}>
+                  <View style={styles.calendarModalHeader}>
+                    <Pressable onPress={() => setShowStartPicker(false)} hitSlop={12} style={styles.calendarModalBtn}>
+                      <Text style={styles.calendarCancelText}>{t('menuCancel') || 'Cancelar'}</Text>
+                    </Pressable>
+                    <Text style={styles.calendarModalTitle}>{t('homeDateStart') || 'Data Inicial'}</Text>
+                    <Pressable 
+                      onPress={() => {
+                        setShowStartPicker(false);
+                        applyStartDate(tempStartDate);
+                      }} 
+                      hitSlop={12}
+                      style={[styles.calendarModalBtn, styles.calendarConfirmBtn]}
+                    >
+                      <Text style={styles.calendarConfirmText}>{t('alertConfirm') || 'Confirmar'}</Text>
+                    </Pressable>
+                  </View>
+                  <View style={styles.calendarPickerWrapper}>
+                    <DateTimePicker
+                      value={tempStartDate}
+                      mode="date"
+                      display="inline"
+                      locale={pickerLocale}
+                      themeVariant="light"
+                      textColor="#000000"
+                      accentColor="#1c2d4f"
+                      onChange={(_, date) => {
+                        if (date) setTempStartDate(date);
+                      }}
+                      maximumDate={new Date()}
+                    />
+                  </View>
+                </View>
+              </Pressable>
+            </Modal>
+
+            <Modal
+              visible={showEndPicker}
+              transparent={true}
+              animationType="fade"
+              onRequestClose={() => setShowEndPicker(false)}
+            >
+              <Pressable style={styles.modalOverlay} onPress={() => setShowEndPicker(false)}>
+                <View style={styles.calendarModalContent} onStartShouldSetResponder={() => true}>
+                  <View style={styles.calendarModalHeader}>
+                    <Pressable onPress={() => setShowEndPicker(false)} hitSlop={12} style={styles.calendarModalBtn}>
+                      <Text style={styles.calendarCancelText}>{t('menuCancel') || 'Cancelar'}</Text>
+                    </Pressable>
+                    <Text style={styles.calendarModalTitle}>{t('homeDateEnd') || 'Data Final'}</Text>
+                    <Pressable 
+                      onPress={() => {
+                        setShowEndPicker(false);
+                        applyEndDate(tempEndDate);
+                      }} 
+                      hitSlop={12}
+                      style={[styles.calendarModalBtn, styles.calendarConfirmBtn]}
+                    >
+                      <Text style={styles.calendarConfirmText}>{t('alertConfirm') || 'Confirmar'}</Text>
+                    </Pressable>
+                  </View>
+                  <View style={styles.calendarPickerWrapper}>
+                    <DateTimePicker
+                      value={tempEndDate}
+                      mode="date"
+                      display="inline"
+                      locale={pickerLocale}
+                      themeVariant="light"
+                      textColor="#000000"
+                      accentColor="#1c2d4f"
+                      onChange={(_, date) => {
+                        if (date) setTempEndDate(date);
+                      }}
+                      minimumDate={startDate || undefined}
+                    />
+                  </View>
+                </View>
+              </Pressable>
+            </Modal>
+          </>
         )}
 
         <View style={styles.listHeader}>
@@ -784,4 +895,60 @@ const styles = StyleSheet.create({
   pageText: { fontSize: 14, color: '#333', fontWeight: '600' },
   gpsButton: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#f1f5f9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#e2e8f0' },
   gpsButtonText: { fontSize: 10, fontWeight: 'bold', color: '#1c2d4f' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  calendarModalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    width: '100%',
+    maxWidth: 360,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  calendarModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    marginBottom: 8,
+  },
+  calendarModalTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  calendarModalBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  calendarCancelText: {
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  calendarConfirmBtn: {
+    backgroundColor: '#1c2d4f',
+  },
+  calendarConfirmText: {
+    fontSize: 13,
+    color: '#ffffff',
+    fontWeight: '700',
+  },
+  calendarPickerWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+  },
 });

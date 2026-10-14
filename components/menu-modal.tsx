@@ -129,10 +129,10 @@ export function MenuModal({ visible, onClose, hasUnread }: MenuModalProps) {
                                 </View>
                             )}
                             <View style={styles.profileInfo}>
-                                <Text style={styles.userName} numberOfLines={1}>{userProfile?.name || t('menuLoading')}</Text>
                                 {userProfile?.companyName && (
-                                    <Text style={styles.userRole} numberOfLines={1}>{userProfile.companyName}</Text>
+                                    <Text style={styles.companyName} numberOfLines={1}>{userProfile.companyName}</Text>
                                 )}
+                                <Text style={styles.userName} numberOfLines={1}>{userProfile?.name || t('menuLoading')}</Text>
                             </View>
                         </View>
                     </View>
@@ -231,18 +231,26 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
     },
-    userName: {
-        fontSize: 20,
+    companyName: {
+        fontSize: 19,
         fontWeight: '800',
         color: '#1e293b',
-        marginBottom: 2,
-    },
-    userRole: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#6366f1',
         textTransform: 'uppercase',
         letterSpacing: 0.5,
+        marginBottom: 2,
+    },
+    userName: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#64748b',
+    },
+    userRole: {
+        fontSize: 19,
+        fontWeight: '800',
+        color: '#1e293b',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: 2,
     },
     menuItemsContainer: {
         flex: 1,

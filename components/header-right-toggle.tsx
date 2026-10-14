@@ -44,20 +44,9 @@ export function HeaderRightToggle() {
         checkUnreadNotifications();
         
         // Proteção para plataformas (ex: Web) onde DeviceEventEmitter não existe
+        // O AppLifecycleManager centraliza a escuta de notificações com filtro de user_id
+        // e emite 'refreshNotifications', evitando conexões duplicadas ou vazamento de canais.
         const unNotif = DeviceEventEmitter?.addListener?.('refreshNotifications', checkUnreadNotifications);
-        
-        // Real-time listener para atualizar a bolinha instantaneamente
-        // Usando nome de canal único para evitar erro de reuso em Hot Reloads
-        const channelName = `realtime-notifs-${Date.now()}`;
-        const notifChannel = supabase.channel(channelName)
-            .on('postgres_changes', {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'notifications'
-            }, () => {
-                checkUnreadNotifications();
-            })
-            .subscribe();
 
         const unNet = NetInfo.addEventListener(s => setIsConnected(!!s.isConnected));
         const unQueue = syncService.subscribe(() => {
@@ -73,7 +62,6 @@ export function HeaderRightToggle() {
             unQueue(); 
             unSync(); 
             unNotif?.remove?.();
-            supabase.removeChannel(notifChannel);
         };
     }, []);
 

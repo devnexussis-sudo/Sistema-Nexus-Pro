@@ -8,10 +8,6 @@
     "icon": "./assets/images/app-icon-duno-v6.png",
     "scheme": "nexusmobile",
     "userInterfaceStyle": "automatic",
-    "locales": {
-      "pt": "./services/i18n.tsx",
-      "pt-BR": "./services/i18n.tsx"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nexus.mobile",
@@ -36,13 +32,14 @@
         "NSSpeechRecognitionUsageDescription": "Permitir reconhecimento de voz para transcrever o relatório técnico automaticamente.",
         "NSCameraUsageDescription": "Permitir acesso à câmera para tirar fotos e gravar vídeos de evidências das ordens de serviço.",
         "NSPhotoLibraryUsageDescription": "Permitir acesso à galeria para anexar fotos de evidências das ordens de serviço.",
+        "NSPhotoLibraryAddUsageDescription": "Permitir salvar fotos, evidências e laudos técnicos na galeria do dispositivo.",
         "NSMotionUsageDescription": "Permitir detecção de movimento para otimizar o consumo de bateria durante o rastreamento em rotas de atendimento."
       }
     },
+    "newArchEnabled": false,
     "android": {
-      "newArchitectureEnabled": false,
       "package": "com.nexus.mobile",
-      "versionCode": 11,
+      "versionCode": 12,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",

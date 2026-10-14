@@ -23,7 +23,7 @@
  * - Apple: Strict lifecycle state machine
  */
 
-import { AppState, AppStateStatus, Platform, NativeModules } from 'react-native';
+import { AppState, AppStateStatus, Platform, NativeModules, DeviceEventEmitter } from 'react-native';
 import Constants from 'expo-constants';
 import { supabase } from './supabase';
 import { authService } from './auth-service';
@@ -156,6 +156,7 @@ class AppLifecycleManager {
     private primaryPollingTimer: ReturnType<typeof setInterval> | null = null;
     private lastPollSuccessAt = 0;
     private pollFailCount = 0;
+    private lastPollSignature = '';
     private userLastInteractionAt = Date.now();
     
     // ── Reconnect (Calm — max 3, no storm) ──
@@ -1017,6 +1018,7 @@ class AppLifecycleManager {
                             { orderId: notif.order_id }
                         );
                         NotificationService.syncAppIconBadge().catch(() => {});
+                        DeviceEventEmitter?.emit?.('refreshNotifications');
                     }
                 )
                 // Implementação de ping ativo via listener system
@@ -1430,12 +1432,20 @@ class AppLifecycleManager {
                         this.setGlobalNetworkState(this.state.realtimeActive ? 'CONNECTED' : 'DEGRADED');
                     }
                     
-                    // Notifica UI listeners para refresh (throttled)
-                    this.orderChangeThrottle(() => {
-                        this.orderChangeListeners.forEach(cb => {
-                            try { cb({ eventType: 'POLL_SYNC', new: {} }); } catch (e) { /* silent */ }
+                    // 🛡️ DEDUP GUARD: Só notifica listeners se as ordens realmente mudaram!
+                    // Evita disparar getAllOrders (7 queries pesadas) a cada 15s quando nada mudou.
+                    const currentSig = (data as any[]).map(o => `${o.id}:${o.updated_at}`).join('|');
+                    const hasChanged = this.lastPollSignature !== '' && this.lastPollSignature !== currentSig;
+                    this.lastPollSignature = currentSig;
+
+                    if (hasChanged) {
+                        console.log('[Polling] 📦 Alteração detectada no banco via polling! Notificando UI.');
+                        this.orderChangeThrottle(() => {
+                            this.orderChangeListeners.forEach(cb => {
+                                try { cb({ eventType: 'POLL_SYNC', new: {} }); } catch (e) { /* silent */ }
+                            });
                         });
-                    });
+                    }
                     
                     if (latency > 5000) {
                         console.warn(`[Polling] 🐢 Alta latência HTTP: ${latency}ms`);

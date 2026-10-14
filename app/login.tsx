@@ -9,10 +9,10 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
 import { useState, useEffect, useRef } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Dimensions } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useI18n } from '@/services/i18n';
+import { TermsModal } from '@/components/terms-modal';
 
 const TopBlueBand = () => {
     const { width: windowWidth, height: windowHeight } = Dimensions.get('window');
@@ -43,6 +43,7 @@ export default function LoginScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isTermsModalVisible, setIsTermsModalVisible] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [keepConnected, setKeepConnected] = useState(false);
     const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', icon: 'warning-outline' as any, iconColor: '#ff3b30' });
@@ -246,7 +247,7 @@ export default function LoginScreen() {
             {/* Footer restored to original position, strictly outside KeyboardAvoidingView so it never moves up */}
             <View style={styles.footer}>
                 <Pressable 
-                    onPress={() => Linking.openURL('https://www.dunoup.com.br/privacidade').catch(() => Linking.openURL('https://www.dunoup.com.br'))}
+                    onPress={() => setIsTermsModalVisible(true)}
                     hitSlop={10}
                     style={{ marginBottom: 6 }}
                 >
@@ -254,6 +255,12 @@ export default function LoginScreen() {
                 </Pressable>
                 <Text style={styles.footerText}>{t('menuVersion')} {Constants.expoConfig?.version || '3.1.26'}</Text>
             </View>
+
+            {/* Modal de Termos e Condições de Uso */}
+            <TermsModal 
+                visible={isTermsModalVisible} 
+                onClose={() => setIsTermsModalVisible(false)} 
+            />
         </View>
     );
 }

@@ -6,15 +6,16 @@ import { logger } from '@/services/logger';
 import { syncService } from '@/services/sync-service';
 import { useI18n, Lang } from '@/services/i18n';
 import { Ionicons } from '@expo/vector-icons';
-import * as Location from 'expo-location';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { TermsModal } from '@/components/terms-modal';
 
 const LANG_LABELS: Record<Lang, string> = { pt: 'Português', en: 'English', es: 'Español' };
 
 export default function SettingsScreen() {
     const [isGpsEnabled, setIsGpsEnabled] = useState(false);
     const [isLangOpen, setIsLangOpen] = useState(false);
+    const [isTermsModalVisible, setIsTermsModalVisible] = useState(false);
     const { t, lang, setLang } = useI18n();
 
     useEffect(() => {
@@ -129,7 +130,7 @@ export default function SettingsScreen() {
 
                 <Pressable 
                     style={styles.settingRow} 
-                    onPress={() => Linking.openURL('https://www.dunoup.com.br/privacidade').catch(() => Linking.openURL('https://www.dunoup.com.br'))}
+                    onPress={() => setIsTermsModalVisible(true)}
                 >
                     <View style={styles.settingInfo}>
                         <Text style={styles.settingLabel}>Termos e Política de Privacidade</Text>
@@ -137,9 +138,15 @@ export default function SettingsScreen() {
                             Consulte os termos de serviço e diretrizes de proteção de dados.
                         </Text>
                     </View>
-                    <Ionicons name="open-outline" size={20} color="#1c2d4f" />
+                    <Ionicons name="document-text-outline" size={20} color="#1c2d4f" />
                 </Pressable>
             </View>
+
+            {/* Modal de Termos de Uso e Política de Privacidade */}
+            <TermsModal 
+                visible={isTermsModalVisible} 
+                onClose={() => setIsTermsModalVisible(false)} 
+            />
 
         </ThemedView>
     );

@@ -2,12 +2,16 @@ import * as Location from 'expo-location';
 import * as Battery from 'expo-battery';
 import * as TaskManager from 'expo-task-manager';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { Alert, Platform, Linking } from 'react-native';
 import { supabase } from './supabase';
 import { logger } from './logger';
 import { onNewLocation as autoCheckinOnNewLocation } from './auto-checkin-service';
 
 export const LOCATION_TASK_NAME = 'background-location-task';
+
+// Detecção segura do Expo Go (Background Location em 2º plano no Expo Go causa crash no iOS)
+const isExpoGo = Constants.appOwnership === 'expo' || (Constants as any).executionEnvironment === 'storeClient';
 
 // ─── Thresholds ──────────────────────────────────────────────────────────────
 // Only send a real-time position update when the tech moves at least this far.
@@ -21,6 +25,8 @@ const ACCURACY_MAX_M = 40;   // Discard noisy GPS readings
 let foregroundSubscription: Location.LocationSubscription | null = null;
 let lastSentLat: number | null = null;
 let lastSentLng: number | null = null;
+let lastSentTime = 0;
+let lastMovingTime = 0;
 let lastHeartbeatTime = 0;
 let isProcessing = false;
 
@@ -67,19 +73,45 @@ const sendLocationUpdate = async (
 
         const battery = await getBattery();
 
+        const timeDeltaSec = lastSentTime > 0 ? (now - lastSentTime) / 1000 : 0;
         const distFromLast = (lastSentLat !== null && lastSentLng !== null)
             ? haversine(lastSentLat, lastSentLng, latitude, longitude)
             : Infinity;
 
-        const hasMoved = distFromLast >= 50; // 50 metros
-        const motionState = hasMoved ? 'EM MOVIMENTO' : 'PARADO';
-        const needsHeartbeat = (now - lastHeartbeatTime) >= 90000; // 90 segundos
+        // 1. Velocidade instantânea do GPS (m/s -> km/h) com fallback por deslocamento
+        let currentSpeedKmh = 0;
+        const { speed: rawSpeed } = location.coords;
+        if (rawSpeed !== null && rawSpeed !== undefined && rawSpeed >= 0) {
+            currentSpeedKmh = rawSpeed * 3.6;
+        } else if (timeDeltaSec > 0 && distFromLast < Infinity) {
+            currentSpeedKmh = (distFromLast / timeDeltaSec) * 3.6;
+        }
 
-        if (!hasMoved && !needsHeartbeat && !options.force) return;
+        // 2. Detecção inteligente de movimento:
+        // - Velocidade >= 3.5 km/h (caminhada rápida ou veículo) OU deslocamento >= 20 metros
+        const isCurrentlyMoving = currentSpeedKmh >= 3.5 || distFromLast >= 20;
+        if (isCurrentlyMoving) {
+            lastMovingTime = now;
+        }
+
+        // Tolerância para paradas rápidas (ex: semáforos/cruzamentos nos últimos 45s mantêm 'EM MOVIMENTO')
+        const isMoving = isCurrentlyMoving || (lastMovingTime > 0 && (now - lastMovingTime) < 45000);
+        const motionState = isMoving ? 'EM MOVIMENTO' : 'PARADO';
+
+        // 3. Frequência de envio inteligente:
+        // - Em movimento: envia a cada 20m ou a cada 12 segundos
+        // - Parado: envia heartbeat a cada 60s para economizar bateria e banco
+        const shouldSend = 
+            options.force ||
+            lastSentLat === null ||
+            (isCurrentlyMoving && (distFromLast >= 20 || timeDeltaSec >= 12)) ||
+            (!isMoving && (now - lastHeartbeatTime) >= 60000);
+
+        if (!shouldSend) return;
 
         const deviceModel = Device.modelName || Device.brand || Platform.OS || 'Desconhecido';
 
-        // Single UPDATE — no route history INSERT
+        // Single UPDATE com speed em km/h e motion_state preciso
         const { error } = await supabase
             .from('technicians')
             .update({
@@ -89,22 +121,18 @@ const sendLocationUpdate = async (
                 battery_level:  battery,
                 device_model:   deviceModel,
                 motion_state:   motionState,
+                speed:          Math.round(currentSpeedKmh),
             })
             .eq('id', session.user.id);
 
         if (error) {
             logger.log(`[GPS] ❌ Update error: ${JSON.stringify(error)}`, 'error');
         } else {
-            // Update the anchor ONLY if they actually moved > 50m or it's the very first ping.
-            // This ensures small GPS drifts don't slowly move the anchor and falsely trigger "EM MOVIMENTO"
-            // Wait, actually, if they move 10m every 90s, they walk 50m in 7.5 mins. If we DON'T update the anchor,
-            // they will eventually trigger "EM MOVIMENTO" after 7.5 mins. This is correct!
-            if (hasMoved || lastSentLat === null) {
-                lastSentLat = latitude;
-                lastSentLng = longitude;
-            }
+            lastSentLat = latitude;
+            lastSentLng = longitude;
+            lastSentTime = now;
             lastHeartbeatTime = now;
-            logger.log(`[GPS] 📍 Position updated (state: ${motionState}, dist: ${distFromLast < Infinity ? distFromLast.toFixed(0) + 'm' : 'first'})`, 'info');
+            logger.log(`[GPS] 📍 Position updated (state: ${motionState}, speed: ${Math.round(currentSpeedKmh)}km/h, dist: ${distFromLast < Infinity ? distFromLast.toFixed(0) + 'm' : 'first'})`, 'info');
 
             // Auto Check-in: check proximity to client
             autoCheckinOnNewLocation(latitude, longitude).catch(() => {});
@@ -161,59 +189,67 @@ export const startBackgroundLocation = async () => {
     try {
         console.log('[GPS] 🚀 Initializing...');
 
+        // 1. Permissão de Primeiro Plano (Foreground) — segura em todas as plataformas
         const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
         if (fgStatus !== 'granted') {
             console.warn('[GPS] Foreground permission denied');
             return false;
         }
 
-        // Background permission
-        try {
-            const { status: bgStatus, canAskAgain } = await Location.getBackgroundPermissionsAsync();
-            if (bgStatus !== 'granted') {
-                if (canAskAgain) {
-                    // 🛡️ Prominent Disclosure exigida pelas políticas do Google Play
-                    const userAccepted = await showBackgroundLocationDisclosure();
-                    if (!userAccepted) {
-                        console.warn('[GPS] Background permission disclosure declined by user');
+        // 2. Permissão de Segundo Plano (Background)
+        // ⚠️ ATENÇÃO: No Expo Go (iOS e Android), solicitar permissão de background ou rodar tasks
+        // de background crasha/fecha o Expo Go imediatamente por restrições do sandbox da Apple/Google.
+        // O rastreamento em 2º plano completo funciona em builds Standalone ou Development Build (IPA/APK).
+        if (!isExpoGo) {
+            try {
+                const { status: bgStatus, canAskAgain } = await Location.getBackgroundPermissionsAsync();
+                if (bgStatus !== 'granted') {
+                    if (canAskAgain) {
+                        // 🛡️ Prominent Disclosure exigida pelas políticas de lojas
+                        const userAccepted = await showBackgroundLocationDisclosure();
+                        if (!userAccepted) {
+                            console.warn('[GPS] Background permission disclosure declined by user');
+                            return false;
+                        }
+
+                        const { status } = await Location.requestBackgroundPermissionsAsync();
+                        if (status !== 'granted') throw new Error('BACKGROUND_DENIED');
+                    } else {
+                        Alert.alert(
+                            'Rastreamento em Segundo Plano',
+                            'Para rastreio contínuo, vá em Configurações > Permissões > Localização → "Permitir o tempo todo".',
+                            [
+                                { text: 'Cancelar', style: 'cancel' },
+                                {
+                                    text: 'Configurações',
+                                    onPress: () => Platform.OS === 'ios'
+                                        ? Linking.openURL('app-settings:')
+                                        : Linking.openSettings()
+                                }
+                            ]
+                        );
                         return false;
                     }
-
-                    const { status } = await Location.requestBackgroundPermissionsAsync();
-                    if (status !== 'granted') throw new Error('BACKGROUND_DENIED');
-                } else {
-                    Alert.alert(
-                        'Rastreamento em Segundo Plano',
-                        'Para rastreio contínuo, vá em Configurações > Permissões > Localização → "Permitir o tempo todo".',
-                        [
-                            { text: 'Cancelar', style: 'cancel' },
-                            {
-                                text: 'Configurações',
-                                onPress: () => Platform.OS === 'ios'
-                                    ? Linking.openURL('app-settings:')
-                                    : Linking.openSettings()
-                            }
-                        ]
-                    );
+                }
+            } catch (e: any) {
+                if (e.message === 'BACKGROUND_DENIED') {
+                    console.warn('[GPS] Background permission denied');
                     return false;
                 }
+                console.warn('[GPS] Background permission check failed:', e);
             }
-        } catch (e: any) {
-            if (e.message === 'BACKGROUND_DENIED') {
-                console.warn('[GPS] Background permission denied');
-                return false;
-            }
-            console.warn('[GPS] Background permission check failed:', e);
+        } else {
+            console.log('[GPS] ℹ️ Expo Go detectado: Rastreamento ativo em primeiro plano (Background GPS requer Development Client ou Standalone Build)');
         }
 
-        // Foreground watcher — highest resolution for active-app tracing
+        // 3. Foreground watcher — rastreamento contínuo em tempo real enquanto o app está aberto
         if (foregroundSubscription) foregroundSubscription.remove();
 
         foregroundSubscription = await Location.watchPositionAsync(
             {
                 accuracy:         Location.Accuracy.High,
-                timeInterval:     90000, // Check every 90s
-                // distanceInterval removed so it fires continuously on time
+                timeInterval:     8000, // 8 segundos para resposta ágil no carro
+                distanceInterval: 12,   // ou a cada 12 metros de deslocamento
             },
             (location) => {
                 const isFirstPing = lastSentLat === null;
@@ -221,33 +257,30 @@ export const startBackgroundLocation = async () => {
             }
         );
 
-        // Background service — high accuracy, wakes on 5m movement
-        try {
-            if (TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
-                await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-                    accuracy:            Location.Accuracy.High,
-                    timeInterval:        90000,  // Wake every 90s
-                    deferredUpdatesInterval: 90000, // For iOS
-                    showsBackgroundLocationIndicator: true,
-                    pausesUpdatesAutomatically: false,
-                    activityType: Location.ActivityType.Other,
-                    foregroundService: {
-                        notificationTitle: 'Nexus Pro — Localização Ativa',
-                        notificationBody:  'Compartilhando sua localização em tempo real.',
-                        notificationColor: '#1c2d4f',
-                        killServiceOnDestroy: false,
-                    },
-                });
-                console.log('[GPS] ✅ Background service started');
-            }
-        } catch (e: any) {
-            console.warn('[GPS] Background start error:', e);
-            if (Platform.OS === 'android' && e.message?.includes('Expo Go')) {
-                Alert.alert(
-                    'Expo Go — Limitação',
-                    'Background GPS não funciona no Expo Go (Android). Use um APK de development build.',
-                    [{ text: 'OK' }]
-                );
+        // 4. Background service via TaskManager — APENAS em builds Standalone / Dev Client
+        if (!isExpoGo) {
+            try {
+                if (TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
+                    await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+                        accuracy:            Location.Accuracy.High,
+                        timeInterval:        15000,  // 15s em background
+                        distanceInterval:    20,     // 20 metros
+                        deferredUpdatesInterval: 15000, // For iOS
+                        deferredUpdatesDistance: 20,    // For iOS
+                        showsBackgroundLocationIndicator: true,
+                        pausesUpdatesAutomatically: false,
+                        activityType: Location.ActivityType.AutomotiveNavigation,
+                        foregroundService: {
+                            notificationTitle: 'Nexus Pro — Localização Ativa',
+                            notificationBody:  'Compartilhando sua localização em tempo real.',
+                            notificationColor: '#1c2d4f',
+                            killServiceOnDestroy: false,
+                        },
+                    });
+                    console.log('[GPS] ✅ Background service started');
+                }
+            } catch (e: any) {
+                console.warn('[GPS] Background start error:', e);
             }
         }
 

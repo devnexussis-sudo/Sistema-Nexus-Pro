@@ -25,8 +25,8 @@ import NexusCamera from '@/components/nexus-camera';
 import { VoiceTextInput } from '@/components/VoiceTextInput';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import React, { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Dimensions, Image, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, SafeAreaView, DeviceEventEmitter, useWindowDimensions } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, BackHandler, Dimensions, Image, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View, SafeAreaView, DeviceEventEmitter, useWindowDimensions } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SignatureScreen from 'react-native-signature-canvas';
@@ -192,6 +192,48 @@ export default function ExecuteOSScreen() {
     const showValidation = (title: string, message: string) => {
         setValidationAlert({ visible: true, title, message });
     };
+
+    const isAnySignatureOpen = isSignatureModalVisible || isImpedimentSignatureVisible;
+
+    // 🛡️ Padrão BigTech: A tela da OS permanece travada em Retrato (Portrait).
+    // Quando a assinatura abrir, ela rotaciona para Paisagem (Landscape) em tela cheia.
+    // No Android, ocultamos o header e tab bar para que a tela não quebre/trave com Dialog do Modal.
+    useEffect(() => {
+        if (isAnySignatureOpen) {
+            ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
+            navigation.setOptions({
+                headerShown: false,
+                tabBarStyle: { display: 'none' },
+            });
+        } else {
+            ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+            navigation.setOptions({
+                headerShown: true,
+                tabBarStyle: undefined,
+            });
+        }
+        return () => {
+            ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+            navigation.setOptions({
+                headerShown: true,
+                tabBarStyle: undefined,
+            });
+        };
+    }, [isAnySignatureOpen, navigation]);
+
+    // 📱 Android Hardware Back: fecha a assinatura e restaura modo retrato
+    useEffect(() => {
+        if (Platform.OS === 'android' && isAnySignatureOpen) {
+            const onBackPress = () => {
+                ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+                setSignatureModalVisible(false);
+                setIsImpedimentSignatureVisible(false);
+                return true;
+            };
+            const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+            return () => subscription.remove();
+        }
+    }, [isAnySignatureOpen]);
     // v5: Map local URI → remote URL (mantém miniatura local, resolve na hora de salvar)
     const uploadedUrlMapRef = useRef<Map<string, string>>(new Map());
     const hasPendingUploads = pendingUploadCount > 0 || isUploadingExtra || videos.some(v => v.isProcessing) || isUploadingPhoto !== null || isProcessingMedia;
@@ -849,10 +891,8 @@ export default function ExecuteOSScreen() {
     const handleSignature = async (signatureData: string) => {
         const processed = await processSignatureImage(signatureData);
         setSignature(processed);
-        if (Platform.OS === 'android') {
-            await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
-        }
         setSignatureModalVisible(false);
+        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
     };
 
     const processPhotoChoice = async (source: 'camera' | 'library', callback: (uris: string[]) => void, limit = 1) => {
@@ -912,10 +952,8 @@ export default function ExecuteOSScreen() {
     const handleImpedimentSignature = async (signatureData: string) => {
         const processed = await processSignatureImage(signatureData);
         setImpedimentSignature(processed);
-        if (Platform.OS === 'android') {
-            await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
-        }
         setIsImpedimentSignatureVisible(false);
+        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
     };
 
 
@@ -2240,12 +2278,13 @@ export default function ExecuteOSScreen() {
 
     // Removed inline Tabs.Screen to fix layout crashes
     React.useEffect(() => {
+        if (isAnySignatureOpen) return;
         if (isLoading) {
             navigation.setOptions({ title: 'Carregando Execução' });
         } else {
             navigation.setOptions({ title: `Execução - Página ${currentPage + 1}/${totalPages}` });
         }
-    }, [isLoading, currentPage, totalPages, navigation]);
+    }, [isLoading, currentPage, totalPages, navigation, isAnySignatureOpen]);
 
     if (isLoading || !order || order.id !== id) {
         return (
@@ -2254,7 +2293,133 @@ export default function ExecuteOSScreen() {
         );
     }
 
+    const renderSignatureContent = (isImpediment: boolean) => {
+        const title = isImpediment ? 'Assinatura de Impedimento' : 'Assinatura do Responsável';
+        const subtitle = isImpediment ? '— Assine para registrar o impedimento' : '— Assine no campo abaixo';
+        const isLand = currentWinWidth > currentWinHeight;
 
+        const onClose = () => {
+            if (isImpediment) {
+                setIsImpedimentSignatureVisible(false);
+            } else {
+                setSignatureModalVisible(false);
+            }
+            ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+        };
+
+        const onOK = isImpediment ? handleImpedimentSignature : handleSignature;
+
+        return (
+            <View style={[
+                styles.signatureModalSafeArea,
+                {
+                    paddingTop: Math.max(insets.top, Platform.OS === 'android' ? 6 : 4),
+                    paddingBottom: Math.max(insets.bottom, 6),
+                    paddingLeft: Math.max(insets.left, 16),
+                    paddingRight: Math.max(insets.right, 16),
+                }
+            ]}>
+                {/* Header */}
+                <View style={styles.signatureModalHeader}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                        <Ionicons 
+                            name={isImpediment ? "shield-outline" : "create-outline"} 
+                            size={20} 
+                            color={isImpediment ? "#dc2626" : "#1c2d4f"} 
+                        />
+                        <Text style={[styles.signatureModalTitle, isImpediment && { color: '#dc2626' }]}>
+                            {title}
+                        </Text>
+                        <Text style={styles.signatureModalSubtitleInline} numberOfLines={1}>
+                            {subtitle}
+                        </Text>
+                    </View>
+                    <Pressable 
+                        onPress={onClose}
+                        hitSlop={10}
+                        style={styles.signatureCloseBtn}
+                    >
+                        <Ionicons name="close" size={20} color="#64748b" />
+                    </Pressable>
+                </View>
+
+                {/* Canvas */}
+                <View 
+                    key={`sig-canvas-${isImpediment ? 'imp' : 'cli'}-${isLand ? 'land' : 'port'}`}
+                    style={styles.signatureCanvasWrapper}
+                >
+                    <SignatureScreen 
+                        ref={signatureRef} 
+                        onOK={onOK}
+                        webStyle={`
+                            body, html {
+                                position: relative;
+                                margin: 0;
+                                padding: 0;
+                                width: 100%;
+                                height: 100%;
+                                background-color: #ffffff;
+                                overflow: hidden;
+                            }
+                            .m-signature-pad {
+                                position: absolute;
+                                top: 0;
+                                left: 0;
+                                right: 0;
+                                bottom: 0;
+                                width: 100%;
+                                height: 100%;
+                                box-shadow: none;
+                                border: none;
+                                background-color: #ffffff;
+                            }
+                            .m-signature-pad--body {
+                                position: absolute;
+                                top: 0;
+                                left: 0;
+                                right: 0;
+                                bottom: 0;
+                                border: 2px dashed #94a3b8;
+                                border-radius: 12px;
+                                background-color: #ffffff;
+                            }
+                            .m-signature-pad--footer {
+                                display: none;
+                                margin: 0px;
+                            }
+                        `}
+                        style={{ flex: 1, width: '100%', height: '100%' }}
+                    />
+                </View>
+
+                {/* Footer */}
+                <View style={styles.signatureFooter}>
+                    <Pressable 
+                        onPress={onClose} 
+                        style={styles.signatureCancelBtn}
+                    >
+                        <Text style={styles.signatureCancelBtnText}>
+                            {isImpediment ? (t('execSignatureBack') || 'Voltar') : (t('execSignatureCancel') || 'Cancelar')}
+                        </Text>
+                    </Pressable>
+                    <Pressable 
+                        onPress={() => signatureRef.current?.clearSignature()} 
+                        style={styles.signatureClearBtn}
+                    >
+                        <Ionicons name="refresh-outline" size={18} color="#dc2626" style={{ marginRight: 4 }} />
+                        <Text style={styles.signatureClearBtnText}>{t('execSignatureClear') || 'Limpar'}</Text>
+                    </Pressable>
+                    <Pressable 
+                        onPress={() => signatureRef.current?.readSignature()} 
+                        style={styles.signatureConfirmBtn}
+                    >
+                        <Ionicons name="checkmark" size={20} color="#ffffff" style={{ marginRight: 4 }} />
+                        <Text style={styles.signatureConfirmBtnText}>{t('execSignatureConfirm') || 'Confirmar'}</Text>
+                    </Pressable>
+                </View>
+            </View>
+        );
+    };
 
     return (
         <>
@@ -2722,13 +2887,17 @@ export default function ExecuteOSScreen() {
 
                         <Text style={[styles.fieldLabel, { marginTop: 24, marginBottom: 8 }]}>{t('execDigitalSignature')}</Text>
                         {signature ? (
-                            <Pressable onPress={() => setSignature(null)} style={styles.signaturePreviewContainer}>
+                            <Pressable 
+                                onPress={() => {
+                                    setSignatureModalVisible(true);
+                                }} 
+                                style={styles.signaturePreviewContainer}
+                            >
                                 <Image source={{ uri: signature }} style={styles.signaturePreview} resizeMode="contain" />
                                 <Text style={styles.clearSignatureText}>{t('execTapToRedo')}</Text>
                             </Pressable>
                         ) : (
-                            <Pressable style={styles.signaturePlaceholder} onPress={async () => {
-                                await ScreenOrientation.unlockAsync().catch(() => {});
+                            <Pressable style={styles.signaturePlaceholder} onPress={() => {
                                 setSignatureModalVisible(true);
                             }}>
                                 <Ionicons name="pencil" size={32} color="#666" />
@@ -2962,167 +3131,8 @@ export default function ExecuteOSScreen() {
                 )}
             </View>
 
-            {/* Modals: ASSINATURA CLIENTE */}
-            <Modal 
-                visible={isSignatureModalVisible} 
-                animationType="slide" 
-                supportedOrientations={['portrait', 'portrait-upside-down', 'landscape', 'landscape-left', 'landscape-right']}
-                onRequestClose={async () => {
-                    await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
-                    setSignatureModalVisible(false);
-                }}
-            >
-                <SafeAreaView style={styles.signatureModalSafeArea}>
-                    <View style={styles.signatureModalHeader}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                            <Ionicons name="create-outline" size={24} color="#1c2d4f" />
-                            <Text style={styles.signatureModalTitle}>Assinatura do Responsável</Text>
-                        </View>
-                        <Pressable 
-                            onPress={async () => {
-                                await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
-                                setSignatureModalVisible(false);
-                            }}
-                            hitSlop={10}
-                            style={styles.signatureCloseBtn}
-                        >
-                            <Ionicons name="close" size={22} color="#64748b" />
-                        </Pressable>
-                    </View>
+            {/* MODAIS DE ASSINATURA iOS */}
 
-                    <Text style={styles.signatureModalSubtitle}>
-                        Desenhe a assinatura no campo abaixo (deite o celular para assinar em tela ampla):
-                    </Text>
-
-                    <View style={styles.signatureCanvasWrapper}>
-                        <SignatureScreen 
-                            ref={signatureRef} 
-                            onOK={handleSignature}
-                            webStyle={`
-                                .m-signature-pad { box-shadow: none; border: none; background-color: #ffffff; width: 100%; height: 100%; }
-                                .m-signature-pad--body { border: 2px dashed #94a3b8; border-radius: 12px; background-color: #ffffff; position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
-                                .m-signature-pad--footer { display: none; margin: 0px; }
-                                body, html { width: 100%; height: 100%; background-color: #ffffff; margin: 0; padding: 0; overflow: hidden; }
-                            `}
-                            style={{ flex: 1, width: '100%', height: '100%' }}
-                        />
-                    </View>
-
-                    <View style={[
-                        styles.signatureFooter,
-                        {
-                            paddingBottom: Math.max(insets.bottom, 12),
-                            paddingLeft: Math.max(insets.left, 16),
-                            paddingRight: Math.max(insets.right, 16),
-                        }
-                    ]}>
-                        <Pressable 
-                            onPress={async () => {
-                                await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
-                                setSignatureModalVisible(false);
-                            }} 
-                            style={styles.signatureCancelBtn}
-                        >
-                            <Text style={styles.signatureCancelBtnText}>{t('execSignatureCancel') || 'Cancelar'}</Text>
-                        </Pressable>
-                        <Pressable 
-                            onPress={() => signatureRef.current?.clearSignature()} 
-                            style={styles.signatureClearBtn}
-                        >
-                            <Ionicons name="refresh-outline" size={18} color="#dc2626" style={{ marginRight: 4 }} />
-                            <Text style={styles.signatureClearBtnText}>{t('execSignatureClear') || 'Limpar'}</Text>
-                        </Pressable>
-                        <Pressable 
-                            onPress={() => signatureRef.current?.readSignature()} 
-                            style={styles.signatureConfirmBtn}
-                        >
-                            <Ionicons name="checkmark" size={20} color="#ffffff" style={{ marginRight: 4 }} />
-                            <Text style={styles.signatureConfirmBtnText}>{t('execSignatureConfirm') || 'Confirmar'}</Text>
-                        </Pressable>
-                    </View>
-                </SafeAreaView>
-            </Modal>
-
-            {/* MODAL: ASSINATURA IMPEDIMENTO */}
-            <Modal 
-                visible={isImpedimentSignatureVisible} 
-                animationType="slide" 
-                supportedOrientations={['portrait', 'portrait-upside-down', 'landscape', 'landscape-left', 'landscape-right']}
-                onRequestClose={async () => {
-                    await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
-                    setIsImpedimentSignatureVisible(false);
-                }}
-            >
-                <SafeAreaView style={styles.signatureModalSafeArea}>
-                    <View style={styles.signatureModalHeader}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                            <Ionicons name="shield-outline" size={24} color="#dc2626" />
-                            <Text style={[styles.signatureModalTitle, { color: '#dc2626' }]}>Assinatura de Impedimento</Text>
-                        </View>
-                        <Pressable 
-                            onPress={async () => {
-                                await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
-                                setIsImpedimentSignatureVisible(false);
-                            }}
-                            hitSlop={10}
-                            style={styles.signatureCloseBtn}
-                        >
-                            <Ionicons name="close" size={22} color="#64748b" />
-                        </Pressable>
-                    </View>
-
-                    <Text style={styles.signatureModalSubtitle}>
-                        Desenhe a assinatura de confirmação do impedimento:
-                    </Text>
-
-                    <View style={styles.signatureCanvasWrapper}>
-                        <SignatureScreen
-                            ref={signatureRef}
-                            onOK={handleImpedimentSignature}
-                            webStyle={`
-                                .m-signature-pad { box-shadow: none; border: none; background-color: #ffffff; width: 100%; height: 100%; }
-                                .m-signature-pad--body { border: 2px dashed #94a3b8; border-radius: 12px; background-color: #ffffff; position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
-                                .m-signature-pad--footer { display: none; margin: 0px; }
-                                body, html { width: 100%; height: 100%; background-color: #ffffff; margin: 0; padding: 0; overflow: hidden; }
-                            `}
-                            style={{ flex: 1, width: '100%', height: '100%' }}
-                        />
-                    </View>
-
-                    <View style={[
-                        styles.signatureFooter,
-                        {
-                            paddingBottom: Math.max(insets.bottom, 12),
-                            paddingLeft: Math.max(insets.left, 16),
-                            paddingRight: Math.max(insets.right, 16),
-                        }
-                    ]}>
-                        <Pressable 
-                            onPress={async () => {
-                                await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
-                                setIsImpedimentSignatureVisible(false);
-                            }} 
-                            style={styles.signatureCancelBtn}
-                        >
-                            <Text style={styles.signatureCancelBtnText}>{t('execSignatureBack') || 'Voltar'}</Text>
-                        </Pressable>
-                        <Pressable 
-                            onPress={() => signatureRef.current?.clearSignature()} 
-                            style={styles.signatureClearBtn}
-                        >
-                            <Ionicons name="refresh-outline" size={18} color="#dc2626" style={{ marginRight: 4 }} />
-                            <Text style={styles.signatureClearBtnText}>{t('execSignatureClear') || 'Limpar'}</Text>
-                        </Pressable>
-                        <Pressable 
-                            onPress={() => signatureRef.current?.readSignature()} 
-                            style={styles.signatureConfirmBtn}
-                        >
-                            <Ionicons name="checkmark" size={20} color="#ffffff" style={{ marginRight: 4 }} />
-                            <Text style={styles.signatureConfirmBtnText}>{t('execSignatureConfirm') || 'Confirmar'}</Text>
-                        </Pressable>
-                    </View>
-                </SafeAreaView>
-            </Modal>
 
 
             <ImageViewerModal visible={viewerVisible} imageUri={selectedImage} onClose={() => setViewerVisible(false)} />
@@ -3663,6 +3673,20 @@ export default function ExecuteOSScreen() {
                     </View>
                 </View>
             </Modal>
+            {/* OVERLAY ASSINATURA FULL-SCREEN (Zero bug de Dialog ou freeze no iOS e Android) */}
+            {isSignatureModalVisible && (
+                <View style={styles.signatureFullScreenOverlay}>
+                    <StatusBar hidden={true} />
+                    {renderSignatureContent(false)}
+                </View>
+            )}
+
+            {isImpedimentSignatureVisible && (
+                <View style={styles.signatureFullScreenOverlay}>
+                    <StatusBar hidden={true} />
+                    {renderSignatureContent(true)}
+                </View>
+            )}
         </>
     );
 }
@@ -3694,6 +3718,16 @@ const styles = StyleSheet.create({
     clearSignatureText: { color: '#e11d48', fontWeight: '700', marginTop: 8, fontSize: 12 },
     footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#ffffff', padding: 6, borderTopWidth: 1, borderTopColor: '#f1f5f9', shadowColor: '#000', shadowOffset: { width: 0, height: -8 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 12 },
     submitButton: { backgroundColor: '#10b981', paddingVertical: 14, borderRadius: 12, alignItems: 'center', shadowColor: '#10b981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 3 },
+    signatureFullScreenOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 999999,
+        elevation: 999999,
+        backgroundColor: '#ffffff',
+    },
     signatureModalSafeArea: {
         flex: 1,
         backgroundColor: '#ffffff',
@@ -3702,16 +3736,19 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingTop: Platform.OS === 'ios' ? 4 : 8,
-        paddingBottom: 6,
+        paddingVertical: 8,
         borderBottomWidth: 1,
         borderBottomColor: '#f1f5f9',
     },
     signatureModalTitle: {
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: '800',
         color: '#1c2d4f',
+    },
+    signatureModalSubtitleInline: {
+        fontSize: 12,
+        color: '#64748b',
+        fontWeight: '500',
     },
     signatureModalSubtitle: {
         fontSize: 12,

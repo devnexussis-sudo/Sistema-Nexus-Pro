@@ -66,6 +66,7 @@ export class TenantService {
                     event: '*',
                     schema: 'public',
                     table: 'tenants',
+                    filter: `id=eq.${tenantId}`,
                 },
                 async (payload: any) => {
                     const updatedId = payload.new?.id || payload.old?.id;
@@ -203,12 +204,5 @@ export class TenantService {
             logger.log(`TenantService exception: ${error}`, 'error');
             return { ...DEFAULT_SETTINGS };
         }
-    }
-
-    /**
-     * Limpa o cache para forçar recarregamento (ex: após login)
-     */
-    static clearCache() {
-        this.settingsCache = {};
     }
 }
