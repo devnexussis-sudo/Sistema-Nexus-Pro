@@ -64,7 +64,6 @@
     },
     "plugins": [
       "./withCustomProguard.js",
-      "./withManifestMerger.js",
       "expo-router",
       [
         "expo-splash-screen",
