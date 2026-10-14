@@ -1,7 +1,6 @@
-import { supabase, publicSupabase, safeKey } from '../lib/supabase';
+import { publicSupabase, safeKey, supabase } from '../lib/supabase';
 
 import { getCurrentTenantId } from '../lib/tenantContext';
-import { logger } from '../lib/logger';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
@@ -76,29 +75,29 @@ export const StorageService = {
         let cleanPath = originalPath.toString().replace(/^\/+/, '').replace(/\/+$/, '');
         let finalHumanPath = cleanPath;
         let tenantIdToUse = providedTenantId;
-        
+
         try {
             if (cleanPath.startsWith('orders/')) {
                 const parts = cleanPath.split('/');
                 const orderId = parts[1];
                 const subfolder = parts[2];
-                
+
                 const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
                 const orderQuery = supabase.from('orders').select('display_id, tenant_id');
-                const { data } = isUuid 
+                const { data } = isUuid
                     ? await orderQuery.eq('id', orderId).maybeSingle()
                     : await orderQuery.eq('display_id', orderId).maybeSingle();
 
                 if (data) {
                     if (!tenantIdToUse) tenantIdToUse = data.tenant_id;
                     const code = data.display_id || orderId.substring(0, 8);
-                    
+
                     let subHuman = 'Arquivos';
                     if (subfolder === 'evidence') subHuman = 'Evidencias';
                     else if (subfolder === 'internal_notes') subHuman = 'Observacoes';
                     else if (subfolder === 'signatures') subHuman = 'Assinaturas';
                     else if (subfolder) subHuman = subfolder;
-                    
+
                     finalHumanPath = `Ordem de Servico/${code}/${subHuman}`;
                 } else {
                     // Fallback for public dropzone
@@ -112,22 +111,22 @@ export const StorageService = {
                         finalHumanPath = `Ordem de Servico/${code}/${subHuman}`;
                     }
                 }
-            } 
+            }
             else if (cleanPath.startsWith('quotes/')) {
                 const parts = cleanPath.split('/');
                 const quoteId = parts[1];
                 const subfolder = parts[2];
-                
+
                 const { data } = await supabase.from('quotes').select('display_id, tenant_id').eq('id', quoteId).maybeSingle();
                 if (data) {
                     if (!tenantIdToUse) tenantIdToUse = data.tenant_id;
                     const code = data.display_id || quoteId.substring(0, 8);
-                    
+
                     let subHuman = 'Arquivos';
                     if (subfolder === 'signatures') subHuman = 'Assinaturas';
                     else if (subfolder === 'rejections') subHuman = 'Rejeicoes';
                     else if (subfolder) subHuman = subfolder;
-                    
+
                     finalHumanPath = `Orcamentos/${code}/${subHuman}`;
                 } else {
                     // Fallback for public dropzone
@@ -142,7 +141,7 @@ export const StorageService = {
                         finalHumanPath = `Orcamentos/${code}/${subHuman}`;
                     }
                 }
-            } 
+            }
             else if (cleanPath.startsWith('avatars/users/')) {
                 const parts = cleanPath.split('/');
                 const userId = parts[2];
@@ -151,7 +150,7 @@ export const StorageService = {
                     const userName = data?.name ? data.name.trim().replace(/[^a-zA-Z0-9]/g, '_') : userId;
                     finalHumanPath = `Avatares/Usuarios/${userName}`;
                 }
-            } 
+            }
             else if (cleanPath.startsWith('tenants/')) {
                 const parts = cleanPath.split('/');
                 if (parts[1] && parts[1] !== 'new') {
@@ -165,23 +164,23 @@ export const StorageService = {
             // Buscar o nome fantasia do tenant
             let tenantNameStr = 'Empresa';
             if (tenantIdToUse !== 'anon') {
-                 // Try auth first
-                 const { data: tData } = await supabase.from('tenants').select('trade_name, name, company_name').eq('id', tenantIdToUse).maybeSingle();
-                 if (tData) {
-                     const tName = tData.trade_name || tData.name || tData.company_name;
-                     if (tName) tenantNameStr = tName.trim().replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
-                 } else {
-                     // Fallback via RPC public
-                     const { data: pData } = await publicSupabase.rpc('get_public_tenant_info', { p_tenant_id: tenantIdToUse });
-                     if (pData) {
-                         const tName = pData.trade_name || pData.name || pData.company_name;
-                         if (tName) tenantNameStr = tName.trim().replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
-                     }
-                 }
+                // Try auth first
+                const { data: tData } = await supabase.from('tenants').select('trade_name, name, company_name').eq('id', tenantIdToUse).maybeSingle();
+                if (tData) {
+                    const tName = tData.trade_name || tData.name || tData.company_name;
+                    if (tName) tenantNameStr = tName.trim().replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+                } else {
+                    // Fallback via RPC public
+                    const { data: pData } = await publicSupabase.rpc('get_public_tenant_info', { p_tenant_id: tenantIdToUse });
+                    if (pData) {
+                        const tName = pData.trade_name || pData.name || pData.company_name;
+                        if (tName) tenantNameStr = tName.trim().replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+                    }
+                }
             }
 
             const rootFolder = `${tenantNameStr}_${tenantIdToUse}`;
-            
+
             return {
                 finalPath: `${rootFolder}/${finalHumanPath}`.replace(/\/+/g, '/'),
                 resolvedTenantId: tenantIdToUse
@@ -273,7 +272,7 @@ export const StorageService = {
      */
     _uploadDropzoneCore: async (blobOrFile: Blob | File, path: string, retryCount = 2, signal?: AbortSignal): Promise<string> => {
         const resolved = await StorageService._resolveHumanPath(path);
-        
+
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.webp`;
         const fullPath = `${resolved.finalPath}/${fileName}`.replace(/\/+/g, '/');
         const contentType = 'image/webp';
@@ -467,7 +466,7 @@ export const StorageService = {
             uint8Array[i] = binaryData.charCodeAt(i);
         }
         const blob = new Blob([uint8Array], { type: 'image/webp' });
-        
+
         // Envio estrito e exclusivo para o Cloudflare R2
         return await StorageService._uploadDropzoneCore(blob, path);
     },
@@ -537,7 +536,7 @@ export const StorageService = {
      */
     uploadFinancialReceipt: async (file: File, pathFolder: string, signal?: AbortSignal): Promise<string> => {
         if (!isCloudEnabled) return URL.createObjectURL(file);
-        
+
         try {
             const isImage = file.type.startsWith('image/');
             if (isImage) {
@@ -563,7 +562,7 @@ export const StorageService = {
         if (!isCloudEnabled) {
             return { url: URL.createObjectURL(file), name: file.name, type: file.type.includes('image') ? 'image' : 'document', size: file.size };
         }
-        
+
         try {
             const isImage = file.type.startsWith('image/');
             if (isImage) {
@@ -634,7 +633,7 @@ export const StorageService = {
             } else if (url.includes('/nexus-public-dropzone/')) {
                 path = url.split('/nexus-public-dropzone/')[1].split('?')[0];
                 bucketType = 'dropzone';
-            } 
+            }
             // Novo formato R2
             else if (url.includes('.r2.dev/')) {
                 path = url.split('.r2.dev/')[1].split('?')[0];

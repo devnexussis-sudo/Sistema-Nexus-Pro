@@ -285,7 +285,7 @@ const ModernAdminLogin: React.FC<ThemedLoginProps> = ({ onLogin, onToggleMaster,
                                         <p className="text-xs sm:text-sm text-slate-500">Entre com suas credenciais para acessar.</p>
                                     </div>
 
-                                    {/* Botão Google Workspace */}
+                                    {/* Botão Google */}
                                     <button
                                         type="button"
                                         onClick={handleGoogleLogin}
@@ -298,7 +298,7 @@ const ModernAdminLogin: React.FC<ThemedLoginProps> = ({ onLogin, onToggleMaster,
                                             <path fill="#FBBC05" d="M5.5 14.7c-.2-.7-.4-1.5-.4-2.7s.2-2 .4-2.7L1.8 6.4C.7 8.6 0 11.2 0 14s.7 5.4 1.8 7.6l3.7-2.9z" />
                                             <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.6-2.2-6.5-5.3L1.8 16c1.8 3.8 5.6 7 10.2 7z" />
                                         </svg>
-                                        Continuar com Google Workspace
+                                        Continuar com Google
                                     </button>
 
                                     <div className="relative flex py-1 items-center mb-4">
@@ -446,35 +446,36 @@ const ModernAdminLogin: React.FC<ThemedLoginProps> = ({ onLogin, onToggleMaster,
                 </div>
 
                 {/* ================= LADO DIREITO: PAINEL VISUAL (VITRINE) ================= */}
-                <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#0a111f] via-[#0e1729] to-[#0a111f] p-8 flex-col justify-between relative overflow-hidden border-l border-[#121d33]/60">
+                <div className="hidden lg:flex lg:w-1/2 bg-[#0a111f] p-8 flex-col justify-between relative overflow-hidden border-l border-[#121d33]/60">
 
-                    {/* Imagem de fundo sutil com mix blend para textura profissional */}
+                    {/* Imagem de fundo do escritório com pessoas trabalhando */}
                     <img
                         src={LoginBg}
                         alt="DUNO Office"
-                        className="absolute inset-0 w-full h-full object-cover opacity-25 pointer-events-none"
+                        className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none"
                     />
-                    {/* Filtro Azul sobre a imagem */}
-                    <div className="absolute inset-0 bg-[#0a111f]/40 pointer-events-none"></div>
 
-                    {/* Efeito Glow */}
-                    <div className="absolute -top-24 -right-24 w-80 h-80 bg-primary-500/15 rounded-full blur-3xl pointer-events-none"></div>
+                    {/* Filtro azul em degradê: forte na esquerda e sumindo (100% transparente) para a direita */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-[#0a111f] via-[#0e1729]/75 via-40% to-transparent pointer-events-none"></div>
 
-                    {/* Espaçador superior (v2.4 Core removido) */}
+                    {/* Efeito Glow sutil no canto superior */}
+                    <div className="absolute -top-24 -right-24 w-80 h-80 bg-primary-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+                    {/* Espaçador superior */}
                     <div className="relative z-10 h-6"></div>
 
-                    <div className="relative z-10 space-y-4 mb-auto mt-20">
+                    <div className="relative z-10 space-y-4 mb-auto mt-20 max-w-sm">
                         <h2 className="text-2xl sm:text-3xl uppercase tracking-widest text-white font-extrabold drop-shadow-md">Field Management</h2>
-                        <blockquote className="text-xl font-semibold text-slate-100 leading-snug">
+                        <blockquote className="text-xl font-semibold text-slate-100 leading-snug drop-shadow-md">
                             &ldquo;Gestão completa de ordens de serviço, ativos e técnicos em campo unificados em alta performance.&rdquo;
                         </blockquote>
-                        <p className="text-xs text-slate-400 leading-relaxed">
+                        <p className="text-xs text-slate-300 leading-relaxed drop-shadow">
                             Elimine atritos operacionais e tenha rastreabilidade total das operações técnicas da sua rede.
                         </p>
                     </div>
 
-                    <div className="relative z-10 flex justify-end items-center pt-4 border-t border-white/40">
-                        <span className="text-slate-300 font-extrabold tracking-wider text-[11px] uppercase">
+                    <div className="relative z-10 flex justify-end items-center pt-4 border-t border-white/20">
+                        <span className="text-slate-100 font-extrabold tracking-wider text-[11px] uppercase drop-shadow-md">
                             DUNO, <span className="font-semibold text-primary-400">Sua operação mais inteligente!</span>
                         </span>
                     </div>
