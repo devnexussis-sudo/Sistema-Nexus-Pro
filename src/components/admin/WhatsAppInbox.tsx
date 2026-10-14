@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw, X, BellRing, Bell, Volume2, ArrowRight, ArrowLeft, ChevronLeft, ChevronRight, Sticker, FileVideo, Paperclip, Mic, FileText, Download, AlertCircle, Plus, Search, Loader2, CheckCircle2, ExternalLink, Images, Clock, Calendar } from 'lucide-react';
+import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw, X, BellRing, Bell, Volume2, ArrowRight, ArrowLeft, ChevronLeft, ChevronRight, Sticker, FileVideo, Paperclip, Mic, FileText, Download, AlertCircle, Plus, Search, Loader2, CheckCircle2, ExternalLink, Images, Clock, Calendar, Settings, ShieldAlert, Headphones } from 'lucide-react';
 import { Customer } from '../../types';
 import { getCurrentTenantId } from '../../lib/tenantContext';
+import { useTenant } from '../../hooks/nexusHooks';
 
 function parseMessageMedia(content: string) {
   if (!content || !content.startsWith('MEDIA_URL:')) return null;
@@ -303,6 +304,27 @@ function sendBrowserNotification(title: string, body: string) {
 
 export const WhatsAppInbox: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { data: tenant, isLoading: isTenantLoading } = useTenant();
+  const [showUnconfiguredModal, setShowUnconfiguredModal] = useState(false);
+
+  // 🛡️ Validação da Configuração da API do WhatsApp no Painel
+  const ws = tenant?.whatsapp_settings as Record<string, any> | undefined;
+  const isWhatsAppConfigured = useMemo(() => {
+    if (!ws) return false;
+    const hasUrl = Boolean(ws.uazapi_url || ws.api_url);
+    const hasToken = Boolean(ws.uazapi_token || ws.zapi_instance_token || ws.api_token);
+    const hasInstance = Boolean(ws.uazapi_instance || ws.zapi_instance_id || ws.instance_id);
+    return hasUrl && hasToken && hasInstance;
+  }, [ws]);
+
+  // Exibe o popup aviso assim que detectar que o WhatsApp não foi configurado
+  useEffect(() => {
+    if (!isTenantLoading && !isWhatsAppConfigured) {
+      setShowUnconfiguredModal(true);
+    }
+  }, [isTenantLoading, isWhatsAppConfigured]);
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -414,6 +436,10 @@ export const WhatsAppInbox: React.FC = () => {
   });
 
   const handleStartNewChat = async () => {
+    if (!isWhatsAppConfigured) {
+      setShowUnconfiguredModal(true);
+      return;
+    }
     setNewChatError(null);
 
     let targetRaw = '';
@@ -1131,6 +1157,10 @@ export const WhatsAppInbox: React.FC = () => {
 
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isWhatsAppConfigured) {
+      setShowUnconfiguredModal(true);
+      return;
+    }
     const file = e.target.files?.[0];
     if (!file || !selected || !currentUserId) return;
     markOutgoingAction(selected.id);
@@ -1281,6 +1311,10 @@ export const WhatsAppInbox: React.FC = () => {
   };
 
   const handleSend = () => {
+    if (!isWhatsAppConfigured) {
+      setShowUnconfiguredModal(true);
+      return;
+    }
     if (!message.trim() || !selected || sendingAction !== null) return;
     markOutgoingAction(selected.id);
     const txt = message;
@@ -1409,6 +1443,42 @@ export const WhatsAppInbox: React.FC = () => {
         </div>
       )}
 
+      {/* ⚠️ Banner de WhatsApp não configurado (visível caso o modal seja fechado pelo usuário) */}
+      {!isTenantLoading && !isWhatsAppConfigured && !showUnconfiguredModal && (
+        <div className="absolute top-3 left-4 right-4 z-40 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 text-white px-4 py-2.5 rounded-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-3 border border-amber-400/50 backdrop-blur-md animate-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white/20 rounded-xl shrink-0">
+              <AlertCircle size={18} className="text-white" />
+            </div>
+            <div>
+              <p className="text-xs font-bold leading-tight">
+                WhatsApp Não Configurado
+              </p>
+              <p className="text-[11px] text-white/90 leading-tight mt-0.5">
+                Para usar esse recurso é necessário <strong className="underline underline-offset-2">acionar o Suporte Duno</strong>.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+            <button
+              onClick={() => setShowUnconfiguredModal(true)}
+              className="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-xl text-white font-semibold text-xs transition-all cursor-pointer"
+            >
+              Ver Aviso
+            </button>
+            <a
+              href="https://wa.me/5535984274972?text=Ol%C3%A1%2C%20preciso%20de%20ajuda%20para%20ativar%20e%20configurar%20a%20API%20do%20WhatsApp%20no%20meu%20painel%20Duno"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3.5 py-1.5 bg-white text-emerald-900 hover:bg-emerald-50 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Phone size={13} className="text-emerald-600" />
+              Suporte Duno
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Banner de permissão — aparece até o usuário conceder acesso */}
       {!permBannerDismissed && permissionState !== 'granted' && (
         <div className="absolute bottom-0 left-0 right-0 z-40 p-4">
@@ -1499,6 +1569,10 @@ export const WhatsAppInbox: React.FC = () => {
           {/* Botão Nova Conversa */}
           <button
             onClick={() => {
+              if (!isWhatsAppConfigured) {
+                setShowUnconfiguredModal(true);
+                return;
+              }
               setIsNewChatOpen(true);
               setNewChatTab('customer');
               setCustomerQuery('');
@@ -3014,6 +3088,119 @@ export const WhatsAppInbox: React.FC = () => {
                 ))}
               </div>
             )}
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* 🚨 MODAL POPUP: AVISO DE WHATSAPP NÃO CONFIGURADO (SUPORTE DUNO) */}
+      {showUnconfiguredModal && createPortal(
+        <div 
+          className="fixed inset-0 z-[99999999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200 font-poppins"
+          onClick={() => setShowUnconfiguredModal(false)}
+        >
+          <div 
+            className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden p-6 sm:p-8 animate-in zoom-in-95 duration-200 text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Botão Fechar */}
+            <button
+              onClick={() => setShowUnconfiguredModal(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all cursor-pointer"
+              title="Fechar aviso"
+            >
+              <X size={18} />
+            </button>
+
+            {/* Ícone com Glow / Animação */}
+            <div className="relative mx-auto w-20 h-20 mb-5 flex items-center justify-center">
+              <div className="absolute inset-0 bg-emerald-500/20 rounded-2xl animate-ping opacity-30" />
+              <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-tr from-emerald-600 via-teal-600 to-emerald-500 flex items-center justify-center text-white shadow-xl shadow-emerald-500/30">
+                <MessageCircle size={38} />
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-amber-500 text-white flex items-center justify-center border-2 border-white shadow-md">
+                <AlertCircle size={15} />
+              </div>
+            </div>
+
+            {/* Tag / Badge */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-bold uppercase tracking-wider mb-2.5">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              Configuração Necessária
+            </div>
+
+            {/* Título Principal */}
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight mb-3">
+              WhatsApp Não Configurado
+            </h2>
+
+            {/* Mensagem Solicitada em Destaque */}
+            <div className="p-4 bg-emerald-50/80 border border-emerald-100 rounded-2xl mb-5">
+              <p className="text-sm text-emerald-950 font-bold leading-snug">
+                Para usar esse recurso é necessário acionar o <span className="text-emerald-700 font-extrabold">Suporte Duno</span>.
+              </p>
+            </div>
+
+            {/* Explicação detalhada */}
+            <p className="text-xs text-slate-500 leading-relaxed mb-6 font-medium text-left">
+              A integração oficial com a API do WhatsApp ainda não foi preenchida ou vinculada nas configurações da sua empresa. Para liberar envio e recebimento de mensagens, automações e atendimento em tempo real, entre em contato para realizar a ativação.
+            </p>
+
+            {/* Grid informativo de passos */}
+            <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-2xl mb-6 text-xs text-slate-600 text-left space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 font-bold text-[10px]">
+                  ✓
+                </div>
+                <span>Ativação de chave de API e instância do WhatsApp Bot</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 font-bold text-[10px]">
+                  ✓
+                </div>
+                <span>Geração de QR Code e conexão do número da sua empresa</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 font-bold text-[10px]">
+                  ✓
+                </div>
+                <span>Configuração nas opções de atendimento do painel</span>
+              </div>
+            </div>
+
+            {/* Botões de Ação */}
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <a
+                href="https://wa.me/5535984274972?text=Ol%C3%A1%2C%20gostaria%20de%20ativar%20e%20configurar%20a%20API%20do%20WhatsApp%20no%20meu%20painel%20Duno"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full sm:flex-1 flex items-center justify-center gap-2 py-3.5 px-5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-emerald-600/25 active:scale-[0.98] transition-all cursor-pointer"
+              >
+                <Phone size={16} />
+                Acionar Suporte Duno
+              </a>
+
+              <button
+                onClick={() => {
+                  setShowUnconfiguredModal(false);
+                  navigate('/admin/settings');
+                }}
+                className="w-full sm:w-auto py-3.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <Settings size={14} />
+                Configurações
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowUnconfiguredModal(false);
+                  navigate('/admin');
+                }}
+                className="w-full sm:w-auto py-3.5 px-3 hover:bg-slate-100 text-slate-500 hover:text-slate-700 font-medium text-xs rounded-xl transition-all cursor-pointer"
+              >
+                Voltar
+              </button>
+            </div>
           </div>
         </div>,
         document.body
