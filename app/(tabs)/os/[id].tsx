@@ -1730,7 +1730,7 @@ export default function OrderDetailsScreen() {
 
             {/* Footer Actions - Only show if pending or in_progress */}
             {isEditable && (
-                <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 8) + 8, paddingTop: 8, paddingHorizontal: 12 }]}>
+                <View style={styles.footer}>
                     {allowImpediment && (
                     <Pressable style={[styles.actionButton, styles.blockButton]} onPress={handleBlock}>
                         <Ionicons name="hand-left-outline" size={20} color="#e11d48" />
@@ -2024,7 +2024,7 @@ const styles = StyleSheet.create({
     photosContainer: { flexDirection: 'row', marginTop: 10 },
     photoThumbnail: { width: 80, height: 80, borderRadius: 10, backgroundColor: '#f1f5f9', marginRight: 10, borderWidth: 1, borderColor: '#e2e8f0' },
     signatureImage: { width: '100%', height: 100, backgroundColor: '#ffffff', marginTop: 10, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0' },
-    footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#ffffff', padding: 14, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingBottom: Platform.OS === 'ios' ? 44 : 35, shadowColor: '#000', shadowOffset: { width: 0, height: -8 }, shadowOpacity: 0.05, shadowRadius: 16, elevation: 15 },
+    footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#ffffff', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 6, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#e2e8f0', shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 8 },
     actionButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flex: 0.48, paddingVertical: 14, borderRadius: 12, gap: 8 },
     blockButton: { backgroundColor: '#fff1f2', borderWidth: 1, borderColor: '#fecdd3' },
     blockButtonText: { color: '#e11d48', fontWeight: '800', fontSize: 15 },
