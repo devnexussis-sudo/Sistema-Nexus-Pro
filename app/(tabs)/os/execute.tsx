@@ -3136,7 +3136,7 @@ export default function ExecuteOSScreen() {
             )}
 
             {/* PAGINATED FOOTER */}
-            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 6 }]}>
+            <View style={[styles.footer, { paddingBottom: 6, paddingTop: 8, paddingHorizontal: 12 }]}>
                 {/* On the last page: show Impedir + Finalizar */}
                 {currentPage === totalPages - 1 ? (
                     <View style={{ gap: 10 }}>
@@ -3795,8 +3795,7 @@ const styles = StyleSheet.create({
     signaturePlaceholderText: { color: '#64748b', fontSize: 13, fontWeight: '600' },
     signaturePreviewContainer: { alignItems: 'center', marginTop: 10 },
     signaturePreview: { width: '100%', height: 110, backgroundColor: '#ffffff', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0' },
-    clearSignatureText: { color: '#e11d48', fontWeight: '700', marginTop: 8, fontSize: 12 },
-    footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#ffffff', padding: 6, borderTopWidth: 1, borderTopColor: '#f1f5f9', shadowColor: '#000', shadowOffset: { width: 0, height: -8 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 12 },
+    footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#ffffff', borderTopWidth: 1, borderTopColor: '#e2e8f0', shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 8 },
     submitButton: { backgroundColor: '#10b981', paddingVertical: 14, borderRadius: 12, alignItems: 'center', shadowColor: '#10b981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 3 },
     signatureFullScreenOverlay: {
         position: 'absolute',
