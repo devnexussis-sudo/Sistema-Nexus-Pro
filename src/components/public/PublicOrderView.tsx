@@ -573,7 +573,7 @@ const VisitCard: React.FC<{
                     <img src={sigUrl} className="max-h-full max-w-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform" alt="Assinatura da Visita" />
                   </div>
                   <div className="mt-1 text-[9px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md inline-block uppercase tracking-wider">
-                    Autenticado via Nexus Mobile
+                    Autenticado via Duno Mobile
                   </div>
                 </div>
               </div>
@@ -1565,11 +1565,29 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           title="Clique para abrir mídia original"
         >
           {isVideo ? (
-            <div className="w-full h-full relative flex flex-col items-center justify-center bg-slate-900 text-white p-2 select-none">
-              <Play size={22} className="text-white opacity-95 mb-1" />
-              <span className="bg-white/20 text-white text-[8px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
-                Vídeo
-              </span>
+            <div className="w-full h-full relative overflow-hidden bg-slate-900 flex items-center justify-center">
+              <video
+                src={`${cleanUrl}#t=0.5`}
+                preload="auto"
+                muted
+                playsInline
+                className="w-full h-full object-cover print-thumbnail-img"
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  pointerEvents: 'none'
+                }}
+              />
+              <div className="absolute inset-0 bg-black/25 flex flex-col items-center justify-center pointer-events-none">
+                <div className="w-6 h-6 rounded-full bg-black/60 flex items-center justify-center shadow">
+                  <Play size={12} className="text-white fill-white ml-0.5" />
+                </div>
+                <span className="mt-1 bg-black/60 text-white text-[7px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">
+                  Vídeo
+                </span>
+              </div>
             </div>
           ) : (
             <img
@@ -2520,7 +2538,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         }
         @media print {
           @page {
-            margin: 8mm 6mm 16mm 6mm;
+            margin: 14mm 8mm 20mm 8mm;
             size: A4 portrait;
           }
           html, body {
@@ -2662,14 +2680,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             left: 0 !important;
             right: 0 !important;
             width: 100% !important;
-            height: 44px !important;
+            height: 38px !important;
             background-color: white !important;
             z-index: 9999 !important;
             box-sizing: border-box !important;
             margin: 0 !important;
           }
           .print-footer-spacer {
-            height: 56px !important;
+            height: 50px !important;
             visibility: hidden !important;
             pointer-events: none !important;
           }
@@ -2720,7 +2738,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
           @media print {
             @page {
-              margin: 8mm 6mm 16mm 6mm;
+              margin: 14mm 8mm 20mm 8mm;
               size: A4 portrait;
             }
             html, body {
@@ -2862,14 +2880,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               left: 0 !important;
               right: 0 !important;
               width: 100% !important;
-              height: 44px !important;
+              height: 38px !important;
               background-color: white !important;
               z-index: 9999 !important;
               box-sizing: border-box !important;
               margin: 0 !important;
             }
             .print-footer-spacer {
-              height: 56px !important;
+              height: 50px !important;
               visibility: hidden !important;
               pointer-events: none !important;
             }
