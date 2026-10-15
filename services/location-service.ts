@@ -13,21 +13,27 @@ export const LOCATION_TASK_NAME = 'background-location-task';
 // Detecção segura do Expo Go (Background Location em 2º plano no Expo Go causa crash no iOS)
 const isExpoGo = Constants.appOwnership === 'expo' || (Constants as any).executionEnvironment === 'storeClient';
 
-// ─── Thresholds ──────────────────────────────────────────────────────────────
-// Only send a real-time position update when the tech moves at least this far.
-// No route history is stored — we only keep the CURRENT position in the
-// `technicians` table (last_latitude, last_longitude, last_seen, battery_level).
-const MIN_DISTANCE_M = 50;   // Minimum movement before sending an update
-const HEARTBEAT_MS  = 5 * 60 * 1000; // Presence ping every 5 min when stationary
-const ACCURACY_MAX_M = 40;   // Discard noisy GPS readings
+// ─── Thresholds (Regras de Negócio do GPS Duno) ──────────────────────────────
+// 1. Movimento considerado apenas acima de 30 metros:
+const MOVEMENT_THRESHOLD_M = 30;
+
+// 2. Tempo de inatividade (< 30m) para transicionar o status no mapa para PARADO: 5 minutos
+const STATIONARY_TIMEOUT_MS = 5 * 60 * 1000; // 300.000 ms
+
+// 3. Heartbeat periódico quando parado: a cada 5 minutos (evita que o técnico fique offline no mapa)
+const HEARTBEAT_STATIONARY_MS = 5 * 60 * 1000; // 300.000 ms
+
+// 4. Precisão máxima aceitável do GPS: descarta leituras ruidosas acima de 40m
+const ACCURACY_MAX_M = 40;
 
 // ─── In-memory state ─────────────────────────────────────────────────────────
 let foregroundSubscription: Location.LocationSubscription | null = null;
 let lastSentLat: number | null = null;
 let lastSentLng: number | null = null;
 let lastSentTime = 0;
-let lastMovingTime = 0;
-let lastHeartbeatTime = 0;
+let stationaryStartTime: number | null = null;
+let currentMotionState: 'EM MOVIMENTO' | 'PARADO' = 'PARADO';
+let stationaryTimer: any = null;
 let isProcessing = false;
 
 // ─── Haversine distance ──────────────────────────────────────────────────────
@@ -49,11 +55,15 @@ const getBattery = async (): Promise<number | null> => {
     } catch { return null; }
 };
 
-// ─── Core: Real-time position update (no route history) ──────────────────────
-// Only updates the `technicians` row — no INSERT anywhere.
+interface SendLocationOptions {
+    force?: boolean;
+    reason?: string;
+}
+
+// ─── Core: Atualização de Posição em Tempo Real (Sem Histórico / Sem Pooling) ──
 const sendLocationUpdate = async (
     location: Location.LocationObject,
-    options: { force?: boolean } = {}
+    options: SendLocationOptions = {}
 ) => {
     if (isProcessing) return;
     isProcessing = true;
@@ -62,56 +72,105 @@ const sendLocationUpdate = async (
     const now = Date.now();
 
     try {
-        // Drop noisy GPS readings
+        // Descartar leituras ruidosas do GPS (exceto se for pulso forçado)
         if (accuracy && accuracy > ACCURACY_MAX_M && !options.force) {
-            logger.log(`[GPS] ⛔ Discarded, accuracy=${accuracy?.toFixed(0)}m`, 'info');
+            logger.log(`[GPS] ⛔ Descartado por imprecisão: accuracy=${accuracy?.toFixed(0)}m > ${ACCURACY_MAX_M}m`, 'info');
             return;
         }
 
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user) return;
 
-        const battery = await getBattery();
-
-        const timeDeltaSec = lastSentTime > 0 ? (now - lastSentTime) / 1000 : 0;
+        // Distância em relação à última coordenada enviada com sucesso ao banco
         const distFromLast = (lastSentLat !== null && lastSentLng !== null)
             ? haversine(lastSentLat, lastSentLng, latitude, longitude)
             : Infinity;
 
-        // 1. Velocidade instantânea do GPS (m/s -> km/h) com fallback por deslocamento
+        // Velocidade instantânea do GPS (m/s -> km/h)
         let currentSpeedKmh = 0;
         const { speed: rawSpeed } = location.coords;
         if (rawSpeed !== null && rawSpeed !== undefined && rawSpeed >= 0) {
             currentSpeedKmh = rawSpeed * 3.6;
-        } else if (timeDeltaSec > 0 && distFromLast < Infinity) {
-            currentSpeedKmh = (distFromLast / timeDeltaSec) * 3.6;
         }
 
-        // 2. Detecção inteligente de movimento:
-        // - Velocidade >= 3.5 km/h (caminhada rápida ou veículo) OU deslocamento >= 20 metros
-        const isCurrentlyMoving = currentSpeedKmh >= 3.5 || distFromLast >= 20;
-        if (isCurrentlyMoving) {
-            lastMovingTime = now;
+        let shouldSend = false;
+        let nextMotionState: 'EM MOVIMENTO' | 'PARADO' = currentMotionState;
+        let reason = options.reason || '';
+
+        // ── REGRA 1: Pulso Forçado (Login no app, abertura do app ou mudança de status de OS) ──
+        if (options.force || lastSentLat === null) {
+            shouldSend = true;
+            nextMotionState = (distFromLast >= MOVEMENT_THRESHOLD_M && currentSpeedKmh >= 3.5) ? 'EM MOVIMENTO' : 'PARADO';
+            if (nextMotionState === 'PARADO') {
+                stationaryStartTime = now;
+            } else {
+                stationaryStartTime = null;
+            }
+            reason = reason || (lastSentLat === null ? 'PRIMEIRO_PULSO_LOGIN' : 'PULSO_FORCADO');
+        }
+        // ── REGRA 2: Movimento REAL acima de 30 metros ──
+        else if (distFromLast >= MOVEMENT_THRESHOLD_M) {
+            // Técnico se moveu 30 metros ou mais!
+            shouldSend = true;
+            nextMotionState = 'EM MOVIMENTO';
+            stationaryStartTime = null; // Reseta contador de tempo parado
+            reason = `MOVIMENTO_${distFromLast.toFixed(0)}M`;
+
+            // Agenda/reinicia timer de 5 minutos para transicionar para PARADO caso pare de se mover
+            if (stationaryTimer) clearTimeout(stationaryTimer);
+            stationaryTimer = setTimeout(async () => {
+                await checkAndTransitionToStationary();
+            }, STATIONARY_TIMEOUT_MS);
+        }
+        // ── REGRA 3: Movimento MENOR que 30 metros (Parado ou oscilação local) ──
+        else {
+            // Se estiver se movimentando menos de 30 metros, NÃO envia nada ao banco
+            if (stationaryStartTime === null) {
+                stationaryStartTime = now;
+            }
+
+            const stationaryDuration = now - stationaryStartTime;
+
+            // Se ficar parado em menos de 30 metros por mais de 5 minutos:
+            if (stationaryDuration >= STATIONARY_TIMEOUT_MS) {
+                // Se o status anterior era 'EM MOVIMENTO', agora muda obrigatoriamente para 'PARADO'
+                if (currentMotionState === 'EM MOVIMENTO') {
+                    shouldSend = true;
+                    nextMotionState = 'PARADO';
+                    currentSpeedKmh = 0;
+                    reason = 'PARADO_MAIS_DE_5MIN';
+                }
+                // Se já estava 'PARADO', envia apenas o heartbeat a cada 5 minutos para manter online no mapa
+                else if ((now - lastSentTime) >= HEARTBEAT_STATIONARY_MS) {
+                    shouldSend = true;
+                    nextMotionState = 'PARADO';
+                    currentSpeedKmh = 0;
+                    reason = 'HEARTBEAT_5MIN_PARADO';
+                } else {
+                    // Menos de 5 minutos desde o último envio enquanto parado: NÃO ENVIA NADA
+                    shouldSend = false;
+                }
+            } else {
+                // Menos de 5 minutos parado e deslocou menos de 30m: NÃO ENVIA NADA (Sem pooling)
+                shouldSend = false;
+            }
         }
 
-        // Tolerância para paradas rápidas (ex: semáforos/cruzamentos nos últimos 45s mantêm 'EM MOVIMENTO')
-        const isMoving = isCurrentlyMoving || (lastMovingTime > 0 && (now - lastMovingTime) < 45000);
-        const motionState = isMoving ? 'EM MOVIMENTO' : 'PARADO';
+        // Se a regra determinou que não deve enviar, aborta aqui para evitar pooling desnecessário
+        if (!shouldSend) {
+            return;
+        }
 
-        // 3. Frequência de envio inteligente:
-        // - Em movimento: envia a cada 20m ou a cada 12 segundos
-        // - Parado: envia heartbeat a cada 60s para economizar bateria e banco
-        const shouldSend = 
-            options.force ||
-            lastSentLat === null ||
-            (isCurrentlyMoving && (distFromLast >= 20 || timeDeltaSec >= 12)) ||
-            (!isMoving && (now - lastHeartbeatTime) >= 60000);
+        // Se o novo estado for PARADO, limpa o timer pendente
+        if (nextMotionState === 'PARADO' && stationaryTimer) {
+            clearTimeout(stationaryTimer);
+            stationaryTimer = null;
+        }
 
-        if (!shouldSend) return;
-
+        const battery = await getBattery();
         const deviceModel = Device.modelName || Device.brand || Platform.OS || 'Desconhecido';
 
-        // Single UPDATE com speed em km/h e motion_state preciso
+        // UPDATE na tabela `technicians` — sem INSERT em rotas
         const { error } = await supabase
             .from('technicians')
             .update({
@@ -120,21 +179,21 @@ const sendLocationUpdate = async (
                 last_seen:      new Date().toISOString(),
                 battery_level:  battery,
                 device_model:   deviceModel,
-                motion_state:   motionState,
-                speed:          Math.round(currentSpeedKmh),
+                motion_state:   nextMotionState,
+                speed:          nextMotionState === 'EM MOVIMENTO' ? Math.round(currentSpeedKmh) : 0,
             })
             .eq('id', session.user.id);
 
         if (error) {
-            logger.log(`[GPS] ❌ Update error: ${JSON.stringify(error)}`, 'error');
+            logger.log(`[GPS] ❌ Erro ao atualizar status: ${JSON.stringify(error)}`, 'error');
         } else {
             lastSentLat = latitude;
             lastSentLng = longitude;
             lastSentTime = now;
-            lastHeartbeatTime = now;
-            logger.log(`[GPS] 📍 Position updated (state: ${motionState}, speed: ${Math.round(currentSpeedKmh)}km/h, dist: ${distFromLast < Infinity ? distFromLast.toFixed(0) + 'm' : 'first'})`, 'info');
+            currentMotionState = nextMotionState;
+            logger.log(`[GPS] 📍 Pulso enviado (${reason}) — Status: ${nextMotionState}, Dist: ${distFromLast < Infinity ? distFromLast.toFixed(0) + 'm' : 'primeiro'}, Vel: ${Math.round(currentSpeedKmh)}km/h`, 'info');
 
-            // Auto Check-in: check proximity to client
+            // Auto Check-in: verificar proximidade com o cliente
             autoCheckinOnNewLocation(latitude, longitude).catch(() => {});
         }
 
@@ -142,6 +201,57 @@ const sendLocationUpdate = async (
         console.error('[GPS] Sync error:', err);
     } finally {
         isProcessing = false;
+    }
+};
+
+// ─── Transição automática para PARADO após 5 minutos de inatividade ────────────
+const checkAndTransitionToStationary = async () => {
+    try {
+        if (currentMotionState !== 'EM MOVIMENTO') return;
+        const now = Date.now();
+        if (stationaryStartTime !== null && (now - stationaryStartTime) >= STATIONARY_TIMEOUT_MS) {
+            const pos = await Location.getLastKnownPositionAsync().catch(() => null);
+            if (pos) {
+                await sendLocationUpdate(pos, { force: true, reason: 'TIMEOUT_5MIN_PARADO' });
+            } else if (lastSentLat !== null && lastSentLng !== null) {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.user) {
+                    await supabase
+                        .from('technicians')
+                        .update({
+                            last_seen:    new Date().toISOString(),
+                            motion_state: 'PARADO',
+                            speed:        0,
+                        })
+                        .eq('id', session.user.id);
+                    currentMotionState = 'PARADO';
+                    lastSentTime = now;
+                    logger.log('[GPS] 📍 Status atualizado para PARADO após 5min sem deslocamento > 30m', 'info');
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('[GPS] Erro ao transicionar para parado:', e);
+    }
+};
+
+/**
+ * Força o envio imediato de um pulso de localização ao banco.
+ * Utilizado exclusivamente em:
+ * 1. Login no app / abertura do app
+ * 2. Mudanças de status de OS (deslocamento, check-in, execução, conclusão, impedimento)
+ */
+export const sendForcedLocationPulse = async (reason: string = 'FORCED'): Promise<void> => {
+    try {
+        let pos = await Location.getLastKnownPositionAsync().catch(() => null);
+        if (!pos) {
+            pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => null);
+        }
+        if (pos) {
+            await sendLocationUpdate(pos, { force: true, reason });
+        }
+    } catch (err) {
+        console.warn(`[GPS] Falha no pulso forçado (${reason}):`, err);
     }
 };
 
@@ -242,18 +352,18 @@ export const startBackgroundLocation = async () => {
             console.log('[GPS] ℹ️ Expo Go detectado: Rastreamento ativo em primeiro plano (Background GPS requer Development Client ou Standalone Build)');
         }
 
-        // 3. Foreground watcher — rastreamento contínuo em tempo real enquanto o app está aberto
+        // 3. Foreground watcher — rastreamento contínuo em primeiro plano (limiar de 30m)
         if (foregroundSubscription) foregroundSubscription.remove();
 
         foregroundSubscription = await Location.watchPositionAsync(
             {
                 accuracy:         Location.Accuracy.High,
-                timeInterval:     8000, // 8 segundos para resposta ágil no carro
-                distanceInterval: 12,   // ou a cada 12 metros de deslocamento
+                timeInterval:     10000, // 10 segundos
+                distanceInterval: 30,    // 30 metros de deslocamento
             },
             (location) => {
                 const isFirstPing = lastSentLat === null;
-                sendLocationUpdate(location, { force: isFirstPing });
+                sendLocationUpdate(location, { force: isFirstPing, reason: isFirstPing ? 'LOGIN_APP_START' : undefined });
             }
         );
 
@@ -263,15 +373,15 @@ export const startBackgroundLocation = async () => {
                 if (TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
                     await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
                         accuracy:            Location.Accuracy.High,
-                        timeInterval:        15000,  // 15s em background
-                        distanceInterval:    20,     // 20 metros
-                        deferredUpdatesInterval: 15000, // For iOS
-                        deferredUpdatesDistance: 20,    // For iOS
+                        timeInterval:        30000,  // 30s em background
+                        distanceInterval:    30,     // 30 metros
+                        deferredUpdatesInterval: 30000, // For iOS
+                        deferredUpdatesDistance: 30,    // For iOS
                         showsBackgroundLocationIndicator: true,
                         pausesUpdatesAutomatically: false,
                         activityType: Location.ActivityType.AutomotiveNavigation,
                         foregroundService: {
-                            notificationTitle: 'Nexus Pro — Localização Ativa',
+                            notificationTitle: 'Duno — Localização Ativa',
                             notificationBody:  'Compartilhando sua localização em tempo real.',
                             notificationColor: '#1c2d4f',
                             killServiceOnDestroy: false,
@@ -296,6 +406,10 @@ export const startBackgroundLocation = async () => {
 
 export const stopBackgroundLocation = async () => {
     try {
+        if (stationaryTimer) {
+            clearTimeout(stationaryTimer);
+            stationaryTimer = null;
+        }
         if (foregroundSubscription) {
             foregroundSubscription.remove();
             foregroundSubscription = null;

@@ -1480,6 +1480,14 @@ export class OrderService {
                 });
                 console.log(`[OrderService] 📍 Ping Milestone Registrado: ${finalLat}, ${finalLon}`);
             }
+
+            // Pulso forçado do GPS para atualizar o status ao vivo do técnico na mudança de status da OS
+            try {
+                const { sendForcedLocationPulse } = require('./location-service');
+                if (sendForcedLocationPulse) {
+                    sendForcedLocationPulse('OS_STATUS_CHANGE').catch(() => {});
+                }
+            } catch (_) {}
         } catch (error) {
             console.warn('[OrderService] ⚠️ Falha ao registrar ping de milestone', error);
         }

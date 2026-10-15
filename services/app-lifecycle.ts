@@ -27,7 +27,7 @@ import { AppState, AppStateStatus, Platform, NativeModules, DeviceEventEmitter }
 import Constants from 'expo-constants';
 import { supabase } from './supabase';
 import { authService } from './auth-service';
-import { startBackgroundLocation, stopBackgroundLocation } from './location-service';
+import { startBackgroundLocation, stopBackgroundLocation, sendForcedLocationPulse } from './location-service';
 import { NotificationService } from './notification-service';
 import { logger } from './logger';
 import { createDebounce, createThrottle, resetNetworkState } from './network-resilience';
@@ -286,6 +286,7 @@ class AppLifecycleManager {
 
             // 5. Start GPS (singleton, with health monitoring)
             await this.startGPS();
+            sendForcedLocationPulse('LOGIN_APP_START').catch(() => {});
             this.startGPSHealthMonitor();
 
             // 6. Register push notifications + setup listeners
