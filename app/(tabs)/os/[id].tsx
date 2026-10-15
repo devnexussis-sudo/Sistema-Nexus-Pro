@@ -1730,7 +1730,7 @@ export default function OrderDetailsScreen() {
 
             {/* Footer Actions - Only show if pending or in_progress */}
             {isEditable && (
-                <View style={[styles.footer, { paddingBottom: 8, paddingTop: 8, paddingHorizontal: 12 }]}>
+                <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 8) + 8, paddingTop: 8, paddingHorizontal: 12 }]}>
                     {allowImpediment && (
                     <Pressable style={[styles.actionButton, styles.blockButton]} onPress={handleBlock}>
                         <Ionicons name="hand-left-outline" size={20} color="#e11d48" />

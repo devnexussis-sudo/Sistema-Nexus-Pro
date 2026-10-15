@@ -3136,7 +3136,7 @@ export default function ExecuteOSScreen() {
             )}
 
             {/* PAGINATED FOOTER */}
-            <View style={[styles.footer, { paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 12) : 12 }]}>
+            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 6 }]}>
                 {/* On the last page: show Impedir + Finalizar */}
                 {currentPage === totalPages - 1 ? (
                     <View style={{ gap: 10 }}>

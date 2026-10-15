@@ -34,14 +34,13 @@ export default function TabLayout() {
             backgroundColor: isDarkDevice ? '#1e293b' : '#ffffff',
             borderTopColor: isDarkDevice ? '#334155' : '#e5e7eb',
             borderTopWidth: 1,
-            height: Platform.OS === 'ios' ? (54 + insets.bottom) : 58,
-            paddingBottom: Platform.OS === 'ios' ? insets.bottom : 6,
-            paddingTop: 6,
+            height: 54 + insets.bottom,
+            paddingBottom: insets.bottom + 4,
+            paddingTop: 4,
           },
           tabBarLabelStyle: {
             fontSize: 11,
             fontWeight: '600',
-            marginBottom: Platform.OS === 'android' ? 2 : 0,
           },
           headerStyle: {
             backgroundColor: '#1c2d4f',
@@ -61,7 +60,7 @@ export default function TabLayout() {
           name="index"
           options={{
             title: t('tabHome'),
-            tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+            tabBarIcon: ({ color }) => <IconSymbol size={24} name="house.fill" color={color} />,
             headerRight: () => <HeaderRightToggle />
           }}
         />
@@ -69,21 +68,21 @@ export default function TabLayout() {
           name="calendar"
           options={{
             title: t('tabCalendar'),
-            tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
+            tabBarIcon: ({ color }) => <IconSymbol size={24} name="calendar" color={color} />,
           }}
         />
         <Tabs.Screen
           name="stock"
           options={{
             title: t('tabStock'),
-            tabBarIcon: ({ color }) => <IconSymbol size={28} name="cube.fill" color={color} />,
+            tabBarIcon: ({ color }) => <IconSymbol size={24} name="cube.fill" color={color} />,
           }}
         />
         <Tabs.Screen
           name="ai"
           options={{
             title: 'Duno IA',
-            tabBarIcon: ({ color }) => <IconSymbol size={28} name="sparkles" color={color} />,
+            tabBarIcon: ({ color }) => <IconSymbol size={24} name="sparkles" color={color} />,
           }}
         />
         <Tabs.Screen
