@@ -62,14 +62,6 @@ const OrderCard = ({ order, onShare, onPress, allowShare, showClientContact, t }
       )}
     </View>
 
-    {(order.title || order.rawDescription || order.description) && (
-      <View style={{ marginBottom: 8, backgroundColor: '#f8fafc', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, borderLeftWidth: 3, borderLeftColor: '#94a3b8' }}>
-        <Text style={{ fontSize: 12, color: '#334155', lineHeight: 16 }} numberOfLines={2}>
-          {order.title ? `${order.title}: ` : ''}{order.rawDescription || order.description}
-        </Text>
-      </View>
-    )}
-
     <View style={styles.detailRow}>
       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
         <Ionicons name="location-outline" size={14} color="#666" />

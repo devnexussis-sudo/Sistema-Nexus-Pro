@@ -2525,6 +2525,18 @@ export default function ExecuteOSScreen() {
                                 </View>
                             </>
                         )}
+                        {(order.rawDescription || order.description) && (
+                            <>
+                                <View style={styles.infoDivider} />
+                                <View style={styles.infoRow}>
+                                    <Text style={styles.infoLabel}>DESCRIÇÃO DO PROBLEMA / SOLICITAÇÃO</Text>
+                                    <Text style={[styles.infoValue, { marginTop: 4, color: '#334155', lineHeight: 20 }]}>
+                                        {order.rawDescription || order.description}
+                                    </Text>
+                                </View>
+                            </>
+                        )}
+
                         <View style={styles.infoDivider} />
                         <View style={styles.infoRow}>
                             <Text style={styles.infoLabel}>EQUIPAMENTOS RELACIONADOS</Text>
@@ -3124,7 +3136,7 @@ export default function ExecuteOSScreen() {
             )}
 
             {/* PAGINATED FOOTER */}
-            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+            <View style={[styles.footer, { paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 12) : 12 }]}>
                 {/* On the last page: show Impedir + Finalizar */}
                 {currentPage === totalPages - 1 ? (
                     <View style={{ gap: 10 }}>

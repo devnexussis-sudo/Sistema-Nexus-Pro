@@ -297,52 +297,6 @@ export default function ProfileScreen() {
                 )}
             </Pressable>
 
-            {/* Apple Guideline 5.1.1(v) & LGPD: Solicitação de Exclusão de Conta e Dados */}
-            <Pressable
-                style={[styles.infoSection, { paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }]}
-                onPress={() => {
-                    showAlert(
-                        'Exclusão de Conta e Dados',
-                        'Em conformidade com a LGPD e as políticas da Apple e Google, você pode solicitar a exclusão da sua conta e a anonimização dos seus dados pessoais.\n\nComo o Nexus é uma plataforma corporativa, esta solicitação será encaminhada para a administração da sua empresa e os dados pessoais serão expurgados em até 15 dias úteis.\n\nDeseja confirmar a solicitação?',
-                        [
-                            { text: 'Cancelar', style: 'cancel' },
-                            {
-                                text: 'Confirmar Solicitação',
-                                style: 'destructive',
-                                onPress: async () => {
-                                    showAlert(
-                                        'Solicitação Registrada',
-                                        'Sua solicitação de exclusão foi registrada com sucesso. Você será desconectado da sessão.',
-                                        [
-                                            {
-                                                text: 'OK',
-                                                onPress: async () => {
-                                                    await syncService.clearAllData();
-                                                    await authService.logout();
-                                                    router.replace('/login');
-                                                }
-                                            }
-                                        ],
-                                        'checkmark-circle-outline',
-                                        '#34c759'
-                                    );
-                                }
-                            }
-                        ],
-                        'trash-outline',
-                        '#ff3b30'
-                    );
-                }}
-            >
-                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 10 }}>
-                    <Ionicons name="trash-outline" size={20} color="#e11d48" />
-                    <View style={{ flex: 1 }}>
-                        <Text style={[styles.value, { fontSize: 14, fontWeight: '600', color: '#e11d48' }]}>Excluir Minha Conta e Dados</Text>
-                        <Text style={{ fontSize: 11, color: '#64748b', marginTop: 2, lineHeight: 15 }}>Diretrizes Apple/Google e LGPD de privacidade</Text>
-                    </View>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
-            </Pressable>
 
             <Pressable
                 style={styles.logoutButton}

@@ -1,7 +1,8 @@
 
 import { Tabs } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { Pressable, View, useColorScheme as useDeviceColorScheme, DeviceEventEmitter } from 'react-native';
+import { Pressable, View, useColorScheme as useDeviceColorScheme, DeviceEventEmitter, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { HeaderRightToggle } from '@/components/header-right-toggle';
@@ -19,6 +20,7 @@ export default function TabLayout() {
   const isDarkDevice = deviceTheme === 'dark';
   const [isMenuVisible, setMenuVisible] = useState(false);
   const { t } = useI18n();
+  const insets = useSafeAreaInsets();
 
   return (
     <>
@@ -32,6 +34,14 @@ export default function TabLayout() {
             backgroundColor: isDarkDevice ? '#1e293b' : '#ffffff',
             borderTopColor: isDarkDevice ? '#334155' : '#e5e7eb',
             borderTopWidth: 1,
+            height: Platform.OS === 'ios' ? (54 + insets.bottom) : 58,
+            paddingBottom: Platform.OS === 'ios' ? insets.bottom : 6,
+            paddingTop: 6,
+          },
+          tabBarLabelStyle: {
+            fontSize: 11,
+            fontWeight: '600',
+            marginBottom: Platform.OS === 'android' ? 2 : 0,
           },
           headerStyle: {
             backgroundColor: '#1c2d4f',
