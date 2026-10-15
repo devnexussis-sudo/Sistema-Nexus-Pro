@@ -2871,59 +2871,75 @@ export default function ExecuteOSScreen() {
                                         </Text>
                                     </View>
 
-                                    {videos.length > 0 && (
-                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
-                                            {videos.map((vid, index) => (
-                                                <StandardVideoCard
-                                                    key={index}
-                                                    videoUrl={vid.uri}
-                                                    thumbUrl={vid.thumbUri}
-                                                    title={`Vídeo ${index + 1}`}
-                                                    width={90}
-                                                    height={90}
-                                                    accentColor="blue"
-                                                    isProcessing={vid.isProcessing}
-                                                    processingStatus={vid.status}
-                                                    onPress={() => {
-                                                        setSelectedVideoUrl(vid.uri);
-                                                        setVideoModalVisible(true);
-                                                    }}
-                                                    onDelete={!vid.isProcessing ? () => setVideos(prev => prev.filter((_, i) => i !== index)) : undefined}
-                                                />
-                                            ))}
-                                        </View>
-                                    )}
-                                    
-                                    {videos.length < 2 && (
-                                        <Pressable 
-                                            style={{
-                                                flexDirection: 'row',
-                                                alignItems: 'center',
-                                                backgroundColor: '#ffffff',
-                                                borderWidth: 1.5,
-                                                borderColor: '#cbd5e1',
-                                                borderStyle: 'dashed',
-                                                borderRadius: 8,
-                                                padding: 12,
-                                            }}
-                                            onPress={() => {
-                                                setVideoSourceTarget(null);
-                                                setIsVideoSourceModalVisible(true);
-                                            }}
-                                        >
-                                            <View style={{ backgroundColor: '#f1f5f9', padding: 8, borderRadius: 50, marginRight: 12 }}>
-                                                <Ionicons name="videocam" size={18} color="#1c2d4f" />
-                                            </View>
-                                            <View style={{ flex: 1 }}>
-                                                <Text style={{ fontSize: 13, fontWeight: '700', color: '#1c2d4f' }}>
-                                                    {t('execAttachVideo')}
-                                                </Text>
-                                                <Text style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>
-                                                    {t('execRecordOrGallery')}
-                                                </Text>
-                                            </View>
-                                        </Pressable>
-                                    )}
+                                    {(() => {
+                                        const isCompressingExtraVideo = videos.some(v => v.isProcessing);
+                                        const processingExtraVideo = videos.find(v => v.isProcessing);
+                                        const completedExtraVideos = videos.filter(v => !v.isProcessing);
+
+                                        return (
+                                            <>
+                                                {completedExtraVideos.length > 0 && (
+                                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 8 }}>
+                                                        {completedExtraVideos.map((vid, index) => (
+                                                            <StandardVideoCard
+                                                                key={index}
+                                                                videoUrl={vid.uri}
+                                                                thumbUrl={vid.thumbUri}
+                                                                title={`Vídeo ${index + 1}`}
+                                                                width={100}
+                                                                height={100}
+                                                                accentColor="green"
+                                                                onPress={() => {
+                                                                    setSelectedVideoUrl(vid.uri);
+                                                                    setVideoModalVisible(true);
+                                                                }}
+                                                                onDelete={() => setVideos(prev => prev.filter(v => v.uri !== vid.uri))}
+                                                            />
+                                                        ))}
+                                                    </View>
+                                                )}
+                                                
+                                                {(completedExtraVideos.length < 2 || isCompressingExtraVideo) && (
+                                                    <Pressable 
+                                                        style={{
+                                                            flexDirection: 'row',
+                                                            alignItems: 'center',
+                                                            backgroundColor: '#f8fafc',
+                                                            borderWidth: 2,
+                                                            borderColor: '#cbd5e1',
+                                                            borderStyle: 'dashed',
+                                                            borderRadius: 10,
+                                                            padding: 14,
+                                                            marginTop: completedExtraVideos.length > 0 ? 4 : 0
+                                                        }}
+                                                        onPress={() => {
+                                                            setVideoSourceTarget(null);
+                                                            setIsVideoSourceModalVisible(true);
+                                                        }}
+                                                        disabled={isCompressingExtraVideo}
+                                                    >
+                                                        {isCompressingExtraVideo ? (
+                                                            <ActivityIndicator size="small" color="#1c2d4f" style={{ marginRight: 14 }} />
+                                                        ) : (
+                                                            <View style={{ backgroundColor: '#e2e8f0', padding: 10, borderRadius: 50, marginRight: 14 }}>
+                                                                <Ionicons name="videocam" size={22} color="#1c2d4f" />
+                                                            </View>
+                                                        )}
+                                                        <View style={{ flex: 1 }}>
+                                                            <Text style={{ fontSize: 14, fontWeight: '700', color: '#1c2d4f' }}>
+                                                                {isCompressingExtraVideo ? 'Processando Vídeo...' : t('execAttachVideo')}
+                                                            </Text>
+                                                            <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                                                                {isCompressingExtraVideo 
+                                                                    ? (processingExtraVideo?.status || 'Comprimindo e enviando para nuvem...') 
+                                                                    : t('execRecordOrGallery')}
+                                                            </Text>
+                                                        </View>
+                                                    </Pressable>
+                                                )}
+                                            </>
+                                        );
+                                    })()}
                                 </View>
                             </View>
                         </View>
@@ -3108,7 +3124,7 @@ export default function ExecuteOSScreen() {
             )}
 
             {/* PAGINATED FOOTER */}
-            <View style={[styles.footer, { paddingBottom: 4 }]}>
+            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
                 {/* On the last page: show Impedir + Finalizar */}
                 {currentPage === totalPages - 1 ? (
                     <View style={{ gap: 10 }}>
