@@ -922,6 +922,20 @@ export default function OrderDetailsScreen() {
                         <ThemedText type="subtitle" style={{ fontSize: 13, textTransform: 'uppercase', color: '#64748b', letterSpacing: 0.5, fontWeight: '800' }}>{t('osProblemReported')}</ThemedText>
                     </View>
                     
+                    {(order.defectTypeName || order.defectTypeCode) && (
+                        <View style={{ marginBottom: 12 }}>
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+                                {t('osProblemType')}
+                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', backgroundColor: '#fef3c7', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#fde68a', gap: 6 }}>
+                                <Ionicons name="warning" size={14} color="#d97706" />
+                                <Text style={{ fontSize: 13, fontWeight: '700', color: '#92400e' }}>
+                                    {order.defectTypeCode ? `${order.defectTypeCode} - ` : ''}{order.defectTypeName || order.defectTypeCode}
+                                </Text>
+                            </View>
+                        </View>
+                    )}
+
                     {order.title && (
                         <View style={{ marginBottom: 12 }}>
                             <Text style={{ fontSize: 11, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>{t('osTitleSummary')}</Text>

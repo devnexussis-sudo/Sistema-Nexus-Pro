@@ -43,13 +43,30 @@ const OrderCard = ({ order, onShare, onPress, allowShare, showClientContact, t }
 
     <Text style={styles.customerName}>{order.customer}</Text>
     
-    {(order.operationType || order.type) && (
-      <View style={{ marginBottom: 6, alignSelf: 'flex-start' }}>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8, alignItems: 'center' }}>
+      {(order.operationType || order.type) && (
          <View style={[styles.statusBadge, { backgroundColor: '#e0e7ff', borderWidth: 1, borderColor: '#c7d2fe' }]}>
             <Text style={[styles.statusText, { color: '#4338ca' }]}>
                {order.operationType || order.type}
             </Text>
          </View>
+      )}
+
+      {(order.defectTypeName || order.defectTypeCode) && (
+         <View style={[styles.statusBadge, { backgroundColor: '#fef3c7', borderWidth: 1, borderColor: '#fde68a', flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+            <Ionicons name="warning-outline" size={12} color="#b45309" />
+            <Text style={[styles.statusText, { color: '#b45309', fontWeight: '700' }]}>
+               {order.defectTypeCode ? `${order.defectTypeCode} - ` : ''}{order.defectTypeName || order.defectTypeCode}
+            </Text>
+         </View>
+      )}
+    </View>
+
+    {(order.title || order.rawDescription || order.description) && (
+      <View style={{ marginBottom: 8, backgroundColor: '#f8fafc', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, borderLeftWidth: 3, borderLeftColor: '#94a3b8' }}>
+        <Text style={{ fontSize: 12, color: '#334155', lineHeight: 16 }} numberOfLines={2}>
+          {order.title ? `${order.title}: ` : ''}{order.rawDescription || order.description}
+        </Text>
       </View>
     )}
 

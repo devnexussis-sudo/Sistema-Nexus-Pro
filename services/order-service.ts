@@ -110,6 +110,10 @@ export interface ExtendedServiceOrder extends ServiceOrder {
     visitCount?: number;
     customerLat?: number | null;
     customerLng?: number | null;
+    defectTypeId?: string | null;
+    defectTypeCode?: string | null;
+    defectTypeName?: string | null;
+    customerPhone?: string;
 }
 
 export class OrderService {
@@ -619,6 +623,9 @@ export class OrderService {
             visitCount: visitCount,
             customerLat,
             customerLng,
+            defectTypeId: dbOrder.defect_type_id || dbOrder.defectTypeId || null,
+            defectTypeCode: dbOrder.defect_type_code || dbOrder.defectTypeCode || null,
+            defectTypeName: dbOrder.defect_type_name || dbOrder.defectTypeName || null,
         };
     }
 

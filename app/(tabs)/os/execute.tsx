@@ -1026,18 +1026,31 @@ export default function ExecuteOSScreen() {
             });
             if (!result.canceled && result.assets && result.assets.length > 0) {
                 setIsVideoSourceModalVisible(false);
-                result.assets.forEach(asset => {
-                    if (asset.duration && asset.duration > 90000) {
-                        setAlertConfig({
-                            visible: true,
-                            title: 'Vídeo muito longo',
-                            message: 'Você selecionou um vídeo com mais de 90 segundos. Por favor, escolha vídeos mais curtos (limite de 1m30s).',
-                            buttons: [{ text: 'OK', onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
-                        });
-                        return;
+                for (const asset of result.assets) {
+                    let durationSec = 0;
+                    if (asset.duration != null && asset.duration > 0) {
+                        durationSec = asset.duration > 1000 ? asset.duration / 1000 : asset.duration;
+                    } else {
+                        try {
+                            const { getVideoMetaData } = require('react-native-compressor');
+                            const meta = await getVideoMetaData(asset.uri);
+                            if (meta?.duration) {
+                                durationSec = meta.duration > 1000 ? meta.duration / 1000 : meta.duration;
+                            }
+                        } catch (metaErr) {
+                            console.warn('[Video] Não foi possível obter metadados:', metaErr);
+                        }
+                    }
+
+                    if (durationSec > 90) {
+                        Alert.alert(
+                            'Vídeo muito longo',
+                            `O vídeo selecionado possui ${Math.round(durationSec)} segundos. O limite máximo permitido para anexos é de 90 segundos (1m30s). Por favor, selecione um vídeo mais curto.`
+                        );
+                        continue;
                     }
                     startBackstageVideoProcess(asset.uri, false, true);
-                });
+                }
             }
         } catch {
             Alert.alert(t('alertError'), t('execCouldNotGallery'));
@@ -1068,6 +1081,23 @@ export default function ExecuteOSScreen() {
      */
     const startBackstageVideoProcess = async (rawUri: string, isNativeRecording: boolean = false, bypassLimit: boolean = false) => {
         try {
+            if (!isNativeRecording) {
+                try {
+                    const { getVideoMetaData } = require('react-native-compressor');
+                    const meta = await getVideoMetaData(rawUri);
+                    const dur = meta?.duration ? (meta.duration > 1000 ? meta.duration / 1000 : meta.duration) : 0;
+                    if (dur > 90) {
+                        Alert.alert(
+                            'Vídeo muito longo',
+                            `O vídeo selecionado possui ${Math.round(dur)} segundos e ultrapassa o limite máximo de 90 segundos para anexos.`
+                        );
+                        return;
+                    }
+                } catch (metaErr) {
+                    console.warn('[Video] Não foi possível verificar duração em metadados:', metaErr);
+                }
+            }
+
             // ── BigTech Compression Profile ──────────────────────────────────
             // Camada 2: Compressão MANUAL com bitrate EXPLÍCITO
             // Sem heurísticas. Sem auto-detect. Controle total.
@@ -2435,8 +2465,16 @@ export default function ExecuteOSScreen() {
                             setCameraConfig(prev => ({ ...prev, visible: false }));
                             if (cb) cb(uri);
                         }}
-                        onVideoRecorded={(uri) => {
+                        onVideoRecorded={(uri, hitLimit) => {
                             setCameraConfig(prev => ({ ...prev, visible: false }));
+                            if (hitLimit) {
+                                setTimeout(() => {
+                                    Alert.alert(
+                                        'Limite de Gravação Atingido',
+                                        'O tempo máximo de gravação é de 77 segundos. O que foi gravado até aqui foi salvo com sucesso!'
+                                    );
+                                }, 350);
+                            }
                             startBackstageVideoProcess(uri, true);
                         }} 
                     />
@@ -2473,6 +2511,20 @@ export default function ExecuteOSScreen() {
                                 {order.operationType || order.type || t('execNotInformed')}
                             </Text>
                         </View>
+                        {(order.defectTypeName || order.defectTypeCode) && (
+                            <>
+                                <View style={styles.infoDivider} />
+                                <View style={styles.infoRow}>
+                                    <Text style={styles.infoLabel}>TIPO DE PROBLEMA / DEFEITO</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', backgroundColor: '#fef3c7', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#fde68a', gap: 6, marginTop: 4 }}>
+                                        <Ionicons name="warning" size={14} color="#d97706" />
+                                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#92400e' }}>
+                                            {order.defectTypeCode ? `${order.defectTypeCode} - ` : ''}{order.defectTypeName || order.defectTypeCode}
+                                        </Text>
+                                    </View>
+                                </View>
+                            </>
+                        )}
                         <View style={styles.infoDivider} />
                         <View style={styles.infoRow}>
                             <Text style={styles.infoLabel}>EQUIPAMENTOS RELACIONADOS</Text>

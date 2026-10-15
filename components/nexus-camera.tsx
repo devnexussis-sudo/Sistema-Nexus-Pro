@@ -9,10 +9,12 @@ import {
     Dimensions, 
     Platform,
     Animated,
-    GestureResponderEvent
+    GestureResponderEvent,
+    Alert
 } from 'react-native';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import type { CameraType, FocusMode } from 'expo-camera';
+import { Ionicons } from '@expo/vector-icons';
 import { 
     X, 
     FlipHorizontal, 
@@ -33,7 +35,7 @@ interface NexusCameraProps {
     onClose: () => void;
     mode?: 'photo' | 'video';
     onPhotoCaptured?: (uri: string) => void;
-    onVideoRecorded?: (uri: string) => void;
+    onVideoRecorded?: (uri: string, hitLimit?: boolean) => void;
     qualityMode?: 'basic' | 'hd';
 }
 
@@ -48,6 +50,9 @@ export default function NexusCamera({
     const [micPermission, requestMicPermission] = useMicrophonePermissions();
     const insets = useSafeAreaInsets();
     
+    const MAX_RECORDING_SECONDS = 77;
+    const isLimitReachedRef = useRef(false);
+
     const [facing, setFacing] = useState<CameraType>('back');
     const [isRecording, setIsRecording] = useState(false);
     const [recordingTime, setRecordingTime] = useState(0);
@@ -194,10 +199,36 @@ export default function NexusCamera({
         }
     };
 
+    const stopRecordingDueToLimit = useCallback(() => {
+        if (isLimitReachedRef.current) return;
+        isLimitReachedRef.current = true;
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+        setIsRecording(false);
+        stopTimer();
+        try {
+            cameraRef.current?.stopRecording();
+        } catch (e) {
+            console.warn('[NexusCamera] Erro ao parar gravação no limite:', e);
+        }
+        Alert.alert(
+            'Limite de Gravação Atingido',
+            'O tempo máximo de gravação é de 77 segundos. O que foi gravado até aqui foi salvo com sucesso!'
+        );
+    }, []);
+
     const startTimer = () => {
         setRecordingTime(0);
+        isLimitReachedRef.current = false;
+        if (timerRef.current) clearInterval(timerRef.current);
         timerRef.current = setInterval(() => {
-            setRecordingTime(prev => prev + 1);
+            setRecordingTime(prev => {
+                const next = prev + 1;
+                if (next >= MAX_RECORDING_SECONDS) {
+                    stopRecordingDueToLimit();
+                    return MAX_RECORDING_SECONDS;
+                }
+                return next;
+            });
         }, 1000);
     };
 
@@ -259,14 +290,27 @@ export default function NexusCamera({
         } else {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
             setIsRecording(true);
+            isLimitReachedRef.current = false;
             startTimer();
             try {
                 const video = await cameraRef.current.recordAsync({
-                    maxDuration: 180
+                    maxDuration: MAX_RECORDING_SECONDS
                 });
                 
+                setIsRecording(false);
+                stopTimer();
+
+                const limitHit = isLimitReachedRef.current || recordingTime >= MAX_RECORDING_SECONDS;
+                if (limitHit && !isLimitReachedRef.current) {
+                    isLimitReachedRef.current = true;
+                    Alert.alert(
+                        'Limite de Gravação Atingido',
+                        'O tempo máximo de gravação é de 77 segundos. O que foi gravado até aqui foi salvo com sucesso!'
+                    );
+                }
+
                 if (video && video.uri) {
-                    onVideoRecorded?.(video.uri);
+                    onVideoRecorded?.(video.uri, limitHit);
                 }
             } catch (error) {
                 console.error("[NexusCamera] Erro na gravação:", error);
@@ -397,14 +441,16 @@ export default function NexusCamera({
                         {/* Badge de modo / Timer */}
                         {mode === 'video' ? (
                             isRecording ? (
-                                <View style={styles.timerBadge}>
-                                    <View style={styles.recordingDot} />
-                                    <Text style={styles.timerText}>{formatTime(recordingTime)}</Text>
+                                <View style={[styles.timerBadge, recordingTime >= 70 && styles.timerBadgeWarning]}>
+                                    <View style={[styles.recordingDot, recordingTime >= 70 && styles.recordingDotWarning]} />
+                                    <Text style={[styles.timerText, recordingTime >= 70 && styles.timerTextWarning]}>
+                                        {recordingTime >= MAX_RECORDING_SECONDS ? '01:17 (Limite)' : `${formatTime(recordingTime)} / 01:17`}
+                                    </Text>
                                 </View>
                             ) : (
                                 <View style={styles.modeBadge}>
                                     <Video size={16} color="#FFF" style={{ marginRight: 6 }} />
-                                    <Text style={styles.modeBadgeText}>GRAVAR VÍDEO</Text>
+                                    <Text style={styles.modeBadgeText}>VÍDEO (MÁX 77s)</Text>
                                 </View>
                             )
                         ) : (
@@ -429,20 +475,26 @@ export default function NexusCamera({
                                 }
                             </TouchableOpacity>
 
-                            {/* Botão Inverter Câmera */}
+                            {/* Botão Inverter Câmera (Superior) */}
                             <TouchableOpacity 
-                                style={styles.iconButton} 
+                                style={[styles.iconButton, facing === 'front' && styles.iconButtonActive]} 
                                 onPress={toggleCameraFacing} 
                                 disabled={isRecording || isCapturing} 
                                 activeOpacity={0.7}
                             >
-                                <FlipHorizontal size={24} color="#FFF" />
+                                <Ionicons name="camera-reverse" size={22} color={facing === 'front' ? '#f59e0b' : '#FFF'} />
                             </TouchableOpacity>
                         </View>
                     </View>
 
-                    {/* ──── ZOOM PRESETS (Estilo Câmera Nativa do Celular 1x, 2x, 3x) ──── */}
-                    <View style={styles.zoomPillsContainer} pointerEvents="box-none">
+                    {/* ──── ZOOM PRESETS (Subido para não misturar com o botão de gravar/foto) ──── */}
+                    <View 
+                        style={[
+                            styles.zoomPillsContainer, 
+                            { bottom: Math.max(insets.bottom, 20) + 120 }
+                        ]} 
+                        pointerEvents="box-none"
+                    >
                         <View style={styles.zoomPillsWrapper}>
                             {[
                                 { label: '1x', val: 0 },
@@ -478,33 +530,63 @@ export default function NexusCamera({
                         </View>
                     </View>
 
-                    {/* ──── FOOTER (fundo) — Botão de captura/gravação ──── */}
+                    {/* ──── FOOTER (fundo) — Disparador central + Flash na esquerda + Virar Câmera na direita ──── */}
                     <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 20) + 16 }]}>
-                        {mode === 'video' ? (
+                        {/* Slot Esquerda: Lanterna */}
+                        <View style={styles.bottomSideSlot}>
                             <TouchableOpacity 
-                                style={[styles.recordButton, isRecording && styles.recordingButtonActive]} 
-                                onPress={handleRecordVideo}
-                                activeOpacity={0.8}
+                                style={[styles.bottomSideButton, torch && styles.bottomSideButtonActive]} 
+                                onPress={toggleTorch} 
+                                disabled={isRecording || isCapturing} 
+                                activeOpacity={0.7}
                             >
-                                {isRecording 
-                                    ? <Square size={26} color="#FFF" fill="#FFF" /> 
-                                    : <View style={styles.innerRecordCircle} />
+                                {torch 
+                                    ? <Zap size={22} color="#f59e0b" fill="#f59e0b" /> 
+                                    : <ZapOff size={22} color="#FFF" />
                                 }
                             </TouchableOpacity>
-                        ) : (
+                        </View>
+
+                        {/* Slot Centro: Disparador Foto ou Gravar Vídeo */}
+                        <View style={styles.bottomCenterSlot}>
+                            {mode === 'video' ? (
+                                <TouchableOpacity 
+                                    style={[styles.recordButton, isRecording && styles.recordingButtonActive]} 
+                                    onPress={handleRecordVideo}
+                                    activeOpacity={0.8}
+                                >
+                                    {isRecording 
+                                        ? <Square size={26} color="#FFF" fill="#FFF" /> 
+                                        : <View style={styles.innerRecordCircle} />
+                                    }
+                                </TouchableOpacity>
+                            ) : (
+                                <TouchableOpacity 
+                                    style={styles.photoCaptureButton} 
+                                    onPress={handleTakePhoto}
+                                    disabled={isCapturing || !isCameraReady}
+                                    activeOpacity={0.8}
+                                >
+                                    {isCapturing ? (
+                                        <ActivityIndicator size="small" color="#1c2d4f" />
+                                    ) : (
+                                        <View style={styles.innerPhotoCircle} />
+                                    )}
+                                </TouchableOpacity>
+                            )}
+                        </View>
+
+                        {/* Slot Direita: Botão Virar para Câmera Frontal / Traseira */}
+                        <View style={styles.bottomSideSlot}>
                             <TouchableOpacity 
-                                style={styles.photoCaptureButton} 
-                                onPress={handleTakePhoto}
-                                disabled={isCapturing || !isCameraReady}
-                                activeOpacity={0.8}
+                                style={[styles.bottomSideButton, facing === 'front' && styles.bottomSideButtonActive]} 
+                                onPress={toggleCameraFacing} 
+                                disabled={isRecording || isCapturing} 
+                                activeOpacity={0.7}
                             >
-                                {isCapturing ? (
-                                    <ActivityIndicator size="small" color="#1c2d4f" />
-                                ) : (
-                                    <View style={styles.innerPhotoCircle} />
-                                )}
+                                <Ionicons name="camera-reverse" size={26} color={facing === 'front' ? '#f59e0b' : '#FFF'} />
                             </TouchableOpacity>
-                        )}
+                        </View>
                     </View>
                 </View>
             )}
@@ -585,10 +667,35 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         flexDirection: 'row',
-        justifyContent: 'center',
+        justifyContent: 'space-between',
         alignItems: 'center',
+        paddingHorizontal: 36,
         paddingTop: 16,
         zIndex: 100,
+    },
+    bottomSideSlot: {
+        width: 52,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    bottomCenterSlot: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    bottomSideButton: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: 'rgba(0, 0, 0, 0.55)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.25)',
+    },
+    bottomSideButtonActive: {
+        backgroundColor: 'rgba(245, 158, 11, 0.25)',
+        borderColor: '#f59e0b',
+        borderWidth: 1.5,
     },
 
     // ─── PREVIEW HEADER ───
@@ -736,6 +843,19 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
 
+    timerBadgeWarning: {
+        backgroundColor: 'rgba(220, 38, 38, 0.88)',
+        borderWidth: 1,
+        borderColor: '#fca5a5',
+    },
+    recordingDotWarning: {
+        backgroundColor: '#FFF',
+    },
+    timerTextWarning: {
+        color: '#FFF',
+        fontWeight: '900',
+    },
+
     // ─── PERMISSIONS ───
     permissionContainer: {
         flex: 1,
@@ -767,7 +887,6 @@ const styles = StyleSheet.create({
     // ─── ZOOM NATIVO (PILLS ESTILO IPHONE / GALAXY) ───
     zoomPillsContainer: {
         position: 'absolute',
-        bottom: 125, // Fica perfeitamente acima do botão de captura
         left: 0,
         right: 0,
         alignItems: 'center',
