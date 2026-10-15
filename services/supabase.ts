@@ -72,6 +72,23 @@ const customFetch = async (url: RequestInfo | URL, options?: RequestInit): Promi
         }
     }
 
+    // 🔐 Autenticação (Login, Recuperação de Senha) requer mais tempo no Supabase (envio de email, hashing)
+    const isAuth = urlStr.includes('/auth/v1/');
+    if (isAuth) {
+        const AUTH_TIMEOUT_MS = 25000;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), AUTH_TIMEOUT_MS);
+        try {
+            return await fetch(url, { ...options, signal: controller.signal });
+        } catch (e: any) {
+            const isAbort = e.name === 'AbortError' || e.message === 'Aborted' || e.message?.toLowerCase().includes('cancel');
+            if (isAbort) throw new Error('Network request failed: timeout');
+            throw e;
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
+
     // ─── Carrier-Aware Timeouts (Section 0.5 + 1.5) ─────────────────────
     // Claro CGNAT: 8s/12s/18s (mais tempo para DNS AAAA + TLS handshake)
     // Outras operadoras: 6s/8s/12s (margem normal mas nunca <5s)
@@ -101,7 +118,7 @@ const customFetch = async (url: RequestInfo | URL, options?: RequestInit): Promi
             return response;
         } catch (e: any) {
             clearTimeout(timeoutId);
-            const isTimeout = e.name === 'AbortError' || e.message === 'Aborted';
+            const isTimeout = e.name === 'AbortError' || e.message === 'Aborted' || e.message?.toLowerCase().includes('cancel') || e.message?.toLowerCase().includes('abort');
             const errorType = classifyError(e);
             
             if (isTimeout) {

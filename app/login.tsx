@@ -13,11 +13,13 @@ import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking, Platfor
 import Svg, { Path } from 'react-native-svg';
 import { useI18n } from '@/services/i18n';
 import { TermsModal } from '@/components/terms-modal';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TopBlueBand = () => {
     const { width: windowWidth, height: windowHeight } = Dimensions.get('window');
     return (
-        <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
             {/* The solid blue top half */}
             <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: windowHeight * 0.5, backgroundColor: '#1c2d4f' }} />
             
@@ -40,6 +42,7 @@ const TopBlueBand = () => {
 
 export default function LoginScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -78,29 +81,42 @@ export default function LoginScreen() {
 
         setIsLoading(true);
 
-        const result = await authService.loginWithPassword(email, password, keepConnected);
+        try {
+            const result = await authService.loginWithPassword(email, password, keepConnected);
 
-        setIsLoading(false);
+            setIsLoading(false);
 
-        if (result.success) {
-            if (keepConnected) {
-                await AsyncStorage.setItem('@nexus_saved_email', email.trim());
+            if (result.success) {
+                try {
+                    if (keepConnected) {
+                        await AsyncStorage.setItem('@nexus_saved_email', email.trim());
+                    } else {
+                        await AsyncStorage.removeItem('@nexus_saved_email');
+                    }
+                } catch (e) {
+                    console.warn('[Login] Error saving email to AsyncStorage:', e);
+                }
+
+                // Redireciona imediatamente para as abas principais
+                router.replace('/(tabs)');
+
+                // Inicializa serviços de fundo (GPS, polling, fila offline) sem travar a UI
+                appLifecycle.initialize().catch((err) => {
+                    console.warn('[Login] Background lifecycle init warning:', err);
+                });
             } else {
-                await AsyncStorage.removeItem('@nexus_saved_email');
+                if (result.errorType === 'BLOCKED') {
+                    showAlert('Alerta!', "Usuário bloqueado pelo admin da empresa.");
+                } else if (result.errorType === 'SCOPE_BLOCKED') {
+                    showAlert('Acesso Restrito', "Esta conta é exclusiva do painel web. Para acessar o app, solicite ao administrador a liberação de acesso mobile.", 'shield-outline', '#1c2d4f');
+                } else {
+                    showAlert('Alerta!', t('loginFailCredentials'));
+                }
             }
-            // Teardown any previous lifecycle state before fresh init
-            await appLifecycle.destroy().catch(() => {});
-            // Trigger the AppLifecycle to initialize GPS, Notifications, and Queues right after logging in
-            await appLifecycle.initialize();
-            router.replace('/');
-        } else {
-            if (result.errorType === 'BLOCKED') {
-                showAlert('Alerta!', "Usuário bloqueado pelo admin da empresa.");
-            } else if (result.errorType === 'SCOPE_BLOCKED') {
-                showAlert('Acesso Restrito', "Esta conta é exclusiva do painel web. Para acessar o app, solicite ao administrador a liberação de acesso mobile.", 'shield-outline', '#1c2d4f');
-            } else {
-                showAlert('Alerta!', t('loginFailCredentials'));
-            }
+        } catch (error: any) {
+            setIsLoading(false);
+            console.error('[Login] Unhandled error during handleLogin:', error);
+            showAlert('Erro', 'Ocorreu um erro ao processar o login. Tente novamente.');
         }
     };
 
@@ -111,12 +127,17 @@ export default function LoginScreen() {
         }
 
         setIsLoading(true);
-        const success = await authService.resetPassword(email);
-        setIsLoading(false);
+        try {
+            const success = await authService.resetPassword(email);
+            setIsLoading(false);
 
-        if (success) {
-            showAlert('Sucesso', t('loginForgotSuccess'), 'checkmark-circle-outline', '#34c759');
-        } else {
+            if (success) {
+                showAlert('Sucesso', t('loginForgotSuccess'), 'checkmark-circle-outline', '#34c759');
+            } else {
+                showAlert('Alerta!', t('loginForgotError'));
+            }
+        } catch (e) {
+            setIsLoading(false);
             showAlert('Alerta!', t('loginForgotError'));
         }
     };
@@ -244,8 +265,8 @@ export default function LoginScreen() {
             </ScrollView>
             </KeyboardAvoidingView>
 
-            {/* Footer restored to original position, strictly outside KeyboardAvoidingView so it never moves up */}
-            <View style={styles.footer}>
+            {/* Footer com safe area bottom para descolar da barra de gestos/menu do Android */}
+            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
                 <Pressable 
                     onPress={() => setIsTermsModalVisible(true)}
                     hitSlop={10}
@@ -253,7 +274,7 @@ export default function LoginScreen() {
                 >
                     <Text style={styles.privacyLinkText}>Termos de Uso e Política de Privacidade</Text>
                 </Pressable>
-                <Text style={styles.footerText}>{t('menuVersion')} {Constants.expoConfig?.version || '3.1.26'}</Text>
+                <Text style={styles.footerText}>{t('menuVersion')} {Constants.expoConfig?.version || '3.1.27'}</Text>
             </View>
 
             {/* Modal de Termos e Condições de Uso */}
