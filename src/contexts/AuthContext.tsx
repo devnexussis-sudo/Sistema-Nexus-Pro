@@ -231,14 +231,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             setSession(newSession);
 
+            const isMasterRoute = typeof window !== 'undefined' && window.location.hash.includes('/master');
+            const isExplicitImpersonating = typeof window !== 'undefined' && 
+                (window.__NEXUS_IMPERSONATION === true || SessionStorage.get('is_impersonating') === true) &&
+                !!SessionStorage.get('user');
+            const isResetRoute = typeof window !== 'undefined' && (
+                window.location.pathname.includes('reset-password') || 
+                window.location.hash.includes('reset-password') ||
+                window.location.href.includes('type=recovery')
+            );
+
             if (!newSession) {
                 // 🛡️ IMPERSONATION, MASTER & RECOVERY GUARD: Não destruir sessão virtual nem limpar durante reset-password
-                const isMasterRoute = typeof window !== 'undefined' && window.location.hash.includes('/master');
-                const isExplicitImpersonating = typeof window !== 'undefined' && 
-                    (window.__NEXUS_IMPERSONATION === true || SessionStorage.get('is_impersonating') === true) &&
-                    !!SessionStorage.get('user');
-
-                if ((isMasterRoute && SessionStorage.get('master_session_v2')) || isExplicitImpersonating || window.location.href.includes('reset-password')) {
+                if ((isMasterRoute && SessionStorage.get('master_session_v2')) || isExplicitImpersonating || isResetRoute) {
                     console.log('[AuthContext] 🛡️ Rota de reset-password, master ou impersonation ativa — ignorando expurgo de sessão.');
                     window.localStorage.removeItem('nexus_oauth_in_flight'); window.localStorage.removeItem('nexus_oauth_timestamp');
                     setIsAuthLoading(false);
@@ -252,13 +257,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 window.localStorage.removeItem('nexus_oauth_in_flight'); window.localStorage.removeItem('nexus_oauth_timestamp');
                 setIsAuthLoading(false);
             } else if (event === 'SIGNED_IN' && newSession?.user) {
-                const isExplicitImpersonating = typeof window !== 'undefined' && 
-                    (window.__NEXUS_IMPERSONATION === true || SessionStorage.get('is_impersonating') === true) &&
-                    !!SessionStorage.get('user');
-
                 // 🛡️ IMPERSONATION GUARD: Não sobrescrever user virtual com user real do DB se estiver em auditoria cross-tab ativa
                 if (isExplicitImpersonating) {
                     console.log('[AuthContext] 🛡️ Impersonation ativa — mantendo sessão virtual no SIGNED_IN.');
+                    window.localStorage.removeItem('nexus_oauth_in_flight'); window.localStorage.removeItem('nexus_oauth_timestamp');
+                    setIsAuthLoading(false);
+                    return;
+                }
+
+                // 🛡️ RECOVERY / RESET-PASSWORD GUARD:
+                // Quando o evento SIGNED_IN ocorre na rota /reset-password (seja para Admin ou Técnico do App Mobile),
+                // NÃO podemos rodar o refreshUser do painel administrativo nem expulsar o usuário por falta de cargo admin!
+                // O usuário está na tela /reset-password exclusivamente para redefinir sua credencial.
+                if (isResetRoute) {
+                    console.log('[AuthContext] 🛡️ Rota de reset-password ativa no SIGNED_IN — preservando sessão de recuperação sem validação de painel.');
                     window.localStorage.removeItem('nexus_oauth_in_flight'); window.localStorage.removeItem('nexus_oauth_timestamp');
                     setIsAuthLoading(false);
                     return;

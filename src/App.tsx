@@ -71,6 +71,9 @@ const AppRoutes: React.FC = () => {
     const hash = window.location.hash || '';
     const search = window.location.search || '';
     const href = window.location.href || '';
+    const pathname = window.location.pathname || '';
+
+    const isRecovery = href.includes('type=recovery') || href.includes('token_hash=') || pathname.includes('reset-password') || hash.includes('reset-password');
 
     // 1. Corrige URLs com hashes duplos no HashRouter (ex: #/reset-password#access_token=... ou #/reset-password&...)
     if (hash.startsWith('#/reset-password#') || hash.startsWith('#/reset-password&')) {
@@ -79,17 +82,17 @@ const AppRoutes: React.FC = () => {
       return;
     }
 
-    // 2. Se a URL contém tokens de recovery e ainda não está na rota /reset-password
-    if ((href.includes('type=recovery') || href.includes('token_hash=')) && !hash.startsWith('#/reset-password')) {
-      console.log('[RecoveryInterceptor] Detectado lander de recuperação genérico. Redirecionando para /reset-password...');
+    // 2. Se a URL contém tokens de recovery ou pathname /reset-password e ainda não está na rota /reset-password do HashRouter
+    if (isRecovery && !hash.startsWith('#/reset-password')) {
+      console.log('[RecoveryInterceptor] Detectado lander de recuperação. Redirecionando para #/reset-password...');
       const cleanParams = (search.replace(/^\?/, '') + '&' + hash.replace(/^[#/?]+/, '').replace(/#/g, '&')).replace(/^&+/, '').replace(/&+$/, '');
       const newHash = '#/reset-password' + (cleanParams ? '?' + cleanParams : '');
       window.location.hash = newHash;
       return;
     }
 
-    // 3. Se ainda houver resquício de erro OAuth no hash ou search que escapou do handler inicial
-    if (hash.includes('error=') || search.includes('error=')) {
+    // 3. Se ainda houver resquício de erro OAuth no hash ou search que escapou do handler inicial (ignora fluxo de recovery)
+    if (!isRecovery && (hash.includes('error=') || search.includes('error='))) {
       console.log('[OAuthInterceptor] Detectado erro de autenticação na URL. Normalizando para rota segura...');
       const isLogged = !!(sessionStorage.getItem('nexus-line-auth') || localStorage.getItem('nexus-line-auth'));
       navigate(isLogged ? '/admin' : '/login', { replace: true });

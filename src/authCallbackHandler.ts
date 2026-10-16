@@ -17,6 +17,23 @@ export function processAuthCallback(): void {
   try {
     const rawHash = window.location.hash || '';
     const rawSearch = window.location.search || '';
+    const pathname = window.location.pathname || '';
+    const href = window.location.href || '';
+
+    // 🛡️ RECOVERY EXCLUSION GUARD:
+    // Se a requisição pertencer ao fluxo de redefinição de senha (/reset-password ou type=recovery),
+    // NUNCA interceptar como OAuth/Google SSO, nem redirecionar para #/admin ou #/login.
+    // Deixar a URL intacta para o componente ResetPassword gerenciar com precisão.
+    if (
+      pathname.includes('reset-password') ||
+      rawHash.includes('reset-password') ||
+      rawHash.includes('type=recovery') ||
+      rawSearch.includes('type=recovery') ||
+      href.includes('type=recovery')
+    ) {
+      console.log('[AuthCallback] 🛡️ Rota/token de recuperação detectado. Bypass total do interceptor OAuth.');
+      return;
+    }
 
     // ── 1. DETECÇÃO DE ERROS DE AUTENTICAÇÃO (ex: identity_already_exists) ──
     const hasErrorInHash = rawHash.includes('error=') || rawHash.includes('error_code=');
