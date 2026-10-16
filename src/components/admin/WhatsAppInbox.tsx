@@ -1997,17 +1997,17 @@ export const WhatsAppInbox: React.FC = () => {
                 </div>
               </div>
 
-              {/* 📱 Barra de Ações Rápidas Mobile (Horizontalmente rolável, 100% visível sem sobreposição) */}
-              <div className="md:hidden flex items-center gap-1.5 px-3 py-2 bg-slate-50 border-b border-slate-200/90 overflow-x-auto no-scrollbar shrink-0 shadow-2xs">
+              {/* 📱 Barra de Ações Rápidas Mobile (Todos disponíveis na tela sem rolagem) */}
+              <div className="md:hidden flex items-center gap-1 px-2 py-1.5 bg-slate-50 border-b border-slate-200/90 w-full shrink-0 shadow-2xs">
                 {(selected.state !== 'HUMAN_ACTIVE' || selected.assigned_agent_id !== currentUserId) && (
                   <button
                     onClick={handleTakeover}
                     disabled={sendingAction !== null}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1c2d4f] hover:bg-[#283f6b] text-white text-[11px] font-bold rounded-lg shadow-xs active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
-                    title="Assumir Atendimento"
+                    className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1.5 px-1 bg-[#1c2d4f] hover:bg-[#283f6b] text-white text-[10.5px] font-bold rounded-lg shadow-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                    title={selected.state === 'HUMAN_ACTIVE' ? 'Assumir para Mim' : 'Assumir Atendimento'}
                   >
-                    {sendingAction === 'takeover' ? <RefreshCw size={13} className="animate-spin" /> : <UserCheck size={13} />}
-                    <span>{selected.state === 'HUMAN_ACTIVE' ? 'Assumir p/ Mim' : 'Assumir Atendimento'}</span>
+                    {sendingAction === 'takeover' ? <RefreshCw size={12} className="animate-spin shrink-0" /> : <UserCheck size={12} className="shrink-0" />}
+                    <span className="truncate">Assumir</span>
                   </button>
                 )}
 
@@ -2015,11 +2015,11 @@ export const WhatsAppInbox: React.FC = () => {
                   <button
                     onClick={() => setShowResetConfirm(true)}
                     disabled={sendingAction !== null}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold rounded-lg border border-slate-200/90 shadow-2xs active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
-                    title="Reiniciar Bot"
+                    className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1.5 px-1 bg-white hover:bg-slate-50 text-slate-700 text-[10.5px] font-semibold rounded-lg border border-slate-200/90 shadow-2xs active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                    title="Reiniciar fluxo automático da IA"
                   >
-                    {sendingAction === 'reset' ? <RefreshCw size={13} className="animate-spin" /> : <RotateCcw size={13} />}
-                    <span>Reiniciar Bot</span>
+                    {sendingAction === 'reset' ? <RefreshCw size={12} className="animate-spin shrink-0" /> : <RotateCcw size={12} className="shrink-0" />}
+                    <span className="truncate">Reiniciar</span>
                   </button>
                 )}
 
@@ -2032,20 +2032,20 @@ export const WhatsAppInbox: React.FC = () => {
                         setAgentSearch('');
                       }}
                       disabled={sendingAction !== null}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-indigo-50/70 text-slate-700 hover:text-indigo-700 text-[11px] font-semibold rounded-lg border border-slate-200/90 shadow-2xs active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
-                      title="Transferir conversa"
+                      className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1.5 px-1 bg-white hover:bg-indigo-50/70 text-slate-700 hover:text-indigo-700 text-[10.5px] font-semibold rounded-lg border border-slate-200/90 shadow-2xs active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                      title="Transferir para outro agente"
                     >
-                      {sendingAction === 'transfer' ? <RefreshCw size={13} className="animate-spin" /> : <ArrowRight size={13} />}
-                      <span>Transferir</span>
+                      {sendingAction === 'transfer' ? <RefreshCw size={12} className="animate-spin shrink-0" /> : <ArrowRight size={12} className="shrink-0" />}
+                      <span className="truncate">Transferir</span>
                     </button>
                     <button
                       onClick={handleReturnToBot}
                       disabled={sendingAction !== null}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold rounded-lg border border-slate-200/90 shadow-2xs active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
-                      title="Devolver ao Bot"
+                      className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1.5 px-1 bg-white hover:bg-slate-50 text-slate-700 text-[10.5px] font-semibold rounded-lg border border-slate-200/90 shadow-2xs active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                      title="Devolver ao fluxo automático do Bot"
                     >
-                      {sendingAction === 'return_to_bot' ? <RefreshCw size={13} className="animate-spin" /> : <Bot size={13} />}
-                      <span>Devolver ao Bot</span>
+                      {sendingAction === 'return_to_bot' ? <RefreshCw size={12} className="animate-spin shrink-0" /> : <Bot size={12} className="shrink-0" />}
+                      <span className="truncate">Devolver</span>
                     </button>
                   </>
                 )}
@@ -2053,11 +2053,11 @@ export const WhatsAppInbox: React.FC = () => {
                 <button
                   onClick={handleCloseConversation}
                   disabled={sendingAction !== null}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold rounded-lg border border-rose-200/80 shadow-2xs active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+                  className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1.5 px-1 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[10.5px] font-bold rounded-lg border border-rose-200/80 shadow-2xs active:scale-95 transition-all cursor-pointer disabled:opacity-50"
                   title="Encerrar Atendimento"
                 >
-                  {sendingAction === 'close' ? <RefreshCw size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
-                  <span>Encerrar</span>
+                  {sendingAction === 'close' ? <RefreshCw size={12} className="animate-spin shrink-0" /> : <CheckCircle2 size={12} className="shrink-0" />}
+                  <span className="truncate">Encerrar</span>
                 </button>
 
                 <button
@@ -2065,11 +2065,11 @@ export const WhatsAppInbox: React.FC = () => {
                     const raw = selected.phone_number.replace(/\D/g, '');
                     window.open(`https://wa.me/${raw}`, '_blank');
                   }}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] font-semibold rounded-lg border border-emerald-200/80 shadow-2xs active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer"
+                  className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1.5 px-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10.5px] font-semibold rounded-lg border border-emerald-200/80 shadow-2xs active:scale-95 transition-all cursor-pointer"
                   title="Abrir no WhatsApp Oficial"
                 >
-                  <ExternalLink size={13} className="text-emerald-600" />
-                  <span>WhatsApp</span>
+                  <ExternalLink size={12} className="text-emerald-600 shrink-0" />
+                  <span className="truncate">WhatsApp</span>
                 </button>
               </div>
 
