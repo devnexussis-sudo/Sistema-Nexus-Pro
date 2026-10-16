@@ -44,6 +44,7 @@ export const FormManagement: React.FC = () => {
     const { showAlert } = useDialog();
 
   const [activeTab, setActiveTab] = useState<'types' | 'templates' | 'rules' | 'defects'>('templates');
+  const [isMobileTabExpanded, setIsMobileTabExpanded] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
@@ -497,8 +498,9 @@ export const FormManagement: React.FC = () => {
         </div>
       ) : (
         <>
-      {/* ── TOP LEVEL TAB SWITCHER (Stripe / Linear Style — Padrão Financeiro e Estoque) ── */}
-      <div className="flex items-center justify-between border-b border-slate-200/80 pb-0 mb-4 shrink-0">
+      {/* ── TOP LEVEL TAB SWITCHER (Stripe / Linear Style — Desktop) & RETRACTABLE (Mobile PWA) ── */}
+      {/* Desktop Tabs */}
+      <div className="hidden md:flex items-center justify-between border-b border-slate-200/80 pb-0 mb-4 shrink-0">
         <div className="flex items-center gap-6 overflow-x-auto custom-scrollbar">
           <button
             onClick={() => setActiveTab('types')}
@@ -548,6 +550,63 @@ export const FormManagement: React.FC = () => {
             <span className="whitespace-nowrap">Tipos de Defeitos</span>
           </button>
         </div>
+      </div>
+
+      {/* Mobile Retractable Tabs Switcher */}
+      <div className="md:hidden flex flex-col w-full mb-3 shrink-0">
+        <div className="flex items-center justify-between p-2 bg-white border border-slate-200/90 rounded-2xl shadow-sm">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-[#1c2d4f] text-white flex items-center justify-center shrink-0 shadow-xs">
+              {activeTab === 'types' && <Tag size={15} />}
+              {activeTab === 'templates' && <FileText size={15} />}
+              {activeTab === 'rules' && <Layers size={15} />}
+              {activeTab === 'defects' && <AlertTriangle size={15} />}
+            </div>
+            <div className="min-w-0">
+              <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block leading-none">Aba Selecionada</span>
+              <span className="text-xs font-bold text-slate-800 truncate block mt-0.5">
+                {activeTab === 'types' && 'Tipos de Atendimento'}
+                {activeTab === 'templates' && 'Modelos de Formulários'}
+                {activeTab === 'rules' && 'Regras de Vinculação'}
+                {activeTab === 'defects' && 'Tipos de Defeitos'}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsMobileTabExpanded(prev => !prev)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all active:scale-95 shrink-0"
+          >
+            <span>{isMobileTabExpanded ? 'Fechar' : 'Abas'}</span>
+            <ChevronDown size={14} className={`transition-transform duration-200 ${isMobileTabExpanded ? 'rotate-180' : ''}`} />
+          </button>
+        </div>
+
+        {isMobileTabExpanded && (
+          <div className="mt-2 grid grid-cols-2 gap-2 p-2 bg-slate-100/90 rounded-2xl border border-slate-200 animate-in fade-in slide-in-from-top-1 duration-150">
+            {[
+              { id: 'types', label: 'Tipos de Atendimento', icon: Tag },
+              { id: 'templates', label: 'Modelos de Formulários', icon: FileText },
+              { id: 'rules', label: 'Regras de Vinculação', icon: Layers },
+              { id: 'defects', label: 'Tipos de Defeitos', icon: AlertTriangle },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id as any);
+                  setIsMobileTabExpanded(false);
+                }}
+                className={`flex items-center gap-2 p-2.5 rounded-xl text-left transition-all ${
+                  activeTab === tab.id
+                    ? 'bg-[#1c2d4f] text-white shadow-sm'
+                    : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200/60'
+                }`}
+              >
+                <tab.icon size={15} className={activeTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} />
+                <span className="text-xs font-bold leading-tight">{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Toolbar */}
@@ -672,102 +731,213 @@ export const FormManagement: React.FC = () => {
               {/* ABA 1: TIPOS DE SERVIÇO */}
               {activeTab === 'types' && (
                 <div className="flex-1 overflow-auto custom-scrollbar">
-                  <table className="w-full border-collapse">
-                    <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
-                      <tr className="text-[11px] font-bold text-slate-500">
-                        <th className="px-4 py-3 text-left">tipo de atendimento</th>
-                        <th className="px-4 py-3 text-center">status</th>
-                        <th className="px-4 py-3 text-right">ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 bg-white">
-                      {paginatedTypes.map(type => (
-                        <tr key={type.id} onClick={(e) => handleViewType(type, e)} className="hover:bg-slate-50 transition-colors group cursor-pointer">
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-3">
-                              <Tag size={16} className={type.active === false ? "text-slate-300" : "text-primary-600"} />
-                              <span className={`text-[13px] font-medium ${type.active === false ? "text-slate-400 line-through" : "text-slate-700"}`}>{type.name}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className={`inline-flex items-center text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${type.active === false ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
-                              {type.active === false ? 'Inativo' : 'Ativo'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
-                              <button onClick={(e) => {
-                                if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
-                                e.stopPropagation();
-                                setIsReadOnly(false);
-                                setEditingType(type); setIsTypeModalOpen(true);
-                              }} className={`p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar"><Edit2 size={16} /></button>
-                              <button onClick={(e) => {
-                                if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para inativar.'); return; }
-                                handleToggleTypeStatus(type, e);
-                              }} className={`p-2 rounded-lg transition-all ${type.active === false ? 'text-emerald-600 hover:bg-emerald-50' : 'text-amber-600 hover:bg-amber-50'} ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title={type.active === false ? 'Ativar Tipo' : 'Inativar Tipo'}>
-                                {type.active === false ? <Power size={16} /> : <PowerOff size={16} />}
-                              </button>
-                            </div>
-                          </td>
+                  {/* Desktop Table View */}
+                  <div className="hidden md:block">
+                    <table className="w-full border-collapse">
+                      <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
+                        <tr className="text-[11px] font-bold text-slate-500">
+                          <th className="px-4 py-3 text-left">tipo de atendimento</th>
+                          <th className="px-4 py-3 text-center">status</th>
+                          <th className="px-4 py-3 text-right">ações</th>
                         </tr>
-                      ))}
-                      {paginatedTypes.length === 0 && (
-                        <tr><td colSpan={3} className="py-10 text-center text-slate-400 text-xs font-bold">Nenhum tipo encontrado.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        {paginatedTypes.map(type => (
+                          <tr key={type.id} onClick={(e) => handleViewType(type, e)} className="hover:bg-slate-50 transition-colors group cursor-pointer">
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-3">
+                                <Tag size={16} className={type.active === false ? "text-slate-300" : "text-primary-600"} />
+                                <span className={`text-[13px] font-medium ${type.active === false ? "text-slate-400 line-through" : "text-slate-700"}`}>{type.name}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={`inline-flex items-center text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${type.active === false ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                                {type.active === false ? 'Inativo' : 'Ativo'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                                <button onClick={(e) => {
+                                  if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                                  e.stopPropagation();
+                                  setIsReadOnly(false);
+                                  setEditingType(type); setIsTypeModalOpen(true);
+                                }} className={`p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar"><Edit2 size={16} /></button>
+                                <button onClick={(e) => {
+                                  if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para inativar.'); return; }
+                                  handleToggleTypeStatus(type, e);
+                                }} className={`p-2 rounded-lg transition-all ${type.active === false ? 'text-emerald-600 hover:bg-emerald-50' : 'text-amber-600 hover:bg-amber-50'} ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title={type.active === false ? 'Ativar Tipo' : 'Inativar Tipo'}>
+                                  {type.active === false ? <Power size={16} /> : <PowerOff size={16} />}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {paginatedTypes.length === 0 && (
+                          <tr><td colSpan={3} className="py-10 text-center text-slate-400 text-xs font-bold">Nenhum tipo encontrado.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Cards View */}
+                  <div className="md:hidden space-y-2.5 pb-6">
+                    {paginatedTypes.map(type => (
+                      <div
+                        key={type.id}
+                        onClick={(e) => handleViewType(type, e)}
+                        className="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200/70 active:scale-[0.98] transition-transform flex flex-col gap-2.5"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${type.active === false ? 'bg-slate-100 text-slate-400' : 'bg-primary-50 text-primary-600'}`}>
+                              <Tag size={16} />
+                            </div>
+                            <span className={`text-xs font-bold truncate ${type.active === false ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                              {type.name}
+                            </span>
+                          </div>
+                          <span className={`inline-flex items-center text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${type.active === false ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                            {type.active === false ? 'Inativo' : 'Ativo'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                          <button
+                            onClick={(e) => {
+                              if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                              e.stopPropagation();
+                              setIsReadOnly(false);
+                              setEditingType(type); setIsTypeModalOpen(true);
+                            }}
+                            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                          >
+                            <Edit2 size={13} />
+                            <span>Editar</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para inativar.'); return; }
+                              handleToggleTypeStatus(type, e);
+                            }}
+                            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${type.active === false ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100' : 'text-amber-700 bg-amber-50 hover:bg-amber-100'} ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                          >
+                            {type.active === false ? <Power size={13} /> : <PowerOff size={13} />}
+                            <span>{type.active === false ? 'Ativar' : 'Inativar'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {paginatedTypes.length === 0 && (
+                      <div className="py-10 text-center text-slate-400 text-xs font-bold bg-white rounded-2xl border border-slate-200">Nenhum tipo encontrado.</div>
+                    )}
+                  </div>
                 </div>
               )}
 
               {/* ABA 2: MODELOS DE CHECKLIST */}
               {activeTab === 'templates' && (
                 <div className="flex-1 overflow-auto custom-scrollbar">
-                  <table className="w-full border-collapse">
-                    <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
-                      <tr className="text-[11px] font-bold text-slate-500 text-center">
-                        <th className="px-4 py-3">nome do modelo</th>
-                        <th className="px-4 py-3">tipo</th>
-                        <th className="px-4 py-3">qtd. questões</th>
-                        <th className="px-4 py-3 text-right">ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 bg-white">
-                      {paginatedForms.map(form => (
-                        <tr key={form.id} onClick={(e) => handleViewForm(form, e)} className="hover:bg-slate-50 transition-colors group cursor-pointer">
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-3">
-                              <FileText size={16} className="text-primary-600" />
-                              <span className="text-slate-700 text-[13px] font-medium">{form.title}</span>
+                  {/* Desktop Table View */}
+                  <div className="hidden md:block">
+                    <table className="w-full border-collapse">
+                      <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
+                        <tr className="text-[11px] font-bold text-slate-500 text-center">
+                          <th className="px-4 py-3">nome do modelo</th>
+                          <th className="px-4 py-3">tipo</th>
+                          <th className="px-4 py-3">qtd. questões</th>
+                          <th className="px-4 py-3 text-right">ações</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        {paginatedForms.map(form => (
+                          <tr key={form.id} onClick={(e) => handleViewForm(form, e)} className="hover:bg-slate-50 transition-colors group cursor-pointer">
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-3">
+                                <FileText size={16} className="text-primary-600" />
+                                <span className="text-slate-700 text-[13px] font-medium">{form.title}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wide ${form.category === 'FINANCIAL' ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-indigo-50 text-indigo-600 border border-indigo-200'}`}>
+                                {form.category === 'FINANCIAL' ? 'Financeiro' : 'Técnico'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md">{form.fields.length} Questões</span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                                <button onClick={(e) => {
+                                  if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                                  setEditingForm(form); setIsModalOpen(true);
+                                }} className={`p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar"><Edit2 size={16} /></button>
+                                <button onClick={(e) => {
+                                  if (!canDelete('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
+                                  handleDeleteForm(form.id, e);
+                                }} className={`p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Excluir"><Trash2 size={16} /></button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {paginatedForms.length === 0 && (
+                          <tr><td colSpan={3} className="py-10 text-center text-slate-400 text-xs font-bold">Nenhum modelo encontrado.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Cards View */}
+                  <div className="md:hidden space-y-2.5 pb-6">
+                    {paginatedForms.map(form => (
+                      <div
+                        key={form.id}
+                        onClick={(e) => handleViewForm(form, e)}
+                        className="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200/70 active:scale-[0.98] transition-transform flex flex-col gap-2.5"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center shrink-0">
+                              <FileText size={16} />
                             </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wide ${form.category === 'FINANCIAL' ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-indigo-50 text-indigo-600 border border-indigo-200'}`}>
-                              {form.category === 'FINANCIAL' ? 'Financeiro' : 'Técnico'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md">{form.fields.length} Questões</span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
-                              <button onClick={(e) => {
+                            <span className="text-xs font-bold text-slate-800 truncate">{form.title}</span>
+                          </div>
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide shrink-0 ${form.category === 'FINANCIAL' ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-indigo-50 text-indigo-600 border border-indigo-200'}`}>
+                            {form.category === 'FINANCIAL' ? 'Financeiro' : 'Técnico'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px] text-slate-500">
+                          <span className="font-semibold bg-slate-100 px-2 py-0.5 rounded-md text-slate-600">
+                            {form.fields.length} {form.fields.length === 1 ? 'Questão' : 'Questões'}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={(e) => {
                                 if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
                                 setEditingForm(form); setIsModalOpen(true);
-                              }} className={`p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar"><Edit2 size={16} /></button>
-                              <button onClick={(e) => {
+                              }}
+                              className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                            >
+                              <Edit2 size={13} />
+                              <span>Editar</span>
+                            </button>
+                            <button
+                              onClick={(e) => {
                                 if (!canDelete('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
                                 handleDeleteForm(form.id, e);
-                              }} className={`p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Excluir"><Trash2 size={16} /></button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                      {paginatedForms.length === 0 && (
-                        <tr><td colSpan={3} className="py-10 text-center text-slate-400 text-xs font-bold">Nenhum modelo encontrado.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
+                              }}
+                              className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                            >
+                              <Trash2 size={13} />
+                              <span>Excluir</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {paginatedForms.length === 0 && (
+                      <div className="py-10 text-center text-slate-400 text-xs font-bold bg-white rounded-2xl border border-slate-200">Nenhum modelo encontrado.</div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -777,155 +947,298 @@ export const FormManagement: React.FC = () => {
                   <div className="flex justify-between items-center mb-4 px-1">
                     <h2 className="text-[10px] font-bold text-slate-400 tracking-[0.3em] lowercase">matriz de ativação automática</h2>
                   </div>
-                  <table className="w-full border-collapse">
-                    <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
-                      <tr className="text-[11px] font-bold text-slate-500 text-center">
-                        <th className="px-4 py-3">tipo de atendimento</th>
-                        <th className="px-4 py-3">família equipamento</th>
-                        <th className="px-4 py-3"><Workflow size={14} className="inline mr-1" /> técnico</th>
-                        <th className="px-4 py-3"><Workflow size={14} className="inline mr-1" /> financeiro</th>
-                        <th className="px-4 py-3 text-right">ação</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 bg-white">
-                      {paginatedRules.map(rule => (
-                        <tr key={rule.id} onClick={(e) => handleViewRule(rule, e)} className="hover:bg-slate-50 transition-colors group cursor-pointer">
-                          <td className="px-4 py-3 text-[11px] font-bold text-slate-700">
-                             <div className="flex items-center gap-2">
-                               <Tag size={14} className="text-slate-400" />
-                               <span className="text-slate-700 text-[12px] font-medium">{serviceTypes.find(t => t.id === rule.serviceTypeId || t.id === (rule as any).service_type_id)?.name || 'Desconhecido'}</span>
-                             </div>
-                          </td>
-                          <td className="px-4 py-3 text-[11px] font-bold text-slate-700">
-                             <div className="flex items-center gap-2">
-                               <Cpu size={14} className="text-slate-400" />
-                               <span className="text-slate-700 text-[12px] font-medium">{rule.equipmentFamily}</span>
-                             </div>
-                          </td>
-                          <td className="px-4 py-3 text-[11px] font-bold text-primary-700">
-                             <span className="bg-primary-50 py-1 px-3 border border-primary-100 rounded-md text-[12px] font-medium block text-center truncate max-w-[150px]" title={forms.find(f => f.id === rule.formId || f.id === (rule as any).form_id)?.title || 'Não vinculado'}>
-                               {forms.find(f => f.id === rule.formId || f.id === (rule as any).form_id)?.title || 'Não vinculado'}
-                             </span>
-                          </td>
-                          <td className="px-4 py-3 text-[11px] font-bold text-amber-700">
-                             <span className="bg-amber-50 py-1 px-3 border border-amber-100 rounded-md text-[12px] font-medium block text-center truncate max-w-[150px]" title={forms.find(f => f.id === (rule as any).financialFormId)?.title || 'Não vinculado'}>
-                               {forms.find(f => f.id === (rule as any).financialFormId)?.title || 'Não vinculado'}
-                             </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                             <div className="flex justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
-                               <button onClick={(e) => {
-                                 if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
-                                 e.stopPropagation();
-                                 setIsReadOnly(false);
-                                 setEditingRule({ id: rule.id, serviceTypeId: rule.serviceTypeId, equipmentFamily: rule.equipmentFamily, formId: rule.formId, financialFormId: (rule as any).financialFormId }); setIsRuleModalOpen(true);
-                               }} className={`p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar Regra"><Edit2 size={16} /></button>
-                               <button onClick={(e) => {
-                                 if (!canDelete('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
-                                 handleDeleteRule(rule.id, e);
-                               }} className={`p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Excluir"><Trash2 size={16} /></button>
-                             </div>
-                          </td>
+
+                  {/* Desktop Table View */}
+                  <div className="hidden md:block">
+                    <table className="w-full border-collapse">
+                      <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
+                        <tr className="text-[11px] font-bold text-slate-500 text-center">
+                          <th className="px-4 py-3">tipo de atendimento</th>
+                          <th className="px-4 py-3">família equipamento</th>
+                          <th className="px-4 py-3"><Workflow size={14} className="inline mr-1" /> técnico</th>
+                          <th className="px-4 py-3"><Workflow size={14} className="inline mr-1" /> financeiro</th>
+                          <th className="px-4 py-3 text-right">ação</th>
                         </tr>
-                      ))}
-                      {paginatedRules.length === 0 && (
-                        <tr><td colSpan={4} className="py-10 text-center text-slate-400 text-xs font-bold">Nenhuma regra encontrada.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        {paginatedRules.map(rule => (
+                          <tr key={rule.id} onClick={(e) => handleViewRule(rule, e)} className="hover:bg-slate-50 transition-colors group cursor-pointer">
+                            <td className="px-4 py-3 text-[11px] font-bold text-slate-700">
+                               <div className="flex items-center gap-2">
+                                 <Tag size={14} className="text-slate-400" />
+                                 <span className="text-slate-700 text-[12px] font-medium">{serviceTypes.find(t => t.id === rule.serviceTypeId || t.id === (rule as any).service_type_id)?.name || 'Desconhecido'}</span>
+                               </div>
+                            </td>
+                            <td className="px-4 py-3 text-[11px] font-bold text-slate-700">
+                               <div className="flex items-center gap-2">
+                                 <Cpu size={14} className="text-slate-400" />
+                                 <span className="text-slate-700 text-[12px] font-medium">{rule.equipmentFamily}</span>
+                               </div>
+                            </td>
+                            <td className="px-4 py-3 text-[11px] font-bold text-primary-700">
+                               <span className="bg-primary-50 py-1 px-3 border border-primary-100 rounded-md text-[12px] font-medium block text-center truncate max-w-[150px]" title={forms.find(f => f.id === rule.formId || f.id === (rule as any).form_id)?.title || 'Não vinculado'}>
+                                 {forms.find(f => f.id === rule.formId || f.id === (rule as any).form_id)?.title || 'Não vinculado'}
+                               </span>
+                            </td>
+                            <td className="px-4 py-3 text-[11px] font-bold text-amber-700">
+                               <span className="bg-amber-50 py-1 px-3 border border-amber-100 rounded-md text-[12px] font-medium block text-center truncate max-w-[150px]" title={forms.find(f => f.id === (rule as any).financialFormId)?.title || 'Não vinculado'}>
+                                 {forms.find(f => f.id === (rule as any).financialFormId)?.title || 'Não vinculado'}
+                               </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                               <div className="flex justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                                 <button onClick={(e) => {
+                                   if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                                   e.stopPropagation();
+                                   setIsReadOnly(false);
+                                   setEditingRule({ id: rule.id, serviceTypeId: rule.serviceTypeId, equipmentFamily: rule.equipmentFamily, formId: rule.formId, financialFormId: (rule as any).financialFormId }); setIsRuleModalOpen(true);
+                                 }} className={`p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar Regra"><Edit2 size={16} /></button>
+                                 <button onClick={(e) => {
+                                   if (!canDelete('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
+                                   handleDeleteRule(rule.id, e);
+                                 }} className={`p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Excluir"><Trash2 size={16} /></button>
+                               </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {paginatedRules.length === 0 && (
+                          <tr><td colSpan={4} className="py-10 text-center text-slate-400 text-xs font-bold">Nenhuma regra encontrada.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Cards View */}
+                  <div className="md:hidden space-y-2.5 pb-6">
+                    {paginatedRules.map(rule => (
+                      <div
+                        key={rule.id}
+                        onClick={(e) => handleViewRule(rule, e)}
+                        className="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200/70 active:scale-[0.98] transition-transform flex flex-col gap-2"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Tag size={14} className="text-slate-400" />
+                            <span className="text-xs font-bold text-slate-800">
+                              {serviceTypes.find(t => t.id === rule.serviceTypeId || t.id === (rule as any).service_type_id)?.name || 'Desconhecido'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Cpu size={13} className="text-slate-400" />
+                            <span className="text-[11px] font-semibold text-slate-600">{rule.equipmentFamily}</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <div className="bg-primary-50/60 p-2 rounded-xl border border-primary-100/80">
+                            <p className="text-[9px] font-bold text-primary-700 uppercase tracking-wider mb-0.5">Técnico</p>
+                            <p className="text-[11px] font-medium text-slate-700 truncate" title={forms.find(f => f.id === rule.formId || f.id === (rule as any).form_id)?.title || 'Não vinculado'}>
+                              {forms.find(f => f.id === rule.formId || f.id === (rule as any).form_id)?.title || 'Não vinculado'}
+                            </p>
+                          </div>
+                          <div className="bg-amber-50/60 p-2 rounded-xl border border-amber-100/80">
+                            <p className="text-[9px] font-bold text-amber-700 uppercase tracking-wider mb-0.5">Financeiro</p>
+                            <p className="text-[11px] font-medium text-slate-700 truncate" title={forms.find(f => f.id === (rule as any).financialFormId)?.title || 'Não vinculado'}>
+                              {forms.find(f => f.id === (rule as any).financialFormId)?.title || 'Não vinculado'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                          <button
+                            onClick={(e) => {
+                              if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                              e.stopPropagation();
+                              setIsReadOnly(false);
+                              setEditingRule({ id: rule.id, serviceTypeId: rule.serviceTypeId, equipmentFamily: rule.equipmentFamily, formId: rule.formId, financialFormId: (rule as any).financialFormId }); setIsRuleModalOpen(true);
+                            }}
+                            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                          >
+                            <Edit2 size={13} />
+                            <span>Editar</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              if (!canDelete('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
+                              handleDeleteRule(rule.id, e);
+                            }}
+                            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                          >
+                            <Trash2 size={13} />
+                            <span>Excluir</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {paginatedRules.length === 0 && (
+                      <div className="py-10 text-center text-slate-400 text-xs font-bold bg-white rounded-2xl border border-slate-200">Nenhuma regra encontrada.</div>
+                    )}
+                  </div>
                 </div>
               )}
 
               {/* ABA 4: TIPOS DE DEFEITOS */}
               {activeTab === 'defects' && (
                 <div className="flex-1 overflow-auto custom-scrollbar flex flex-col">
-                  <table className="w-full border-collapse">
-                    <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
-                      <tr className="text-[11px] font-bold text-slate-500">
-                        <th className="px-4 py-3 text-left w-28">código</th>
-                        <th className="px-4 py-3 text-left">tipo de defeito</th>
-                        <th className="px-4 py-3 text-left">descrição</th>
-                        <th className="px-4 py-3 text-center w-28">status</th>
-                        <th className="px-4 py-3 text-right w-28">ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 bg-white">
-                      {paginatedDefects.map(defect => (
-                        <tr 
-                          key={defect.id || defect.code} 
-                          onClick={(e) => handleViewDefect(defect, e)} 
-                          className="hover:bg-slate-50 transition-colors group cursor-pointer"
-                        >
-                          <td className="px-4 py-3">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200 font-mono text-xs font-bold text-slate-800 tracking-wider">
-                              <Hash size={12} className="text-slate-400" />
-                              {defect.code}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
-                                <AlertTriangle size={14} />
-                              </div>
-                              <span className={`text-[13px] font-semibold ${defect.active === false ? "text-slate-400 line-through" : "text-slate-800"}`}>
-                                {defect.name}
+                  {/* Desktop Table View */}
+                  <div className="hidden md:block">
+                    <table className="w-full border-collapse">
+                      <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
+                        <tr className="text-[11px] font-bold text-slate-500">
+                          <th className="px-4 py-3 text-left w-28">código</th>
+                          <th className="px-4 py-3 text-left">tipo de defeito</th>
+                          <th className="px-4 py-3 text-left">descrição</th>
+                          <th className="px-4 py-3 text-center w-28">status</th>
+                          <th className="px-4 py-3 text-right w-28">ações</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        {paginatedDefects.map(defect => (
+                          <tr 
+                            key={defect.id || defect.code} 
+                            onClick={(e) => handleViewDefect(defect, e)} 
+                            className="hover:bg-slate-50 transition-colors group cursor-pointer"
+                          >
+                            <td className="px-4 py-3">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200 font-mono text-xs font-bold text-slate-800 tracking-wider">
+                                <Hash size={12} className="text-slate-400" />
+                                {defect.code}
                               </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-xs text-slate-500 max-w-xs truncate">
-                            {defect.description || <span className="text-slate-300 italic text-[11px]">Sem descrição</span>}
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className={`inline-flex items-center text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${defect.active === false ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
-                              {defect.active === false ? 'Inativo' : 'Ativo'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
-                              <button 
-                                onClick={(e) => {
-                                  if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
-                                  e.stopPropagation();
-                                  setIsReadOnly(false);
-                                  setEditingDefect({ ...defect });
-                                  setIsDefectModalOpen(true);
-                                }} 
-                                className={`p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
-                                title="Editar"
-                              >
-                                <Edit2 size={16} />
-                              </button>
-                              <button 
-                                onClick={(e) => {
-                                  if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para inativar.'); return; }
-                                  handleToggleDefectStatus(defect, e);
-                                }} 
-                                className={`p-2 rounded-lg transition-all ${defect.active === false ? 'text-emerald-600 hover:bg-emerald-50' : 'text-amber-600 hover:bg-amber-50'} ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
-                                title={defect.active === false ? 'Ativar Defeito' : 'Inativar Defeito'}
-                              >
-                                {defect.active === false ? <Power size={16} /> : <PowerOff size={16} />}
-                              </button>
-                              {defect.id && (
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+                                  <AlertTriangle size={14} />
+                                </div>
+                                <span className={`text-[13px] font-semibold ${defect.active === false ? "text-slate-400 line-through" : "text-slate-800"}`}>
+                                  {defect.name}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-xs text-slate-500 max-w-xs truncate">
+                              {defect.description || <span className="text-slate-300 italic text-[11px]">Sem descrição</span>}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={`inline-flex items-center text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${defect.active === false ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                                {defect.active === false ? 'Inativo' : 'Ativo'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
                                 <button 
                                   onClick={(e) => {
-                                    if (!canDelete('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
-                                    handleDeleteDefect(defect.id!, e);
+                                    if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                                    e.stopPropagation();
+                                    setIsReadOnly(false);
+                                    setEditingDefect({ ...defect });
+                                    setIsDefectModalOpen(true);
                                   }} 
-                                  className={`p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
-                                  title="Excluir"
+                                  className={`p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
+                                  title="Editar"
                                 >
-                                  <Trash2 size={16} />
+                                  <Edit2 size={16} />
                                 </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                      {paginatedDefects.length === 0 && (
-                        <tr><td colSpan={5} className="py-12 text-center text-slate-400 text-xs font-bold">Nenhum tipo de defeito encontrado.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
+                                <button 
+                                  onClick={(e) => {
+                                    if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para inativar.'); return; }
+                                    handleToggleDefectStatus(defect, e);
+                                  }} 
+                                  className={`p-2 rounded-lg transition-all ${defect.active === false ? 'text-emerald-600 hover:bg-emerald-50' : 'text-amber-600 hover:bg-amber-50'} ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
+                                  title={defect.active === false ? 'Ativar Defeito' : 'Inativar Defeito'}
+                                >
+                                  {defect.active === false ? <Power size={16} /> : <PowerOff size={16} />}
+                                </button>
+                                {defect.id && (
+                                  <button 
+                                    onClick={(e) => {
+                                      if (!canDelete('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
+                                      handleDeleteDefect(defect.id!, e);
+                                    }} 
+                                    className={`p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
+                                    title="Excluir"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {paginatedDefects.length === 0 && (
+                          <tr><td colSpan={5} className="py-12 text-center text-slate-400 text-xs font-bold">Nenhum tipo de defeito encontrado.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Cards View */}
+                  <div className="md:hidden space-y-2.5 pb-6">
+                    {paginatedDefects.map(defect => (
+                      <div
+                        key={defect.id || defect.code}
+                        onClick={(e) => handleViewDefect(defect, e)}
+                        className="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200/70 active:scale-[0.98] transition-transform flex flex-col gap-2"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 font-mono text-xs font-bold text-slate-800">
+                              <Hash size={11} className="text-slate-400" />
+                              {defect.code}
+                            </span>
+                            <span className={`text-xs font-bold truncate ${defect.active === false ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                              {defect.name}
+                            </span>
+                          </div>
+                          <span className={`inline-flex items-center text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${defect.active === false ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                            {defect.active === false ? 'Inativo' : 'Ativo'}
+                          </span>
+                        </div>
+                        {defect.description && (
+                          <p className="text-xs text-slate-500 line-clamp-2 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                            {defect.description}
+                          </p>
+                        )}
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                          <button
+                            onClick={(e) => {
+                              if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                              e.stopPropagation();
+                              setIsReadOnly(false);
+                              setEditingDefect({ ...defect });
+                              setIsDefectModalOpen(true);
+                            }}
+                            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                          >
+                            <Edit2 size={13} />
+                            <span>Editar</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para inativar.'); return; }
+                              handleToggleDefectStatus(defect, e);
+                            }}
+                            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${defect.active === false ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100' : 'text-amber-700 bg-amber-50 hover:bg-amber-100'} ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                          >
+                            {defect.active === false ? <Power size={13} /> : <PowerOff size={13} />}
+                            <span>{defect.active === false ? 'Ativar' : 'Inativar'}</span>
+                          </button>
+                          {defect.id && (
+                            <button
+                              onClick={(e) => {
+                                if (!canDelete('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
+                                handleDeleteDefect(defect.id!, e);
+                              }}
+                              className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                            >
+                              <Trash2 size={13} />
+                              <span>Excluir</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {paginatedDefects.length === 0 && (
+                      <div className="py-10 text-center text-slate-400 text-xs font-bold bg-white rounded-2xl border border-slate-200">Nenhum tipo de defeito encontrado.</div>
+                    )}
+                  </div>
                 </div>
               )}
             </>

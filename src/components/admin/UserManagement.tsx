@@ -817,7 +817,8 @@ export const UserManagement: React.FC = () => {
       </div>
 
       <div className="bg-white border border-slate-200 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
-        <div className="flex-1 overflow-auto p-0 custom-scrollbar">
+        {/* 💻 DESKTOP TABLE VIEW */}
+        <div className="hidden md:block flex-1 overflow-auto p-0 custom-scrollbar">
           {activeTab === 'users' ? (
             <table className="w-full border-collapse min-w-[550px]">
               <thead className="sticky top-0 bg-slate-50 z-10">
@@ -989,10 +990,171 @@ export const UserManagement: React.FC = () => {
                         <p className="text-[10px] font-bold text-slate-300 italic tracking-[0.2em]">Nenhum grupo localizado</p>
                       </td>
                     </tr>
-                  )
+                  );
                 })()}
               </tbody>
             </table>
+          )}
+        </div>
+
+        {/* 📱 MOBILE CARDS VIEW (PWA BIG TECH STANDARD) */}
+        <div className="md:hidden flex-1 overflow-auto custom-scrollbar bg-slate-50/50 p-2.5 space-y-2.5 pb-28">
+          {activeTab === 'users' ? (
+            paginatedUsers.length > 0 ? (
+              paginatedUsers.map(user => {
+                const groupId = user.groupIds?.[0] || user.groupId;
+                const g = groups.find(item => item.id === groupId);
+                return (
+                  <div
+                    key={user.id}
+                    onClick={() => {
+                      setEditingUser(user);
+                      setFormData({ ...user, groupIds: user.groupIds || (user.groupId ? [user.groupId] : []) });
+                      setGroupSearch('');
+                      setSaveError(null);
+                      setIsReadOnly(true);
+                      setIsModalOpen(true);
+                    }}
+                    className={`bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200/70 active:scale-[0.98] transition-transform flex flex-col gap-2.5 cursor-pointer ${!user.active ? 'opacity-60' : ''}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=random&color=fff&bold=true`}
+                          alt={user.name}
+                          className="w-11 h-11 rounded-xl object-cover border-2 border-slate-100 shadow-sm shrink-0"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=random&color=fff&bold=true`;
+                          }}
+                        />
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-bold text-slate-900 truncate leading-tight">{user.name}</h3>
+                          <p className="text-[11px] text-slate-500 truncate mt-0.5">{user.email}</p>
+                          {user.appScope === AppScope.HYBRID && (
+                            <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-violet-100 text-violet-600 text-[8px] font-bold border border-violet-200">WEB + APP</span>
+                          )}
+                        </div>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-full text-[9px] font-bold border shrink-0 ${user.active ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                        {user.active ? 'ATIVO' : 'INATIVO'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-mono text-[10px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2 py-0.5 rounded-md border border-[#1c2d4f]/15 shrink-0">
+                          {formatUserCode(user.userCode || (user as any).user_code)}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1 truncate max-w-[120px]">
+                          <FolderTree size={11} className="text-slate-400 shrink-0" />
+                          {g ? g.name : 'Nenhum Grupo'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingUser(user);
+                            setFormData({ ...user, groupIds: user.groupIds || (user.groupId ? [user.groupId] : []) });
+                            setGroupSearch('');
+                            setSaveError(null);
+                            setIsReadOnly(false);
+                            setIsModalOpen(true);
+                          }}
+                          className="p-2 text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
+                          title="Editar"
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!canDelete('users') && !isAdmin) {
+                              alert("Acesso Negado: Você não tem permissão para excluir usuários.");
+                              return;
+                            }
+                            setUserToDelete(user);
+                          }}
+                          className="p-2 text-rose-500 bg-rose-50 rounded-lg hover:bg-rose-100 transition-colors"
+                          title="Excluir"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="py-16 text-center text-slate-400">
+                <Users size={32} className="mx-auto text-slate-300 mb-2" />
+                <p className="text-xs font-semibold">Nenhum usuário localizado</p>
+              </div>
+            )
+          ) : (
+            (() => {
+              const searchLower = (searchTerm || '').toLowerCase().trim();
+              const filteredGroups = (groups || []).filter(g => 
+                g && (
+                  (g.name || '').toLowerCase().includes(searchLower) || 
+                  (g.description || '').toLowerCase().includes(searchLower)
+                )
+              );
+
+              return filteredGroups.length > 0 ? (
+                filteredGroups.map(group => (
+                  <div
+                    key={group.id}
+                    className="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200/70 active:scale-[0.98] transition-transform flex flex-col gap-2.5 cursor-pointer"
+                    onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${group.isSystem ? 'bg-amber-50 border-amber-200 text-amber-500' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
+                          {group.isSystem ? <ShieldCheck size={18} /> : <FolderTree size={18} />}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-bold text-slate-900 truncate leading-tight">{group.name}</h3>
+                          <p className="text-[11px] text-slate-500 truncate mt-0.5">{group.description || 'Sem descrição'}</p>
+                        </div>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-full text-[9px] font-bold border shrink-0 ${group.isSystem ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                        {group.isSystem ? 'Sistema' : 'Customizado'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                      <span className="text-[10px] text-slate-400 font-medium">Toque para regras de acesso</span>
+                      <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }}
+                          className="p-2 text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
+                          title="Configurar Regras de Acesso"
+                        >
+                          <Settings size={14} />
+                        </button>
+                        {!group.isSystem && (
+                          <button
+                            onClick={() => setGroupToDelete(group)}
+                            disabled={isSaving}
+                            className="p-2 text-rose-500 bg-rose-50 rounded-lg hover:bg-rose-100 transition-colors"
+                            title="Excluir Grupo"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="py-16 text-center text-slate-400">
+                  <FolderTree size={32} className="mx-auto text-slate-300 mb-2" />
+                  <p className="text-xs font-semibold">Nenhum grupo localizado</p>
+                </div>
+              );
+            })()
           )}
         </div>
         {activeTab === 'users' && (

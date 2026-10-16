@@ -784,7 +784,8 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
                         <h3 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-1.5 mb-4">
                             <Wallet className="text-indigo-500" size={16} /> Entradas e Saídas do Período
                         </h3>
-                        <div className="overflow-x-auto custom-scrollbar">
+                        {/* 💻 DESKTOP TABLE VIEW */}
+                        <div className="hidden md:block overflow-x-auto custom-scrollbar">
                             <table className="w-full text-left border-collapse">
                                 <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
                                     <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
@@ -848,6 +849,59 @@ export const CashFlowTab: React.FC<CashFlowTabProps> = ({ tenantId, receivables 
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+
+                        {/* 📱 MOBILE CARDS VIEW (PWA BIG TECH STANDARD) */}
+                        <div className="md:hidden space-y-2.5">
+                            {paginatedEntries.length === 0 ? (
+                                <div className="py-8 text-center text-slate-400 text-xs">
+                                    Nenhum registro encontrado para o período.
+                                </div>
+                            ) : (
+                                paginatedEntries.map(entry => {
+                                    const isSelected = selectedEntryIds.includes(entry.id);
+                                    const isIncome = entry.type === 'INCOME';
+                                    return (
+                                        <div
+                                            key={entry.id}
+                                            onClick={() => toggleSelectEntry(entry.id)}
+                                            className={`bg-white p-3.5 rounded-2xl shadow-sm border transition-all flex flex-col gap-2.5 ${
+                                                isSelected ? 'border-indigo-400 ring-1 ring-indigo-100 bg-indigo-50/20' : 'border-slate-200/70'
+                                            }`}
+                                        >
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        onChange={() => toggleSelectEntry(entry.id)}
+                                                        onClick={e => e.stopPropagation()}
+                                                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+                                                    />
+                                                    <div className="min-w-0">
+                                                        <h4 className="text-sm font-bold text-slate-800 truncate leading-tight">{entry.description}</h4>
+                                                        <p className="text-[10px] text-slate-400 font-medium mt-0.5">{entry.category || 'Geral'}</p>
+                                                    </div>
+                                                </div>
+                                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
+                                                    isIncome ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
+                                                }`}>
+                                                    {isIncome ? 'ENTRADA' : 'SAÍDA'}
+                                                </span>
+                                            </div>
+
+                                            <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                                                <span className="text-[11px] text-slate-500 font-medium">
+                                                    {formatDateShort(cleanDateStr(entry.entryDate))}
+                                                </span>
+                                                <span className={`text-sm font-bold ${isIncome ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                    {isIncome ? '+' : '-'}{formatCurrency(Number(entry.amount))}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
                         </div>
 
                         {/* Paginação padrão */}

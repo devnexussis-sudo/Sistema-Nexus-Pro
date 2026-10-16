@@ -466,77 +466,181 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path))
     );
 
-    // ── Componente de Sidebar Navigation (reutilizado mobile + desktop) ──
-    const SidebarNav = ({ onItemClick }: { onItemClick?: () => void }) => (
-        <>
-            <nav className="space-y-1">
-                {menuItems.map(item => {
-                    const isActive = location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path));
-                    return (
-                        <Link
-                            key={item.id}
-                            to={item.enabled && item.visible ? item.path : '#'}
-                            onClick={(e) => {
-                                if (!item.enabled) {
-                                    e.preventDefault();
-                                    alert("Módulo desabilitado temporariamente.");
-                                } else if (!item.visible) {
-                                    e.preventDefault();
-                                    alert("Acesso Negado: Você não tem permissão para acessar este módulo. Contate o administrador.");
-                                } else if (onItemClick) {
-                                    onItemClick();
-                                }
-                            }}
-                            className={`w-full flex items-center ${isSidebarCollapsed && !onItemClick ? 'justify-center px-0' : 'px-3'} py-2.5 rounded-md text-sm font-medium transition-all duration-200 ${(!item.enabled || !item.visible)
-                                ? 'bg-slate-800/30 text-slate-400 cursor-not-allowed hover:bg-slate-800/50'
-                                : isActive
-                                    ? 'bg-white/10 text-white shadow-sm'
-                                    : 'text-white/70 hover:text-white hover:bg-white/5'
-                                }`}
-                        >
-                            <div className="flex items-center justify-between w-full relative">
-                                <div className="flex items-center gap-3">
-                                    <item.icon size={18} className={`${isActive ? 'text-white' : 'text-white/60'}`} />
-                                    {(!isSidebarCollapsed || onItemClick) && <span>{item.label}</span>}
-                                </div>
-                                {(item.badge || 0) > 0 && (
-                                    isSidebarCollapsed && !onItemClick ? (
-                                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-400 rounded-full border border-[#1c2d4f] shadow-sm shadow-amber-400/50" />
-                                    ) : (
-                                        <span className="min-w-[20px] h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-amber-400 text-slate-950 text-[10px] font-black leading-none shadow-sm shadow-amber-400/40 border border-amber-300/50 shrink-0">
-                                            {item.badge}
-                                        </span>
-                                    )
-                                )}
-                            </div>
-                        </Link>
-                    );
-                })}
-            </nav>
+    const MENU_CATEGORIES = [
+        {
+            title: 'Operação & Atendimentos',
+            ids: ['dashboard', 'orders', 'calendar', 'map', 'solicitacoes', 'whatsapp']
+        },
+        {
+            title: 'Financeiro & Comercial',
+            ids: ['financial', 'quotes', 'stock', 'contracts']
+        },
+        {
+            title: 'Cadastros & Ativos',
+            ids: ['clients', 'equip', 'forms', 'techs', 'regions']
+        },
+        {
+            title: 'Configurações & IA',
+            ids: ['ai', 'users', 'settings', 'integrations', 'docs']
+        }
+    ];
 
-            <div className="pt-4 border-t border-white/5 mx-2">
-                <a
-                    href="https://wa.me/5535984274972"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`w-full flex items-center ${isSidebarCollapsed && !onItemClick ? 'justify-center px-0' : 'px-3 justify-start'} py-2.5 rounded-lg transition-all duration-200 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 group`}
-                    title="Suporte Técnico"
-                >
-                    <div className="flex items-center gap-3">
-                        <div className="p-1.5 bg-emerald-500/20 rounded-md group-hover:bg-emerald-500 group-hover:text-white transition-all">
-                            <Phone size={14} className="text-emerald-400 group-hover:text-white" />
-                        </div>
-                        {(!isSidebarCollapsed || onItemClick) && (
-                            <div className="flex flex-col">
-                                <span className="text-[10px] font-bold   text-emerald-100/90 group-hover:text-white">suporte</span>
-                                <span className="text-[8px] font-bold text-emerald-500/80 group-hover:text-emerald-400">online agora</span>
+    // ── Componente de Sidebar Navigation (Cards para Mobile PWA + Minimalista para Desktop) ──
+    const SidebarNav = ({ onItemClick }: { onItemClick?: () => void }) => {
+        if (onItemClick) {
+            // 📱 MOBILE PWA CARD HUB (Menu em Cards Categorizados Big Tech)
+            return (
+                <div className="space-y-4 font-poppins">
+                    {MENU_CATEGORIES.map(cat => {
+                        const items = menuItems.filter(item => cat.ids.includes(item.id));
+                        if (items.length === 0) return null;
+
+                        return (
+                            <div key={cat.title} className="flex flex-col gap-1.5">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-white/40 px-1">
+                                    {cat.title}
+                                </span>
+                                <div className="space-y-1.5">
+                                    {items.map(item => {
+                                        const isActive = location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path));
+                                        return (
+                                            <Link
+                                                key={item.id}
+                                                to={item.enabled && item.visible ? item.path : '#'}
+                                                onClick={(e) => {
+                                                    if (!item.enabled) {
+                                                        e.preventDefault();
+                                                        alert("Módulo desabilitado temporariamente.");
+                                                    } else if (!item.visible) {
+                                                        e.preventDefault();
+                                                        alert("Acesso Negado: Você não tem permissão para acessar este módulo. Contate o administrador.");
+                                                    } else {
+                                                        onItemClick();
+                                                    }
+                                                }}
+                                                className={`w-full flex items-center justify-between p-2.5 rounded-xl transition-all border ${
+                                                    (!item.enabled || !item.visible)
+                                                        ? 'bg-white/[0.02] border-white/5 text-white/30 cursor-not-allowed'
+                                                        : isActive
+                                                            ? 'bg-white/20 border-white/30 text-white shadow-md'
+                                                            : 'bg-white/[0.05] hover:bg-white/[0.09] border-white/5 text-white/80 active:scale-[0.98]'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-2.5 min-w-0">
+                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                                        isActive ? 'bg-white text-[#1c2d4f]' : 'bg-white/10 text-white/80'
+                                                    }`}>
+                                                        <item.icon size={16} />
+                                                    </div>
+                                                    <span className="text-xs font-semibold truncate">{item.label}</span>
+                                                </div>
+
+                                                {(item.badge || 0) > 0 && (
+                                                    <span className="min-w-[20px] h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-amber-400 text-slate-950 text-[10px] font-black leading-none shadow-sm shadow-amber-400/40 border border-amber-300/50 shrink-0">
+                                                        {item.badge}
+                                                    </span>
+                                                )}
+                                            </Link>
+                                        );
+                                    })}
+                                </div>
                             </div>
-                        )}
+                        );
+                    })}
+
+                    <div className="pt-2 border-t border-white/5">
+                        <a
+                            href="https://wa.me/5535984274972"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full flex items-center p-2.5 rounded-xl transition-all bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 group"
+                            title="Suporte Técnico"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="p-1.5 bg-emerald-500/20 rounded-md group-hover:bg-emerald-500 group-hover:text-white transition-all">
+                                    <Phone size={14} className="text-emerald-400 group-hover:text-white" />
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-bold text-emerald-100/90 group-hover:text-white">suporte</span>
+                                    <span className="text-[8px] font-bold text-emerald-500/80 group-hover:text-emerald-400">online agora</span>
+                                </div>
+                            </div>
+                        </a>
                     </div>
-                </a>
-            </div>
-        </>
-    );
+                </div>
+            );
+        }
+
+        // 💻 DESKTOP SIDEBAR NAV (100% Intact and unmodified)
+        return (
+            <>
+                <nav className="space-y-1">
+                    {menuItems.map(item => {
+                        const isActive = location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path));
+                        return (
+                            <Link
+                                key={item.id}
+                                to={item.enabled && item.visible ? item.path : '#'}
+                                onClick={(e) => {
+                                    if (!item.enabled) {
+                                        e.preventDefault();
+                                        alert("Módulo desabilitado temporariamente.");
+                                    } else if (!item.visible) {
+                                        e.preventDefault();
+                                        alert("Acesso Negado: Você não tem permissão para acessar este módulo. Contate o administrador.");
+                                    }
+                                }}
+                                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'px-3'} py-2.5 rounded-md text-sm font-medium transition-all duration-200 ${(!item.enabled || !item.visible)
+                                    ? 'bg-slate-800/30 text-slate-400 cursor-not-allowed hover:bg-slate-800/50'
+                                    : isActive
+                                        ? 'bg-white/10 text-white shadow-sm'
+                                        : 'text-white/70 hover:text-white hover:bg-white/5'
+                                    }`}
+                            >
+                                <div className="flex items-center justify-between w-full relative">
+                                    <div className="flex items-center gap-3">
+                                        <item.icon size={18} className={`${isActive ? 'text-white' : 'text-white/60'}`} />
+                                        {!isSidebarCollapsed && <span>{item.label}</span>}
+                                    </div>
+                                    {(item.badge || 0) > 0 && (
+                                        isSidebarCollapsed ? (
+                                            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-400 rounded-full border border-[#1c2d4f] shadow-sm shadow-amber-400/50" />
+                                        ) : (
+                                            <span className="min-w-[20px] h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-amber-400 text-slate-950 text-[10px] font-black leading-none shadow-sm shadow-amber-400/40 border border-amber-300/50 shrink-0">
+                                                {item.badge}
+                                            </span>
+                                        )
+                                    )}
+                                </div>
+                            </Link>
+                        );
+                    })}
+                </nav>
+
+                <div className="pt-4 border-t border-white/5 mx-2">
+                    <a
+                        href="https://wa.me/5535984274972"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'px-3 justify-start'} py-2.5 rounded-lg transition-all duration-200 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 group`}
+                        title="Suporte Técnico"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="p-1.5 bg-emerald-500/20 rounded-md group-hover:bg-emerald-500 group-hover:text-white transition-all">
+                                <Phone size={14} className="text-emerald-400 group-hover:text-white" />
+                            </div>
+                            {!isSidebarCollapsed && (
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-bold   text-emerald-100/90 group-hover:text-white">suporte</span>
+                                    <span className="text-[8px] font-bold text-emerald-500/80 group-hover:text-emerald-400">online agora</span>
+                                </div>
+                            )}
+                        </div>
+                    </a>
+                </div>
+            </>
+        );
+    };
 
     return (
         <div className="flex flex-col h-screen bg-slate-50 overflow-hidden font-poppins print:h-auto print:overflow-visible print:block relative">
@@ -1086,7 +1190,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                             onClick={() => setIsMobileSidebarOpen(false)} 
                         />
                         {/* Drawer */}
-                        <aside className="absolute left-0 top-0 bottom-0 w-72 bg-[#1c2d4f] flex flex-col shadow-2xl animate-slide-in-left z-[301]">
+                        <aside className="absolute left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-[#1c2d4f] flex flex-col shadow-2xl animate-slide-in-left z-[301]">
                             {/* Drawer Header */}
                             <div className="h-14 flex items-center justify-between px-4 border-b border-white/10 shrink-0">
                                 <div className="flex items-center gap-3">
@@ -1186,7 +1290,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                                     <p className="text-[10px] font-medium text-red-600 mt-0.5 leading-tight">O sistema não está enviando ou recebendo mensagens. O robô está inativo.</p>
                                 </div>
                             </div>
-                            <Link to="/admin/settings" className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold uppercase tracking-widest rounded-lg shadow-sm transition-colors whitespace-nowrap shrink-0">
+                            <Link to="/admin/settings?tab=whatsapp" className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold uppercase tracking-widest rounded-lg shadow-sm transition-colors whitespace-nowrap shrink-0">
                                 Resolver
                             </Link>
                         </div>

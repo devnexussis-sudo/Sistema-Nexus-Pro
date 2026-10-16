@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useSearchParams } from 'react-router-dom';
 import { DataService } from '../../services/dataService';
 import { StorageService } from '../../services/storageService';
 import { NexusQueryClient, useTenant } from '../../hooks/nexusHooks';
@@ -13,7 +14,7 @@ import {
   Navigation, Smartphone, Lock, Unlock, ListOrdered,
   ShieldAlert, X, UploadCloud, Languages,
   BellRing, Database, History, HardDrive, Loader2, Loader, Share2, PlayCircle, PieChart, Target, ImagePlus,
-  Monitor, MapPinned, MessageCircle, QrCode, Wifi, WifiOff, Clock, AlertTriangle, RefreshCw, Video
+  Monitor, MapPinned, MessageCircle, QrCode, Wifi, WifiOff, Clock, AlertTriangle, RefreshCw, Video, ChevronDown
 } from 'lucide-react';
 import { useI18n, TIMEZONE_OPTIONS, type SupportedLocale, type SupportedTimezone } from '../../i18n';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -152,7 +153,33 @@ export const SettingsPage: React.FC = () => {
     tabAccess[k as keyof typeof tabAccess]
   ) || 'company';
 
-  const [activeTab, setActiveTab] = useState<'company' | 'system' | 'app' | 'dashboard' | 'whatsapp'>(firstAvailable as any);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab') as 'company' | 'system' | 'app' | 'dashboard' | 'whatsapp' | null;
+
+  const [activeTab, setActiveTab] = useState<'company' | 'system' | 'app' | 'dashboard' | 'whatsapp'>(() => {
+    if (urlTab && ['company', 'system', 'app', 'dashboard', 'whatsapp'].includes(urlTab) && tabAccess[urlTab]) {
+      return urlTab;
+    }
+    return firstAvailable as any;
+  });
+
+  const [isMobileSettingsTabsExpanded, setIsMobileSettingsTabsExpanded] = useState(false);
+
+  useEffect(() => {
+    if (urlTab && ['company', 'system', 'app', 'dashboard', 'whatsapp'].includes(urlTab) && tabAccess[urlTab]) {
+      setActiveTab(urlTab);
+    }
+  }, [urlTab]);
+
+  const handleTabChange = (tabId: 'company' | 'system' | 'app' | 'dashboard' | 'whatsapp') => {
+    setActiveTab(tabId);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', tabId);
+      return next;
+    }, { replace: true });
+    setIsMobileSettingsTabsExpanded(false);
+  };
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showSuperUserUnlock, setShowSuperUserUnlock] = useState(false);
@@ -643,16 +670,109 @@ export const SettingsPage: React.FC = () => {
     );
   }
 
+  const availableTabs = [
+    { id: 'company' as const, label: t.settings.tabs.company, icon: Building2, visible: tabAccess.company },
+    { id: 'system' as const, label: t.settings.tabs.system, icon: Monitor, visible: tabAccess.system },
+    { id: 'app' as const, label: t.settings.tabs.app, icon: Smartphone, visible: tabAccess.app },
+    { id: 'dashboard' as const, label: t.settings.tabs.dashboard, icon: PieChart, visible: tabAccess.dashboard },
+    {
+      id: 'whatsapp' as const,
+      label: 'WhatsApp Bot',
+      icon: MessageCircle,
+      visible: Boolean(tabAccess.whatsapp && (isImpersonating || data?.enabled_modules?.ai !== false) && (isImpersonating || (data as any)?.enabledModules?.ai !== false))
+    },
+  ].filter(tab => tab.visible);
+
+  const currentTabObj = availableTabs.find(tab => tab.id === activeTab) || availableTabs[0];
+
   return (
     <div className="p-2 flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
       {/* Toolbar */}
-      <div className="mb-2 flex flex-col xl:flex-row gap-3 items-center">
-        {/* Tabs — só exibe abas que o grupo pode acessar */}
-        <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-lg shadow-slate-200/50 flex-shrink-0">
+      <div className="mb-2 flex flex-col xl:flex-row gap-2.5 items-stretch xl:items-center">
+        {/* 📱 MOBILE RETRACTABLE TABS SWITCHER (md:hidden) */}
+        <div className="md:hidden flex flex-col w-full shrink-0">
+          <div className="flex items-center justify-between p-2 bg-white/90 backdrop-blur-md border border-slate-200/90 rounded-2xl shadow-sm">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
+                activeTab === 'whatsapp' ? 'bg-emerald-600 text-white' : 'bg-[#1c2d4f] text-white'
+              }`}>
+                {activeTab === 'company' && <Building2 size={15} />}
+                {activeTab === 'system' && <Monitor size={15} />}
+                {activeTab === 'app' && <Smartphone size={15} />}
+                {activeTab === 'dashboard' && <PieChart size={15} />}
+                {activeTab === 'whatsapp' && <MessageCircle size={15} />}
+              </div>
+              <div className="min-w-0">
+                <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block leading-none">Aba de Configuração</span>
+                <span className="text-xs font-bold text-slate-800 truncate block mt-0.5">
+                  {currentTabObj?.label || 'Opções'}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsMobileSettingsTabsExpanded(prev => !prev)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all active:scale-95 shrink-0"
+            >
+              <span>{isMobileSettingsTabsExpanded ? 'Fechar' : 'Mudar Aba'}</span>
+              <ChevronDown size={14} className={`transition-transform duration-200 ${isMobileSettingsTabsExpanded ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
+
+          {/* Quick horizontal scroll chips for instant 1-tap switching */}
+          <div className="flex items-center gap-1.5 overflow-x-auto py-2 no-scrollbar -mx-0.5 px-0.5">
+            {availableTabs.map(tab => {
+              const isSelected = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleTabChange(tab.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap transition-all shrink-0 active:scale-95 ${
+                    isSelected
+                      ? tab.id === 'whatsapp'
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-[#1c2d4f] text-white shadow-sm'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <tab.icon size={13} className={isSelected ? 'text-white' : 'text-slate-400'} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Retractable Dropdown Cards */}
+          {isMobileSettingsTabsExpanded && (
+            <div className="mt-1 grid grid-cols-2 gap-2 p-2 bg-slate-100/95 backdrop-blur-md rounded-2xl border border-slate-200 shadow-md animate-in fade-in slide-in-from-top-1 duration-150">
+              {availableTabs.map(tab => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleTabChange(tab.id)}
+                  className={`flex items-center gap-2 p-2.5 rounded-xl text-left transition-all active:scale-95 ${
+                    activeTab === tab.id
+                      ? tab.id === 'whatsapp'
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-[#1c2d4f] text-white shadow-sm'
+                      : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200/60'
+                  }`}
+                >
+                  <tab.icon size={15} className={activeTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} />
+                  <span className="text-xs font-bold leading-tight truncate">{tab.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 💻 DESKTOP TABS — Só exibe abas que o grupo pode acessar (100% INTACTO) */}
+        <div className="hidden md:flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-lg shadow-slate-200/50 flex-shrink-0">
           {tabAccess.company && (
             <button
               type="button"
-              onClick={() => setActiveTab('company')}
+              onClick={() => handleTabChange('company')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'company' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
             >
               <Building2 size={14} /> {t.settings.tabs.company}
@@ -661,7 +781,7 @@ export const SettingsPage: React.FC = () => {
           {tabAccess.system && (
             <button
               type="button"
-              onClick={() => setActiveTab('system')}
+              onClick={() => handleTabChange('system')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'system' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
             >
               <Monitor size={14} /> {t.settings.tabs.system}
@@ -670,7 +790,7 @@ export const SettingsPage: React.FC = () => {
           {tabAccess.app && (
             <button
               type="button"
-              onClick={() => setActiveTab('app')}
+              onClick={() => handleTabChange('app')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'app' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
             >
               <Smartphone size={14} /> {t.settings.tabs.app}
@@ -679,7 +799,7 @@ export const SettingsPage: React.FC = () => {
           {tabAccess.dashboard && (
             <button
               type="button"
-              onClick={() => setActiveTab('dashboard')}
+              onClick={() => handleTabChange('dashboard')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'dashboard' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
             >
               <PieChart size={14} /> {t.settings.tabs.dashboard}
@@ -688,7 +808,7 @@ export const SettingsPage: React.FC = () => {
           {tabAccess.whatsapp && (isImpersonating || data?.enabled_modules?.ai !== false) && (isImpersonating || (data as any)?.enabledModules?.ai !== false) && (
             <button
               type="button"
-              onClick={() => setActiveTab('whatsapp')}
+              onClick={() => handleTabChange('whatsapp')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'whatsapp' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
             >
               <MessageCircle size={14} /> WhatsApp Bot
@@ -697,8 +817,7 @@ export const SettingsPage: React.FC = () => {
         </div>
 
         {/* Middle Spacer / Status */}
-        <div className="flex-1 w-full flex items-center justify-end md:justify-center gap-4">
-
+        <div className="flex-1 w-full flex items-center justify-between md:justify-center gap-4">
           {saved && (
             <div className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl border border-emerald-100 font-medium text-[9px] uppercase tracking-widest animate-bounce">
               Salvo!
@@ -712,7 +831,7 @@ export const SettingsPage: React.FC = () => {
             form="settings-form"
             type="submit"
             isLoading={loading}
-            className="rounded-xl px-6 h-[42px] font-medium italic uppercase text-[10px] tracking-widest shadow-lg shadow-primary-600/20 text-white whitespace-nowrap bg-primary-600 hover:bg-primary-700"
+            className="w-full sm:w-auto rounded-xl px-6 h-[42px] font-medium italic uppercase text-[10px] tracking-widest shadow-lg shadow-primary-600/20 text-white whitespace-nowrap bg-primary-600 hover:bg-primary-700"
           >
             <Save size={16} className="mr-2" /> {t.common.save}
           </Button>

@@ -391,7 +391,9 @@ export const CommissionsTab: React.FC<CommissionsTabProps> = ({ techs }) => {
                     <p className="text-sm text-slate-500">Adicione regras para automatizar lançamentos de comissão nas contas a pagar.</p>
                 </div>
             ) : (
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <>
+                {/* 💻 DESKTOP TABLE VIEW */}
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hidden md:block">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50/80 border-b border-slate-200">
@@ -514,6 +516,106 @@ export const CommissionsTab: React.FC<CommissionsTabProps> = ({ techs }) => {
                         </tbody>
                     </table>
                 </div>
+
+                {/* 📱 MOBILE CARDS VIEW (PWA BIG TECH STANDARD) */}
+                <div className="md:hidden space-y-2.5 pb-20">
+                    {rules.map(rule => {
+                        const isSelected = selectedRuleIds.includes(rule.id);
+                        return (
+                            <div
+                                key={rule.id}
+                                className={`bg-white p-3.5 rounded-2xl shadow-sm border transition-all flex flex-col gap-2.5 ${
+                                    isSelected ? 'border-primary-400 ring-1 ring-primary-100 bg-primary-50/20' : 'border-slate-200/70'
+                                }`}
+                            >
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleToggleRule(rule.id)}
+                                            className="text-slate-400 hover:text-slate-700 transition-colors p-1 -m-1 shrink-0"
+                                        >
+                                            {isSelected ? (
+                                                <CheckSquare size={18} className="text-[#1c2d4f]" />
+                                            ) : (
+                                                <Square size={18} />
+                                            )}
+                                        </button>
+                                        <div className="min-w-0">
+                                            <h4 className="text-sm font-bold text-slate-800 uppercase truncate leading-tight">
+                                                {rule.technicianName || rule.technician_name}
+                                            </h4>
+                                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                                {rule.modalities && rule.modalities.length > 0 
+                                                    ? `${rule.modalities.length} ${rule.modalities.length === 1 ? 'exceção ativa' : 'exceções ativas'}`
+                                                    : 'Regra padrão sem exceções'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={() => toggleActive(rule)} 
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider border shrink-0 ${
+                                            rule.active 
+                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                                        }`}
+                                    >
+                                        <div className={`w-1.5 h-1.5 rounded-full ${rule.active ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                                        <span>{rule.active ? 'Ativa' : 'Pausada'}</span>
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
+                                    <div className="bg-slate-50/70 p-2 rounded-xl border border-slate-100 flex flex-col gap-0.5">
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">OS Concluída</span>
+                                        <span className="font-bold text-emerald-700 flex items-center gap-1 text-xs">
+                                            {(rule.completedType || rule.completed_type) === 'percent' ? <Percent size={11} /> : <DollarSign size={11} />}
+                                            {formatValue(rule.completedType || rule.completed_type, rule.completedValue ?? rule.completed_value)}
+                                        </span>
+                                    </div>
+                                    <div className="bg-slate-50/70 p-2 rounded-xl border border-slate-100 flex flex-col gap-0.5">
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">OS Impedida</span>
+                                        <span className="font-bold text-rose-700 flex items-center gap-1 text-xs">
+                                            {(rule.blockedType || rule.blocked_type) === 'percent' ? <Percent size={11} /> : <DollarSign size={11} />}
+                                            {formatValue(rule.blockedType || rule.blocked_type, rule.blockedValue ?? rule.blocked_value)}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-slate-100">
+                                    <button 
+                                        onClick={() => toggleActive(rule)} 
+                                        className={`p-2 rounded-lg border transition-all text-xs font-bold flex items-center gap-1 ${
+                                            rule.active 
+                                                ? 'text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200' 
+                                                : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200'
+                                        }`}
+                                        title={rule.active ? "Inativar Regra" : "Ativar Regra"}
+                                    >
+                                        {rule.active ? <PowerOff size={13} /> : <Power size={13} />}
+                                        <span>{rule.active ? 'Pausar' : 'Ativar'}</span>
+                                    </button>
+                                    <button 
+                                        onClick={() => openModal(rule)} 
+                                        className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors text-xs font-bold flex items-center gap-1" 
+                                        title="Editar Regra"
+                                    >
+                                        <Edit2 size={13} />
+                                        <span>Editar</span>
+                                    </button>
+                                    <button 
+                                        onClick={() => handleDelete(rule.id)} 
+                                        className="p-2 text-rose-500 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors" 
+                                        title="Excluir Definitivamente"
+                                    >
+                                        <Trash2 size={13} />
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+                </>
             )}
 
             {/* Modal de Criação / Edição GIGANTE usando Portal para furar bloqueios de Z-Index */}

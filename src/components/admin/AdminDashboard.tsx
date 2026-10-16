@@ -136,6 +136,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [ordersToPrint, setOrdersToPrint] = useState<ServiceOrder[]>([]);
   const [activeTab, setActiveTab] = useState<'overview' | 'internal_notes' | 'equipments' | 'forms' | 'execution' | 'media' | 'audit' | 'costs' | 'visits' | 'history'>('overview');
+  const [isMobileDetailTabsExpanded, setIsMobileDetailTabsExpanded] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [orderVisits, setOrderVisits] = useState<any[]>([]);
   const [orderImpediments, setOrderImpediments] = useState<OrderImpediment[]>([]);
@@ -2038,38 +2039,90 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 ))}
               </div>
 
-              {/* MOBILE TABS */}
-              <div className="md:hidden border-b border-slate-200 bg-white p-3 flex gap-2 overflow-x-auto custom-scrollbar shrink-0 snap-x snap-mandatory hide-scrollbar">
-                {[
-                  { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
-                  { id: 'internal_notes', label: 'Obs Internas', icon: FileText },
-                  { id: 'equipments', label: `Ativos${equipments.length > 0 ? ` (${equipments.length})` : ''}`, icon: Box },
-                  { id: 'forms', label: 'Formulários', icon: ClipboardList },
-                  { id: 'visits', label: `Visitas${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: CalendarPlus },
-                  { id: 'history', label: 'Histórico', icon: History },
-                  { id: 'displacement', label: 'Deslocamento', icon: MapPin },
-                  { id: 'media', label: 'Galeria', icon: Camera },
-                  { id: 'costs', label: 'Custos', icon: DollarSign },
-                  { id: 'vinculos', label: `Vínculos${(selectedOrder.linkedQuotes?.length || 0) > 0 ? ` (${selectedOrder.linkedQuotes?.length})` : ''}`, icon: Link2 },
-                  { id: 'audit', label: 'Assinaturas', icon: ShieldCheck }
-                ].map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => {
-                      if (tab.id === 'forms' && (formTemplatesAll.length === 0 || osEquipments.length === 0)) {
-                        setFormsTabLoading(true);
-                      }
-                      setActiveTab(tab.id as any);
-                    }}
-                    className={`shrink-0 snap-start flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap font-poppins
-                      ${activeTab === tab.id 
-                        ? 'bg-[#1c2d4f] text-white shadow-lg' 
-                        : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
-                  >
-                    <tab.icon size={14} className={activeTab === tab.id ? 'text-white' : 'text-slate-400'} /> 
-                    {tab.label}
-                  </button>
-                ))}
+              {/* MOBILE TABS (RETRACTABLE PWA BIGTECH STYLE) */}
+              <div className="md:hidden border-b border-slate-200 bg-white p-2.5 flex flex-col shrink-0 font-poppins">
+                {/* Collapsed Bar: Active Tab Pill + Toggle Button */}
+                <div className="flex items-center justify-between gap-2">
+                  {(() => {
+                    const allTabs = [
+                      { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
+                      { id: 'internal_notes', label: 'Obs Internas', icon: FileText },
+                      { id: 'equipments', label: `Ativos${equipments.length > 0 ? ` (${equipments.length})` : ''}`, icon: Box },
+                      { id: 'forms', label: 'Formulários', icon: ClipboardList },
+                      { id: 'visits', label: `Visitas${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: CalendarPlus },
+                      { id: 'history', label: 'Histórico', icon: History },
+                      { id: 'displacement', label: 'Deslocamento', icon: MapPin },
+                      { id: 'media', label: 'Galeria', icon: Camera },
+                      { id: 'costs', label: 'Custos', icon: DollarSign },
+                      { id: 'vinculos', label: `Vínculos${(selectedOrder.linkedQuotes?.length || 0) > 0 ? ` (${selectedOrder.linkedQuotes?.length})` : ''}`, icon: Link2 },
+                      { id: 'audit', label: 'Assinaturas', icon: ShieldCheck }
+                    ];
+                    const currentTabObj = allTabs.find(t => t.id === activeTab) || allTabs[0];
+                    const CurrentIcon = currentTabObj.icon;
+
+                    return (
+                      <>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-xl bg-[#1c2d4f] text-white flex items-center justify-center shrink-0 shadow-xs">
+                            <CurrentIcon size={15} />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block leading-none">Aba Ativa</span>
+                            <span className="text-xs font-bold text-slate-800 truncate block mt-0.5">{currentTabObj.label}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => setIsMobileDetailTabsExpanded(prev => !prev)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all active:scale-95"
+                          >
+                            <span>{isMobileDetailTabsExpanded ? 'Recolher' : 'Mudar Aba'}</span>
+                            <ChevronDown size={14} className={`transition-transform duration-200 ${isMobileDetailTabsExpanded ? 'rotate-180' : ''}`} />
+                          </button>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+
+                {/* Expanded Retractable Drawer / Card Grid */}
+                {isMobileDetailTabsExpanded && (
+                  <div className="mt-2.5 pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-2 animate-in fade-in slide-in-from-top-1 duration-150">
+                    {[
+                      { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
+                      { id: 'internal_notes', label: 'Obs Internas', icon: FileText },
+                      { id: 'equipments', label: `Ativos${equipments.length > 0 ? ` (${equipments.length})` : ''}`, icon: Box },
+                      { id: 'forms', label: 'Formulários', icon: ClipboardList },
+                      { id: 'visits', label: `Visitas${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: CalendarPlus },
+                      { id: 'history', label: 'Histórico', icon: History },
+                      { id: 'displacement', label: 'Deslocamento', icon: MapPin },
+                      { id: 'media', label: 'Galeria', icon: Camera },
+                      { id: 'costs', label: 'Custos', icon: DollarSign },
+                      { id: 'vinculos', label: `Vínculos${(selectedOrder.linkedQuotes?.length || 0) > 0 ? ` (${selectedOrder.linkedQuotes?.length})` : ''}`, icon: Link2 },
+                      { id: 'audit', label: 'Assinaturas', icon: ShieldCheck }
+                    ].map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => {
+                          if (tab.id === 'forms' && (formTemplatesAll.length === 0 || osEquipments.length === 0)) {
+                            setFormsTabLoading(true);
+                          }
+                          setActiveTab(tab.id as any);
+                          setIsMobileDetailTabsExpanded(false);
+                        }}
+                        className={`flex items-center gap-2 p-2.5 rounded-xl text-left transition-all ${
+                          activeTab === tab.id 
+                            ? 'bg-[#1c2d4f] text-white shadow-sm ring-1 ring-[#1c2d4f]' 
+                            : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/60'
+                        }`}
+                      >
+                        <tab.icon size={14} className={activeTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} />
+                        <span className="text-xs font-medium truncate">{tab.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* CONTENT AREA */}

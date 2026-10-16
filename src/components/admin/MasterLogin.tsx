@@ -88,7 +88,25 @@ export const MasterLogin: React.FC<MasterLoginProps> = ({ onLogin, onCancel }) =
       }
 
       if (result.success && result.sessionToken) {
-        // ─── Big Tech Pattern: Set session using server-issued JWT tokens ───
+        // ─── Big Tech Pattern: Store Master Session State FIRST ───
+        // Store the master session token and flag immediately so any concurrent
+        // onAuthStateChange or NEXUS_AUTH_EVENT knows that this is a Master session!
+        SessionStorage.set('master_session_v2', true);
+        SessionStorage.set('master_session_token', result.sessionToken);
+        SessionStorage.remove('force_master');
+        localStorage.removeItem(LOCKOUT_KEY);
+
+        // Pre-populate Master User in SessionStorage to prevent 401 / PGRST116 race conditions
+        const masterUser = {
+          id: 'master-superadmin',
+          name: 'DUNO Master',
+          email: email.trim().toLowerCase(),
+          role: 'ADMIN',
+          active: true,
+          groupName: 'Super Admin',
+        };
+        SessionStorage.set('user', masterUser);
+
         // The Edge Function (Identity Provider) validates 3FA and issues 
         // real Supabase Auth tokens. We use setSession() to establish the
         // authenticated session locally — like Auth0's handleRedirectCallback.
@@ -102,11 +120,6 @@ export const MasterLogin: React.FC<MasterLoginProps> = ({ onLogin, onCancel }) =
           }
         }
 
-        // Store the opaque session token — server confirmed identity
-        SessionStorage.set('master_session_v2', true);
-        SessionStorage.set('master_session_token', result.sessionToken);
-        SessionStorage.remove('force_master');
-        localStorage.removeItem(LOCKOUT_KEY);
         onLogin();
       } else {
         setError(result.error || 'Credenciais inválidas ou código TOTP incorreto.');

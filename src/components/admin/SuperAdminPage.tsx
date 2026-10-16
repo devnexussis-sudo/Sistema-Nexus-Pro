@@ -347,10 +347,11 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
       id: 'master-override',
       tenantId: tenant.id, // Explicit ID for data synchronization
       name: `Master (@${tenant.id})`,
-      email: tenant.admin_email || tenant.email || tenant.adminEmail,
+      email: tenant.admin_email || tenant.email || tenant.adminEmail || 'master@duno.com.br',
       role: 'ADMIN',
       avatar: '',
       active: true, // 🔑 PERMISSÕES COMPLETAS DE SUPER ADMIN
+      groupName: 'Administradores',
       permissions: {
         orders: { create: true, read: true, update: true, delete: true },
         customers: { create: true, read: true, update: true, delete: true },
@@ -360,10 +361,36 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
         contracts: { create: true, read: true, update: true, delete: true },
         stock: { create: true, read: true, update: true, delete: true },
         forms: { create: true, read: true, update: true, delete: true },
+        whatsapp: { create: true, read: true, update: true, delete: true },
+        solicitacoes: { create: true, read: true, update: true, delete: true },
+        regions: { create: true, read: true, update: true, delete: true },
+        integrations: { create: true, read: true, update: true, delete: true },
         settings: true,
+        settingsTabs: { company: true, system: true, app: true, dashboard: true },
         manageUsers: true,
+        manageGroups: true,
         accessSuperAdmin: true,
-        financial: { read: true, update: true }
+        financial: { read: true, update: true, invoice: true, discounts: true },
+        menuAccess: {
+          dashboard: true,
+          orders: true,
+          calendar: true,
+          map: true,
+          financial: true,
+          quotes: true,
+          stock: true,
+          contracts: true,
+          customers: true,
+          equipments: true,
+          forms: true,
+          technicians: true,
+          users: true,
+          settings: true,
+          whatsapp: true,
+          solicitacoes: true,
+          regions: true,
+          integrations: true,
+        }
       }
     };
 

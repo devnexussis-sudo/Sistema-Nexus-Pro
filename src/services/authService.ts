@@ -239,12 +239,37 @@ export const AuthService = {
     // 🛡️ GATEKEEPER: Busca dados enriquecidos do usuário (Role, Permissions, Tenant)
     // Implementa a lógica de permissão MIT/Harvard: Acesso ao PAINEL restrito a registros na tabela 'users'.
     _fetchFullUser: (authId: string, email: string, metadata: any): Promise<User | undefined> => {
-        if (!authId || authId === 'master-override' || !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(authId)) {
+        // 🛡️ Master Session / Impersonation Guard (Big Tech IAM Standard)
+        const isMaster = SessionStorage.get('master_session_v2') === true ||
+                         metadata?.role === 'moros_admin' ||
+                         metadata?.is_super_admin === true ||
+                         (typeof window !== 'undefined' && window.location.hash.includes('/master'));
+
+        const isImpersonating = SessionStorage.get('is_impersonating') === true ||
+                                (typeof window !== 'undefined' && !!(window as any).__NEXUS_IMPERSONATION);
+
+        if (isMaster) {
+            const masterUser: User = {
+                id: authId || 'master-superadmin',
+                name: 'DUNO Master',
+                email: email || metadata?.email || 'master@duno.com.br',
+                role: UserRole.ADMIN,
+                active: true,
+                groupName: 'Super Admin',
+                permissions: ADMIN_PERMISSIONS,
+            };
+            SessionStorage.set('user', masterUser);
+            return Promise.resolve(masterUser);
+        }
+
+        if (isImpersonating || !authId || authId === 'master-override' || !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(authId)) {
             const stored = SessionStorage.get('user');
             if (stored) {
                 return Promise.resolve(typeof stored === 'string' ? JSON.parse(stored) : stored);
             }
-            return Promise.resolve(undefined);
+            if (isImpersonating) {
+                return Promise.resolve(undefined);
+            }
         }
 
         if (_fetchFullUserPromise && _fetchFullUserId === authId) return _fetchFullUserPromise;
@@ -322,6 +347,22 @@ export const AuthService = {
 
         if (error) {
             if (error.code === 'PGRST116') {
+                // 🛡️ Segundo nível de proteção para Master / Impersonation
+                if (SessionStorage.get('master_session_v2') || SessionStorage.get('is_impersonating') || (typeof window !== 'undefined' && (window as any).__NEXUS_IMPERSONATION) || metadata?.role === 'moros_admin') {
+                    console.log('[AuthService] 🛡️ Master ou Impersonation ativo — ignorando PGRST116 na tabela users.');
+                    const stored = SessionStorage.get('user');
+                    if (stored) return typeof stored === 'string' ? JSON.parse(stored) : stored;
+                    return {
+                        id: authId || 'master-superadmin',
+                        name: 'DUNO Master',
+                        email: email || metadata?.email || 'master@duno.com.br',
+                        role: UserRole.ADMIN,
+                        active: true,
+                        groupName: 'Super Admin',
+                        permissions: ADMIN_PERMISSIONS,
+                    };
+                }
+
                 // Usuário existe no Auth mas não na 'users' -> Provável Técnico tentando acessar o Painel.
                 logger.warn('🔥 Acesso Bloqueado: Usuário autenticado mas sem privilégios de Painel Administrativo.', { authId, email });
                 window.alert('Acesso negado: Seu e-mail não possui permissão de acesso ou não está cadastrado.');
@@ -445,6 +486,25 @@ export const AuthService = {
     },
 
     refreshUser: async (): Promise<User | undefined> => {
+        // Se for Master session, preserva o usuário Master sem consultar 'users'
+        if (SessionStorage.get('master_session_v2') || (typeof window !== 'undefined' && window.location.hash.includes('/master'))) {
+            const stored = SessionStorage.get('user');
+            if (stored) return typeof stored === 'string' ? JSON.parse(stored) : stored;
+            return {
+                id: 'master-superadmin',
+                name: 'DUNO Master',
+                email: 'master@duno.com.br',
+                role: UserRole.ADMIN,
+                active: true,
+                groupName: 'Super Admin',
+                permissions: ADMIN_PERMISSIONS,
+            };
+        }
+        if (SessionStorage.get('is_impersonating') || (typeof window !== 'undefined' && (window as any).__NEXUS_IMPERSONATION)) {
+            const stored = SessionStorage.get('user');
+            if (stored) return typeof stored === 'string' ? JSON.parse(stored) : stored;
+        }
+
         const currentUser = await AuthService.getCurrentUser();
         if (currentUser) {
             if (currentUser.id === 'master-override' || !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(currentUser.id)) {

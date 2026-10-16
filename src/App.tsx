@@ -52,7 +52,9 @@ const AppRoutes: React.FC = () => {
   const [isSuperMode, setIsSuperMode] = useState(
     () => !!SessionStorage.get<boolean>('master_session_v2')
   );
-  const [isImpersonating, setIsImpersonating] = useState(false);
+  const [isImpersonating, setIsImpersonating] = useState(
+    () => !!SessionStorage.get<boolean>('is_impersonating') || !!(typeof window !== 'undefined' && (window as any).__NEXUS_IMPERSONATION)
+  );
 
   const activeUserId = (auth.isAuthenticated && auth.user && !isSuperMode) ? auth.user.id : undefined;
   const activeTenantId = (auth.isAuthenticated && auth.user && !isSuperMode) ? (auth.user.tenantId || (auth.user as any).tenant_id) : undefined;

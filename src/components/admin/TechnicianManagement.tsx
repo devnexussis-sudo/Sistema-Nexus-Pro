@@ -260,7 +260,8 @@ export const TechnicianManagement: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="flex-1 overflow-auto p-0 custom-scrollbar">
+            {/* 💻 DESKTOP TABLE VIEW */}
+            <div className="hidden md:block flex-1 overflow-auto p-0 custom-scrollbar">
               <table className="w-full border-separate border-spacing-y-1">
                 <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md z-10 border-b border-slate-300 shadow-sm">
                   <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center font-poppins">
@@ -359,6 +360,82 @@ export const TechnicianManagement: React.FC = () => {
                   })}
                 </tbody>
               </table>
+            </div>
+
+            {/* 📱 MOBILE CARDS VIEW (PWA BIG TECH STANDARD) */}
+            <div className="md:hidden flex-1 overflow-auto custom-scrollbar bg-slate-50/50 p-2.5 space-y-2.5 pb-28">
+              {paginatedTechs.map(t => {
+                const scope = (t as any).appScope || (t as any).app_scope || 'MOBILE';
+                const isHybrid = scope === 'HYBRID';
+                return (
+                  <div
+                    key={t.id}
+                    onClick={(e) => handleViewTech(t, e)}
+                    className="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200/70 active:scale-[0.98] transition-transform flex flex-col gap-2.5 cursor-pointer"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={t.avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(t.name) + '&background=10b981&color=fff'}
+                          className="w-11 h-11 rounded-xl object-cover border-2 border-slate-100 shadow-sm shrink-0"
+                          alt={t.name}
+                        />
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-bold text-slate-900 truncate leading-tight">{t.name}</h3>
+                          <p className="text-[11px] text-slate-500 truncate mt-0.5">{t.email}</p>
+                        </div>
+                      </div>
+                      <StatusBadge status={t.active ? OrderStatus.COMPLETED : OrderStatus.CANCELED} />
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-[10px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2 py-0.5 rounded-md border border-[#1c2d4f]/15">
+                          {formatTechCode((t as any).techCode)}
+                        </span>
+                        {isHybrid ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            <Globe size={10} /> Painel + App
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <Smartphone size={10} /> App
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={(e) => {
+                            if (!canEdit('technicians')) { e.preventDefault(); alert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                            e.stopPropagation();
+                            setIsReadOnly(false);
+                            setFormData(t); setEditingId(t.id); setIsModalOpen(true);
+                          }}
+                          className="p-2 text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
+                          title="Editar"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!canDelete('technicians') && !isAdmin) {
+                              alert("Acesso Negado: Você não tem permissão para excluir técnicos.");
+                              return;
+                            }
+                            setTechToDelete(t);
+                          }}
+                          className="p-2 text-rose-500 bg-rose-50 rounded-lg hover:bg-rose-100 transition-colors"
+                          title="Excluir"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
             <Pagination
               currentPage={currentPage}

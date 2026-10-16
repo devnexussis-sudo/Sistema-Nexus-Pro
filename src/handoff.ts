@@ -22,6 +22,11 @@ declare global {
   }
 }
 
+// ── Re-assunção automática após reload (F5) ──
+if (typeof window !== 'undefined' && SessionStorage.get('is_impersonating')) {
+  window.__NEXUS_IMPERSONATION = true;
+}
+
 (function interceptHandoff() {
   const hash = window.location.hash;
   const handoffMatch = hash.match(/handoff=([^&]+)/);
@@ -49,6 +54,9 @@ declare global {
     // Sem isso, o SDK emite SIGNED_OUT e o AuthContext limpa tudo.
     if (data.supabase_auth) {
       window.sessionStorage.setItem('nexus-line-auth', data.supabase_auth);
+      try {
+        window.localStorage.setItem('nexus-line-auth', data.supabase_auth);
+      } catch (e) {}
     }
 
     // ── 4. Limpeza do token one-time (segurança) ──

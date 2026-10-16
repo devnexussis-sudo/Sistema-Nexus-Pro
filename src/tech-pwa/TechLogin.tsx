@@ -68,10 +68,8 @@ export const TechLogin: React.FC<TechLoginProps> = ({ onLogin }) => {
                 setIsInstallable(false);
                 setDeferredPrompt(null);
             }
-        } else if (isIOS) {
-            alert('Para instalar no iPhone:\n1. Toque no ícone de Compartilhar (quadrado com seta)\n2. Role para baixo e toque em "Adicionar à Tela de Início"');
         } else {
-            alert('Para instalar no Android:\n1. Toque nos 3 pontos verticais (canto superior direito)\n2. Toque em "Instalar aplicativo" ou "Adicionar à tela inicial"');
+            window.dispatchEvent(new CustomEvent('nexus-open-pwa-install'));
         }
     };
 

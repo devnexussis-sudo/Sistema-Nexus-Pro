@@ -19,7 +19,7 @@ export type ModuleKey = 'orders' | 'customers' | 'equipments' | 'technicians' | 
 export type CrudAction = 'create' | 'read' | 'update' | 'delete' | 'invoice' | 'discounts';
 
 const checkImpersonating = (): boolean => {
-  return !!SessionStorage.get('is_impersonating');
+  return !!SessionStorage.get('is_impersonating') || !!(typeof window !== 'undefined' && (window as any).__NEXUS_IMPERSONATION);
 };
 
 // Defaults de menuAccess para usuários sem permissões configuradas
@@ -86,7 +86,7 @@ export const usePermissions = (): PermissionUtils => {
     user?.groupId
   );
 
-  const isMasterAdminGroup = user?.groupName?.toLowerCase() === 'administradores' || user?.role === 'SUPER_ADMIN';
+  const isMasterAdminGroup = user?.groupName?.toLowerCase() === 'administradores' || (user?.role as string) === 'SUPER_ADMIN' || user?.id === 'master-override';
 
   // Admin irrestrito = em auditoria ou faz parte do grupo mestre "Administradores"
   const isAdmin = (user && isMasterAdminGroup) || impersonating;

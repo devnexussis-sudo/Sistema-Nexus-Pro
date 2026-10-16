@@ -90,6 +90,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const printRef = useRef<HTMLDivElement>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [mainTab, setMainTab] = useState<'RECEIVABLES' | 'PAYABLES' | 'CASH_FLOW' | 'COMMISSIONS'>('RECEIVABLES');
+    const [isMobileMainTabsExpanded, setIsMobileMainTabsExpanded] = useState(false);
+    const [isMobileDetailTabsExpanded, setIsMobileDetailTabsExpanded] = useState(false);
 
     const getDefaultDates = () => {
         const dEnd = new Date();
@@ -2270,9 +2272,9 @@ ${container.innerHTML}
     return (
         <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden relative font-sans">
             
-            {/* ── TOP LEVEL TAB SWITCHER & SUB-VIEWS (Stripe / Linear Style) ── */}
-            <div className="flex items-center justify-between border-b border-slate-200/80 pb-0 mb-3 shrink-0">
-                {/* Main Tabs (Stripe style underline tabs) */}
+            {/* ── TOP LEVEL TAB SWITCHER & SUB-VIEWS (Stripe / Linear Style — Desktop) & RETRACTABLE (Mobile PWA) ── */}
+            {/* Desktop Tabs */}
+            <div className="hidden md:flex items-center justify-between border-b border-slate-200/80 pb-0 mb-3 shrink-0">
                 <div className="flex items-center gap-6">
                     <button
                         onClick={() => setMainTab('RECEIVABLES')}
@@ -2321,6 +2323,63 @@ ${container.innerHTML}
                         <span>Comissões</span>
                     </button>
                 </div>
+            </div>
+
+            {/* Mobile Retractable Main Tabs Switcher */}
+            <div className="md:hidden flex flex-col w-full mb-3 shrink-0">
+                <div className="flex items-center justify-between p-2 bg-white border border-slate-200/90 rounded-2xl shadow-sm">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-[#1c2d4f] text-white flex items-center justify-center shrink-0 shadow-xs">
+                            {mainTab === 'RECEIVABLES' && <TrendingUp size={15} />}
+                            {mainTab === 'PAYABLES' && <ArrowUpRight size={15} />}
+                            {mainTab === 'CASH_FLOW' && <Wallet size={15} />}
+                            {mainTab === 'COMMISSIONS' && <UserCheck size={15} />}
+                        </div>
+                        <div className="min-w-0">
+                            <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block leading-none">Módulo Financeiro</span>
+                            <span className="text-xs font-bold text-slate-800 truncate block mt-0.5">
+                                {mainTab === 'RECEIVABLES' && 'Contas a Receber'}
+                                {mainTab === 'PAYABLES' && 'Contas a Pagar'}
+                                {mainTab === 'CASH_FLOW' && 'Giro de Caixa'}
+                                {mainTab === 'COMMISSIONS' && 'Comissões'}
+                            </span>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setIsMobileMainTabsExpanded(prev => !prev)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all active:scale-95 shrink-0"
+                    >
+                        <span>{isMobileMainTabsExpanded ? 'Fechar' : 'Módulos'}</span>
+                        <ChevronDown size={14} className={`transition-transform duration-200 ${isMobileMainTabsExpanded ? 'rotate-180' : ''}`} />
+                    </button>
+                </div>
+
+                {isMobileMainTabsExpanded && (
+                    <div className="mt-2 grid grid-cols-2 gap-2 p-2 bg-slate-100/90 rounded-2xl border border-slate-200 animate-in fade-in slide-in-from-top-1 duration-150">
+                        {[
+                            { id: 'RECEIVABLES', label: 'Contas a Receber', icon: TrendingUp },
+                            { id: 'PAYABLES', label: 'Contas a Pagar', icon: ArrowUpRight },
+                            { id: 'CASH_FLOW', label: 'Giro de Caixa', icon: Wallet },
+                            { id: 'COMMISSIONS', label: 'Comissões', icon: UserCheck },
+                        ].map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => {
+                                    setMainTab(tab.id as any);
+                                    setIsMobileMainTabsExpanded(false);
+                                }}
+                                className={`flex items-center gap-2 p-2.5 rounded-xl text-left transition-all ${
+                                    mainTab === tab.id
+                                        ? 'bg-[#1c2d4f] text-white shadow-sm'
+                                        : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200/60'
+                                }`}
+                            >
+                                <tab.icon size={15} className={mainTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} />
+                                <span className="text-xs font-bold leading-tight">{tab.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Sub-View Switcher for Receivables (Sub-abas conectadas por guia visual à aba principal) */}
@@ -3147,7 +3206,8 @@ ${container.innerHTML}
             </>
             ) : (
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col flex-1 h-[calc(100vh-200px)]">
-                    <div className="overflow-auto custom-scrollbar flex-1">
+                    {/* 💻 DESKTOP TABLE VIEW */}
+                    <div className="hidden md:block overflow-auto custom-scrollbar flex-1">
                         <table className="w-full text-left border-collapse min-w-[800px]">
                             <thead className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
                                 <tr>
@@ -3462,6 +3522,136 @@ ${container.innerHTML}
                             </tbody>
                         </table>
                     </div>
+
+                    {/* 📱 MOBILE CARDS VIEW */}
+                    <div className="md:hidden flex-1 overflow-auto custom-scrollbar bg-slate-50/50 p-2 space-y-2.5 pb-28">
+                        {paginatedInvoices.length === 0 ? (
+                            <div className="py-12 text-center text-slate-400 text-xs font-bold bg-white rounded-2xl border border-slate-200">
+                                {invoices.length === 0 ? 'Nenhuma fatura gerada até o momento.' : 'Nenhuma fatura encontrada com os filtros atuais.'}
+                            </div>
+                        ) : (
+                            paginatedInvoices.map((inv: any) => {
+                                const isSelected = selectedInvoiceIds.includes(inv.id);
+                                const nfse = nfseDataMap[inv.id];
+                                const isEmitting = emittingNfseId === inv.id;
+                                const isAuthorized = nfse?.status === 'AUTHORIZED';
+                                return (
+                                    <div
+                                        key={inv.id}
+                                        onClick={() => handleOpenInvoiceDetail(inv)}
+                                        className={`bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200/70 active:scale-[0.98] transition-transform flex flex-col gap-2.5 ${isSelected ? 'ring-2 ring-[#1c2d4f] bg-slate-50' : ''}`}
+                                    >
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
+                                                    {inv.display_id || `FAT-${inv.id.substring(0, 6)}`}
+                                                </span>
+                                                {inv.invoice_number && (
+                                                    <span className="text-[10px] font-semibold text-slate-500">
+                                                        Doc #{inv.invoice_number}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <span className={`inline-flex items-center text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                                                inv.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                                inv.status === 'PARTIALLY_PAID' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                                inv.status === 'OVERDUE' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                                                'bg-slate-100 text-slate-600 border border-slate-200'
+                                            }`}>
+                                                {translateStatusToPT(inv.status)}
+                                            </span>
+                                        </div>
+
+                                        <p className="text-xs font-bold text-slate-800 truncate">{inv.customer_name || 'Cliente sem nome'}</p>
+
+                                        <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-slate-100">
+                                            <div>
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Vencimento</span>
+                                                <span className="font-medium text-slate-700">
+                                                    {inv.due_date ? new Date(inv.due_date + (inv.due_date.includes('T') ? '' : 'T12:00:00')).toLocaleDateString('pt-BR') : '—'}
+                                                </span>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Valor Total</span>
+                                                <span className="font-bold text-xs text-slate-900">
+                                                    {formatCurrency(inv.total_amount || 0)}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-2 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    onClick={async () => {
+                                                        if (checkingInvoiceId === inv.id) return;
+                                                        const rawMpId = inv.gateway_payment_id || inv.payment_gateway_id;
+                                                        setCheckingInvoiceId(inv.id);
+                                                        try {
+                                                            const res = await PaymentService.syncInstallment(rawMpId, tenantIdStr, inv.id, 'INVOICE');
+                                                            if (res.success && res.newStatus) {
+                                                                setInvoices(prev => prev.map(i => i.id === inv.id ? { 
+                                                                    ...i, 
+                                                                    status: res.newStatus, 
+                                                                    gateway_status: res.newStatus === 'PAID' ? 'approved' : 'pending',
+                                                                    invoice_number: res.invoiceNumber || i.invoice_number
+                                                                } : i));
+                                                            }
+                                                            await loadInvoices();
+                                                            showAlert(res.message || 'Sincronizado!', res.success ? 'success' : 'info');
+                                                        } catch (err: any) {
+                                                            showAlert(`Erro: ${err.message}`, 'error');
+                                                        } finally {
+                                                            setCheckingInvoiceId(null);
+                                                        }
+                                                    }}
+                                                    disabled={checkingInvoiceId === inv.id}
+                                                    className="flex items-center gap-1 px-2 py-1 text-xs font-semibold text-sky-600 bg-sky-50 hover:bg-sky-100 rounded-lg transition-all disabled:opacity-50"
+                                                    title="Sincronizar Asaas"
+                                                >
+                                                    <RefreshCw size={12} className={checkingInvoiceId === inv.id ? "animate-spin" : ""} />
+                                                    <span>Sync</span>
+                                                </button>
+                                                {(inv.status === 'PAID' || inv.status === 'PARTIALLY_PAID' || inv.gateway_status === 'approved') && (
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (isEmitting) return;
+                                                            if (isAuthorized) {
+                                                                setNfseDetailModal({ isOpen: true, invoiceId: inv.id, data: { ...nfse, invoiceDisplayId: inv.display_id, customerName: inv.customer_name } });
+                                                                return;
+                                                            }
+                                                            setEmittingNfseId(inv.id);
+                                                            try {
+                                                                const res = await PaymentService.createNfse(inv.id);
+                                                                showAlert(res.message || 'NFS-e solicitada', res.success ? 'success' : 'error');
+                                                                await loadInvoices();
+                                                            } catch (err: any) {
+                                                                showAlert(`Erro: ${err.message}`, 'error');
+                                                            } finally {
+                                                                setEmittingNfseId(null);
+                                                            }
+                                                        }}
+                                                        className={`flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-lg transition-all ${
+                                                            isAuthorized ? 'text-emerald-700 bg-emerald-50' : 'text-violet-700 bg-violet-50'
+                                                        }`}
+                                                    >
+                                                        <Receipt size={12} />
+                                                        <span>NFS-e</span>
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <button
+                                                onClick={() => handleOpenInvoiceDetail(inv)}
+                                                className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-[#1c2d4f] bg-slate-100 hover:bg-slate-200 rounded-lg transition-all"
+                                            >
+                                                <Eye size={12} />
+                                                <span>Ver Fatura</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
                     
                     {totalInvoicePages > 0 && (
                         <div className="p-4 border-t border-slate-100 bg-white">
@@ -3588,27 +3778,68 @@ ${container.innerHTML}
                                 ))}
                             </div>
 
-                            {/* MOBILE TABS */}
-                            <div className="md:hidden border-b border-slate-200 bg-white p-3 flex gap-2 overflow-x-auto custom-scrollbar shrink-0">
-                                {[
-                                    { id: 'overview', label: 'Visão Geral', icon: Info },
-                                    { id: 'financial', label: 'Financeiro', icon: DollarSign },
-                                    { id: 'audit', label: 'Auditoria Gateway', icon: ShieldCheck },
-                                    { id: 'linked', label: selectedItem.type === 'ORDER' ? 'Vínculos' : 'Detalhes', icon: Layer },
-                                    { id: 'attachments', label: 'Anexos', icon: Paperclip },
-                                ].map(tab => (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setDetailTab(tab.id as any)}
-                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap font-poppins
-                                            ${detailTab === tab.id
-                                                ? 'bg-[#1c2d4f] text-white shadow-md'
-                                                : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
-                                    >
-                                        <tab.icon size={14} className={detailTab === tab.id ? 'text-white' : 'text-slate-400'} />
-                                        {tab.label}
-                                    </button>
-                                ))}
+                            {/* MOBILE TABS (RETRACTABLE PWA BIGTECH STYLE) */}
+                            <div className="md:hidden border-b border-slate-200 bg-white p-2.5 flex flex-col shrink-0 font-poppins">
+                                <div className="flex items-center justify-between gap-2">
+                                    {(() => {
+                                        const modalTabs = [
+                                            { id: 'overview', label: 'Visão Geral', icon: Info },
+                                            { id: 'financial', label: 'Financeiro', icon: DollarSign },
+                                            { id: 'audit', label: 'Auditoria Gateway', icon: ShieldCheck },
+                                            { id: 'linked', label: selectedItem.type === 'ORDER' ? 'Vínculos' : 'Detalhes', icon: Layer },
+                                            { id: 'attachments', label: 'Anexos', icon: Paperclip },
+                                        ];
+                                        const curTab = modalTabs.find(t => t.id === detailTab) || modalTabs[0];
+                                        const CurIcon = curTab.icon;
+                                        return (
+                                            <>
+                                                <div className="flex items-center gap-2.5 min-w-0">
+                                                    <div className="w-8 h-8 rounded-xl bg-[#1c2d4f] text-white flex items-center justify-center shrink-0 shadow-xs">
+                                                        <CurIcon size={15} />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block leading-none">Aba Ativa</span>
+                                                        <span className="text-xs font-bold text-slate-800 truncate block mt-0.5">{curTab.label}</span>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => setIsMobileDetailTabsExpanded(prev => !prev)}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all active:scale-95 shrink-0"
+                                                >
+                                                    <span>{isMobileDetailTabsExpanded ? 'Recolher' : 'Mudar Aba'}</span>
+                                                    <ChevronDown size={14} className={`transition-transform duration-200 ${isMobileDetailTabsExpanded ? 'rotate-180' : ''}`} />
+                                                </button>
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+                                {isMobileDetailTabsExpanded && (
+                                    <div className="mt-2.5 pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-2 animate-in fade-in slide-in-from-top-1 duration-150">
+                                        {[
+                                            { id: 'overview', label: 'Visão Geral', icon: Info },
+                                            { id: 'financial', label: 'Financeiro', icon: DollarSign },
+                                            { id: 'audit', label: 'Auditoria Gateway', icon: ShieldCheck },
+                                            { id: 'linked', label: selectedItem.type === 'ORDER' ? 'Vínculos' : 'Detalhes', icon: Layer },
+                                            { id: 'attachments', label: 'Anexos', icon: Paperclip },
+                                        ].map(tab => (
+                                            <button
+                                                key={tab.id}
+                                                onClick={() => {
+                                                    setDetailTab(tab.id as any);
+                                                    setIsMobileDetailTabsExpanded(false);
+                                                }}
+                                                className={`flex items-center gap-2 p-2.5 rounded-xl text-left transition-all ${
+                                                    detailTab === tab.id
+                                                        ? 'bg-[#1c2d4f] text-white shadow-sm ring-1 ring-[#1c2d4f]'
+                                                        : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/60'
+                                                }`}
+                                            >
+                                                <tab.icon size={14} className={detailTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} />
+                                                <span className="text-xs font-medium truncate">{tab.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {/* CONTEÚDO DA ABA */}

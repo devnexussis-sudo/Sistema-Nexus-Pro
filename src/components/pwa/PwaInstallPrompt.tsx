@@ -1,39 +1,28 @@
 /**
  * ============================================
- * PWA Install Prompt — Mobile Only
+ * PWA Install Prompt — Big Tech Mobile Experience
  * ============================================
  * 
- * Exibe o banner de instalação PWA APENAS em dispositivos móveis.
+ * Exibe o modal/bottom-sheet de instalação PWA com design Big Tech
+ * APENAS em dispositivos móveis.
  * Em desktops, este componente é completamente inerte (renderiza null).
- * 
- * Comportamento:
- * - Detecta se o dispositivo é móvel via User-Agent + touch + screen width
- * - Escuta o evento `beforeinstallprompt` do browser
- * - Mostra um banner elegante para instalar como app
- * - Após instalado ou dispensado, não mostra novamente (localStorage)
- * - Se já está rodando como PWA (standalone), nunca mostra
- * 
- * NOTA: Não interfere em NADA no desktop — zero side effects.
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { X, Download, Smartphone } from 'lucide-react';
+import {
+  X, Download, Smartphone, Zap, Bell, CheckCircle2,
+  Sparkles, PlusSquare, ArrowRight, ShieldCheck
+} from 'lucide-react';
 
 // ─── Detecção de Dispositivo Móvel ───────────────────────────────────
 const isMobileDevice = (): boolean => {
   if (typeof window === 'undefined') return false;
 
-  // Check 1: User-Agent
   const ua = navigator.userAgent || '';
   const mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile/i.test(ua);
-
-  // Check 2: Touch capability
   const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-
-  // Check 3: Screen width (< 1024px = tablet/phone territory)
   const smallScreen = window.innerWidth < 1024;
 
-  // Precisa de pelo menos 2 dos 3 sinais
   const signals = [mobileUA, hasTouch, smallScreen].filter(Boolean).length;
   return signals >= 2;
 };
@@ -48,7 +37,7 @@ const isRunningAsPwa = (): boolean => {
 };
 
 const DISMISS_KEY = 'nexus-pwa-dismissed';
-const DISMISS_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias
+const DISMISS_DURATION_MS = 3 * 24 * 60 * 60 * 1000; // 3 dias
 
 export const PwaInstallPrompt: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -57,35 +46,53 @@ export const PwaInstallPrompt: React.FC = () => {
   const [showIOSGuide, setShowIOSGuide] = useState(false);
   const promptRef = useRef<any>(null);
 
-  // ─── Setup: Escuta o beforeinstallprompt ─────────────────────────
+  // ─── Setup: Escuta eventos de instalação e gatilhos programáticos ─────
   useEffect(() => {
-    // Guard: Apenas mobile, não já instalado, não dispensado recentemente
-    if (!isMobileDevice()) return;
-    if (isRunningAsPwa()) return;
+    // Permite que qualquer botão do sistema chame o prompt programaticamente
+    const openPromptHandler = () => {
+      setShowBanner(true);
+      const isIOSDevice = /iPhone|iPad|iPod/i.test(navigator.userAgent) && !(window.navigator as any).standalone;
+      if (isIOSDevice) {
+        setShowIOSGuide(true);
+      }
+    };
+    window.addEventListener('nexus-open-pwa-install', openPromptHandler);
+
+    // Guard automático: Apenas mobile, não já instalado, não dispensado recentemente
+    if (!isMobileDevice() || isRunningAsPwa()) {
+      return () => {
+        window.removeEventListener('nexus-open-pwa-install', openPromptHandler);
+      };
+    }
 
     const dismissed = localStorage.getItem(DISMISS_KEY);
     if (dismissed) {
       const dismissedAt = parseInt(dismissed, 10);
-      if (Date.now() - dismissedAt < DISMISS_DURATION_MS) return;
+      if (Date.now() - dismissedAt < DISMISS_DURATION_MS) {
+        return () => {
+          window.removeEventListener('nexus-open-pwa-install', openPromptHandler);
+        };
+      }
     }
 
-    // iOS não suporta beforeinstallprompt — mostra guia manual
+    // iOS não suporta beforeinstallprompt — mostra guia nativo após delay suave
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) && !(window.navigator as any).standalone;
     if (isIOS) {
-      // Delay para não aparecer imediatamente (UX)
       const timer = setTimeout(() => {
         setShowIOSGuide(true);
         setShowBanner(true);
-      }, 3000);
-      return () => clearTimeout(timer);
+      }, 2500);
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener('nexus-open-pwa-install', openPromptHandler);
+      };
     }
 
-    // Android/Chrome: Captura o evento nativo
+    // Android / Chrome: Captura o evento nativo
     const handler = (e: Event) => {
       e.preventDefault();
       promptRef.current = e;
       setDeferredPrompt(e);
-      // Delay para UX: mostra depois do app carregar
       setTimeout(() => setShowBanner(true), 2000);
     };
 
@@ -93,13 +100,18 @@ export const PwaInstallPrompt: React.FC = () => {
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handler);
+      window.removeEventListener('nexus-open-pwa-install', openPromptHandler);
     };
   }, []);
 
   // ─── Instalar (Android/Chrome) ──────────────────────────────────
   const handleInstall = useCallback(async () => {
     const prompt = promptRef.current || deferredPrompt;
-    if (!prompt) return;
+    if (!prompt) {
+      // Se não houver evento nativo capturado, abre o guia
+      setShowIOSGuide(true);
+      return;
+    }
 
     setIsInstalling(true);
     try {
@@ -110,7 +122,7 @@ export const PwaInstallPrompt: React.FC = () => {
         localStorage.setItem(DISMISS_KEY, String(Date.now()));
       }
     } catch (err) {
-      console.warn('[PWA] Install prompt error:', err);
+      console.warn('[PWA] Erro ao disparar prompt de instalação:', err);
     } finally {
       setIsInstalling(false);
       setDeferredPrompt(null);
@@ -124,32 +136,97 @@ export const PwaInstallPrompt: React.FC = () => {
     localStorage.setItem(DISMISS_KEY, String(Date.now()));
   }, []);
 
-  // ─── Render: Nada se não deve mostrar ───────────────────────────
+  // ─── Render: Não exibe se inativo ──────────────────────────────
   if (!showBanner) return null;
 
-  // ─── iOS Guide ──────────────────────────────────────────────────
+  // ─── iOS Guide (Apple Big Tech Style) ───────────────────────────
   if (showIOSGuide) {
     return (
-      <div className="fixed bottom-0 left-0 right-0 z-[9999] p-4 animate-slide-up-pwa">
-        <div className="bg-[#1c2d4f] rounded-2xl shadow-2xl p-4 mx-auto max-w-md border border-white/10">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-white/10 rounded-xl shrink-0">
-              <img src="/duno-icon.png" alt="DUNO" className="w-10 h-10 rounded-lg" />
+      <div className="fixed inset-0 z-[99999] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-md animate-fade-in font-poppins">
+        <div className="relative w-full max-w-md bg-gradient-to-b from-[#141f36] via-[#0d1628] to-[#070c18] border border-white/15 rounded-3xl p-5 sm:p-6 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.85),0_0_35px_rgba(59,130,246,0.2)] text-white overflow-hidden animate-slide-up-pwa">
+          {/* Ambient Glow */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-56 h-20 bg-blue-500/25 blur-3xl rounded-full pointer-events-none" />
+
+          {/* Top Handle on Mobile */}
+          <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-4 sm:hidden" />
+
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-300 text-[10px] font-bold uppercase tracking-widest shadow-sm">
+              <Sparkles size={11} className="text-blue-400" />
+              <span>Apple iOS • Experiência Nativa</span>
             </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-white font-bold text-sm">Instale o DUNO Admin</h3>
-              <p className="text-white/60 text-xs mt-1 leading-relaxed">
-                Toque no botão <span className="inline-flex items-center bg-white/10 px-1.5 py-0.5 rounded text-white/90 font-bold text-[10px]">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-                  Compartilhar
-                </span> e depois em <span className="font-bold text-white/90">"Adicionar à Tela Inicial"</span>
+            <button
+              onClick={handleDismiss}
+              className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 active:scale-90 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all"
+              title="Fechar"
+            >
+              <X size={15} />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3.5 mb-4">
+            <div className="relative shrink-0">
+              <div className="absolute -inset-1 rounded-2xl bg-gradient-to-tr from-cyan-500 via-blue-500 to-indigo-500 opacity-75 blur-sm animate-pulse" />
+              <div className="relative w-14 h-14 rounded-2xl bg-slate-950 border border-white/20 p-1 flex items-center justify-center overflow-hidden shadow-xl">
+                <img src="/duno-icon.png" alt="DUNO" className="w-full h-full rounded-xl object-cover" />
+              </div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-base font-bold text-white tracking-tight leading-snug">
+                DUNO Pro no seu iPhone
+              </h3>
+              <p className="text-slate-400 text-xs mt-0.5 leading-relaxed">
+                Adicione à tela de início em apenas 2 passos rápidos:
               </p>
             </div>
-            <button 
+          </div>
+
+          {/* Step Cards */}
+          <div className="space-y-2 mb-5">
+            <div className="flex items-center gap-3 p-3 bg-white/[0.05] border border-white/10 rounded-2xl">
+              <div className="w-7 h-7 rounded-xl bg-blue-600/30 border border-blue-400/30 text-blue-300 flex items-center justify-center font-black text-xs shrink-0">
+                1
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-slate-200">
+                  Toque no ícone de <strong className="text-white">Compartilhar</strong> na barra inferior do Safari
+                </p>
+              </div>
+              <div className="p-1.5 bg-white/10 rounded-lg text-blue-400 shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 p-3 bg-white/[0.05] border border-white/10 rounded-2xl">
+              <div className="w-7 h-7 rounded-xl bg-indigo-600/30 border border-indigo-400/30 text-indigo-300 flex items-center justify-center font-black text-xs shrink-0">
+                2
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-slate-200">
+                  Role a lista e selecione <strong className="text-white">"Adicionar à Tela de Início"</strong>
+                </p>
+              </div>
+              <div className="p-1.5 bg-white/10 rounded-lg text-indigo-400 shrink-0">
+                <PlusSquare size={16} />
+              </div>
+            </div>
+          </div>
+
+          {/* Action Button */}
+          <div className="flex flex-col gap-2">
+            <button
               onClick={handleDismiss}
-              className="p-1.5 text-white/30 hover:text-white/60 transition-colors shrink-0"
+              className="w-full py-3.5 px-5 rounded-2xl font-bold text-sm text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-98 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30"
             >
-              <X size={16} />
+              <CheckCircle2 size={16} />
+              <span>Entendido, Vou Adicionar Agora</span>
+            </button>
+            <button
+              onClick={handleDismiss}
+              className="w-full text-center text-slate-400 hover:text-slate-200 text-xs font-semibold py-2 transition-colors active:scale-95"
+            >
+              Lembrar mais tarde
             </button>
           </div>
         </div>
@@ -157,38 +234,104 @@ export const PwaInstallPrompt: React.FC = () => {
     );
   }
 
-  // ─── Android/Chrome Install Banner ──────────────────────────────
+  // ─── Android / Chrome Install Bottom Sheet (Big Tech) ───────────
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-[9999] p-4 animate-slide-up-pwa">
-      <div className="bg-[#1c2d4f] rounded-2xl shadow-2xl p-4 mx-auto max-w-md border border-white/10">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-white/10 rounded-xl shrink-0">
-            <img src="/duno-icon.png" alt="DUNO" className="w-10 h-10 rounded-lg" />
+    <div className="fixed inset-0 z-[99999] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-md animate-fade-in font-poppins">
+      <div className="relative w-full max-w-md bg-gradient-to-b from-[#141f36] via-[#0d1628] to-[#070c18] border border-white/15 rounded-3xl p-5 sm:p-6 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.85),0_0_35px_rgba(59,130,246,0.2)] text-white overflow-hidden animate-slide-up-pwa">
+        {/* Glow ambient light */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-56 h-20 bg-blue-500/25 blur-3xl rounded-full pointer-events-none" />
+
+        {/* Top Handle on Mobile */}
+        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-4 sm:hidden" />
+
+        {/* Top bar with Badge & Close Button */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold uppercase tracking-widest shadow-sm">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span>App Oficial • PWA Enterprise</span>
           </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="text-white font-bold text-sm">Instalar DUNO Admin</h3>
-            <p className="text-white/50 text-[11px] mt-0.5">Acesso rápido direto da sua tela inicial</p>
+          <button
+            onClick={handleDismiss}
+            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 active:scale-90 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all"
+            title="Fechar"
+          >
+            <X size={15} />
+          </button>
+        </div>
+
+        {/* Brand Header */}
+        <div className="flex items-center gap-3.5 mb-4">
+          <div className="relative shrink-0">
+            <div className="absolute -inset-1 rounded-2xl bg-gradient-to-tr from-cyan-500 via-blue-500 to-indigo-500 opacity-75 blur-sm animate-pulse" />
+            <div className="relative w-14 h-14 rounded-2xl bg-slate-950 border border-white/20 p-1 flex items-center justify-center overflow-hidden shadow-xl">
+              <img src="/duno-icon.png" alt="DUNO" className="w-full h-full rounded-xl object-cover" />
+            </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={handleDismiss}
-              className="px-3 py-2 text-white/40 hover:text-white/70 text-xs font-bold transition-colors"
-            >
-              Agora não
-            </button>
-            <button
-              onClick={handleInstall}
-              disabled={isInstalling}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-white text-[#1c2d4f] rounded-xl text-xs font-black transition-all hover:bg-white/90 active:scale-95 disabled:opacity-50 shadow-lg shadow-black/20"
-            >
-              {isInstalling ? (
-                <div className="w-4 h-4 border-2 border-[#1c2d4f]/20 border-t-[#1c2d4f] rounded-full animate-spin" />
-              ) : (
-                <Download size={14} />
-              )}
-              Instalar
-            </button>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-base font-bold text-white tracking-tight leading-snug">
+              Instalar DUNO Pro
+            </h3>
+            <p className="text-slate-400 text-xs mt-0.5 leading-relaxed">
+              Experiência nativa ultrarrápida direto na tela de início do seu celular.
+            </p>
           </div>
+        </div>
+
+        {/* 3 Value Propositions (Pills / Mini Badges) */}
+        <div className="grid grid-cols-3 gap-2 p-2.5 mb-5 bg-white/[0.04] border border-white/10 rounded-2xl">
+          <div className="flex flex-col items-center text-center p-1.5">
+            <div className="w-7 h-7 rounded-lg bg-blue-500/15 text-blue-400 flex items-center justify-center mb-1">
+              <Zap size={14} />
+            </div>
+            <span className="text-[10px] font-bold text-slate-200 leading-tight">Zero Latência</span>
+            <span className="text-[8px] text-slate-400 leading-tight mt-0.5">Offline-Ready</span>
+          </div>
+
+          <div className="flex flex-col items-center text-center p-1.5 border-x border-white/10">
+            <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center mb-1">
+              <Bell size={14} />
+            </div>
+            <span className="text-[10px] font-bold text-slate-200 leading-tight">Push em Tempo Real</span>
+            <span className="text-[8px] text-slate-400 leading-tight mt-0.5">Alertas ao Vivo</span>
+          </div>
+
+          <div className="flex flex-col items-center text-center p-1.5">
+            <div className="w-7 h-7 rounded-lg bg-indigo-500/15 text-indigo-400 flex items-center justify-center mb-1">
+              <Smartphone size={14} />
+            </div>
+            <span className="text-[10px] font-bold text-slate-200 leading-tight">Tela Cheia</span>
+            <span className="text-[8px] text-slate-400 leading-tight mt-0.5">Sem Navegador</span>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={handleInstall}
+            disabled={isInstalling}
+            className="w-full relative group overflow-hidden py-3.5 px-5 rounded-2xl font-bold text-sm tracking-wide text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 shadow-xl shadow-blue-600/30 active:scale-98 transition-all flex items-center justify-center gap-2"
+          >
+            {/* Shimmer reflection */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
+            {isInstalling ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Instalando Aplicativo...</span>
+              </>
+            ) : (
+              <>
+                <Download size={16} className="transition-transform group-hover:-translate-y-0.5" />
+                <span>Instalar Aplicativo Agora</span>
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={handleDismiss}
+            className="w-full text-center text-slate-400 hover:text-slate-200 text-xs font-semibold py-2 transition-colors active:scale-95"
+          >
+            Continuar no navegador por enquanto
+          </button>
         </div>
       </div>
     </div>
