@@ -851,6 +851,33 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                     </div>
                 </div>
 
+                {/* 📱 Mobile Retractable Status Filter Pills (md:hidden) */}
+                <div className="md:hidden flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden -mx-0.5 px-0.5 pt-0.5">
+                    {[
+                        { value: 'ALL', label: 'Todos' },
+                        { value: 'ABERTO', label: 'Abertos' },
+                        { value: 'APROVADO', label: 'Aprovados' },
+                        { value: 'CONVERTIDO', label: 'Convertidos' },
+                        { value: 'REJEITADO', label: 'Rejeitados' },
+                    ].map(opt => (
+                        <button
+                            key={opt.value}
+                            onClick={() => { setStatusFilter(opt.value); setCurrentPage(1); }}
+                            className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border shrink-0 cursor-pointer ${
+                                statusFilter === opt.value
+                                    ? opt.value === 'ABERTO' ? 'bg-sky-500 text-white border-sky-500 shadow-xs'
+                                    : opt.value === 'APROVADO' ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                    : opt.value === 'CONVERTIDO' ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                    : opt.value === 'REJEITADO' ? 'bg-rose-500 text-white border-rose-500 shadow-xs'
+                                    : 'bg-[#1c2d4f] text-white border-[#1c2d4f] shadow-xs'
+                                    : 'bg-white text-slate-600 border-slate-200/90 hover:bg-slate-50'
+                            }`}
+                        >
+                            {opt.label}
+                        </button>
+                    ))}
+                </div>
+
                 {/* Collapsible Filters */}
                 {showFilters && (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 p-3 bg-white/60 rounded-xl border border-[#1c2d4f]/10 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -1076,51 +1103,103 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         pagedQuotes.map(quote => (
                             <div 
                                 key={quote.id}
-                                className={`bg-white p-3 rounded-2xl shadow-sm border ${selectedQuoteIds.includes(quote.id) ? 'border-primary-400 ring-1 ring-primary-100' : 'border-slate-200/60'} active:scale-[0.98] transition-all flex flex-col gap-2 relative overflow-hidden`}
+                                className={`bg-white p-3.5 rounded-2xl shadow-sm border ${selectedQuoteIds.includes(quote.id) ? 'border-primary-400 ring-1 ring-primary-100' : 'border-slate-200/70'} active:scale-[0.99] transition-all flex flex-col gap-2.5 relative overflow-hidden`}
                                 onClick={() => openQuoteView(quote)}
                             >
-                                <div 
-                                    className="absolute top-3 right-3 p-2 -m-2 z-10"
-                                    onClick={(e) => { 
-                                        e.stopPropagation(); 
-                                        setSelectedQuoteIds(prev => prev.includes(quote.id) ? prev.filter(id => id !== quote.id) : [...prev, quote.id]);
-                                    }}
-                                >
-                                    <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-primary-600" checked={selectedQuoteIds.includes(quote.id)} readOnly />
-                                </div>
-
-                                <div className="flex items-start justify-between gap-2 pr-8">
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-[13px] font-bold text-primary-600 tracking-tighter w-max">
-                                            {getQuoteDisplayId(quote)}
+                                {/* Top Header: ID + Status + Checkbox */}
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <div 
+                                            className="p-1 -m-1"
+                                            onClick={(e) => { 
+                                                e.stopPropagation(); 
+                                                setSelectedQuoteIds(prev => prev.includes(quote.id) ? prev.filter(id => id !== quote.id) : [...prev, quote.id]);
+                                            }}
+                                        >
+                                            <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-primary-600 cursor-pointer" checked={selectedQuoteIds.includes(quote.id)} readOnly />
+                                        </div>
+                                        <span className="text-xs font-bold text-primary-600 tracking-tight">
+                                            #{getQuoteDisplayId(quote)}
                                         </span>
-                                        <h3 className="text-sm font-bold text-slate-800 line-clamp-1">{quote.customerName}</h3>
                                     </div>
-                                </div>
-                                
-                                <div className="grid grid-cols-2 gap-2 mt-2">
-                                    <div className="flex flex-col gap-0.5">
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Valor</span>
-                                        <span className="text-sm font-bold text-emerald-600">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                    </div>
-                                    <div className="flex flex-col gap-0.5">
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Criado em</span>
-                                        <span className="text-xs font-bold text-slate-600">{new Date(quote.createdAt).toLocaleDateString()}</span>
-                                    </div>
-                                </div>
 
-                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                                    <span className="text-[10px] text-slate-500 truncate max-w-[150px]">{quote.title}</span>
                                     {(() => {
                                         const displayStatus = getQuoteCommercialStatus(quote);
                                         const style = getQuoteStatusStyle(displayStatus);
                                         return (
-                                            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-medium border ${style.bg}`}>
+                                            <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${style.bg}`}>
                                                 <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
                                                 {displayStatus}
                                             </div>
                                         );
                                     })()}
+                                </div>
+
+                                {/* Body: Customer + Title */}
+                                <div>
+                                    <h3 className="text-sm font-bold text-slate-900 line-clamp-1">{quote.customerName}</h3>
+                                    {quote.title && (
+                                        <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{quote.title}</p>
+                                    )}
+                                </div>
+                                
+                                {/* Info Row: Value + Date */}
+                                <div className="flex items-center justify-between pt-1">
+                                    <div className="flex flex-col">
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Valor Total</span>
+                                        <span className="text-sm font-bold text-emerald-600">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Criado em</span>
+                                        <span className="text-xs font-semibold text-slate-600">{new Date(quote.createdAt).toLocaleDateString()}</span>
+                                    </div>
+                                </div>
+
+                                {/* 📱 Quick Retractable Action Pills Row */}
+                                <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            const url = `${window.location.origin}/#/view-quote/${quote.publicToken || quote.id}`;
+                                            const compName = tenant?.company_name || tenant?.name || tenant?.companyName || 'nossa empresa';
+                                            const text = `Olá! Tudo bem? 🏢\n\nSomos da *${compName}* e preparamos sua proposta comercial com muito carinho.\n\n📄 *Acesse seu orçamento no link abaixo:*\n${url}\n\nFicamos à disposição para esclarecer qualquer dúvida!`;
+                                            window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                                        }}
+                                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-bold rounded-xl border border-emerald-200/80 transition-all active:scale-95 cursor-pointer shadow-2xs"
+                                        title="Enviar Orçamento via WhatsApp"
+                                    >
+                                        <MessageCircle size={13} className="text-emerald-600" />
+                                        <span>WhatsApp</span>
+                                    </button>
+
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handlePrintQuote(quote);
+                                        }}
+                                        disabled={printingQuoteId === (quote.id || quote.displayId || quote.publicToken)}
+                                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] font-semibold rounded-xl border border-slate-200 transition-all active:scale-95 disabled:opacity-50 cursor-pointer shadow-2xs"
+                                        title="Imprimir / Salvar em PDF"
+                                    >
+                                        {printingQuoteId === (quote.id || quote.displayId || quote.publicToken) ? (
+                                            <Loader2 size={13} className="animate-spin text-slate-600" />
+                                        ) : (
+                                            <Printer size={13} className="text-slate-500" />
+                                        )}
+                                        <span>PDF</span>
+                                    </button>
+
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            openQuoteView(quote);
+                                        }}
+                                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold rounded-xl border border-indigo-200/80 transition-all active:scale-95 cursor-pointer shadow-2xs"
+                                        title="Ver Detalhes do Orçamento"
+                                    >
+                                        <Eye size={13} className="text-indigo-600" />
+                                        <span>Ver</span>
+                                    </button>
                                 </div>
                             </div>
                         ))
@@ -1889,7 +1968,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     className="inline-flex items-center justify-center min-w-max h-8 sm:h-9 px-3 sm:px-3.5 gap-1.5 border border-primary-200 text-primary-700 hover:bg-primary-50 rounded-lg text-xs font-medium transition-all shrink-0 whitespace-nowrap"
                                 >
                                     <Eye size={14} className="shrink-0" />
-                                    <span className="leading-none">Visualizar</span>
+                                    <span className="leading-none hidden sm:inline">Visualizar</span>
                                 </button>
 
                                 <button
@@ -1907,7 +1986,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         } ${!canDelete('quotes') ? 'opacity-50 !cursor-not-allowed' : ''}`}
                                 >
                                     <Trash2 size={14} className="shrink-0" />
-                                    <span className="leading-none">Excluir</span>
+                                    <span className="leading-none hidden sm:inline">Excluir</span>
                                 </button>
                                 <div className="hidden sm:block h-6 w-px bg-slate-200 mx-1"></div>
                                 <button onClick={() => setIsViewModalOpen(false)} className="hidden sm:block p-2 text-slate-400 hover:text-slate-900 transition-all">
