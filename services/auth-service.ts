@@ -271,7 +271,7 @@ class AuthService {
             if (!cleanEmail) return false;
 
             const { error } = await recoveryMobileAuthClient.auth.resetPasswordForEmail(cleanEmail, {
-                redirectTo: 'https://app.dunoup.com.br/reset-password?source=mobile',
+                redirectTo: `https://app.dunoup.com.br/reset-password?source=mobile&email=${encodeURIComponent(cleanEmail)}`,
             });
 
             if (error) {
