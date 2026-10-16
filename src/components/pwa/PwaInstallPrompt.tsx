@@ -4,51 +4,59 @@
  * ============================================
  * 
  * Exibe o modal/bottom-sheet de instalação PWA com design Big Tech
- * APENAS em dispositivos móveis.
+ * APENAS em dispositivos móveis caso o app não esteja instalado como PWA (standalone).
  * Em desktops, este componente é completamente inerte (renderiza null).
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Download, Smartphone, Zap, Bell, CheckCircle2,
-  Sparkles, PlusSquare, ArrowRight, ShieldCheck
+  Sparkles, PlusSquare, MoreVertical
 } from 'lucide-react';
 
 // ─── Detecção de Dispositivo Móvel ───────────────────────────────────
-const isMobileDevice = (): boolean => {
+export const isMobileDevice = (): boolean => {
   if (typeof window === 'undefined') return false;
 
-  const ua = navigator.userAgent || '';
+  const ua = navigator.userAgent || navigator.vendor || (window as any).opera || '';
   const mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile/i.test(ua);
-  const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  const smallScreen = window.innerWidth < 1024;
+  const hasTouch = 'ontouchstart' in window || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0);
+  const smallScreen = window.innerWidth <= 1024;
 
-  const signals = [mobileUA, hasTouch, smallScreen].filter(Boolean).length;
-  return signals >= 2;
+  // Se o User-Agent é mobile, ou se tem touch e tela compacta, classifica como mobile
+  return mobileUA || (hasTouch && smallScreen);
 };
 
 // Verifica se já está rodando como PWA instalada (standalone mode)
-const isRunningAsPwa = (): boolean => {
+export const isRunningAsPwa = (): boolean => {
   if (typeof window === 'undefined') return false;
   return (
     window.matchMedia('(display-mode: standalone)').matches ||
-    (window.navigator as any).standalone === true
+    (window.navigator as any).standalone === true ||
+    (typeof document !== 'undefined' && document.referrer.includes('android-app://'))
   );
 };
 
-const DISMISS_KEY = 'nexus-pwa-dismissed';
-const DISMISS_DURATION_MS = 3 * 24 * 60 * 60 * 1000; // 3 dias
+const SESSION_DISMISS_KEY = 'nexus-pwa-dismissed-session';
 
 export const PwaInstallPrompt: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showBanner, setShowBanner] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
   const [showIOSGuide, setShowIOSGuide] = useState(false);
+  const [showAndroidGuide, setShowAndroidGuide] = useState(false);
   const promptRef = useRef<any>(null);
 
   // ─── Setup: Escuta eventos de instalação e gatilhos programáticos ─────
   useEffect(() => {
-    // Permite que qualquer botão do sistema chame o prompt programaticamente
+    // 1. Limpa qualquer bloqueio legado de 3 dias do localStorage para reativar o prompt
+    try {
+      localStorage.removeItem('nexus-pwa-dismissed');
+    } catch (e) {
+      // Ignora erro em iframes restritos
+    }
+
+    // 2. Permite que qualquer botão do sistema chame o prompt programaticamente
     const openPromptHandler = () => {
       setShowBanner(true);
       const isIOSDevice = /iPhone|iPad|iPod/i.test(navigator.userAgent) && !(window.navigator as any).standalone;
@@ -58,82 +66,103 @@ export const PwaInstallPrompt: React.FC = () => {
     };
     window.addEventListener('nexus-open-pwa-install', openPromptHandler);
 
-    // Guard automático: Apenas mobile, não já instalado, não dispensado recentemente
-    if (!isMobileDevice() || isRunningAsPwa()) {
-      return () => {
-        window.removeEventListener('nexus-open-pwa-install', openPromptHandler);
-      };
+    // 3. Captura o prompt se index.html já o pegou antes do React montar
+    if ((window as any).__nexusDeferredInstallPrompt) {
+      promptRef.current = (window as any).__nexusDeferredInstallPrompt;
+      setDeferredPrompt((window as any).__nexusDeferredInstallPrompt);
     }
 
-    const dismissed = localStorage.getItem(DISMISS_KEY);
-    if (dismissed) {
-      const dismissedAt = parseInt(dismissed, 10);
-      if (Date.now() - dismissedAt < DISMISS_DURATION_MS) {
-        return () => {
-          window.removeEventListener('nexus-open-pwa-install', openPromptHandler);
-        };
+    const promptCapturedHandler = () => {
+      if ((window as any).__nexusDeferredInstallPrompt) {
+        promptRef.current = (window as any).__nexusDeferredInstallPrompt;
+        setDeferredPrompt((window as any).__nexusDeferredInstallPrompt);
       }
-    }
+    };
+    window.addEventListener('nexus-beforeinstallprompt-captured', promptCapturedHandler);
 
-    // iOS não suporta beforeinstallprompt — mostra guia nativo após delay suave
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) && !(window.navigator as any).standalone;
-    if (isIOS) {
-      const timer = setTimeout(() => {
-        setShowIOSGuide(true);
-        setShowBanner(true);
-      }, 2500);
-      return () => {
-        clearTimeout(timer);
-        window.removeEventListener('nexus-open-pwa-install', openPromptHandler);
-      };
-    }
-
-    // Android / Chrome: Captura o evento nativo
-    const handler = (e: Event) => {
+    // 4. Captura do evento nativo beforeinstallprompt
+    const nativeHandler = (e: Event) => {
       e.preventDefault();
       promptRef.current = e;
       setDeferredPrompt(e);
-      setTimeout(() => setShowBanner(true), 2000);
+      (window as any).__nexusDeferredInstallPrompt = e;
     };
+    window.addEventListener('beforeinstallprompt', nativeHandler);
 
-    window.addEventListener('beforeinstallprompt', handler);
+    // 5. Guard: Se não for mobile ou já estiver rodando instalado como PWA (standalone), não exibe
+    if (!isMobileDevice() || isRunningAsPwa()) {
+      return () => {
+        window.removeEventListener('nexus-open-pwa-install', openPromptHandler);
+        window.removeEventListener('nexus-beforeinstallprompt-captured', promptCapturedHandler);
+        window.removeEventListener('beforeinstallprompt', nativeHandler);
+      };
+    }
+
+    // 6. Verifica se dispensou nesta sessão atual (permite forçar via ?pwa=1)
+    const isForced = window.location.search.includes('pwa=1') || window.location.hash.includes('pwa=1');
+    const sessionDismissed = sessionStorage.getItem(SESSION_DISMISS_KEY);
+    if (sessionDismissed && !isForced) {
+      return () => {
+        window.removeEventListener('nexus-open-pwa-install', openPromptHandler);
+        window.removeEventListener('nexus-beforeinstallprompt-captured', promptCapturedHandler);
+        window.removeEventListener('beforeinstallprompt', nativeHandler);
+      };
+    }
+
+    // 7. Exibe o banner suavemente em qualquer dispositivo móvel após 1.5s
+    const timer = setTimeout(() => {
+      setShowBanner(true);
+    }, 1500);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handler);
+      clearTimeout(timer);
       window.removeEventListener('nexus-open-pwa-install', openPromptHandler);
+      window.removeEventListener('nexus-beforeinstallprompt-captured', promptCapturedHandler);
+      window.removeEventListener('beforeinstallprompt', nativeHandler);
     };
   }, []);
 
-  // ─── Instalar (Android/Chrome) ──────────────────────────────────
+  // ─── Ação de Instalação ─────────────────────────────────────────
   const handleInstall = useCallback(async () => {
-    const prompt = promptRef.current || deferredPrompt;
-    if (!prompt) {
-      // Se não houver evento nativo capturado, abre o guia
-      setShowIOSGuide(true);
+    const prompt = promptRef.current || deferredPrompt || (window as any).__nexusDeferredInstallPrompt;
+
+    // Se o browser Chromium disponibilizou o prompt nativo (1-clique)
+    if (prompt && typeof prompt.prompt === 'function') {
+      setIsInstalling(true);
+      try {
+        await prompt.prompt();
+        const result = await prompt.userChoice;
+        if (result && result.outcome === 'accepted') {
+          setShowBanner(false);
+          sessionStorage.setItem(SESSION_DISMISS_KEY, 'true');
+        }
+      } catch (err) {
+        console.warn('[PWA] Erro ao disparar prompt nativo:', err);
+      } finally {
+        setIsInstalling(false);
+        setDeferredPrompt(null);
+        promptRef.current = null;
+        (window as any).__nexusDeferredInstallPrompt = null;
+      }
       return;
     }
 
-    setIsInstalling(true);
-    try {
-      prompt.prompt();
-      const result = await prompt.userChoice;
-      if (result.outcome === 'accepted') {
-        setShowBanner(false);
-        localStorage.setItem(DISMISS_KEY, String(Date.now()));
-      }
-    } catch (err) {
-      console.warn('[PWA] Erro ao disparar prompt de instalação:', err);
-    } finally {
-      setIsInstalling(false);
-      setDeferredPrompt(null);
-      promptRef.current = null;
+    // Se NÃO houver prompt nativo (ex: iOS Safari, ou Chrome Android que já suprimiu o prompt, Firefox, Samsung Internet)
+    const isIOSDevice = /iPhone|iPad|iPod/i.test(navigator.userAgent) && !(window.navigator as any).standalone;
+    if (isIOSDevice) {
+      setShowIOSGuide(true);
+    } else {
+      setShowAndroidGuide(true);
     }
   }, [deferredPrompt]);
 
   // ─── Dispensar ──────────────────────────────────────────────────
   const handleDismiss = useCallback(() => {
     setShowBanner(false);
-    localStorage.setItem(DISMISS_KEY, String(Date.now()));
+    setShowIOSGuide(false);
+    setShowAndroidGuide(false);
+    // Guarda apenas na sessão para não insistir durante a navegação corrente
+    sessionStorage.setItem(SESSION_DISMISS_KEY, 'true');
   }, []);
 
   // ─── Render: Não exibe se inativo ──────────────────────────────
@@ -183,7 +212,7 @@ export const PwaInstallPrompt: React.FC = () => {
           </div>
 
           {/* Step Cards */}
-          <div className="space-y-2 mb-5">
+          <div className="space-y-2.5 mb-5">
             <div className="flex items-center gap-3 p-3 bg-white/[0.05] border border-white/10 rounded-2xl">
               <div className="w-7 h-7 rounded-xl bg-blue-600/30 border border-blue-400/30 text-blue-300 flex items-center justify-center font-black text-xs shrink-0">
                 1
@@ -218,6 +247,101 @@ export const PwaInstallPrompt: React.FC = () => {
             <button
               onClick={handleDismiss}
               className="w-full py-3.5 px-5 rounded-2xl font-bold text-sm text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-98 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30"
+            >
+              <CheckCircle2 size={16} />
+              <span>Entendido, Vou Adicionar Agora</span>
+            </button>
+            <button
+              onClick={handleDismiss}
+              className="w-full text-center text-slate-400 hover:text-slate-200 text-xs font-semibold py-2 transition-colors active:scale-95"
+            >
+              Lembrar mais tarde
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Android Guide (Google Chrome / Edge / Samsung Internet) ────
+  if (showAndroidGuide) {
+    return (
+      <div className="fixed inset-0 z-[99999] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-md animate-fade-in font-poppins">
+        <div className="relative w-full max-w-md bg-gradient-to-b from-[#141f36] via-[#0d1628] to-[#070c18] border border-white/15 rounded-3xl p-5 sm:p-6 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.85),0_0_35px_rgba(59,130,246,0.2)] text-white overflow-hidden animate-slide-up-pwa">
+          {/* Ambient Glow */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-56 h-20 bg-emerald-500/25 blur-3xl rounded-full pointer-events-none" />
+
+          {/* Top Handle on Mobile */}
+          <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-4 sm:hidden" />
+
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold uppercase tracking-widest shadow-sm">
+              <Sparkles size={11} className="text-emerald-400" />
+              <span>Google Android • Instalação Rápida</span>
+            </div>
+            <button
+              onClick={handleDismiss}
+              className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 active:scale-90 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all"
+              title="Fechar"
+            >
+              <X size={15} />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3.5 mb-4">
+            <div className="relative shrink-0">
+              <div className="absolute -inset-1 rounded-2xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-blue-500 opacity-75 blur-sm animate-pulse" />
+              <div className="relative w-14 h-14 rounded-2xl bg-slate-950 border border-white/20 p-1 flex items-center justify-center overflow-hidden shadow-xl">
+                <img src="/duno-icon.png" alt="DUNO" className="w-full h-full rounded-xl object-cover" />
+              </div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-base font-bold text-white tracking-tight leading-snug">
+                DUNO Pro no seu Android
+              </h3>
+              <p className="text-slate-400 text-xs mt-0.5 leading-relaxed">
+                Adicione à tela de início em apenas 2 toques:
+              </p>
+            </div>
+          </div>
+
+          {/* Step Cards */}
+          <div className="space-y-2.5 mb-5">
+            <div className="flex items-center gap-3 p-3 bg-white/[0.05] border border-white/10 rounded-2xl">
+              <div className="w-7 h-7 rounded-xl bg-emerald-600/30 border border-emerald-400/30 text-emerald-300 flex items-center justify-center font-black text-xs shrink-0">
+                1
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-slate-200">
+                  Toque no menu de opções <strong className="text-white">(ícone de 3 pontinhos ⋮)</strong> no topo direito do navegador
+                </p>
+              </div>
+              <div className="p-1.5 bg-white/10 rounded-lg text-emerald-400 shrink-0">
+                <MoreVertical size={16} />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 p-3 bg-white/[0.05] border border-white/10 rounded-2xl">
+              <div className="w-7 h-7 rounded-xl bg-teal-600/30 border border-teal-400/30 text-teal-300 flex items-center justify-center font-black text-xs shrink-0">
+                2
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-slate-200">
+                  Selecione <strong className="text-white">"Instalar aplicativo"</strong> ou <strong className="text-white">"Adicionar à tela inicial"</strong>
+                </p>
+              </div>
+              <div className="p-1.5 bg-white/10 rounded-lg text-teal-400 shrink-0">
+                <Download size={16} />
+              </div>
+            </div>
+          </div>
+
+          {/* Action Button */}
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={handleDismiss}
+              className="w-full py-3.5 px-5 rounded-2xl font-bold text-sm text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-98 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30"
             >
               <CheckCircle2 size={16} />
               <span>Entendido, Vou Adicionar Agora</span>
@@ -309,7 +433,7 @@ export const PwaInstallPrompt: React.FC = () => {
           <button
             onClick={handleInstall}
             disabled={isInstalling}
-            className="w-full relative group overflow-hidden py-3.5 px-5 rounded-2xl font-bold text-sm tracking-wide text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 shadow-xl shadow-blue-600/30 active:scale-98 transition-all flex items-center justify-center gap-2"
+            className="w-full relative group overflow-hidden py-3.5 px-5 rounded-2xl font-bold text-sm tracking-wide text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 shadow-xl shadow-blue-600/30 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             {/* Shimmer reflection */}
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
@@ -328,7 +452,7 @@ export const PwaInstallPrompt: React.FC = () => {
 
           <button
             onClick={handleDismiss}
-            className="w-full text-center text-slate-400 hover:text-slate-200 text-xs font-semibold py-2 transition-colors active:scale-95"
+            className="w-full text-center text-slate-400 hover:text-slate-200 text-xs font-semibold py-2 transition-colors active:scale-95 cursor-pointer"
           >
             Continuar no navegador por enquanto
           </button>

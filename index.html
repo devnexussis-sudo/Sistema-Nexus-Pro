@@ -100,11 +100,11 @@
       var path = window.location.pathname || '';
       
       // Checa tanto o hash quanto o path diretamente (já que o SPA redirect pode não ter rodado ainda)
-      var isPublicRoute = /^#\/(order\/view|view-quote|view)\//.test(hash) || 
-                          /^\/(order\/view|view-quote|view)\//.test(path);
+      var isPublicRoute = /^#?\/(order\/view|view-quote|view|checkout)\//.test(hash) || 
+                          /^\/(order\/view|view-quote|view|checkout)\//.test(path);
 
       if (isPublicRoute) {
-        // Previne explicitamente o prompt de instalação
+        // Previne explicitamente o prompt de instalação em links públicos
         window.addEventListener('beforeinstallprompt', function(e) {
           e.preventDefault();
           console.log('[PWA] Prompt de instalação (beforeinstallprompt) bloqueado na rota pública.');
@@ -122,6 +122,17 @@
         return;
       }
 
+      // Captura global do evento beforeinstallprompt para não perder se disparar antes do React carregar
+      window.__nexusDeferredInstallPrompt = null;
+      window.addEventListener('beforeinstallprompt', function(e) {
+        e.preventDefault();
+        window.__nexusDeferredInstallPrompt = e;
+        try {
+          window.dispatchEvent(new CustomEvent('nexus-beforeinstallprompt-captured'));
+        } catch (err) {}
+        console.log('[PWA] beforeinstallprompt capturado com sucesso.');
+      });
+
       // Adiciona o manifest dinamicamente apenas para rotas não-públicas
       var manifestLink = document.createElement('link');
       manifestLink.rel = 'manifest';
@@ -133,9 +144,8 @@
       var ua = navigator.userAgent || '';
       var mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile/i.test(ua);
       var hasTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-      var smallScreen = window.innerWidth < 1024;
-      var signals = [mobileUA, hasTouch, smallScreen].filter(Boolean).length;
-      var isMobile = signals >= 2;
+      var smallScreen = window.innerWidth <= 1024;
+      var isMobile = mobileUA || (hasTouch && smallScreen);
 
       if (isMobile) {
         // Mobile (não-público): Registra o Service Worker para habilitar PWA

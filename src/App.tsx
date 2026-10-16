@@ -169,10 +169,10 @@ const AppRoutes: React.FC = () => {
   );
 };
 
-// Exibe o prompt de instalação PWA apenas fora de links públicos de OS/orçamento
+// Exibe o prompt de instalação PWA apenas fora de links públicos de OS/orçamento/checkout
 const PwaInstallPromptConditional: React.FC = () => {
   const location = useLocation();
-  const isPublicRoute = /^\/(order\/view|view-quote|view)\//.test(location.pathname);
+  const isPublicRoute = /^\/(order\/view|view-quote|view|checkout)\//.test(location.pathname);
   if (isPublicRoute) return null;
   return <PwaInstallPrompt />;
 };
