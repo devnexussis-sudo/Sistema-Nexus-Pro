@@ -48,80 +48,98 @@ export const ResetPassword: React.FC = () => {
         const handleAuth = async () => {
             try {
                 const url = window.location.href;
-                const search = window.location.search;
+                const search = window.location.search || '';
+                const hash = window.location.hash || '';
 
-                const isMobileSource = url.includes('source=mobile');
+                // Combina search e hash para extrair parâmetros de forma resiliente
+                const hashQuery = hash.includes('?') ? hash.split('?')[1] : hash.replace(/^#\/?(reset-password)?\/?/, '').replace(/^#/, '');
+                const rawParams = (search.replace(/^\?/, '') + '&' + hashQuery).replace(/^&+/, '');
+                const params = new URLSearchParams(rawParams);
+
+                const isMobileSource = url.includes('source=mobile') || params.get('source') === 'mobile';
                 if (isMobileSource && mounted) {
                     setIsFromMobile(true);
                 }
 
-                const access = url.match(/access_token=([^&#]*)/)?.[1];
-                const refresh = url.match(/refresh_token=([^&#]*)/)?.[1];
-                const code = url.match(/[?&#]code=([^&#]*)/)?.[1] || new URLSearchParams(search).get('code');
-                const tokenHash = url.match(/[?&#]token_hash=([^&#]*)/)?.[1] || new URLSearchParams(search).get('token_hash');
+                const access = params.get('access_token') || url.match(/access_token=([^&#]*)/)?.[1];
+                const refresh = params.get('refresh_token') || url.match(/refresh_token=([^&#]*)/)?.[1];
+                const code = params.get('code') || url.match(/[?&#]code=([^&#]*)/)?.[1];
+                const tokenHash = params.get('token_hash') || url.match(/[?&#]token_hash=([^&#]*)/)?.[1];
 
                 let authSession: any = null;
 
-                // 1. Aguarda ativamente o SDK do Supabase processar o PKCE code
-                let activeSession = null;
-                for (let i = 0; i < 15; i++) { // Espera até 3 segundos
-                    const { data: { session: s } } = await supabase.auth.getSession();
-                    if (s?.user) {
-                        activeSession = s;
-                        break;
-                    }
-                    if (i < 14) await new Promise(r => setTimeout(r, 200));
-                }
-
-                if (activeSession?.user) {
+                // 1. Verifica se o cliente já possui sessão ativa
+                const { data: { session: existingSession } } = await supabase.auth.getSession();
+                if (existingSession?.user) {
                     logger.info('[ResetPassword] Sessão válida encontrada no cliente Supabase.');
-                    authSession = activeSession;
+                    authSession = existingSession;
                 }
 
                 // 2. Se temos access_token (Implicit Flow) e a sessão ainda não está pronta
                 if (!authSession && access) {
                     logger.info('[ResetPassword] Injetando tokens de recuperação (Implicit)...');
+                    const cleanAccess = decodeURIComponent(access);
+                    const cleanRefresh = refresh ? decodeURIComponent(refresh) : '';
                     const { error: sessionUpdateError, data } = await supabase.auth.setSession({
-                        access_token: access,
-                        refresh_token: refresh || '',
+                        access_token: cleanAccess,
+                        refresh_token: cleanRefresh,
                     });
 
                     if (!sessionUpdateError && data.session) {
                         authSession = data.session;
+                    } else if (sessionUpdateError) {
+                        console.warn('[ResetPassword] Erro ao injetar access_token:', sessionUpdateError.message);
                     }
                 }
 
-                // 3. Se temos um código / token_hash e o SDK AINDA NÃO CONSUMIU
-                const recoveryToken = tokenHash || code;
-                if (!authSession && recoveryToken && !isExchanging) {
-                    isExchanging = true;
-                    logger.info('[ResetPassword] Validando código de recuperação manualmente como fallback...');
-
+                // 3. Se temos token_hash OTP
+                if (!authSession && tokenHash) {
+                    logger.info('[ResetPassword] Validando token_hash OTP...');
+                    const cleanHash = decodeURIComponent(tokenHash);
                     const { error: otpError, data: otpData } = await supabase.auth.verifyOtp({
-                        token_hash: recoveryToken,
+                        token_hash: cleanHash,
                         type: 'recovery',
                     });
-
                     if (!otpError && otpData.session) {
                         logger.info('[ResetPassword] Sessão iniciada com sucesso via verifyOtp!');
                         authSession = otpData.session;
-                    } else {
-                        logger.info('[ResetPassword] Tentando troca de código PKCE como fallback final...');
-                        const { error: exchangeError, data: exchangeData } = await supabase.auth.exchangeCodeForSession(recoveryToken);
+                    }
+                }
 
-                        if (!exchangeError && exchangeData.session) {
-                            logger.info('[ResetPassword] Sessão obtida via exchangeCodeForSession!');
-                            authSession = exchangeData.session;
+                // 4. Se temos código PKCE e a sessão ainda não foi consumida
+                if (!authSession && code && !isExchanging) {
+                    isExchanging = true;
+                    logger.info('[ResetPassword] Trocando código PKCE...');
+                    const cleanCode = decodeURIComponent(code);
+                    const { error: exchangeError, data: exchangeData } = await supabase.auth.exchangeCodeForSession(cleanCode);
+
+                    if (!exchangeError && exchangeData.session) {
+                        logger.info('[ResetPassword] Sessão obtida via exchangeCodeForSession!');
+                        authSession = exchangeData.session;
+                    } else {
+                        // Fallback: se exchangeCodeForSession falhar por falta de code_verifier, tenta verifyOtp
+                        const { error: otpFallbackError, data: otpFallbackData } = await supabase.auth.verifyOtp({
+                            token_hash: cleanCode,
+                            type: 'recovery',
+                        });
+                        if (!otpFallbackError && otpFallbackData.session) {
+                            authSession = otpFallbackData.session;
                         } else {
-                            console.warn('[ResetPassword] Tentativas de validação de token retornaram erro ou o código já foi consumido:', { otpError, exchangeError });
+                            console.warn('[ResetPassword] Tentativas de validação de código retornaram erro:', { exchangeError, otpFallbackError });
                         }
                     }
                 }
 
-                // 4. Verificação final de garantia (Re-check)
+                // 5. Verificação final com espera de até 1s para o SDK
                 if (!authSession) {
-                    const { data: { session: finalSession } } = await supabase.auth.getSession();
-                    authSession = finalSession;
+                    for (let i = 0; i < 5; i++) {
+                        const { data: { session: s } } = await supabase.auth.getSession();
+                        if (s?.user) {
+                            authSession = s;
+                            break;
+                        }
+                        if (i < 4) await new Promise(r => setTimeout(r, 200));
+                    }
                 }
 
                 if (!authSession) {
@@ -131,8 +149,8 @@ export const ResetPassword: React.FC = () => {
 
                 if (authSession && mounted) {
                     setError('');
-                    const params = isMobileSource ? '?source=mobile' : '';
-                    const cleanUrl = window.location.origin + window.location.pathname + params + '#/reset-password';
+                    const mobileParam = isMobileSource ? '?source=mobile' : '';
+                    const cleanUrl = window.location.origin + window.location.pathname + '#/reset-password' + mobileParam;
                     window.history.replaceState(null, '', cleanUrl);
                 } else if (mounted) {
                     setError('Link de recuperação inválido ou expirado. Por favor, solicite um novo link.');

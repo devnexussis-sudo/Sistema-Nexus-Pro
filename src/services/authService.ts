@@ -532,7 +532,8 @@ export const AuthService = {
 
     resetPasswordForEmail: async (email: string): Promise<void> => {
         if (isCloudEnabled) {
-            const redirectUrl = `${window.location.origin}/#/reset-password`;
+            // URL de retorno limpa (sem hash) para conformidade total com GoTrue/OAuth2 e Redirect URLs do Supabase
+            const redirectUrl = `${window.location.origin}/reset-password`;
             const { error } = await recoveryAuthClient.auth.resetPasswordForEmail(email.toLowerCase().trim(), {
                 redirectTo: redirectUrl,
             });

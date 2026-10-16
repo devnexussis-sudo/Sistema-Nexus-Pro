@@ -68,20 +68,22 @@ const AppRoutes: React.FC = () => {
   // 🛡️ RECOVERY & OAUTH INTERCEPTOR: Se cair no root com token de recovery ou OAuth, redireciona preservando estado
   const navigate = useNavigate();
   useEffect(() => {
-    const hash = window.location.hash;
-    const search = window.location.search;
+    const hash = window.location.hash || '';
+    const search = window.location.search || '';
+    const href = window.location.href || '';
 
-    // 1. Corrige URL malformada do Supabase (quando redirectTo já tem hash, o Supabase concatena com &)
-    if (hash.startsWith('#/reset-password&')) {
-      console.log('[RecoveryInterceptor] Corrigindo URL malformada do Supabase...');
-      window.location.hash = hash.replace('#/reset-password&', '#/reset-password?');
+    // 1. Corrige URLs com hashes duplos no HashRouter (ex: #/reset-password#access_token=... ou #/reset-password&...)
+    if (hash.startsWith('#/reset-password#') || hash.startsWith('#/reset-password&')) {
+      console.log('[RecoveryInterceptor] Corrigindo hash duplo no HashRouter...');
+      window.location.hash = hash.replace(/^#\/reset-password[#&]/, '#/reset-password?');
       return;
     }
 
-    // 2. Se o hash contém tokens de recovery genérico
-    if (hash.includes('type=recovery') && !hash.includes('reset-password')) {
+    // 2. Se a URL contém tokens de recovery e ainda não está na rota /reset-password
+    if ((href.includes('type=recovery') || href.includes('token_hash=')) && !hash.startsWith('#/reset-password')) {
       console.log('[RecoveryInterceptor] Detectado lander de recuperação genérico. Redirecionando para /reset-password...');
-      const newHash = '#/reset-password' + hash.replace('#', '?');
+      const cleanParams = (search.replace(/^\?/, '') + '&' + hash.replace(/^[#/?]+/, '').replace(/#/g, '&')).replace(/^&+/, '').replace(/&+$/, '');
+      const newHash = '#/reset-password' + (cleanParams ? '?' + cleanParams : '');
       window.location.hash = newHash;
       return;
     }
@@ -158,9 +160,13 @@ const AppRoutes: React.FC = () => {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/reset-password/*" element={<ResetPassword />} />
 
-      {/* ROOT REDIRECT */}
+      {/* ROOT REDIRECT - Preserva rotas de recuperação para não expulsar o usuário para o login */}
       <Route path="/" element={
-        isInitializing ? null : <Navigate to={auth.isAuthenticated ? "/admin" : "/login"} replace />
+        isInitializing ? null : (
+          (window.location.hash.includes('reset-password') || window.location.hash.includes('type=recovery') || window.location.href.includes('type=recovery'))
+            ? <ResetPassword />
+            : <Navigate to={auth.isAuthenticated ? "/admin" : "/login"} replace />
+        )
       } />
 
       {/* DEFAULT CATCH-ALL */}

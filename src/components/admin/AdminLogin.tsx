@@ -152,7 +152,8 @@ const ModernAdminLogin: React.FC<ThemedLoginProps> = ({ onLogin, onToggleMaster,
 
     const handleForgotPassword = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!email) {
+        const cleanEmail = email.toLowerCase().trim();
+        if (!cleanEmail) {
             setError('Por favor, digite seu e-mail para recuperar a senha.');
             return;
         }
@@ -161,11 +162,21 @@ const ModernAdminLogin: React.FC<ThemedLoginProps> = ({ onLogin, onToggleMaster,
         setLoading(true);
 
         try {
-            await DataService.resetPasswordForEmail(email);
+            await DataService.resetPasswordForEmail(cleanEmail);
             setResetEmailSent(true);
             setError('');
         } catch (err: any) {
-            setError(err.message || 'Erro ao enviar e-mail de recuperação.');
+            console.error('[AdminLogin] Erro ao solicitar recuperação:', err);
+            const raw = (err.message || '').toLowerCase();
+            let msg = 'Erro ao enviar e-mail de recuperação.';
+            if (raw.includes('rate limit') || raw.includes('security purposes') || raw.includes('once every')) {
+                msg = 'Aguarde 60 segundos antes de solicitar um novo link de recuperação.';
+            } else if (raw.includes('network') || raw.includes('failed to fetch')) {
+                msg = 'Falha de conexão. Verifique sua internet e tente novamente.';
+            } else if (err.message) {
+                msg = err.message;
+            }
+            setError(msg);
         } finally {
             setLoading(false);
         }
@@ -585,7 +596,8 @@ const ClassicAdminLogin: React.FC<ThemedLoginProps> = ({ onLogin, onToggleMaster
 
     const handleForgotPassword = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!email) {
+        const cleanEmail = email.toLowerCase().trim();
+        if (!cleanEmail) {
             setError('Por favor, digite seu e-mail para recuperar a senha.');
             return;
         }
@@ -594,11 +606,21 @@ const ClassicAdminLogin: React.FC<ThemedLoginProps> = ({ onLogin, onToggleMaster
         setLoading(true);
 
         try {
-            await DataService.resetPasswordForEmail(email);
+            await DataService.resetPasswordForEmail(cleanEmail);
             setResetEmailSent(true);
             setError('');
         } catch (err: any) {
-            setError(err.message || 'Erro ao enviar e-mail de recuperação.');
+            console.error('[AdminLogin] Erro ao solicitar recuperação:', err);
+            const raw = (err.message || '').toLowerCase();
+            let msg = 'Erro ao enviar e-mail de recuperação.';
+            if (raw.includes('rate limit') || raw.includes('security purposes') || raw.includes('once every')) {
+                msg = 'Aguarde 60 segundos antes de solicitar um novo link de recuperação.';
+            } else if (raw.includes('network') || raw.includes('failed to fetch')) {
+                msg = 'Falha de conexão. Verifique sua internet e tente novamente.';
+            } else if (err.message) {
+                msg = err.message;
+            }
+            setError(msg);
         } finally {
             setLoading(false);
         }

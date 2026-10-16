@@ -168,14 +168,63 @@
       }
     })();
 
-    // 🔄 Nexus SPA Redirect (Fix para Rota /master)
-    // Detecta acesso direto a rotas sem hash e converte para estrutura HashRouter
+    // 🛡️ Nexus SPA & Auth Recovery Normalizer
+    // Normaliza links de recuperação de senha (Supabase Implicit Tokens, PKCE ou OTP)
+    // e rotas diretas para a arquitetura HashRouter antes do carregamento do React.
     (function () {
-      var path = window.location.pathname;
-      if (path && path !== '/' && path !== '/index.html' && !path.includes('.')) {
-        var hash = window.location.hash;
-        var query = window.location.search;
-        var newUrl = '/#' + path + query + (hash ? hash : '');
+      var href = window.location.href;
+      var path = window.location.pathname || '';
+      var search = window.location.search || '';
+      var hash = window.location.hash || '';
+
+      var isRecovery = href.indexOf('type=recovery') !== -1 ||
+                       href.indexOf('reset-password') !== -1 ||
+                       href.indexOf('token_hash=') !== -1 ||
+                       ((search.indexOf('code=') !== -1 || hash.indexOf('code=') !== -1) && href.indexOf('google') === -1);
+
+      if (isRecovery) {
+        var params = [];
+
+        // 1. Query parameters
+        if (search && search.length > 1) {
+          var searchParts = search.substring(1).split('&');
+          for (var i = 0; i < searchParts.length; i++) {
+            if (searchParts[i] && searchParts[i].indexOf('#') === -1) {
+              params.push(searchParts[i]);
+            }
+          }
+        }
+
+        // 2. Hash parameters (limpa rotas embutidas como #/reset-password ou #/)
+        if (hash && hash.length > 1) {
+          var cleanHash = hash;
+          if (cleanHash.indexOf('#/reset-password') !== -1) {
+            cleanHash = cleanHash.replace('#/reset-password', '');
+          } else if (cleanHash.indexOf('#/') !== -1) {
+            cleanHash = cleanHash.replace('#/', '');
+          }
+          cleanHash = cleanHash.replace(/^[#?&]+/, '');
+          cleanHash = cleanHash.replace(/#/g, '&');
+
+          var hashParts = cleanHash.split('&');
+          for (var j = 0; j < hashParts.length; j++) {
+            if (hashParts[j] && params.indexOf(hashParts[j]) === -1) {
+              params.push(hashParts[j]);
+            }
+          }
+        }
+
+        var combined = params.join('&');
+        var targetUrl = '/#/reset-password' + (combined ? '?' + combined : '');
+        console.log('🔄 [Nexus Recovery Normalizer] Normalizando URL de recuperação para:', targetUrl);
+        window.history.replaceState(null, null, targetUrl);
+        return;
+      }
+
+      // Redirecionamento legado padrão para outras rotas (ex: /master -> /#/master)
+      if (path && path !== '/' && path !== '/index.html' && path.indexOf('.') === -1) {
+        var cleanH = hash ? (hash.indexOf('#') === 0 ? hash : '#' + hash) : '';
+        var newUrl = '/#' + path + search + cleanH;
         console.log('🔄 [Nexus Router] Redirecionando legado: ' + path + ' -> ' + newUrl);
         window.history.replaceState(null, null, newUrl);
       }
