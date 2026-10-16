@@ -26,7 +26,7 @@ import { VoiceTextInput } from '@/components/VoiceTextInput';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, BackHandler, Dimensions, Image, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View, SafeAreaView, DeviceEventEmitter, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Alert, BackHandler, Dimensions, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View, SafeAreaView, DeviceEventEmitter, useWindowDimensions } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SignatureScreen from 'react-native-signature-canvas';
@@ -166,6 +166,7 @@ export default function ExecuteOSScreen() {
     const [videoSourceTarget, setVideoSourceTarget] = useState<{ type: 'global' | 'field', eqKey?: string, fieldId?: string } | null>(null);
     const signatureRef = useRef<any>(null);
     const scrollViewRef = useRef<ScrollView>(null);
+    const clientNameInputRef = useRef<TextInput>(null);
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(0);
@@ -210,6 +211,8 @@ export default function ExecuteOSScreen() {
     // No Android, ocultamos o header e tab bar para que a tela não quebre/trave com Dialog do Modal.
     useEffect(() => {
         if (isAnySignatureOpen) {
+            Keyboard.dismiss();
+            clientNameInputRef.current?.blur();
             ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
             navigation.setOptions({
                 headerShown: false,
@@ -3046,12 +3049,24 @@ export default function ExecuteOSScreen() {
                     <View style={styles.section}>
                         <Text style={{ fontSize: 14, fontWeight: '900', color: '#1c2d4f', marginBottom: 4 }}>VALIDAÇÃO DO CLIENTE</Text>
                         <Text style={[styles.fieldLabel, { marginTop: 12, marginBottom: 4 }]}>{t('execResponsibleName')}</Text>
-                        <TextInput style={styles.input} placeholder="Quem acompanhou o serviço" placeholderTextColor="#94a3b8" value={clientName} onChangeText={setClientName} returnKeyType="done" />
+                        <TextInput 
+                            ref={clientNameInputRef}
+                            style={styles.input} 
+                            placeholder="Quem acompanhou o serviço" 
+                            placeholderTextColor="#94a3b8" 
+                            value={clientName} 
+                            onChangeText={setClientName} 
+                            returnKeyType="done" 
+                            onSubmitEditing={() => Keyboard.dismiss()}
+                            blurOnSubmit={true}
+                        />
 
                         <Text style={[styles.fieldLabel, { marginTop: 24, marginBottom: 8 }]}>{t('execDigitalSignature')}</Text>
                         {signature ? (
                             <Pressable 
                                 onPress={() => {
+                                    Keyboard.dismiss();
+                                    clientNameInputRef.current?.blur();
                                     setSignatureModalVisible(true);
                                 }} 
                                 style={styles.signaturePreviewContainer}
@@ -3060,9 +3075,14 @@ export default function ExecuteOSScreen() {
                                 <Text style={styles.clearSignatureText}>{t('execTapToRedo')}</Text>
                             </Pressable>
                         ) : (
-                            <Pressable style={styles.signaturePlaceholder} onPress={() => {
-                                setSignatureModalVisible(true);
-                            }}>
+                            <Pressable 
+                                style={styles.signaturePlaceholder} 
+                                onPress={() => {
+                                    Keyboard.dismiss();
+                                    clientNameInputRef.current?.blur();
+                                    setSignatureModalVisible(true);
+                                }}
+                            >
                                 <Ionicons name="pencil" size={32} color="#666" />
                                 <Text style={styles.signaturePlaceholderText}>{t('execCollectSignature')}</Text>
                             </Pressable>
