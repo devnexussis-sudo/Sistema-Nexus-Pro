@@ -1,7 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image } from 'react-native';
+import { createClient } from '@supabase/supabase-js';
 import { logger } from './logger';
-import { supabase } from './supabase';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase';
+
+const recoveryMobileAuthClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+        flowType: 'implicit',
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false
+    }
+});
 
 const AUTH_KEY = '@nexus_auth_token';
 
@@ -257,8 +267,11 @@ class AuthService {
 
     async resetPassword(email: string): Promise<boolean> {
         try {
-            const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase(), {
-                redirectTo: 'https://app.dunoup.com.br/#/reset-password',
+            const cleanEmail = (email || '').toLowerCase().trim();
+            if (!cleanEmail) return false;
+
+            const { error } = await recoveryMobileAuthClient.auth.resetPasswordForEmail(cleanEmail, {
+                redirectTo: 'https://app.dunoup.com.br/reset-password?source=mobile',
             });
 
             if (error) {
