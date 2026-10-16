@@ -24,7 +24,7 @@ jobs:
           version: latest
 
       - name: 🚀 Deploy da Edge Function (r2-operations)
-        run: supabase functions deploy r2-operations --project-ref $PROJECT_ID
+        run: supabase functions deploy r2-operations --project-ref $PROJECT_ID --no-verify-jwt
 
       - name: 🚀 Deploy Edge Functions (WhatsApp Bot & Webhooks)
         run: |

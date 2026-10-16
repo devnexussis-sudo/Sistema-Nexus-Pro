@@ -1,6 +1,7 @@
 
 import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Barcode, Box, Camera, Check, DollarSign, Edit3, Filter, History, Info, Layers, LayoutDashboard, List, Loader2, Package, Plus, RefreshCw, Save, Scale, Search, Tag, Trash2, TrendingDown, TrendingUp, Users, Wand2, X, Image as ImageIcon, Printer, QrCode, ClipboardCheck, CheckCircle, FileText } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
+import QRCode from 'qrcode';
 import { createPortal } from 'react-dom';
 import { useI18n } from '../../i18n';
 import { useAuth } from '../../contexts/AuthContext';
@@ -55,7 +56,7 @@ export const StockManagement: React.FC = () => {
 
     // Item Form Data
     const [formData, setFormData] = useState<any>({
-        code: '',
+        code: 'NX' + Math.floor(100000 + Math.random() * 900000).toString(),
         externalCode: '',
         description: '',
         category: '',
@@ -69,6 +70,29 @@ export const StockManagement: React.FC = () => {
         unit: 'UN',
         active: true
     });
+
+    const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
+
+    useEffect(() => {
+        const code = (formData.code || '').trim();
+        if (code) {
+            QRCode.toDataURL(code, {
+                width: 256,
+                margin: 1,
+                color: {
+                    dark: '#000000',
+                    light: '#ffffff'
+                }
+            }).then(url => {
+                setQrCodeUrl(url);
+            }).catch(err => {
+                console.error('Erro ao gerar QRCode local:', err);
+                setQrCodeUrl(`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(code)}`);
+            });
+        } else {
+            setQrCodeUrl('');
+        }
+    }, [formData.code]);
 
     // --- Restock State ---
     const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
@@ -687,8 +711,9 @@ export const StockManagement: React.FC = () => {
             });
         } else {
             setEditingItem(null);
+            const autoCode = 'NX' + Math.floor(100000 + Math.random() * 900000).toString();
             setFormData({
-                code: '', externalCode: '', description: '', category: '', location: '',
+                code: autoCode, externalCode: '', description: '', category: '', location: '',
                 quantity: '', minQuantity: '', costPrice: '', sellPrice: '', freightCost: '',
                 taxPercent: '', unit: 'UN', active: true
             });
@@ -748,7 +773,8 @@ export const StockManagement: React.FC = () => {
     };
 
     const generateCode = () => {
-        setFormData({ ...formData, code: 'NX' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0') });
+        const newCode = 'NX' + Math.floor(100000 + Math.random() * 900000).toString();
+        setFormData((prev: any) => ({ ...prev, code: newCode }));
     };
 
     const handlePrintQR = () => {
@@ -764,6 +790,7 @@ export const StockManagement: React.FC = () => {
         const itemName = (formData.description || 'Produto Nexus').replace(/['"]/g, '');
         const qty = printConfig.quantity || 1;
         const companyName = printConfig.companyName || 'NEXUS PRO';
+        const qrImageSrc = qrCodeUrl || `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(formData.code)}`;
 
         let htmlContent = '';
         
@@ -789,7 +816,7 @@ export const StockManagement: React.FC = () => {
                     <div class="page">
                         ${Array.from({length: qty}).map(() => `
                         <div class="label">
-                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(formData.code)}" class="qr" />
+                            <img src="${qrImageSrc}" class="qr" />
                             <div class="info">
                                 <span class="sku">${formData.code}</span>
                                 <span class="desc">${itemName}</span>
@@ -820,7 +847,7 @@ export const StockManagement: React.FC = () => {
                     ${Array.from({length: qty}).map(() => `
                     <div class="label">
                         <span class="sku">${formData.code}</span>
-                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(formData.code)}" class="qr" />
+                        <img src="${qrImageSrc}" class="qr" />
                         <span class="company">${companyName}</span>
                     </div>
                     `).join('')}
@@ -2507,29 +2534,54 @@ export const StockManagement: React.FC = () => {
                                                 <div className="flex-1 flex flex-col sm:flex-row items-center gap-6">
                                                     {formData.code ? (
                                                         <>
-                                                            <div className="bg-white p-2 border-2 border-dashed border-slate-200 rounded-xl shrink-0">
-                                                                <img 
-                                                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(formData.code)}`} 
-                                                                    alt="QR Code"
-                                                                    className="w-[80px] h-[80px]"
-                                                                />
+                                                            <div className="bg-white p-2 border-2 border-dashed border-slate-200 rounded-xl shrink-0 flex items-center justify-center">
+                                                                {qrCodeUrl ? (
+                                                                    <img 
+                                                                        src={qrCodeUrl} 
+                                                                        alt="QR Code"
+                                                                        className="w-[80px] h-[80px] object-contain"
+                                                                    />
+                                                                ) : (
+                                                                    <div className="w-[80px] h-[80px] flex items-center justify-center bg-slate-50 rounded-lg">
+                                                                        <Loader2 size={24} className="animate-spin text-slate-400" />
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                             <div className="flex-1 text-center sm:text-left space-y-2">
-                                                                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight flex items-center justify-center sm:justify-start gap-2"><QrCode size={16} className="text-slate-400" /> Etiqueta QR Code</h3>
+                                                                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight flex items-center justify-center sm:justify-start gap-2">
+                                                                    <QrCode size={16} className="text-slate-400" /> Etiqueta QR Code
+                                                                </h3>
                                                                 <p className="text-xs font-mono font-bold text-slate-500">{formData.code}</p>
-                                                                <Button
-                                                                    type="button"
-                                                                    onClick={handlePrintQR}
-                                                                    className="w-full sm:w-auto h-9 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-lg text-xs font-bold font-poppins flex items-center justify-center gap-2 transition-all shadow-sm"
-                                                                >
-                                                                    <Printer size={14} /> Imprimir Etiqueta
-                                                                </Button>
+                                                                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                                                                    <Button
+                                                                        type="button"
+                                                                        onClick={handlePrintQR}
+                                                                        className="w-full sm:w-auto h-9 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-lg text-xs font-bold font-poppins flex items-center justify-center gap-2 transition-all shadow-sm"
+                                                                    >
+                                                                        <Printer size={14} /> Imprimir Etiqueta
+                                                                    </Button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={generateCode}
+                                                                        className="h-9 px-3 border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all"
+                                                                        title="Gerar outro código SKU"
+                                                                    >
+                                                                        <Wand2 size={13} /> Novo Código
+                                                                    </button>
+                                                                </div>
                                                             </div>
                                                         </>
                                                     ) : (
-                                                        <div className="w-full p-6 opacity-50 flex flex-col items-center">
+                                                        <div className="w-full p-6 flex flex-col items-center text-center">
                                                             <QrCode size={32} className="mb-2 text-slate-300" />
-                                                            <p className="text-[10px] font-bold text-slate-500">Gere ou informe o código SKU primeiro para ver a etiqueta.</p>
+                                                            <p className="text-xs font-bold text-slate-600 mb-2">Nenhum código SKU informado.</p>
+                                                            <button
+                                                                type="button"
+                                                                onClick={generateCode}
+                                                                className="px-4 py-2 bg-[#1c2d4f] hover:bg-[#253a66] text-white text-xs font-bold rounded-lg flex items-center gap-2 transition-all shadow-sm"
+                                                            >
+                                                                <Wand2 size={14} /> Gerar Código SKU Automaticamente
+                                                            </button>
                                                         </div>
                                                     )}
                                                 </div>

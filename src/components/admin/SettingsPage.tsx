@@ -479,7 +479,10 @@ export const SettingsPage: React.FC = () => {
       }
     } catch (err: any) {
       console.error('[LogoUpload] Erro:', err);
-      alert(err?.message || 'Falha ao enviar logo para o Storage (R2). Imagens em Base64 não são permitidas no banco de dados.');
+      const msg = err?.message && err.message !== 'Failed to fetch'
+        ? err.message
+        : 'Falha na comunicação com o Storage (R2). Verifique sua conexão com a internet e tente novamente.';
+      alert(msg);
     } finally {
       setLoading(false);
       if (e.target) e.target.value = '';

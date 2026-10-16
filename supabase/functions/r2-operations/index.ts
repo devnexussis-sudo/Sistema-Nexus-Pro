@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { action, path, bucketType, contentType } = await req.json()
+    const { action, path, bucketType, contentType, base64 } = await req.json()
     
     const accountId = Deno.env.get('R2_ACCOUNT_ID')?.trim()
     const accessKeyId = Deno.env.get('R2_ACCESS_KEY_ID')?.trim()
@@ -36,6 +36,17 @@ serve(async (req) => {
       },
     })
 
+    const FALLBACK_PRIVATE_URL = 'https://pub-e1fad40780de437fbbb01f3b203193e9.r2.dev'
+    const FALLBACK_DROPZONE_URL = 'https://pub-4cf13c9b58ea42038881f5e6fef98e17.r2.dev'
+
+    const r2PublicBaseUrl = bucketType === 'dropzone'
+        ? FALLBACK_DROPZONE_URL
+        : FALLBACK_PRIVATE_URL
+
+    const publicUrl = r2PublicBaseUrl.endsWith('/')
+        ? `${r2PublicBaseUrl}${path}`
+        : `${r2PublicBaseUrl}/${path}`
+
     if (action === 'upload') {
         const command = new PutObjectCommand({
             Bucket: bucketName,
@@ -46,20 +57,28 @@ serve(async (req) => {
         // Gera URL assinada válida por 1 hora
         const signedUrl = await getSignedUrl(S3, command, { expiresIn: 3600 })
 
-        // URL Pública para acesso depois
-        // Forçando as URLs corretas pub-xxx.r2.dev ignorando temporariamente os secrets errados do Supabase
-        const FALLBACK_PRIVATE_URL = 'https://pub-e1fad40780de437fbbb01f3b203193e9.r2.dev'
-        const FALLBACK_DROPZONE_URL = 'https://pub-4cf13c9b58ea42038881f5e6fef98e17.r2.dev'
-
-        const r2PublicBaseUrl = bucketType === 'dropzone'
-            ? FALLBACK_DROPZONE_URL
-            : FALLBACK_PRIVATE_URL
-
-        const publicUrl = r2PublicBaseUrl.endsWith('/')
-            ? `${r2PublicBaseUrl}${path}`
-            : `${r2PublicBaseUrl}/${path}`
-
         return new Response(JSON.stringify({ signedUrl, path, bucketName, publicUrl }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+        })
+    }
+
+    if (action === 'direct-upload') {
+        if (!base64) {
+            throw new Error('Parâmetro base64 ausente para direct-upload')
+        }
+        const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64
+        const binary = Uint8Array.from(atob(cleanBase64), c => c.charCodeAt(0))
+
+        const command = new PutObjectCommand({
+            Bucket: bucketName,
+            Key: path,
+            Body: binary,
+            ContentType: contentType || 'image/webp'
+        })
+        await S3.send(command)
+
+        return new Response(JSON.stringify({ success: true, path, bucketName, publicUrl }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 200,
         })

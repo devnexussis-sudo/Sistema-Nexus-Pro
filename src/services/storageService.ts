@@ -225,6 +225,13 @@ export const StorageService = {
 
         console.log(`[Storage/R2] 📤 Uploading ${fullPath} (${(blobOrFile.size / 1024).toFixed(0)}KB)...`);
 
+        const session = (await supabase.auth.getSession())?.data?.session;
+        const token = session?.access_token || safeKey;
+        const authHeaders = {
+            Authorization: `Bearer ${token}`,
+            apikey: safeKey
+        };
+
         for (let i = 0; i <= retryCount; i++) {
             if (signal?.aborted) throw new Error('AbortError');
 
@@ -236,9 +243,7 @@ export const StorageService = {
                 try {
                     const res = await supabase.functions.invoke('r2-operations', {
                         body: { action: 'upload', path: fullPath, bucketType: 'private', contentType },
-                        headers: {
-                            apikey: safeKey
-                        }
+                        headers: authHeaders
                     });
                     signData = res.data;
                     signError = res.error;
@@ -268,33 +273,70 @@ export const StorageService = {
                     }
                 }
 
-                if (signError || !signData?.signedUrl) {
-                    throw new Error(signError?.message || 'Falha ao obter URL assinada do Cloudflare R2');
+                // 2. Faz o upload direto via PUT HTTP pro Cloudflare R2
+                if (!signError && signData?.signedUrl) {
+                    try {
+                        const uploadPromise = fetch(signData.signedUrl, {
+                            method: 'PUT',
+                            body: blobOrFile,
+                            headers: {
+                                'Content-Type': contentType
+                            },
+                            signal
+                        });
+
+                        const networkTimeout = new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('NETWORK_TIMEOUT_45S')), 45000));
+                        const response = await Promise.race([uploadPromise, networkTimeout]);
+
+                        if (response.ok) {
+                            const envUrl = import.meta.env.VITE_R2_PUBLIC_URL;
+                            if (envUrl) {
+                                return envUrl.endsWith('/') ? `${envUrl}${fullPath}` : `${envUrl}/${fullPath}`;
+                            }
+                            return signData.publicUrl;
+                        }
+
+                        console.warn(`[Storage/R2] ⚠️ Direct PUT retornou status ${response.status}. Tentando direct-upload via Edge Function...`);
+                    } catch (putErr: any) {
+                        if (putErr.name === 'AbortError' || signal?.aborted) throw putErr;
+                        console.warn(`[Storage/R2] ⚠️ Direct PUT falhou (${putErr.message}). Acionando fallback direct-upload via Edge Function...`);
+                    }
                 }
 
-                // 2. Faz o upload direto via PUT HTTP pro Cloudflare R2
-                const uploadPromise = fetch(signData.signedUrl, {
-                    method: 'PUT',
-                    body: blobOrFile,
-                    headers: {
-                        'Content-Type': contentType
-                    },
-                    signal
+                // 3. Fallback Resiliente: Upload direto via Edge Function (evita bloqueios de CSP/Adblockers no cliente)
+                console.log(`[Storage/R2] 🔄 Executando fallback direct-upload no servidor...`);
+                const base64Data = await new Promise<string>((res, rej) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => res(reader.result as string);
+                    reader.onerror = rej;
+                    reader.readAsDataURL(blobOrFile);
                 });
 
-                const networkTimeout = new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('NETWORK_TIMEOUT_45S')), 45000));
-                const response = await Promise.race([uploadPromise, networkTimeout]);
+                let directRes = await supabase.functions.invoke('r2-operations', {
+                    body: { action: 'direct-upload', path: fullPath, bucketType: 'private', contentType, base64: base64Data },
+                    headers: authHeaders
+                });
 
-                if (!response.ok) {
-                    throw new Error(`R2 Upload Failed: ${response.status} ${response.statusText}`);
+                if (directRes.error || !directRes.data?.publicUrl) {
+                    directRes = await publicSupabase.functions.invoke('r2-operations', {
+                        body: { action: 'direct-upload', path: fullPath, bucketType: 'private', contentType, base64: base64Data },
+                        headers: {
+                            Authorization: `Bearer ${safeKey}`,
+                            apikey: safeKey
+                        }
+                    });
                 }
 
-                // URL pública Cloudflare R2
-                const envUrl = import.meta.env.VITE_R2_PUBLIC_URL;
-                if (envUrl) {
-                    return envUrl.endsWith('/') ? `${envUrl}${fullPath}` : `${envUrl}/${fullPath}`;
+                if (directRes.data?.publicUrl) {
+                    console.log(`[Storage/R2] ✅ Fallback direct-upload concluído:`, directRes.data.publicUrl);
+                    const envUrl = import.meta.env.VITE_R2_PUBLIC_URL;
+                    if (envUrl) {
+                        return envUrl.endsWith('/') ? `${envUrl}${fullPath}` : `${envUrl}/${fullPath}`;
+                    }
+                    return directRes.data.publicUrl;
                 }
-                return signData.publicUrl;
+
+                throw new Error(directRes.error?.message || signError?.message || 'Falha ao enviar arquivo para o Cloudflare R2');
 
             } catch (err: any) {
                 if (err.name === 'AbortError' || signal?.aborted) throw err;
@@ -320,42 +362,76 @@ export const StorageService = {
 
         console.log(`[Storage/Dropzone-R2] 📤 Uploading strictly to Cloudflare R2: ${fullPath} (${(blobOrFile.size / 1024).toFixed(0)}KB)...`);
 
+        const authHeaders = {
+            Authorization: `Bearer ${safeKey}`,
+            apikey: safeKey
+        };
+
         for (let i = 0; i <= retryCount; i++) {
             if (signal?.aborted) throw new Error('AbortError');
 
             try {
                 // 1. Pede a URL assinada publicSupabase com credenciais explícitas de anon
-                const { data: signData, error: signError } = await publicSupabase.functions.invoke('r2-operations', {
-                    body: { action: 'upload', path: fullPath, bucketType: 'dropzone', contentType },
-                    headers: {
-                        Authorization: `Bearer ${safeKey}`,
-                        apikey: safeKey
-                    }
-                });
+                let signData: any = null;
+                let signError: any = null;
 
-                if (signError || !signData?.signedUrl) {
-                    throw new Error(signError?.message || 'Falha ao obter URL assinada do Cloudflare R2');
+                try {
+                    const res = await publicSupabase.functions.invoke('r2-operations', {
+                        body: { action: 'upload', path: fullPath, bucketType: 'dropzone', contentType },
+                        headers: authHeaders
+                    });
+                    signData = res.data;
+                    signError = res.error;
+                } catch (invokeErr: any) {
+                    signError = invokeErr;
                 }
 
                 // 2. Faz o upload direto via PUT HTTP pro Cloudflare R2
-                const uploadPromise = fetch(signData.signedUrl, {
-                    method: 'PUT',
-                    body: blobOrFile,
-                    headers: {
-                        'Content-Type': contentType
-                    },
-                    signal
-                });
+                if (!signError && signData?.signedUrl) {
+                    try {
+                        const uploadPromise = fetch(signData.signedUrl, {
+                            method: 'PUT',
+                            body: blobOrFile,
+                            headers: {
+                                'Content-Type': contentType
+                            },
+                            signal
+                        });
 
-                const networkTimeout = new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('NETWORK_TIMEOUT_45S')), 45000));
-                const response = await Promise.race([uploadPromise, networkTimeout]);
+                        const networkTimeout = new Promise<Response>((_, rej) => setTimeout(() => rej(new Error('NETWORK_TIMEOUT_45S')), 45000));
+                        const response = await Promise.race([uploadPromise, networkTimeout]);
 
-                if (!response.ok) {
-                    throw new Error(`R2 Dropzone Upload Failed: ${response.status} ${response.statusText}`);
+                        if (response.ok) {
+                            console.log(`[Storage/Dropzone-R2] ✅ Upload concluído com sucesso no Cloudflare R2:`, signData.publicUrl);
+                            return signData.publicUrl;
+                        }
+                        console.warn(`[Storage/Dropzone-R2] ⚠️ Direct PUT retornou status ${response.status}. Tentando direct-upload...`);
+                    } catch (putErr: any) {
+                        if (putErr.name === 'AbortError' || signal?.aborted) throw putErr;
+                        console.warn(`[Storage/Dropzone-R2] ⚠️ Direct PUT falhou (${putErr.message}). Tentando direct-upload...`);
+                    }
                 }
 
-                console.log(`[Storage/Dropzone-R2] ✅ Upload concluído com sucesso no Cloudflare R2:`, signData.publicUrl);
-                return signData.publicUrl; // URL pública direta do Cloudflare R2
+                // 3. Fallback direct-upload via Edge Function
+                const base64Data = await new Promise<string>((res, rej) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => res(reader.result as string);
+                    reader.onerror = rej;
+                    reader.readAsDataURL(blobOrFile);
+                });
+
+                const directRes = await publicSupabase.functions.invoke('r2-operations', {
+                    body: { action: 'direct-upload', path: fullPath, bucketType: 'dropzone', contentType, base64: base64Data },
+                    headers: authHeaders
+                });
+
+                if (directRes.data?.publicUrl) {
+                    console.log(`[Storage/Dropzone-R2] ✅ Fallback direct-upload concluído:`, directRes.data.publicUrl);
+                    return directRes.data.publicUrl;
+                }
+
+                throw new Error(directRes.error?.message || signError?.message || 'Falha no upload para o Cloudflare R2');
+
             } catch (err: any) {
                 if (err.name === 'AbortError' || signal?.aborted) throw err;
                 console.warn(`[Storage/Dropzone-R2] ⚠️ Tentativa ${i + 1} falhou:`, err.message);
@@ -767,8 +843,14 @@ export const StorageService = {
             }
 
             // Exclui via Edge Function no R2
+            const session = (await supabase.auth.getSession())?.data?.session;
+            const token = session?.access_token || safeKey;
             const { error } = await supabase.functions.invoke('r2-operations', {
-                body: { action: 'delete', path: decodeURIComponent(path), bucketType }
+                body: { action: 'delete', path: decodeURIComponent(path), bucketType },
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    apikey: safeKey
+                }
             });
 
             if (error) {
