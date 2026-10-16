@@ -160,15 +160,11 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
                          window.location.hash.includes('/checkout/') || 
                          window.location.hash.includes('/view/'));
 
-                    const isMasterRoute = typeof window !== 'undefined' && 
-                        (window.location.hash.includes('/master') ||
-                         window.sessionStorage.getItem('master_session_v2') === 'true' ||
-                         window.localStorage.getItem('master_session_v2') === 'true');
+                    const isMasterRoute = typeof window !== 'undefined' && window.location.hash.includes('/master');
 
                     const isImpersonating = typeof window !== 'undefined' && 
                         (!!(window as any).__NEXUS_IMPERSONATION ||
-                         window.sessionStorage.getItem('is_impersonating') === 'true' ||
-                         window.localStorage.getItem('is_impersonating') === 'true');
+                         window.sessionStorage.getItem('is_impersonating') === 'true');
 
                     if (response.status === 401 && typeof window !== 'undefined' && !window.location.hash.includes('/login') && !isPublicRoute && !isMasterRoute && !isImpersonating) {
                         if (isDev) console.error('[Nexus Security] 401 Unauthorized detectado. Forçando logout imediato...');

@@ -77,8 +77,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // ── Inicialização: sincroniza com o estado atual do Singleton ──
         const bootstrap = async () => {
             // 🛡️ IMPERSONATION & MASTER GUARD (Big Tech Pattern: AWS STS / GCP IAM)
-            if (window.__NEXUS_IMPERSONATION || SessionStorage.get('is_impersonating') || SessionStorage.get('master_session_v2') || (typeof window !== 'undefined' && window.location.hash.includes('/master'))) {
-                console.log('[AuthContext] 🛡️ Master / Impersonation mode — bootstrap protegido.');
+            const isMasterRoute = typeof window !== 'undefined' && window.location.hash.includes('/master');
+            const isExplicitImpersonating = typeof window !== 'undefined' && 
+                (window.__NEXUS_IMPERSONATION === true || SessionStorage.get('is_impersonating') === true) &&
+                !!SessionStorage.get('user');
+
+            if (isMasterRoute && SessionStorage.get('master_session_v2')) {
+                console.log('[AuthContext] 🛡️ Master route ativa (/master) — bootstrap protegido.');
+                const stored = SessionStorage.get('user');
+                if (stored) {
+                    const u = typeof stored === 'string' ? JSON.parse(stored) : stored;
+                    setAuth({ user: u, isAuthenticated: true });
+                }
+                setIsAuthLoading(false);
+                return;
+            }
+
+            if (isExplicitImpersonating) {
+                console.log('[AuthContext] 🛡️ Impersonation virtual ativa — bootstrap protegido.');
                 const stored = SessionStorage.get('user');
                 if (stored) {
                     const u = typeof stored === 'string' ? JSON.parse(stored) : stored;
@@ -184,8 +200,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             // Somente se getSession() realmente confirmou que NÃO HÁ SESSÃO (usuário deslogado)
             if (isMounted.current) {
-                if (SessionStorage.get('master_session_v2') || SessionStorage.get('is_impersonating') || window.__NEXUS_IMPERSONATION || (typeof window !== 'undefined' && window.location.hash.includes('/master'))) {
-                    console.log('[AuthContext] 🛡️ Master ou impersonation detectado — mantendo estado no bootstrap.');
+                if ((isMasterRoute && SessionStorage.get('master_session_v2')) || isExplicitImpersonating) {
+                    console.log('[AuthContext] 🛡️ Master route ou impersonation ativa — mantendo estado no bootstrap.');
                     setIsAuthLoading(false);
                     return;
                 }
@@ -217,7 +233,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             if (!newSession) {
                 // 🛡️ IMPERSONATION, MASTER & RECOVERY GUARD: Não destruir sessão virtual nem limpar durante reset-password
-                if (window.__NEXUS_IMPERSONATION || SessionStorage.get('is_impersonating') || SessionStorage.get('master_session_v2') || window.location.href.includes('reset-password') || (typeof window !== 'undefined' && window.location.hash.includes('/master'))) {
+                const isMasterRoute = typeof window !== 'undefined' && window.location.hash.includes('/master');
+                const isExplicitImpersonating = typeof window !== 'undefined' && 
+                    (window.__NEXUS_IMPERSONATION === true || SessionStorage.get('is_impersonating') === true) &&
+                    !!SessionStorage.get('user');
+
+                if ((isMasterRoute && SessionStorage.get('master_session_v2')) || isExplicitImpersonating || window.location.href.includes('reset-password')) {
                     console.log('[AuthContext] 🛡️ Rota de reset-password, master ou impersonation ativa — ignorando expurgo de sessão.');
                     window.localStorage.removeItem('nexus_oauth_in_flight'); window.localStorage.removeItem('nexus_oauth_timestamp');
                     setIsAuthLoading(false);
@@ -231,40 +252,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 window.localStorage.removeItem('nexus_oauth_in_flight'); window.localStorage.removeItem('nexus_oauth_timestamp');
                 setIsAuthLoading(false);
             } else if (event === 'SIGNED_IN' && newSession?.user) {
-                // 🛡️ MASTER GUARD: Se for Master session, provisiona diretamente o usuário Master
-                const isMasterSession = SessionStorage.get('master_session_v2') || 
-                                        newSession?.user?.user_metadata?.role === 'moros_admin' ||
-                                        (typeof window !== 'undefined' && window.location.hash.includes('/master'));
-                if (isMasterSession) {
-                    console.log('[AuthContext] 👑 Master session ativa — configurando usuário Master.');
-                    const mUser: User = {
-                        id: newSession.user.id || 'master-superadmin',
-                        name: 'DUNO Master',
-                        email: newSession.user.email || 'master@duno.com.br',
-                        role: UserRole.ADMIN,
-                        active: true,
-                        groupName: 'Super Admin',
-                        permissions: ADMIN_PERMISSIONS,
-                    };
-                    SessionStorage.set('user', mUser);
-                    setAuth({ user: mUser, isAuthenticated: true });
+                const isExplicitImpersonating = typeof window !== 'undefined' && 
+                    (window.__NEXUS_IMPERSONATION === true || SessionStorage.get('is_impersonating') === true) &&
+                    !!SessionStorage.get('user');
+
+                // 🛡️ IMPERSONATION GUARD: Não sobrescrever user virtual com user real do DB se estiver em auditoria cross-tab ativa
+                if (isExplicitImpersonating) {
+                    console.log('[AuthContext] 🛡️ Impersonation ativa — mantendo sessão virtual no SIGNED_IN.');
                     window.localStorage.removeItem('nexus_oauth_in_flight'); window.localStorage.removeItem('nexus_oauth_timestamp');
                     setIsAuthLoading(false);
                     return;
                 }
 
-                // 🛡️ IMPERSONATION GUARD: Não sobrescrever user virtual com user real do DB
-                if (window.__NEXUS_IMPERSONATION || SessionStorage.get('is_impersonating')) {
-                    console.log('[AuthContext] 🛡️ Impersonation ativa — ignorando refreshUser no SIGNED_IN.');
-                    window.localStorage.removeItem('nexus_oauth_in_flight'); window.localStorage.removeItem('nexus_oauth_timestamp');
-                    setIsAuthLoading(false);
-                    return;
-                }
-                // Apenas no login inicial — carrega o perfil Nexus do usuário
+                // 🔑 NUNCA sobrescreve com mock 'DUNO Master' no SIGNED_IN! 
+                // Todo login real em painel administrativo de empresa busca o perfil real da tabela 'users'.
                 if (!refreshUserPromise.current) {
                     refreshUserPromise.current = AuthService.refreshUser().catch(() => null);
                 }
                 const rUser = await refreshUserPromise.current;
+                refreshUserPromise.current = null;
                 
                 if (rUser && isMounted.current) {
                     setAuth({ user: rUser, isAuthenticated: true });

@@ -23,6 +23,15 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onToggleMaster }) => {
   const [logoClicks, setLogoClicks] = useState(0);
 
   useEffect(() => {
+    // 🛡️ Garante que a tela de login de empresa sempre limpe estados residuais de Master ou Impersonation
+    SessionStorage.remove('is_impersonating');
+    SessionStorage.remove('master_session_v2');
+    if (typeof window !== 'undefined') {
+      (window as any).__NEXUS_IMPERSONATION = false;
+    }
+  }, []);
+
+  useEffect(() => {
     let timeout: NodeJS.Timeout;
     if (logoClicks > 0 && logoClicks < 5) {
       timeout = setTimeout(() => setLogoClicks(0), 1000);

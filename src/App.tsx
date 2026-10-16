@@ -46,12 +46,14 @@ const PublicCheckoutWrapper: React.FC = () => {
 // Componente Interno que usa o AuthContext
 const AppRoutes: React.FC = () => {
   const { auth, isInitializing, login, logout } = useAuth();
+  const location = useLocation();
+  const isMasterRoute = location.pathname.startsWith(`/${import.meta.env.VITE_MASTER_ROUTE_KEY || 'master'}`);
+
   const [isMasterAuthenticated, setIsMasterAuthenticated] = useState(
     () => !!SessionStorage.get<boolean>('master_session_v2')
   );
-  const [isSuperMode, setIsSuperMode] = useState(
-    () => !!SessionStorage.get<boolean>('master_session_v2')
-  );
+  const isSuperMode = isMasterRoute && isMasterAuthenticated;
+
   const [isImpersonating, setIsImpersonating] = useState(
     () => !!SessionStorage.get<boolean>('is_impersonating') || !!(typeof window !== 'undefined' && (window as any).__NEXUS_IMPERSONATION)
   );
@@ -126,8 +128,8 @@ const AppRoutes: React.FC = () => {
       {/* MASTER ADMIN — rota dinâmica via env (não exposta no código-fonte compilado visível) */}
       <Route path={`/${import.meta.env.VITE_MASTER_ROUTE_KEY || 'master'}`} element={
         !isMasterAuthenticated ?
-          <MasterLogin onLogin={() => { SessionStorage.set('master_session_v2', true); setIsMasterAuthenticated(true); setIsSuperMode(true); }} onCancel={() => window.location.href = '/'} /> :
-          <SuperAdminPage onLogout={() => { SessionStorage.remove('master_session_v2'); setIsMasterAuthenticated(false); setIsSuperMode(false); window.location.href = '/'; }} />
+          <MasterLogin onLogin={() => { SessionStorage.set('master_session_v2', true); setIsMasterAuthenticated(true); }} onCancel={() => window.location.href = '/'} /> :
+          <SuperAdminPage onLogout={() => { SessionStorage.remove('master_session_v2'); setIsMasterAuthenticated(false); window.location.href = '/'; }} />
       } />
 
       {/* ADMIN ROUTES */}

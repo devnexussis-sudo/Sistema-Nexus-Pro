@@ -85,6 +85,13 @@ export const AuthService = {
             logger.info('authenticating_user', { email });
             const cleanEmail = email.toLowerCase().trim();
 
+            // 🛡️ LIMPEZA DE ESTADO: Login como usuário de empresa NUNCA deve herdar sessão Master ou Impersonation
+            SessionStorage.remove('master_session_v2');
+            SessionStorage.remove('is_impersonating');
+            if (typeof window !== 'undefined') {
+                (window as any).__NEXUS_IMPERSONATION = false;
+            }
+
             // 🔒 1. TENANT SUSPENSION CHECK PRE-LOGIN — Todos os usuários da empresa recebem a mensagem padrão
             const suspendedCompanyName = await AuthService._checkTenantSuspensionByEmail(cleanEmail);
             if (suspendedCompanyName) {
@@ -240,15 +247,16 @@ export const AuthService = {
     // Implementa a lógica de permissão MIT/Harvard: Acesso ao PAINEL restrito a registros na tabela 'users'.
     _fetchFullUser: (authId: string, email: string, metadata: any): Promise<User | undefined> => {
         // 🛡️ Master Session / Impersonation Guard (Big Tech IAM Standard)
-        const isMaster = SessionStorage.get('master_session_v2') === true ||
-                         metadata?.role === 'moros_admin' ||
-                         metadata?.is_super_admin === true ||
-                         (typeof window !== 'undefined' && window.location.hash.includes('/master'));
+        // O usuário mock 'DUNO Master' APENAS pode existir se o usuário estiver explicitamente na rota /master!
+        const isMasterRoute = typeof window !== 'undefined' && window.location.hash.includes('/master');
+        const isExplicitImpersonating = typeof window !== 'undefined' && 
+            (SessionStorage.get('is_impersonating') === true || (window as any).__NEXUS_IMPERSONATION === true) &&
+            authId === 'master-override';
 
-        const isImpersonating = SessionStorage.get('is_impersonating') === true ||
-                                (typeof window !== 'undefined' && !!(window as any).__NEXUS_IMPERSONATION);
-
-        if (isMaster) {
+        // 1. APENAS na rota explícita /master com a flag master_session_v2 ativa
+        if (isMasterRoute && SessionStorage.get('master_session_v2')) {
+            const stored = SessionStorage.get('user');
+            if (stored) return Promise.resolve(typeof stored === 'string' ? JSON.parse(stored) : stored);
             const masterUser: User = {
                 id: authId || 'master-superadmin',
                 name: 'DUNO Master',
@@ -262,13 +270,11 @@ export const AuthService = {
             return Promise.resolve(masterUser);
         }
 
-        if (isImpersonating || !authId || authId === 'master-override' || !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(authId)) {
+        // 2. Impersonation explícita via handoff (com usuário virtual master-override já injetado em sessão)
+        if (isExplicitImpersonating) {
             const stored = SessionStorage.get('user');
             if (stored) {
                 return Promise.resolve(typeof stored === 'string' ? JSON.parse(stored) : stored);
-            }
-            if (isImpersonating) {
-                return Promise.resolve(undefined);
             }
         }
 
@@ -347,9 +353,9 @@ export const AuthService = {
 
         if (error) {
             if (error.code === 'PGRST116') {
-                // 🛡️ Segundo nível de proteção para Master / Impersonation
-                if (SessionStorage.get('master_session_v2') || SessionStorage.get('is_impersonating') || (typeof window !== 'undefined' && (window as any).__NEXUS_IMPERSONATION) || metadata?.role === 'moros_admin') {
-                    console.log('[AuthService] 🛡️ Master ou Impersonation ativo — ignorando PGRST116 na tabela users.');
+                // 🛡️ Segundo nível de proteção APENAS para Master na rota /master ou Impersonation explícita
+                if ((isMasterRoute && SessionStorage.get('master_session_v2')) || isExplicitImpersonating) {
+                    console.log('[AuthService] 🛡️ Master route ou Impersonation ativa — ignorando PGRST116 na tabela users.');
                     const stored = SessionStorage.get('user');
                     if (stored) return typeof stored === 'string' ? JSON.parse(stored) : stored;
                     return {
@@ -486,8 +492,12 @@ export const AuthService = {
     },
 
     refreshUser: async (): Promise<User | undefined> => {
-        // Se for Master session, preserva o usuário Master sem consultar 'users'
-        if (SessionStorage.get('master_session_v2') || (typeof window !== 'undefined' && window.location.hash.includes('/master'))) {
+        const isMasterRoute = typeof window !== 'undefined' && window.location.hash.includes('/master');
+        const isExplicitImpersonating = typeof window !== 'undefined' && 
+            (SessionStorage.get('is_impersonating') === true || (window as any).__NEXUS_IMPERSONATION === true);
+
+        // Se for rota /master explícita, preserva o usuário Master sem consultar 'users'
+        if (isMasterRoute && SessionStorage.get('master_session_v2')) {
             const stored = SessionStorage.get('user');
             if (stored) return typeof stored === 'string' ? JSON.parse(stored) : stored;
             return {
@@ -500,7 +510,7 @@ export const AuthService = {
                 permissions: ADMIN_PERMISSIONS,
             };
         }
-        if (SessionStorage.get('is_impersonating') || (typeof window !== 'undefined' && (window as any).__NEXUS_IMPERSONATION)) {
+        if (isExplicitImpersonating) {
             const stored = SessionStorage.get('user');
             if (stored) return typeof stored === 'string' ? JSON.parse(stored) : stored;
         }
