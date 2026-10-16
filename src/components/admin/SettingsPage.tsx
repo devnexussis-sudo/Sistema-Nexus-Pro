@@ -470,7 +470,7 @@ export const SettingsPage: React.FC = () => {
 
     try {
       setLoading(true);
-      const tenantId = DataService.getCurrentTenantId() || 'global';
+      const tenantId = data?.id || DataService.getCurrentTenantId() || 'global';
       const uploadedUrl = await StorageService.uploadTenantLogo(file, tenantId);
       if (uploadedUrl && !uploadedUrl.startsWith('data:')) {
         setCompany(prev => ({ ...prev, logoUrl: uploadedUrl }));
@@ -479,9 +479,10 @@ export const SettingsPage: React.FC = () => {
       }
     } catch (err: any) {
       console.error('[LogoUpload] Erro:', err);
-      alert('Falha ao enviar logo para o Storage (R2). Imagens em Base64 não são permitidas no banco de dados.');
+      alert(err?.message || 'Falha ao enviar logo para o Storage (R2). Imagens em Base64 não são permitidas no banco de dados.');
     } finally {
       setLoading(false);
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -495,8 +496,24 @@ export const SettingsPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const tenantId = DataService.getCurrentTenantId();
+      const tenantId = data?.id || DataService.getCurrentTenantId();
       if (!tenantId) throw new Error("ID da empresa não identificado.");
+
+      // Se a imagem ainda for Base64 (ex: colada ou legado), sobe para o R2 em WebP
+      if (company.logoUrl && company.logoUrl.startsWith('data:')) {
+        try {
+          const res = await fetch(company.logoUrl);
+          const blob = await res.blob();
+          const uploadedUrl = await StorageService.uploadTenantLogo(blob, tenantId);
+          if (uploadedUrl && !uploadedUrl.startsWith('data:')) {
+            company.logoUrl = uploadedUrl;
+            setCompany(prev => ({ ...prev, logoUrl: uploadedUrl }));
+          }
+        } catch (uploadErr) {
+          console.error("Erro ao converter logo base64 para R2:", uploadErr);
+          throw new Error("Falha ao enviar logo para o Storage (R2). Imagens em Base64 não são permitidas no banco de dados.");
+        }
+      }
 
       if (company.logoUrl && (company.logoUrl.startsWith('data:') || company.logoUrl.length > 2048)) {
         throw new Error("Aviso de Segurança: Imagens em Base64 não são permitidas no banco de dados. Envie a logo via Storage.");
@@ -555,15 +572,8 @@ export const SettingsPage: React.FC = () => {
 
       console.log("Saving Settings Payload:", payload);
 
-      // 🛡️ Nexus Storage: Se tiver logo nova em Base64, faz upload primeiro
-      if (company.logoUrl && company.logoUrl.startsWith('data:image')) {
-        console.log("Detectado nova logo, iniciando upload...");
-        const publicUrl = await DataService.uploadFile(company.logoUrl, `settings/logo_${tenantId}_${Date.now()}.webp`);
-        payload.logo_url = publicUrl;
-        console.log("Logo upload success:", publicUrl);
-      } else {
-        payload.logo_url = company.logoUrl || null;
-      }
+      // 🛡️ Nexus Storage: Garante que payload.logo_url é uma URL pública do Storage ou null
+      payload.logo_url = (company.logoUrl && !company.logoUrl.startsWith('data:')) ? company.logoUrl : null;
 
       const result = await DataService.updateTenant(payload);
       console.log("Save Success - DB Response:", result);

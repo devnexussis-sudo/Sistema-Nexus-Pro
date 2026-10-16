@@ -39,15 +39,16 @@ export const StorageService = {
                         canvas.width = width;
                         canvas.height = height;
 
-                        const ctx = canvas.getContext('2d');
+                        const ctx = canvas.getContext('2d', { alpha: true });
                         if (!ctx) {
                             console.warn('Canvas context failed, returning original');
                             resolve(base64);
                             return;
                         }
 
-                        ctx.fillStyle = "#FFFFFF";
-                        ctx.fillRect(0, 0, width, height);
+                        ctx.imageSmoothingEnabled = true;
+                        ctx.imageSmoothingQuality = 'high';
+                        ctx.clearRect(0, 0, width, height);
                         ctx.drawImage(img, 0, 0, width, height);
 
                         const compressedBase64 = canvas.toDataURL('image/webp', quality);
@@ -153,29 +154,34 @@ export const StorageService = {
             }
             else if (cleanPath.startsWith('tenants/')) {
                 const parts = cleanPath.split('/');
-                if (parts[1] && parts[1] !== 'new') {
-                    if (!tenantIdToUse) tenantIdToUse = parts[1];
+                if (parts[1] && parts[1] !== 'new' && parts[1] !== 'new_tenant' && parts[1] !== 'company') {
+                    if (!tenantIdToUse || tenantIdToUse === 'anon' || tenantIdToUse === 'global') tenantIdToUse = parts[1];
                 }
                 finalHumanPath = `Configuracoes_Empresa/Logos`;
             }
 
-            if (!tenantIdToUse) tenantIdToUse = 'anon';
+            if (!tenantIdToUse) tenantIdToUse = 'global';
 
-            // Buscar o nome fantasia do tenant
+            // Buscar o nome fantasia do tenant caso seja um UUID válido
             let tenantNameStr = 'Empresa';
-            if (tenantIdToUse !== 'anon') {
-                // Try auth first
-                const { data: tData } = await supabase.from('tenants').select('trade_name, name, company_name').eq('id', tenantIdToUse).maybeSingle();
-                if (tData) {
-                    const tName = tData.trade_name || tData.name || tData.company_name;
-                    if (tName) tenantNameStr = tName.trim().replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
-                } else {
-                    // Fallback via RPC public
-                    const { data: pData } = await publicSupabase.rpc('get_public_tenant_info', { p_tenant_id: tenantIdToUse });
-                    if (pData) {
-                        const tName = pData.trade_name || pData.name || pData.company_name;
+            const isTenantUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantIdToUse);
+            if (isTenantUuid) {
+                try {
+                    // Try auth first
+                    const { data: tData } = await supabase.from('tenants').select('trade_name, name, company_name').eq('id', tenantIdToUse).maybeSingle();
+                    if (tData) {
+                        const tName = tData.trade_name || tData.name || tData.company_name;
                         if (tName) tenantNameStr = tName.trim().replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+                    } else {
+                        // Fallback via RPC public
+                        const { data: pData } = await publicSupabase.rpc('get_public_tenant_info', { p_tenant_id: tenantIdToUse });
+                        if (pData) {
+                            const tName = pData.trade_name || pData.name || pData.company_name;
+                            if (tName) tenantNameStr = tName.trim().replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+                        }
                     }
+                } catch (tErr) {
+                    console.warn('[Storage] Não foi possível obter nome do tenant:', tErr);
                 }
             }
 
@@ -188,10 +194,10 @@ export const StorageService = {
 
         } catch (e) {
             console.error('[StorageService] ⚠️ Falha ao resolver HumanPath:', e);
-            const fallbackRoot = tenantIdToUse ? `Empresa_${tenantIdToUse}` : 'Anonymous';
+            const fallbackRoot = tenantIdToUse ? `Empresa_${tenantIdToUse}` : 'Empresa';
             return {
                 finalPath: `${fallbackRoot}/${cleanPath}`.replace(/\/+/g, '/'),
-                resolvedTenantId: tenantIdToUse || 'anon'
+                resolvedTenantId: tenantIdToUse || 'global'
             };
         }
     },
@@ -199,12 +205,16 @@ export const StorageService = {
     /**
      * 🛡️ NASA-Grade Storage Engine (Internal Version 5 - RESILIENT)
      */
-    _uploadCore: async (blobOrFile: Blob | File, path: string, retryCount = 2, signal?: AbortSignal, options?: { contentType?: string, extension?: string }): Promise<string> => {
-        const authTenantId = getCurrentTenantId();
-        if (!authTenantId) {
-            console.error("[Storage] ❌ ERRO: TenantID não encontrado. Abortando upload.");
-            throw new Error("AUTH_TENANT_MISSING");
-        }
+    _uploadCore: async (
+        blobOrFile: Blob | File,
+        path: string,
+        retryCount = 2,
+        signal?: AbortSignal,
+        options?: { contentType?: string; extension?: string; tenantId?: string }
+    ): Promise<string> => {
+        const pathTenant = path.startsWith('tenants/') ? path.split('/')[1] : undefined;
+        const validPathTenant = (pathTenant && pathTenant !== 'company' && pathTenant !== 'new' && pathTenant !== 'new_tenant') ? pathTenant : undefined;
+        const authTenantId = options?.tenantId || validPathTenant || getCurrentTenantId() || 'global';
 
         const resolved = await StorageService._resolveHumanPath(path, authTenantId);
 
@@ -220,12 +230,43 @@ export const StorageService = {
 
             try {
                 // 1. Pede a URL assinada para a Edge Function
-                const { data: signData, error: signError } = await supabase.functions.invoke('r2-operations', {
-                    body: { action: 'upload', path: fullPath, bucketType: 'private', contentType },
-                    headers: {
-                        apikey: safeKey
+                let signData: any = null;
+                let signError: any = null;
+
+                try {
+                    const res = await supabase.functions.invoke('r2-operations', {
+                        body: { action: 'upload', path: fullPath, bucketType: 'private', contentType },
+                        headers: {
+                            apikey: safeKey
+                        }
+                    });
+                    signData = res.data;
+                    signError = res.error;
+                } catch (invokeErr: any) {
+                    signError = invokeErr;
+                }
+
+                // Fallback resiliente via publicSupabase com anon key se o cliente principal falhar
+                if (signError || !signData?.signedUrl) {
+                    console.warn(`[Storage/R2] ⚠️ Tentativa ${i + 1} com cliente principal falhou (${signError?.message || 'sem URL'}). Tentando via publicSupabase...`);
+                    try {
+                        const pubRes = await publicSupabase.functions.invoke('r2-operations', {
+                            body: { action: 'upload', path: fullPath, bucketType: 'private', contentType },
+                            headers: {
+                                Authorization: `Bearer ${safeKey}`,
+                                apikey: safeKey
+                            }
+                        });
+                        if (pubRes.data?.signedUrl) {
+                            signData = pubRes.data;
+                            signError = null;
+                        } else if (pubRes.error) {
+                            signError = pubRes.error;
+                        }
+                    } catch (pubErr: any) {
+                        signError = pubErr;
                     }
-                });
+                }
 
                 if (signError || !signData?.signedUrl) {
                     throw new Error(signError?.message || 'Falha ao obter URL assinada do Cloudflare R2');
@@ -420,11 +461,89 @@ export const StorageService = {
     },
 
     /**
+     * 🏷️ Otimizador Especial de Logo (WebP com preservação total de canal Alpha / Transparência)
+     */
+    compressLogo: async (fileOrBlob: File | Blob, signal?: AbortSignal): Promise<Blob> => {
+        const fileName = (fileOrBlob instanceof File ? fileOrBlob.name : '').toLowerCase();
+        const fileType = (fileOrBlob.type || '').toLowerCase();
+
+        let workingFile: Blob | File = fileOrBlob;
+
+        const isHeic = fileType.includes('heic') || fileType.includes('heif') ||
+            fileName.endsWith('.heic') || fileName.endsWith('.heif') || fileName.endsWith('.hif');
+
+        if (isHeic) {
+            try {
+                let heic2any = (window as any).heic2any;
+                if (heic2any) {
+                    const converted = await heic2any({
+                        blob: fileOrBlob,
+                        toType: 'image/png',
+                        quality: 0.95
+                    });
+                    workingFile = Array.isArray(converted) ? converted[0] : converted;
+                }
+            } catch (e) {
+                console.warn("[CompressLogo] ⚠️ HEIC Decode Failed:", e);
+            }
+        }
+
+        const url = URL.createObjectURL(workingFile);
+        try {
+            const img = new Image();
+            const loadPromise = new Promise((res, rej) => {
+                img.onload = () => res(true);
+                img.onerror = () => rej(new Error(`Falha ao carregar imagem da logo: ${fileName || 'arquivo'}`));
+                img.src = url;
+            });
+            const loadTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Tempo limite excedido ao processar logo')), 15000));
+            await Promise.race([loadPromise, loadTimeout]);
+
+            if (signal?.aborted) throw new Error('AbortError');
+
+            const MAX_DIM = 800; // Logos para web, documentos e relatórios
+            let width = img.width;
+            let height = img.height;
+
+            if (width > MAX_DIM || height > MAX_DIM) {
+                const ratio = Math.min(MAX_DIM / width, MAX_DIM / height);
+                width = Math.round(width * ratio);
+                height = Math.round(height * ratio);
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+
+            // PRESERVA O CANAL ALPHA (transparência de logos PNG/WebP)
+            const ctx = canvas.getContext('2d', { alpha: true });
+            if (!ctx) throw new Error('Falha ao inicializar renderizador de imagem');
+
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            // Garante transparência total
+            ctx.clearRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+
+            const blob = await new Promise<Blob>((res, rej) => {
+                // Converte para image/webp com alta fidelidade preservando transparência
+                canvas.toBlob((b) => b ? res(b) : rej(new Error('Falha ao gerar WebP')), 'image/webp', 0.90);
+            });
+
+            canvas.width = 0;
+            canvas.height = 0;
+            return blob;
+        } finally {
+            URL.revokeObjectURL(url);
+        }
+    },
+
+    /**
      * 🛡️ Optimized Blob Upload
      */
-    uploadBlob: async (blob: Blob, path: string, signal?: AbortSignal): Promise<string> => {
+    uploadBlob: async (blob: Blob, path: string, signal?: AbortSignal, options?: { contentType?: string, extension?: string, tenantId?: string }): Promise<string> => {
         if (!isCloudEnabled) return URL.createObjectURL(blob);
-        return StorageService._uploadCore(blob, path, 2, signal);
+        return StorageService._uploadCore(blob, path, 2, signal, options);
     },
 
     /**
@@ -500,16 +619,21 @@ export const StorageService = {
 
     /**
      * 🏢 Upload Oficial de Logo da Empresa
-     * Salva em: ${tenantId}/tenants/logo/logo_${timestamp}.webp
+     * Converte estritamente para WebP preservando transparência e envia para o Cloudflare R2
+     * Salva em: ${tenantId}/Configuracoes_Empresa/Logos/logo_${timestamp}.webp
      */
     uploadTenantLogo: async (file: File | Blob, tenantId: string, signal?: AbortSignal): Promise<string> => {
-        const folderPath = `tenants/${tenantId || 'company'}/logo`;
+        const cleanTenantId = tenantId && tenantId !== 'undefined' && tenantId !== 'null' ? tenantId : 'global';
+        const folderPath = `tenants/${cleanTenantId}/logo`;
         if (!isCloudEnabled) return URL.createObjectURL(file);
         try {
-            const fileToProcess = file instanceof File ? file : new File([file], 'logo.png', { type: file.type || 'image/png' });
-            const compressedBlob = await StorageService.processAndCompress(fileToProcess, signal);
+            const compressedBlob = await StorageService.compressLogo(file, signal);
             const webpFile = new File([compressedBlob], `logo_${Date.now()}.webp`, { type: 'image/webp' });
-            return await StorageService._uploadCore(webpFile, folderPath, 2, signal, { contentType: 'image/webp', extension: 'webp' });
+            return await StorageService._uploadCore(webpFile, folderPath, 2, signal, {
+                contentType: 'image/webp',
+                extension: 'webp',
+                tenantId: cleanTenantId
+            });
         } catch (err: any) {
             console.error(`[LogoUpload] ❌ Falha:`, err.message);
             throw err;

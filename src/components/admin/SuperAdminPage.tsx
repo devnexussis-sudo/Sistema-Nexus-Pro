@@ -940,8 +940,10 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                                   } else {
                                     throw new Error("Formato inválido retornado pelo storage.");
                                   }
-                                } catch (err) {
-                                  alert('Falha ao enviar logo para o Storage (R2). Imagens em Base64 não são permitidas no banco.');
+                                } catch (err: any) {
+                                  alert(err?.message || 'Falha ao enviar logo para o Storage (R2). Imagens em Base64 não são permitidas no banco.');
+                                } finally {
+                                  if (e.target) e.target.value = '';
                                 }
                               }
                             }}
