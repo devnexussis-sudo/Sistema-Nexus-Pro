@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useI18n } from '../../i18n';
 import { useDialog } from '../../contexts/DialogContext';
 import { createPortal } from 'react-dom';
@@ -152,6 +152,15 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
       .replace(/(\d{5})(\d)/, '$1-$2')
       .substring(0, 15);
   };
+
+  const formatZip = (value: string): string => {
+    const cleaned = (value || '').replace(/\D/g, '').substring(0, 8);
+    if (cleaned.length <= 5) return cleaned;
+    return `${cleaned.substring(0, 5)}-${cleaned.substring(5)}`;
+  };
+
+  const lastSearchedZip = useRef<string>('');
+
   const [formData, setFormData] = useState<Partial<Customer>>({
     type: 'PJ',
     state: '',
@@ -295,72 +304,142 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
     return null;
   };
 
-  const handleZipBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
-    const zip = e.target.value.replace(/\D/g, '');
-    if (zip.length === 8) {
-      setLoadingZip(true);
+  const handleSearchZip = async (zipInput: string) => {
+    const cleanZip = (zipInput || '').replace(/\D/g, '');
+    if (cleanZip.length !== 8) return;
+
+    lastSearchedZip.current = cleanZip;
+    setLoadingZip(true);
+
+    try {
+      let addressData: {
+        zip: string;
+        address: string;
+        neighborhood: string;
+        city: string;
+        state: string;
+        initialLat?: number;
+        initialLng?: number;
+      } | null = null;
+
+      // 1. Tenta ViaCEP (Mais rápido e estável no Brasil)
       try {
-        let addressData: any = null;
-        try {
-          const response = await fetch(`https://brasilapi.com.br/api/cep/v2/${zip}`);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 4000);
+        const response = await fetch(`https://viacep.com.br/ws/${cleanZip}/json/`, { signal: controller.signal });
+        clearTimeout(timeout);
+        if (response.ok) {
           const data = await response.json();
-          if (!data.errors) {
+          if (!data.erro && data.localidade) {
             addressData = {
-              zip: data.cep,
-              state: data.state,
-              city: data.city,
-              address: data.street,
-              neighborhood: data.neighborhood,
-              initialLat: data.location?.coordinates?.latitude ? parseFloat(data.location.coordinates.latitude) : undefined,
-              initialLng: data.location?.coordinates?.longitude ? parseFloat(data.location.coordinates.longitude) : undefined,
+              zip: data.cep || cleanZip,
+              state: data.uf || '',
+              city: data.localidade || '',
+              address: data.logradouro || '',
+              neighborhood: data.bairro || ''
             };
+          }
+        }
+      } catch (err) {
+        console.warn("[CEP] ViaCEP falhou ou timeout, tentando alternativas...", err);
+      }
+
+      // 2. Se falhar ou não encontrar, tenta BrasilAPI v2 (que inclui coordenadas)
+      if (!addressData) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 4000);
+          const response = await fetch(`https://brasilapi.com.br/api/cep/v2/${cleanZip}`, { signal: controller.signal });
+          clearTimeout(timeout);
+          if (response.ok) {
+            const data = await response.json();
+            if (!data.errors && (data.city || data.localidade)) {
+              addressData = {
+                zip: data.cep || cleanZip,
+                state: data.state || data.uf || '',
+                city: data.city || data.localidade || '',
+                address: data.street || data.logradouro || '',
+                neighborhood: data.neighborhood || data.bairro || '',
+                initialLat: data.location?.coordinates?.latitude ? parseFloat(data.location.coordinates.latitude) : undefined,
+                initialLng: data.location?.coordinates?.longitude ? parseFloat(data.location.coordinates.longitude) : undefined,
+              };
+            }
           }
         } catch (error) {
-          console.error("Erro na BrasilAPI, tentando ViaCEP...");
+          console.warn("[CEP] BrasilAPI v2 falhou, tentando OpenCEP...", error);
         }
-
-        if (!addressData) {
-          const fallbackResponse = await fetch(`https://viacep.com.br/ws/${zip}/json/`);
-          const fallbackData = await fallbackResponse.json();
-          if (!fallbackData.erro) {
-            addressData = {
-              zip: fallbackData.cep,
-              state: fallbackData.uf,
-              city: fallbackData.localidade,
-              address: fallbackData.logradouro,
-              neighborhood: fallbackData.bairro
-            };
-          }
-        }
-
-        if (addressData) {
-          const coords = await fetchCoordinates(
-            addressData.address || formData.address,
-            formData.number,
-            addressData.city || formData.city,
-            addressData.state || formData.state,
-            addressData.zip || formData.zip,
-            addressData.initialLat,
-            addressData.initialLng,
-            addressData.neighborhood || formData.neighborhood
-          );
-
-          setFormData(prev => ({
-            ...prev,
-            zip: addressData.zip || prev.zip,
-            state: addressData.state || prev.state,
-            city: addressData.city || prev.city,
-            address: addressData.address || prev.address,
-            neighborhood: addressData.neighborhood || prev.neighborhood,
-            latitude: coords?.lat || prev.latitude,
-            longitude: coords?.lng || prev.longitude
-          }));
-        }
-      } catch (error) {
-        console.error("Erro geral na busca de CEP", error);
-      } finally {
-        setLoadingZip(false);
       }
+
+      // 3. Fallback OpenCEP
+      if (!addressData) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 3500);
+          const response = await fetch(`https://opencep.com/v1/${cleanZip}`, { signal: controller.signal });
+          clearTimeout(timeout);
+          if (response.ok) {
+            const data = await response.json();
+            if (!data.erro && data.localidade) {
+              addressData = {
+                zip: data.cep || cleanZip,
+                state: data.uf || '',
+                city: data.localidade || '',
+                address: data.logradouro || '',
+                neighborhood: data.bairro || ''
+              };
+            }
+          }
+        } catch (ocErr) {
+          console.warn("[CEP] OpenCEP falhou:", ocErr);
+        }
+      }
+
+      if (addressData) {
+        // Preenchimento IMEDIATO dos campos na tela para o usuário não esperar
+        setFormData(prev => ({
+          ...prev,
+          zip: formatZip(addressData.zip || cleanZip),
+          state: addressData.state || prev.state,
+          city: addressData.city || prev.city,
+          address: addressData.address || prev.address,
+          neighborhood: addressData.neighborhood || prev.neighborhood,
+          latitude: addressData.initialLat || prev.latitude,
+          longitude: addressData.initialLng || prev.longitude
+        }));
+
+        // Se ainda não tiver coordenadas precisas, busca em background para centralizar o mapa
+        if (!addressData.initialLat || !addressData.initialLng) {
+          fetchCoordinates(
+            addressData.address || formData.address || '',
+            formData.number,
+            addressData.city || formData.city || '',
+            addressData.state || formData.state || '',
+            cleanZip,
+            formData.latitude,
+            formData.longitude,
+            addressData.neighborhood || formData.neighborhood
+          ).then(coords => {
+            if (coords?.lat && coords?.lng) {
+              setFormData(prev => ({
+                ...prev,
+                latitude: coords.lat,
+                longitude: coords.lng
+              }));
+            }
+          }).catch(cErr => console.warn('[Geocoding] Falha silenciosa de coordenadas:', cErr));
+        }
+      }
+    } catch (error) {
+      console.error("Erro geral na busca de CEP", error);
+    } finally {
+      setLoadingZip(false);
+    }
+  };
+
+  const handleZipBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/\D/g, '');
+    if (raw.length === 8 && raw !== lastSearchedZip.current) {
+      handleSearchZip(raw);
     }
   };
 
@@ -472,6 +551,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
     setIsReadOnly(false);
     setFormData(customer);
     setEditingId(customer.id);
+    lastSearchedZip.current = customer.zip?.replace(/\D/g, '') || '';
     setIsModalOpen(true);
   };
 
@@ -480,6 +560,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
     setIsReadOnly(true);
     setFormData(customer);
     setEditingId(customer.id);
+    lastSearchedZip.current = customer.zip?.replace(/\D/g, '') || '';
     setIsModalOpen(true);
   };
 
@@ -605,6 +686,10 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                <Button
                   onClick={(e) => {
                     if (!canCreate('customers')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para esta ação.'); return; }
+                    setIsReadOnly(false);
+                    setFormData({ type: 'PJ', state: '', city: '', address: '', active: true });
+                    setEditingId(null);
+                    lastSearchedZip.current = '';
                     setIsModalOpen(true);
                   }}
                   className={`hidden md:flex h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl font-bold whitespace-nowrap ${!canCreate('customers') ? 'opacity-50 !cursor-not-allowed' : ''}`}
@@ -781,7 +866,13 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
         {/* MOBILE FAB (Floating Action Button) */}
         {canCreate('customers') && (
           <button
-            onClick={() => { setFormData({ type: 'PJ', state: '', city: '', address: '', active: true }); setEditingId(null); setIsModalOpen(true); }}
+            onClick={() => {
+              setIsReadOnly(false);
+              setFormData({ type: 'PJ', state: '', city: '', address: '', active: true });
+              setEditingId(null);
+              lastSearchedZip.current = '';
+              setIsModalOpen(true);
+            }}
             className="md:hidden fixed bottom-24 right-4 w-14 h-14 bg-gradient-to-tr from-[#1c2d4f] to-[#253a66] text-white rounded-full shadow-[0_8px_30px_rgba(28,45,79,0.4)] flex items-center justify-center z-50 active:scale-90 transition-transform"
           >
             <Plus size={24} />
@@ -898,7 +989,23 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                             )}
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <Input label="CEP" disabled={isReadOnly} onBlur={handleZipBlur} required className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={formData.zip || ''} onChange={e => setFormData({ ...formData, zip: e.target.value })} placeholder="00000-000" />
+                            <Input 
+                              label="CEP" 
+                              disabled={isReadOnly} 
+                              required 
+                              className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" 
+                              value={formData.zip || ''} 
+                              onChange={e => {
+                                const formatted = formatZip(e.target.value);
+                                setFormData(prev => ({ ...prev, zip: formatted }));
+                                const digits = formatted.replace(/\D/g, '');
+                                if (digits.length === 8 && digits !== lastSearchedZip.current) {
+                                  handleSearchZip(digits);
+                                }
+                              }} 
+                              onBlur={handleZipBlur} 
+                              placeholder="00000-000" 
+                            />
                             <Input label="Estado (UF)" disabled={isReadOnly} required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={formData.state || ''} onChange={e => setFormData({ ...formData, state: e.target.value })} />
                             <Input label="Cidade" disabled={isReadOnly} required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={formData.city || ''} onChange={e => setFormData({ ...formData, city: e.target.value })} />
                           </div>
