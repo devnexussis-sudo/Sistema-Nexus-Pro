@@ -344,6 +344,16 @@ export const WhatsAppInbox: React.FC = () => {
   const [showStickers, setShowStickers] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showMobileActions, setShowMobileActions] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingMedia, setUploadingMedia] = useState(false);
@@ -1829,177 +1839,246 @@ export const WhatsAppInbox: React.FC = () => {
 
       {/* ── Coluna direita: janela de chat ── */}
       {selected ? (
-        <div className={`flex-1 flex-col ${!selected ? 'hidden md:flex' : 'flex'} w-full h-[100dvh] md:h-full fixed inset-0 z-[160] md:relative md:inset-auto md:z-auto bg-[#efeae2]/30 md:bg-gray-50/30 overflow-hidden`}>
-          {/* Header estilo Zendesk / WhatsApp Header */}
-          <div className="bg-white border-b border-slate-200/90 px-3 py-2 sm:px-4 sm:py-3 flex items-center justify-between gap-2 shadow-2xs shrink-0 z-30">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-              <button 
-                className="md:hidden p-1.5 -ml-1 text-slate-600 hover:bg-slate-100 rounded-full shrink-0 transition-colors cursor-pointer"
-                onClick={() => {
-                  setSelectedId(null);
-                  setShowMobileActions(false);
-                }}
-                title="Voltar para a lista"
-              >
-                <ArrowLeft size={19} />
-              </button>
-
-              {/* Avatar do Cliente */}
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-100 border border-slate-200/90 flex items-center justify-center text-slate-700 font-bold text-sm shrink-0 shadow-2xs">
-                {selected.customers?.name ? selected.customers.name.charAt(0).toUpperCase() : <User size={18} className="text-slate-500" />}
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                  <h3 className="text-xs sm:text-sm font-bold text-slate-900 truncate tracking-tight">
-                    {selected.customers?.name || formatPhone(selected.phone_number)}
-                  </h3>
-                  <span className={`text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 flex items-center gap-1 ${
-                    selected.state === 'WAITING_HUMAN' ? 'bg-amber-50 text-amber-800 border-amber-300' :
-                    selected.state === 'HUMAN_ACTIVE'  ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                    selected.state.includes('FOUND') || selected.state.includes('VIEWING') ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                    'bg-slate-100 text-slate-600 border-slate-200'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${
-                      selected.state === 'WAITING_HUMAN' ? 'bg-amber-500 animate-pulse' :
-                      selected.state === 'HUMAN_ACTIVE' ? 'bg-blue-500' :
-                      selected.state.includes('FOUND') ? 'bg-emerald-500' : 'bg-slate-400'
-                    }`} />
-                    {STATE_LABELS[selected.state]?.label || selected.state}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap mt-0.5 text-[10.5px] sm:text-[11px] text-slate-500">
-                  <span className="flex items-center gap-1 font-mono text-slate-600">
-                    <Phone size={11} className="text-slate-400" />
-                    {formatPhone(selected.phone_number)}
-                  </span>
-                  {selected.customers?.document && (
-                    <span className="hidden sm:inline bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-mono text-[10px]">
-                      Doc: {selected.customers.document}
-                    </span>
-                  )}
-                  {selected.state === 'HUMAN_ACTIVE' && selected.users?.name && (
-                    <span className="text-slate-600 font-medium hidden sm:inline">
-                      • Atendente: <strong className="text-slate-800 font-bold">{selected.users.name}</strong>
-                    </span>
-                  )}
-                  {selected.state === 'RESOLVED' && selected.users?.name && (
-                    <span className="text-slate-600 font-medium hidden sm:inline">
-                      • Resolvido por: <strong className="text-slate-800 font-bold">{selected.users.name}</strong>
-                    </span>
-                  )}
-                  {selected.last_message_at && (
-                    <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10.5px] items-center gap-1.5 font-medium ml-auto sm:ml-0 border border-slate-200/60 hidden sm:flex" title="Data e hora da última interação">
-                      <Calendar size={11} className="text-slate-400" />
-                      <span>{formatFullDateTime(selected.last_message_at)}</span>
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-            
-            {/* 🖥️ Desktop Action Toolbar (hidden on mobile) */}
-            <div className="hidden md:flex items-center gap-1.5 flex-wrap sm:justify-end shrink-0">
-              {(selected.state !== 'HUMAN_ACTIVE' || selected.assigned_agent_id !== currentUserId) && (
-                <button
-                  onClick={handleTakeover}
-                  disabled={sendingAction !== null}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1c2d4f] hover:bg-[#283f6b] text-white text-xs font-bold rounded-lg disabled:opacity-50 transition-all shadow-xs active:scale-95 whitespace-nowrap cursor-pointer"
-                  title="Assumir ticket de atendimento"
-                >
-                  {sendingAction === 'takeover' ? <RefreshCw size={13} className="animate-spin" /> : <UserCheck size={13} />}
-                  <span>{selected.state === 'HUMAN_ACTIVE' ? 'Assumir p/ Mim' : 'Assumir Atendimento'}</span>
-                </button>
-              )}
-              {selected.state !== 'HUMAN_ACTIVE' && (
-                <button
-                  onClick={() => setShowResetConfirm(true)}
-                  disabled={sendingAction !== null}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg disabled:opacity-50 transition-all border border-slate-200/90 shadow-2xs whitespace-nowrap cursor-pointer"
-                  title="Reiniciar fluxo automático da IA"
-                >
-                  {sendingAction === 'reset' ? <RefreshCw size={13} className="animate-spin" /> : <RotateCcw size={13} />}
-                  <span>Reiniciar Bot</span>
-                </button>
-              )}
-              {selected.state === 'HUMAN_ACTIVE' && selected.assigned_agent_id === currentUserId && (
-                <>
-                  <button
+        (() => {
+          const chatContent = (
+            <div className={isMobile 
+              ? "fixed inset-0 z-[9990] flex flex-col w-full h-[100dvh] max-h-[100dvh] bg-[#efeae2]/30 overflow-hidden" 
+              : "flex-1 flex flex-col w-full h-full bg-gray-50/30 overflow-hidden relative"
+            }>
+              {/* Header estilo Zendesk / WhatsApp Header */}
+              <div className={`bg-white border-b border-slate-200/90 px-3 ${isMobile ? 'pt-[max(0.75rem,env(safe-area-inset-top))] pb-2' : 'py-2 sm:px-4 sm:py-3'} flex items-center justify-between gap-2 shadow-2xs shrink-0 z-30`}>
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                  <button 
+                    className="md:hidden p-2 -ml-1 text-slate-700 hover:bg-slate-100 rounded-full shrink-0 transition-colors cursor-pointer"
                     onClick={() => {
-                      supabase.from('users').select('id, name').neq('role', 'TECHNICIAN').order('name').then(({ data }) => setTeamMembers(data || []));
-                      setTransferModal(selected.id);
-                      setAgentSearch('');
+                      setSelectedId(null);
+                      setShowMobileActions(false);
                     }}
-                    disabled={sendingAction !== null}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-indigo-50/70 text-slate-700 hover:text-indigo-700 text-xs font-semibold rounded-lg disabled:opacity-50 transition-all border border-slate-200/90 shadow-2xs whitespace-nowrap cursor-pointer"
-                    title="Transferir para outro agente"
+                    title="Voltar para a lista"
                   >
-                    {sendingAction === 'transfer' ? <RefreshCw size={13} className="animate-spin" /> : <ArrowRight size={13} />}
-                    <span>Transferir</span>
+                    <ArrowLeft size={20} />
                   </button>
+
+                  {/* Avatar do Cliente */}
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-100 border border-slate-200/90 flex items-center justify-center text-slate-700 font-bold text-sm shrink-0 shadow-2xs">
+                    {selected.customers?.name ? selected.customers.name.charAt(0).toUpperCase() : <User size={18} className="text-slate-500" />}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                      <h3 className="text-xs sm:text-sm font-bold text-slate-900 truncate tracking-tight">
+                        {selected.customers?.name || formatPhone(selected.phone_number)}
+                      </h3>
+                      <span className={`text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 flex items-center gap-1 ${
+                        selected.state === 'WAITING_HUMAN' ? 'bg-amber-50 text-amber-800 border-amber-300' :
+                        selected.state === 'HUMAN_ACTIVE'  ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                        selected.state.includes('FOUND') || selected.state.includes('VIEWING') ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                        'bg-slate-100 text-slate-600 border-slate-200'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          selected.state === 'WAITING_HUMAN' ? 'bg-amber-500 animate-pulse' :
+                          selected.state === 'HUMAN_ACTIVE' ? 'bg-blue-500' :
+                          selected.state.includes('FOUND') ? 'bg-emerald-500' : 'bg-slate-400'
+                        }`} />
+                        {STATE_LABELS[selected.state]?.label || selected.state}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap mt-0.5 text-[10.5px] sm:text-[11px] text-slate-500">
+                      <span className="flex items-center gap-1 font-mono text-slate-600">
+                        <Phone size={11} className="text-slate-400" />
+                        {formatPhone(selected.phone_number)}
+                      </span>
+                      {selected.customers?.document && (
+                        <span className="hidden sm:inline bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-mono text-[10px]">
+                          Doc: {selected.customers.document}
+                        </span>
+                      )}
+                      {selected.state === 'HUMAN_ACTIVE' && selected.users?.name && (
+                        <span className="text-slate-600 font-medium hidden sm:inline">
+                          • Atendente: <strong className="text-slate-800 font-bold">{selected.users.name}</strong>
+                        </span>
+                      )}
+                      {selected.state === 'RESOLVED' && selected.users?.name && (
+                        <span className="text-slate-600 font-medium hidden sm:inline">
+                          • Resolvido por: <strong className="text-slate-800 font-bold">{selected.users.name}</strong>
+                        </span>
+                      )}
+                      {selected.last_message_at && (
+                        <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10.5px] items-center gap-1.5 font-medium ml-auto sm:ml-0 border border-slate-200/60 hidden sm:flex" title="Data e hora da última interação">
+                          <Calendar size={11} className="text-slate-400" />
+                          <span>{formatFullDateTime(selected.last_message_at)}</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* 🖥️ Desktop Action Toolbar (hidden on mobile) */}
+                <div className="hidden md:flex items-center gap-1.5 flex-wrap sm:justify-end shrink-0">
+                  {(selected.state !== 'HUMAN_ACTIVE' || selected.assigned_agent_id !== currentUserId) && (
+                    <button
+                      onClick={handleTakeover}
+                      disabled={sendingAction !== null}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1c2d4f] hover:bg-[#283f6b] text-white text-xs font-bold rounded-lg disabled:opacity-50 transition-all shadow-xs active:scale-95 whitespace-nowrap cursor-pointer"
+                      title="Assumir ticket de atendimento"
+                    >
+                      {sendingAction === 'takeover' ? <RefreshCw size={13} className="animate-spin" /> : <UserCheck size={13} />}
+                      <span>{selected.state === 'HUMAN_ACTIVE' ? 'Assumir p/ Mim' : 'Assumir Atendimento'}</span>
+                    </button>
+                  )}
+                  {selected.state !== 'HUMAN_ACTIVE' && (
+                    <button
+                      onClick={() => setShowResetConfirm(true)}
+                      disabled={sendingAction !== null}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg disabled:opacity-50 transition-all border border-slate-200/90 shadow-2xs whitespace-nowrap cursor-pointer"
+                      title="Reiniciar fluxo automático da IA"
+                    >
+                      {sendingAction === 'reset' ? <RefreshCw size={13} className="animate-spin" /> : <RotateCcw size={13} />}
+                      <span>Reiniciar Bot</span>
+                    </button>
+                  )}
+                  {selected.state === 'HUMAN_ACTIVE' && selected.assigned_agent_id === currentUserId && (
+                    <>
+                      <button
+                        onClick={() => {
+                          supabase.from('users').select('id, name').neq('role', 'TECHNICIAN').order('name').then(({ data }) => setTeamMembers(data || []));
+                          setTransferModal(selected.id);
+                          setAgentSearch('');
+                        }}
+                        disabled={sendingAction !== null}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-indigo-50/70 text-slate-700 hover:text-indigo-700 text-xs font-semibold rounded-lg disabled:opacity-50 transition-all border border-slate-200/90 shadow-2xs whitespace-nowrap cursor-pointer"
+                        title="Transferir para outro agente"
+                      >
+                        {sendingAction === 'transfer' ? <RefreshCw size={13} className="animate-spin" /> : <ArrowRight size={13} />}
+                        <span>Transferir</span>
+                      </button>
+                      <button
+                        onClick={handleReturnToBot}
+                        disabled={sendingAction !== null}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg disabled:opacity-50 transition-all border border-slate-200/90 shadow-2xs whitespace-nowrap cursor-pointer"
+                        title="Devolver ao fluxo automático do Bot"
+                      >
+                        {sendingAction === 'return_to_bot' ? <RefreshCw size={13} className="animate-spin" /> : <Bot size={13} />}
+                        <span>Devolver ao Bot</span>
+                      </button>
+                    </>
+                  )}
+                  {/* Encerrar / Resolver Atendimento */}
                   <button
-                    onClick={handleReturnToBot}
+                    onClick={handleCloseConversation}
                     disabled={sendingAction !== null}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg disabled:opacity-50 transition-all border border-slate-200/90 shadow-2xs whitespace-nowrap cursor-pointer"
-                    title="Devolver ao fluxo automático do Bot"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-lg disabled:opacity-50 transition-all border border-rose-200/80 shadow-2xs cursor-pointer"
+                    title="Encerrar e marcar conversa como resolvida"
                   >
-                    {sendingAction === 'return_to_bot' ? <RefreshCw size={13} className="animate-spin" /> : <Bot size={13} />}
-                    <span>Devolver ao Bot</span>
+                    {sendingAction === 'close' ? <RefreshCw size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                    <span>Encerrar</span>
                   </button>
-                </>
-              )}
-              {/* Encerrar / Resolver Atendimento */}
-              <button
-                onClick={handleCloseConversation}
-                disabled={sendingAction !== null}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-lg disabled:opacity-50 transition-all border border-rose-200/80 shadow-2xs cursor-pointer"
-                title="Encerrar e marcar conversa como resolvida"
-              >
-                {sendingAction === 'close' ? <RefreshCw size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
-                <span>Encerrar</span>
-              </button>
 
-              <button 
-                onClick={() => setSelectedId(null)} 
-                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors ml-1 cursor-pointer"
-                title="Fechar conversa"
-              >
-                <X size={16} />
-              </button>
-            </div>
+                  <button 
+                    onClick={() => setSelectedId(null)} 
+                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors ml-1 cursor-pointer"
+                    title="Fechar conversa"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
 
-            {/* 📱 Mobile Retractable Actions Toolbar (md:hidden) */}
-            <div className="flex md:hidden items-center gap-1 shrink-0">
-              {(selected.state !== 'HUMAN_ACTIVE' || selected.assigned_agent_id !== currentUserId) && (
+                {/* 📱 Mobile Menu Trigger (md:hidden) */}
+                <div className="flex md:hidden items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => setShowMobileActions(!showMobileActions)}
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${showMobileActions ? 'bg-slate-200 text-slate-800' : 'text-slate-500 hover:bg-slate-100'}`}
+                    title="Opções do Atendimento"
+                    aria-label="Mais Opções"
+                  >
+                    <MoreVertical size={20} />
+                  </button>
+                </div>
+              </div>
+
+              {/* 📱 Barra de Ações Rápidas Mobile (Horizontalmente rolável, 100% visível sem sobreposição) */}
+              <div className="md:hidden flex items-center gap-1.5 px-3 py-2 bg-slate-50 border-b border-slate-200/90 overflow-x-auto no-scrollbar shrink-0 shadow-2xs">
+                {(selected.state !== 'HUMAN_ACTIVE' || selected.assigned_agent_id !== currentUserId) && (
+                  <button
+                    onClick={handleTakeover}
+                    disabled={sendingAction !== null}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1c2d4f] hover:bg-[#283f6b] text-white text-[11px] font-bold rounded-lg shadow-xs active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+                    title="Assumir Atendimento"
+                  >
+                    {sendingAction === 'takeover' ? <RefreshCw size={13} className="animate-spin" /> : <UserCheck size={13} />}
+                    <span>{selected.state === 'HUMAN_ACTIVE' ? 'Assumir p/ Mim' : 'Assumir Atendimento'}</span>
+                  </button>
+                )}
+
+                {selected.state !== 'HUMAN_ACTIVE' && (
+                  <button
+                    onClick={() => setShowResetConfirm(true)}
+                    disabled={sendingAction !== null}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold rounded-lg border border-slate-200/90 shadow-2xs active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+                    title="Reiniciar Bot"
+                  >
+                    {sendingAction === 'reset' ? <RefreshCw size={13} className="animate-spin" /> : <RotateCcw size={13} />}
+                    <span>Reiniciar Bot</span>
+                  </button>
+                )}
+
+                {selected.state === 'HUMAN_ACTIVE' && selected.assigned_agent_id === currentUserId && (
+                  <>
+                    <button
+                      onClick={() => {
+                        supabase.from('users').select('id, name').neq('role', 'TECHNICIAN').order('name').then(({ data }) => setTeamMembers(data || []));
+                        setTransferModal(selected.id);
+                        setAgentSearch('');
+                      }}
+                      disabled={sendingAction !== null}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-indigo-50/70 text-slate-700 hover:text-indigo-700 text-[11px] font-semibold rounded-lg border border-slate-200/90 shadow-2xs active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+                      title="Transferir conversa"
+                    >
+                      {sendingAction === 'transfer' ? <RefreshCw size={13} className="animate-spin" /> : <ArrowRight size={13} />}
+                      <span>Transferir</span>
+                    </button>
+                    <button
+                      onClick={handleReturnToBot}
+                      disabled={sendingAction !== null}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold rounded-lg border border-slate-200/90 shadow-2xs active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+                      title="Devolver ao Bot"
+                    >
+                      {sendingAction === 'return_to_bot' ? <RefreshCw size={13} className="animate-spin" /> : <Bot size={13} />}
+                      <span>Devolver ao Bot</span>
+                    </button>
+                  </>
+                )}
+
                 <button
-                  onClick={handleTakeover}
+                  onClick={handleCloseConversation}
                   disabled={sendingAction !== null}
-                  className="flex items-center gap-1 px-2.5 py-1.5 bg-[#1c2d4f] text-white text-[11px] font-bold rounded-lg shadow-xs active:scale-95 transition-all cursor-pointer"
-                  title="Assumir Atendimento"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold rounded-lg border border-rose-200/80 shadow-2xs active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+                  title="Encerrar Atendimento"
                 >
-                  {sendingAction === 'takeover' ? <RefreshCw size={12} className="animate-spin" /> : <UserCheck size={12} />}
-                  <span>Assumir</span>
+                  {sendingAction === 'close' ? <RefreshCw size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                  <span>Encerrar</span>
                 </button>
-              )}
 
-              <button
-                onClick={() => setShowMobileActions(!showMobileActions)}
-                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${showMobileActions ? 'bg-slate-200 text-slate-800' : 'text-slate-500 hover:bg-slate-100'}`}
-                title="Ações do Atendimento"
-                aria-label="Mais Ações"
-              >
-                <MoreVertical size={20} />
-              </button>
-            </div>
-          </div>
+                <button
+                  onClick={() => {
+                    const raw = selected.phone_number.replace(/\D/g, '');
+                    window.open(`https://wa.me/${raw}`, '_blank');
+                  }}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] font-semibold rounded-lg border border-emerald-200/80 shadow-2xs active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer"
+                  title="Abrir no WhatsApp Oficial"
+                >
+                  <ExternalLink size={13} className="text-emerald-600" />
+                  <span>WhatsApp</span>
+                </button>
+              </div>
 
-          {/* 📱 Mobile Retractable Actions Sheet / Drawer (md:hidden) */}
-          {showMobileActions && (
-            <div 
-              className="md:hidden fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-xs flex flex-col justify-end animate-in fade-in duration-150"
-              onClick={() => setShowMobileActions(false)}
-            >
+              {/* 📱 Mobile Retractable Actions Sheet / Drawer (md:hidden) */}
+              {showMobileActions && (
+                <div 
+                  className="md:hidden fixed inset-0 z-[99999] bg-slate-900/40 backdrop-blur-xs flex flex-col justify-end animate-in fade-in duration-150"
+                  onClick={() => setShowMobileActions(false)}
+                >
               <div 
                 className="bg-white rounded-t-2xl p-4 shadow-2xl border-t border-slate-200 space-y-2.5 max-h-[85vh] overflow-y-auto animate-in slide-in-from-bottom duration-200"
                 onClick={e => e.stopPropagation()}
@@ -2792,13 +2871,17 @@ export const WhatsAppInbox: React.FC = () => {
             </div>
           )}
         </div>
-      ) : (
-        <div className="flex-1 flex flex-col items-center justify-center text-gray-300 space-y-3">
-          <MessageCircle size={48} />
-          <p className="text-sm font-medium">Selecione uma conversa</p>
-          <p className="text-xs">As mensagens chegam automaticamente em tempo real</p>
-        </div>
-      )}
+      );
+
+      return isMobile ? createPortal(chatContent, document.body) : chatContent;
+    })()
+  ) : (
+    <div className="hidden md:flex flex-1 flex-col items-center justify-center text-gray-300 space-y-3">
+      <MessageCircle size={48} />
+      <p className="text-sm font-medium">Selecione uma conversa</p>
+      <p className="text-xs">As mensagens chegam automaticamente em tempo real</p>
+    </div>
+  )}
 
       {/* Modal de Confirmação para Reiniciar Bot */}
       {showResetConfirm && selected && createPortal(
@@ -3174,7 +3257,7 @@ export const WhatsAppInbox: React.FC = () => {
       {/* ── Modal de Visualização de Imagens (Carrossel Lightbox) ── */}
       {viewerIndex !== null && viewerImages[viewerIndex] && createPortal(
         <div 
-          className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-md flex flex-col justify-between select-none animate-fadeIn"
+          className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-md flex flex-col justify-between select-none animate-fadeIn pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]"
           onClick={() => setViewerIndex(null)}
         >
           {/* Header do Viewer */}
