@@ -49,6 +49,7 @@ export const FormManagement: React.FC = () => {
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
   const [isDefectModalOpen, setIsDefectModalOpen] = useState(false);
+  const [isSavingDefect, setIsSavingDefect] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [ruleDropdown, setRuleDropdown] = useState<string | null>(null);
 
@@ -415,6 +416,7 @@ export const FormManagement: React.FC = () => {
     }
 
     try {
+      setIsSavingDefect(true);
       await DataService.saveDefectType({
         ...editingDefect,
         code,
@@ -427,6 +429,8 @@ export const FormManagement: React.FC = () => {
     } catch (e: any) {
       console.error("Erro ao salvar tipo de defeito:", e);
       alert(`Falha ao salvar defeito: ${e.message || 'Erro desconhecido no servidor'}`);
+    } finally {
+      setIsSavingDefect(false);
     }
   };
 
@@ -2021,9 +2025,10 @@ export const FormManagement: React.FC = () => {
                 {!isReadOnly && (
                   <Button 
                     onClick={handleSaveDefect} 
+                    disabled={isSavingDefect}
                     className="h-9 px-6 rounded-xl text-xs font-semibold bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white"
                   >
-                    <Save size={14} className="mr-2" /> Salvar Defeito
+                    {isSavingDefect ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Save size={14} className="mr-2" />} Salvar Defeito
                   </Button>
                 )}
               </div>
