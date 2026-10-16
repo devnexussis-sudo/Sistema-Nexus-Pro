@@ -25,14 +25,15 @@ export default function TabLayout() {
   return (
     <>
       <Tabs
+        backBehavior="history"
         screenOptions={{
-          tabBarActiveTintColor: isDarkDevice ? '#ffffff' : '#1c2d4f',
-          tabBarInactiveTintColor: isDarkDevice ? '#cbd5e1' : '#94a3b8',
+          tabBarActiveTintColor: '#ffffff',
+          tabBarInactiveTintColor: '#94a3b8',
           headerShown: true,
           tabBarButton: HapticTab,
           tabBarStyle: {
-            backgroundColor: isDarkDevice ? '#1e293b' : '#ffffff',
-            borderTopColor: isDarkDevice ? '#334155' : '#e5e7eb',
+            backgroundColor: '#1c2d4f',
+            borderTopColor: '#2a3f68',
             borderTopWidth: 1,
             height: 52 + insets.bottom,
             paddingBottom: insets.bottom + 2,

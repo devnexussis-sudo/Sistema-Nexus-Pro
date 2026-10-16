@@ -193,7 +193,17 @@ export default function ExecuteOSScreen() {
         setValidationAlert({ visible: true, title, message });
     };
 
+    const currentLoadedOrderIdRef = useRef<string | null>(null);
     const isAnySignatureOpen = isSignatureModalVisible || isImpedimentSignatureVisible;
+
+    const standardTabBarStyle = {
+        backgroundColor: '#1c2d4f',
+        borderTopColor: '#2a3f68',
+        borderTopWidth: 1,
+        height: 52 + insets.bottom,
+        paddingBottom: insets.bottom + 2,
+        paddingTop: 4,
+    };
 
     // 🛡️ Padrão BigTech: A tela da OS permanece travada em Retrato (Portrait).
     // Quando a assinatura abrir, ela rotaciona para Paisagem (Landscape) em tela cheia.
@@ -209,17 +219,17 @@ export default function ExecuteOSScreen() {
             ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
             navigation.setOptions({
                 headerShown: true,
-                tabBarStyle: undefined,
+                tabBarStyle: standardTabBarStyle,
             });
         }
         return () => {
             ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
             navigation.setOptions({
                 headerShown: true,
-                tabBarStyle: undefined,
+                tabBarStyle: standardTabBarStyle,
             });
         };
-    }, [isAnySignatureOpen, navigation]);
+    }, [isAnySignatureOpen, navigation, insets.bottom]);
 
     // 📱 Android Hardware Back: fecha a assinatura e restaura modo retrato
     useEffect(() => {
@@ -524,11 +534,28 @@ export default function ExecuteOSScreen() {
 
     useFocusEffect(
         React.useCallback(() => {
+            if (!id) return;
+
+            // 🎯 Se o usuário já abriu esta mesma OS e apenas alternou para a aba de IA (ou outra aba) e voltou:
+            // NÃO reseta nada! Mantém a página atual (currentPage), inputs, fotos, itens e relatórios exatamente onde parou!
+            if (currentLoadedOrderIdRef.current === id && order && order.id === id) {
+                console.log(`[ExecuteOS] Retornou para a mesma OS (${id}) em andamento. Mantendo página ${currentPage} e preenchimento intactos.`);
+                TenantService.getSettings(!syncService.isOfflineModeEnabled())
+                    .then(settings => {
+                        setShowPrice(settings.showStockPrice);
+                        setAllowImpediment(settings.allowImpediment);
+                    })
+                    .catch(() => {});
+                return;
+            }
+
             let isActive = true;
-            // 🧹 RESET ALL GLOBAL CACHED STATES
+            currentLoadedOrderIdRef.current = id as string;
+
+            // 🧹 RESET ALL GLOBAL CACHED STATES apenas quando abrir uma nova OS
             setOrder(null);
             setFormsConfig({});
-            setCurrentPage(0); // Garante que a OS abre sempre no início, mesmo após voltar do background
+            setCurrentPage(0);
             setIsLoading(true);
             setTechnicalReport('');
             setUsedItems([]);
@@ -579,6 +606,8 @@ export default function ExecuteOSScreen() {
                             const cachedStr = await AsyncStorage.getItem(cacheKey);
                             const cache = cachedStr ? JSON.parse(cachedStr) : null;
                             if (cache) {
+                                if (typeof cache.currentPage === 'number') setCurrentPage(cache.currentPage);
+                                if (cache.technicalReport) setTechnicalReport(cache.technicalReport);
                                 if (cache.usedItems) setUsedItems(cache.usedItems);
                                 if (cache.extraPhotos) setExtraPhotos(cache.extraPhotos);
                                 if (cache.signature) setSignature(cache.signature);
@@ -667,6 +696,8 @@ export default function ExecuteOSScreen() {
                         const cache = cachedStr ? JSON.parse(cachedStr) : null;
 
                         if (cache) {
+                            if (typeof cache.currentPage === 'number') setCurrentPage(cache.currentPage);
+                            if (cache.technicalReport) setTechnicalReport(cache.technicalReport);
                             if (cache.usedItems) setUsedItems(cache.usedItems);
                             if (cache.extraPhotos) setExtraPhotos(cache.extraPhotos);
                             if (cache.signature) setSignature(cache.signature);
@@ -808,10 +839,12 @@ export default function ExecuteOSScreen() {
             if (!id || isLoading || !order || order.id !== id) return;
             try {
                 const cacheData = {
+                    currentPage,
                     formsData: Object.keys(formsConfig).reduce((acc, key) => {
                         acc[key] = formsConfig[key].data; // includes _report
                         return acc;
                     }, {} as any),
+                    technicalReport,
                     usedItems,
                     extraPhotos,
                     signature,
@@ -825,9 +858,20 @@ export default function ExecuteOSScreen() {
                 console.error('[ExecuteOS] Cache save error:', e);
             }
         };
-        const t = setTimeout(saveToCache, 1000);
+        const t = setTimeout(saveToCache, 500);
         return () => clearTimeout(t);
-    }, [id, formsConfig, usedItems, extraPhotos, signature, clientName, clientDoc, videos, isLoading, order]);
+    }, [id, currentPage, formsConfig, technicalReport, usedItems, extraPhotos, signature, clientName, clientDoc, videos, isLoading, order]);
+
+    // Registra OS ativa para que a aba de IA mostre o banner de retorno fácil
+    React.useEffect(() => {
+        if (order && id) {
+            AsyncStorage.setItem('@nexus_active_os', JSON.stringify({
+                id: String(id),
+                displayId: String(order.displayId || id),
+                customer: order.customer || ''
+            })).catch(() => {});
+        }
+    }, [order, id]);
 
     // Ouvinte em tempo real para alterações de configurações feitas pelo admin no painel
     React.useEffect(() => {
@@ -1015,7 +1059,12 @@ export default function ExecuteOSScreen() {
         try {
             const limit = 2 - videos.length;
             if (limit <= 0) {
-                Alert.alert('Limite atingido', 'Você pode adicionar no máximo 2 vídeos.');
+                setAlertConfig({
+                    visible: true,
+                    title: 'Limite Atingido',
+                    message: 'Você pode adicionar no máximo 2 vídeos por OS.',
+                    buttons: [{ text: 'OK', style: 'default' }]
+                });
                 return;
             }
             
@@ -1043,17 +1092,24 @@ export default function ExecuteOSScreen() {
                     }
 
                     if (durationSec > 90) {
-                        Alert.alert(
-                            'Vídeo muito longo',
-                            `O vídeo selecionado possui ${Math.round(durationSec)} segundos. O limite máximo permitido para anexos é de 90 segundos (1m30s). Por favor, selecione um vídeo mais curto.`
-                        );
+                        setAlertConfig({
+                            visible: true,
+                            title: 'Vídeo Muito Longo',
+                            message: `O vídeo selecionado possui ${Math.round(durationSec)} segundos. O limite máximo permitido para anexos da galeria é de 90 segundos (1m30s). Por favor, selecione um vídeo mais curto.`,
+                            buttons: [{ text: 'Entendi', style: 'default' }]
+                        });
                         continue;
                     }
                     startBackstageVideoProcess(asset.uri, false, true);
                 }
             }
         } catch {
-            Alert.alert(t('alertError'), t('execCouldNotGallery'));
+            setAlertConfig({
+                visible: true,
+                title: t('alertError'),
+                message: t('execCouldNotGallery'),
+                buttons: [{ text: 'OK', style: 'default' }]
+            });
         } finally {
             setIsVideoSourceModalVisible(false);
         }
@@ -1087,10 +1143,12 @@ export default function ExecuteOSScreen() {
                     const meta = await getVideoMetaData(rawUri);
                     const dur = meta?.duration ? (meta.duration > 1000 ? meta.duration / 1000 : meta.duration) : 0;
                     if (dur > 90) {
-                        Alert.alert(
-                            'Vídeo muito longo',
-                            `O vídeo selecionado possui ${Math.round(dur)} segundos e ultrapassa o limite máximo de 90 segundos para anexos.`
-                        );
+                        setAlertConfig({
+                            visible: true,
+                            title: 'Vídeo Muito Longo',
+                            message: `O vídeo selecionado possui ${Math.round(dur)} segundos e ultrapassa o limite máximo de 90 segundos para anexos da galeria.`,
+                            buttons: [{ text: 'Entendi', style: 'default' }]
+                        });
                         return;
                     }
                 } catch (metaErr) {
@@ -1175,7 +1233,12 @@ export default function ExecuteOSScreen() {
                         : (typeof existingVal === 'string' && existingVal ? [existingVal] : []);
 
                     if (currentFieldVideos.length >= 2) {
-                        Alert.alert('Limite Atingido', 'Você pode anexar no máximo 2 vídeos por campo de formulário.');
+                        setAlertConfig({
+                            visible: true,
+                            title: 'Limite Atingido',
+                            message: 'Você pode anexar no máximo 2 vídeos por campo de formulário.',
+                            buttons: [{ text: 'OK', style: 'default' }]
+                        });
                         return;
                     }
 
@@ -1183,7 +1246,12 @@ export default function ExecuteOSScreen() {
                     updateFieldData(eqKey, fieldId, updatedVideos);
                 } catch (err) {
                     console.error('[VideoField] Erro no processamento do vídeo do campo:', err);
-                    Alert.alert(t('alertError'), t('execVideoError'));
+                    setAlertConfig({
+                        visible: true,
+                        title: t('alertError'),
+                        message: t('execVideoError'),
+                        buttons: [{ text: 'OK', style: 'default' }]
+                    });
                 } finally {
                     setIsUploadingPhoto(null);
                     setVideoSourceTarget(null);
@@ -1192,7 +1260,12 @@ export default function ExecuteOSScreen() {
             }
 
             if (!bypassLimit && videos.length >= 2) {
-                Alert.alert('Limite atingido', 'Você pode adicionar no máximo 2 vídeos.');
+                setAlertConfig({
+                    visible: true,
+                    title: 'Limite Atingido',
+                    message: 'Você pode adicionar no máximo 2 vídeos por OS.',
+                    buttons: [{ text: 'OK', style: 'default' }]
+                });
                 return;
             }
 
@@ -1539,6 +1612,8 @@ export default function ExecuteOSScreen() {
                 });
 
                 await AsyncStorage.removeItem(`os_cache_${id}`);
+                await AsyncStorage.removeItem('@nexus_active_os').catch(() => {});
+                currentLoadedOrderIdRef.current = null;
 
                 // Atualizar cache local para a OS aparecer como concluída na aba de Concluídas
                 try {
@@ -1654,6 +1729,8 @@ export default function ExecuteOSScreen() {
 
                 // Clear cache on success
                 await AsyncStorage.removeItem(`os_cache_${id}`);
+                await AsyncStorage.removeItem('@nexus_active_os').catch(() => {});
+                currentLoadedOrderIdRef.current = null;
 
                 // Navigate directly to completed tab
                 setTimeout(() => {
@@ -1811,6 +1888,8 @@ export default function ExecuteOSScreen() {
                 });
 
                 await AsyncStorage.removeItem(`os_cache_${id}`);
+                await AsyncStorage.removeItem('@nexus_active_os').catch(() => {});
+                currentLoadedOrderIdRef.current = null;
                 try {
                     const todayOrders = await syncService.getTodayOrders();
                     const updatedOrders = todayOrders.map(o => {
@@ -1922,6 +2001,8 @@ export default function ExecuteOSScreen() {
 
             // 4. Limpar cache local desta OS
             await AsyncStorage.removeItem(`os_cache_${id}`);
+            await AsyncStorage.removeItem('@nexus_active_os').catch(() => {});
+            currentLoadedOrderIdRef.current = null;
 
             // EXPLICITLY CLEAR CACHE/STATE FOR IMPEDIMENT FIELDS
             setImpedimentReason('');
@@ -2469,10 +2550,12 @@ export default function ExecuteOSScreen() {
                             setCameraConfig(prev => ({ ...prev, visible: false }));
                             if (hitLimit) {
                                 setTimeout(() => {
-                                    Alert.alert(
-                                        'Limite de Gravação Atingido',
-                                        'O tempo máximo de gravação é de 77 segundos. O que foi gravado até aqui foi salvo com sucesso!'
-                                    );
+                                    setAlertConfig({
+                                        visible: true,
+                                        title: 'Limite de Gravação Atingido',
+                                        message: 'O tempo máximo de gravação é de 77 segundos. O que foi gravado até aqui foi salvo com sucesso!',
+                                        buttons: [{ text: 'Entendi', style: 'default' }]
+                                    });
                                 }, 350);
                             }
                             startBackstageVideoProcess(uri, true);
@@ -3198,7 +3281,11 @@ export default function ExecuteOSScreen() {
                                 <Text style={styles.backButtonText}>{t('execBack')}</Text>
                             </Pressable>
                         ) : (
-                            <Pressable style={[styles.paginationButton, styles.backButton]} onPress={() => router.back()}>
+                            <Pressable style={[styles.paginationButton, styles.backButton]} onPress={() => {
+                                currentLoadedOrderIdRef.current = null;
+                                AsyncStorage.removeItem('@nexus_active_os').catch(() => {});
+                                router.back();
+                            }}>
                                 <Ionicons name="close" size={20} color="#475569" />
                                 <Text style={styles.backButtonText}>{t('execExit')}</Text>
                             </Pressable>
@@ -3698,6 +3785,7 @@ export default function ExecuteOSScreen() {
                 title={alertConfig.title} 
                 message={alertConfig.message} 
                 buttons={alertConfig.buttons} 
+                onDismiss={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
             />
 
         </KeyboardAvoidingView>

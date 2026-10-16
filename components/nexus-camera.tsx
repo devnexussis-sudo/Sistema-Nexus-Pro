@@ -210,10 +210,6 @@ export default function NexusCamera({
         } catch (e) {
             console.warn('[NexusCamera] Erro ao parar gravação no limite:', e);
         }
-        Alert.alert(
-            'Limite de Gravação Atingido',
-            'O tempo máximo de gravação é de 77 segundos. O que foi gravado até aqui foi salvo com sucesso!'
-        );
     }, []);
 
     const startTimer = () => {
@@ -303,10 +299,6 @@ export default function NexusCamera({
                 const limitHit = isLimitReachedRef.current || recordingTime >= MAX_RECORDING_SECONDS;
                 if (limitHit && !isLimitReachedRef.current) {
                     isLimitReachedRef.current = true;
-                    Alert.alert(
-                        'Limite de Gravação Atingido',
-                        'O tempo máximo de gravação é de 77 segundos. O que foi gravado até aqui foi salvo com sucesso!'
-                    );
                 }
 
                 if (video && video.uri) {

@@ -14,6 +14,8 @@ import {
   Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter, useFocusEffect } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/services/supabase';
 import { searchKnowledgeBase, getAvailableManuals, ManualSummary } from '@/services/duno-ai/dunoQueryService';
 import { useLanguage } from '@/services/i18n';
@@ -134,6 +136,25 @@ export default function DunoAIScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const lastResponseId = useRef<string | null>(null);
   const messageYPositions = useRef<Record<string, number>>({});
+
+  const router = useRouter();
+  const [activeOs, setActiveOs] = useState<{ id: string; displayId: string; customer?: string } | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      AsyncStorage.getItem('@nexus_active_os').then(val => {
+        if (val) {
+          try {
+            setActiveOs(JSON.parse(val));
+          } catch {
+            setActiveOs(null);
+          }
+        } else {
+          setActiveOs(null);
+        }
+      });
+    }, [])
+  );
 
   // Carrega o nome do técnico e contagem inicial de manuais
   useEffect(() => {
@@ -282,6 +303,32 @@ export default function DunoAIScreen() {
           </Pressable>
         </View>
       </View>
+
+      {/* ── Banner de Retorno para OS em Execução ── */}
+      {activeOs && (
+        <Pressable
+          style={styles.activeOsBanner}
+          onPress={() => router.push({ pathname: '/(tabs)/os/execute', params: { id: activeOs.id } })}
+        >
+          <View style={styles.activeOsBannerLeft}>
+            <View style={styles.activeOsPulseBadge}>
+              <Ionicons name="construct" size={14} color="#ffffff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.activeOsBannerTitle} numberOfLines={1}>
+                OS #{activeOs.displayId} em andamento
+              </Text>
+              <Text style={styles.activeOsBannerSub} numberOfLines={1}>
+                {activeOs.customer ? `${activeOs.customer} • ` : ''}Toque para continuar o preenchimento de onde parou
+              </Text>
+            </View>
+          </View>
+          <View style={styles.activeOsBannerBtn}>
+            <Text style={styles.activeOsBannerBtnText}>Voltar para OS</Text>
+            <Ionicons name="arrow-forward" size={13} color="#ffffff" />
+          </View>
+        </Pressable>
+      )}
 
       {/* ── Área Dinâmica do Chat (Encolhe com o teclado) ── */}
       <KeyboardAvoidingView
@@ -946,5 +993,56 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '700',
+  },
+  activeOsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1c2d4f',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2b3e66',
+    borderTopWidth: 1,
+    borderTopColor: '#2b3e66',
+  },
+  activeOsBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 10,
+  },
+  activeOsPulseBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#f59e0b',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeOsBannerTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  activeOsBannerSub: {
+    fontSize: 11,
+    color: '#cbd5e1',
+    marginTop: 1,
+  },
+  activeOsBannerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  activeOsBannerBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#ffffff',
   },
 });
