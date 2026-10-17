@@ -77,6 +77,74 @@ export const FormService = {
         }
     },
 
+    // 🛡️ Sincroniza o tenant_id ativo nos metadados do JWT do Supabase (necessário quando o Super Admin / Master acessa conta de empresa ou em usuários sem claim snake_case)
+    _syncPromise: null as Promise<void> | null,
+    _lastSyncedTenantId: null as string | null,
+    _ensureTenantSessionSync: async (targetTenantId?: string, force = false): Promise<void> => {
+        const tid = targetTenantId || await FormService._resolveTenantId();
+        if (!tid || !isCloudEnabled) return;
+
+        if (!force && FormService._lastSyncedTenantId === tid) {
+            return;
+        }
+
+        if (FormService._syncPromise) {
+            await FormService._syncPromise;
+            if (!force && FormService._lastSyncedTenantId === tid) return;
+        }
+
+        FormService._syncPromise = (async () => {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session?.user) return;
+
+                const meta = session.user.user_metadata || {};
+                const hasSnake = meta.tenant_id === tid;
+                const hasCamel = meta.tenantId === tid;
+
+                let jwtHasClaims = false;
+                try {
+                    const payloadPart = session.access_token?.split('.')[1];
+                    if (payloadPart) {
+                        const decoded = JSON.parse(atob(payloadPart.replace(/-/g, '+').replace(/_/g, '/')));
+                        const jwtMeta = decoded?.user_metadata || {};
+                        jwtHasClaims = jwtMeta.tenant_id === tid && jwtMeta.tenantId === tid;
+                    }
+                } catch {
+                    jwtHasClaims = hasSnake && hasCamel;
+                }
+
+                if (force || !hasSnake || !hasCamel || !jwtHasClaims) {
+                    console.log(`[FormService] 🔐 Sincronizando tenant_id (${tid}) no JWT para compatibilidade RLS...`);
+                    const { error: updateErr } = await supabase.auth.updateUser({
+                        data: {
+                            ...meta,
+                            tenant_id: tid,
+                            tenantId: tid,
+                        }
+                    });
+                    if (updateErr) {
+                        console.warn('[FormService] Aviso ao atualizar user_metadata:', updateErr.message);
+                    }
+                    const { data: refreshData, error: refreshErr } = await supabase.auth.refreshSession();
+                    if (refreshErr) {
+                        console.warn('[FormService] Aviso ao renovar token após sync de tenant:', refreshErr.message);
+                    } else if (refreshData?.session) {
+                        FormService._lastSyncedTenantId = tid;
+                    }
+                } else {
+                    FormService._lastSyncedTenantId = tid;
+                }
+            } catch (e) {
+                console.warn('[FormService] Falha ao sincronizar metadata de tenant:', e);
+            } finally {
+                FormService._syncPromise = null;
+            }
+        })();
+
+        await FormService._syncPromise;
+    },
+
     getServiceTypes: async (signal?: AbortSignal): Promise<any[]> => {
         await FormService._ensureFreshSession();
         const tenantId = await FormService._resolveTenantId();
@@ -296,6 +364,7 @@ export const FormService = {
         const tenantId = await FormService._resolveTenantId();
         if (isCloudEnabled) {
             if (!tenantId) return [];
+            await FormService._ensureTenantSessionSync(tenantId);
 
             try {
                 let query = supabase
@@ -312,8 +381,8 @@ export const FormService = {
                 let { data, error } = await query;
 
                 if (error) {
-                    console.warn('[FormService] Erro em defect_types, tentando refresh:', error.message);
-                    await supabase.auth.refreshSession();
+                    console.warn('[FormService] Erro em defect_types, tentando sincronizar sessão e repetir:', error.message);
+                    await FormService._ensureTenantSessionSync(tenantId, true);
                     let retryQuery = supabase
                         .from('defect_types')
                         .select('*')
@@ -351,27 +420,44 @@ export const FormService = {
     },
 
     saveDefectType: async (defect: Partial<DefectType>): Promise<DefectType> => {
-        const tid = getCurrentTenantId();
+        const tid = (await FormService._resolveTenantId()) || getCurrentTenantId();
         if (isCloudEnabled) {
             try {
+                if (!tid) throw new Error('Empresa (Tenant ID) não identificada na sessão.');
+                await FormService._ensureTenantSessionSync(tid);
+
                 const isActiveVal = defect.active ?? true;
                 const codeVal = (defect.code || '').trim();
                 const nameVal = (defect.name || '').trim();
                 const descVal = defect.description?.trim() || null;
 
                 if (defect.id) {
-                    const { data, error } = await supabase.from('defect_types')
-                        .update({
-                            code: codeVal,
-                            name: nameVal,
-                            description: descVal,
-                            active: isActiveVal,
-                            updated_at: new Date().toISOString()
-                        })
+                    const updatePayload = {
+                        code: codeVal,
+                        name: nameVal,
+                        description: descVal,
+                        active: isActiveVal,
+                        updated_at: new Date().toISOString()
+                    };
+
+                    let { data, error } = await supabase.from('defect_types')
+                        .update(updatePayload)
                         .eq('id', defect.id)
                         .eq('tenant_id', tid)
                         .select()
                         .single();
+
+                    if (error && (error.code === '42501' || error.message?.includes('row-level security'))) {
+                        await FormService._ensureTenantSessionSync(tid, true);
+                        const retry = await supabase.from('defect_types')
+                            .update(updatePayload)
+                            .eq('id', defect.id)
+                            .eq('tenant_id', tid)
+                            .select()
+                            .single();
+                        data = retry.data;
+                        error = retry.error;
+                    }
 
                     if (error) throw error;
                     return {
@@ -385,16 +471,28 @@ export const FormService = {
                         updatedAt: data.updated_at
                     };
                 } else {
-                    const { data, error } = await supabase.from('defect_types')
-                        .insert([{
-                            tenant_id: tid,
-                            code: codeVal,
-                            name: nameVal,
-                            description: descVal,
-                            active: isActiveVal
-                        }])
+                    const insertPayload = {
+                        tenant_id: tid,
+                        code: codeVal,
+                        name: nameVal,
+                        description: descVal,
+                        active: isActiveVal
+                    };
+
+                    let { data, error } = await supabase.from('defect_types')
+                        .insert([insertPayload])
                         .select()
                         .single();
+
+                    if (error && (error.code === '42501' || error.message?.includes('row-level security'))) {
+                        await FormService._ensureTenantSessionSync(tid, true);
+                        const retry = await supabase.from('defect_types')
+                            .insert([insertPayload])
+                            .select()
+                            .single();
+                        data = retry.data;
+                        error = retry.error;
+                    }
 
                     if (error) throw error;
                     return {
@@ -418,11 +516,22 @@ export const FormService = {
 
     deleteDefectType: async (id: string): Promise<void> => {
         if (isCloudEnabled) {
-            const tid = getCurrentTenantId();
-            const { error } = await supabase.from('defect_types')
+            const tid = (await FormService._resolveTenantId()) || getCurrentTenantId();
+            if (tid) await FormService._ensureTenantSessionSync(tid);
+
+            let { error } = await supabase.from('defect_types')
                 .delete()
                 .eq('id', id)
                 .eq('tenant_id', tid);
+
+            if (error && tid && (error.code === '42501' || error.message?.includes('row-level security'))) {
+                await FormService._ensureTenantSessionSync(tid, true);
+                const retry = await supabase.from('defect_types')
+                    .delete()
+                    .eq('id', id)
+                    .eq('tenant_id', tid);
+                error = retry.error;
+            }
             if (error) throw error;
         }
     },

@@ -160,7 +160,11 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
                          window.location.hash.includes('/checkout/') || 
                          window.location.hash.includes('/view/'));
 
-                    const isMasterRoute = typeof window !== 'undefined' && window.location.hash.includes('/master');
+                    const masterRouteKey = import.meta.env.VITE_MASTER_ROUTE_KEY || 'master';
+                    const isMasterRoute = typeof window !== 'undefined' && (
+                        window.location.hash.includes(`/${masterRouteKey}`) ||
+                        window.location.hash.includes('/master')
+                    );
 
                     const isImpersonating = typeof window !== 'undefined' && 
                         (!!(window as any).__NEXUS_IMPERSONATION ||

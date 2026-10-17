@@ -77,13 +77,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // ── Inicialização: sincroniza com o estado atual do Singleton ──
         const bootstrap = async () => {
             // 🛡️ IMPERSONATION & MASTER GUARD (Big Tech Pattern: AWS STS / GCP IAM)
-            const isMasterRoute = typeof window !== 'undefined' && window.location.hash.includes('/master');
+            const masterRouteKey = import.meta.env.VITE_MASTER_ROUTE_KEY || 'master';
+            const isMasterRoute = typeof window !== 'undefined' && (
+                window.location.hash.includes(`/${masterRouteKey}`) ||
+                window.location.hash.includes('/master')
+            );
             const isExplicitImpersonating = typeof window !== 'undefined' && 
                 (window.__NEXUS_IMPERSONATION === true || SessionStorage.get('is_impersonating') === true) &&
                 !!SessionStorage.get('user');
 
             if (isMasterRoute && SessionStorage.get('master_session_v2')) {
-                console.log('[AuthContext] 🛡️ Master route ativa (/master) — bootstrap protegido.');
+                console.log('[AuthContext] 🛡️ Master route ativa — bootstrap protegido.');
                 const stored = SessionStorage.get('user');
                 if (stored) {
                     const u = typeof stored === 'string' ? JSON.parse(stored) : stored;
@@ -96,9 +100,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (isExplicitImpersonating) {
                 console.log('[AuthContext] 🛡️ Impersonation virtual ativa — bootstrap protegido.');
                 const stored = SessionStorage.get('user');
+                let targetTid: string | undefined;
                 if (stored) {
                     const u = typeof stored === 'string' ? JSON.parse(stored) : stored;
+                    targetTid = u?.tenantId || u?.tenant_id;
                     setAuth({ user: u, isAuthenticated: true });
+                }
+                if (!targetTid) {
+                    targetTid = SessionStorage.get('current_tenant') || undefined;
+                }
+                // Sincroniza o tenant_id no JWT do Supabase para satisfazer políticas RLS baseadas em claims (ex: defect_types)
+                if (targetTid) {
+                    supabase.auth.getSession().then(async ({ data: { session: s } }) => {
+                        if (s?.user) {
+                            const meta = s.user.user_metadata || {};
+                            if (meta.tenant_id !== targetTid || meta.tenantId !== targetTid) {
+                                await supabase.auth.updateUser({
+                                    data: { ...meta, tenant_id: targetTid, tenantId: targetTid }
+                                }).catch(() => {});
+                                await supabase.auth.refreshSession().catch(() => {});
+                            }
+                        }
+                    }).catch(() => {});
                 }
                 setIsAuthLoading(false);
                 return;
@@ -231,7 +254,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             setSession(newSession);
 
-            const isMasterRoute = typeof window !== 'undefined' && window.location.hash.includes('/master');
+            const masterRouteKey = import.meta.env.VITE_MASTER_ROUTE_KEY || 'master';
+            const isMasterRoute = typeof window !== 'undefined' && (
+                window.location.hash.includes(`/${masterRouteKey}`) ||
+                window.location.hash.includes('/master')
+            );
             const isExplicitImpersonating = typeof window !== 'undefined' && 
                 (window.__NEXUS_IMPERSONATION === true || SessionStorage.get('is_impersonating') === true) &&
                 !!SessionStorage.get('user');
@@ -257,9 +284,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 window.localStorage.removeItem('nexus_oauth_in_flight'); window.localStorage.removeItem('nexus_oauth_timestamp');
                 setIsAuthLoading(false);
             } else if (event === 'SIGNED_IN' && newSession?.user) {
-                // 🛡️ IMPERSONATION GUARD: Não sobrescrever user virtual com user real do DB se estiver em auditoria cross-tab ativa
-                if (isExplicitImpersonating) {
-                    console.log('[AuthContext] 🛡️ Impersonation ativa — mantendo sessão virtual no SIGNED_IN.');
+                // 🛡️ MASTER & IMPERSONATION GUARD: Não sobrescrever user virtual com user real do DB
+                if ((isMasterRoute && SessionStorage.get('master_session_v2')) || isExplicitImpersonating) {
+                    console.log('[AuthContext] 🛡️ Master route ou Impersonation ativa — mantendo sessão virtual no SIGNED_IN.');
                     window.localStorage.removeItem('nexus_oauth_in_flight'); window.localStorage.removeItem('nexus_oauth_timestamp');
                     setIsAuthLoading(false);
                     return;

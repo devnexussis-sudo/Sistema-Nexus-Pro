@@ -247,8 +247,12 @@ export const AuthService = {
     // Implementa a lógica de permissão MIT/Harvard: Acesso ao PAINEL restrito a registros na tabela 'users'.
     _fetchFullUser: (authId: string, email: string, metadata: any): Promise<User | undefined> => {
         // 🛡️ Master Session / Impersonation Guard (Big Tech IAM Standard)
-        // O usuário mock 'DUNO Master' APENAS pode existir se o usuário estiver explicitamente na rota /master!
-        const isMasterRoute = typeof window !== 'undefined' && window.location.hash.includes('/master');
+        // O usuário mock 'DUNO Master' APENAS pode existir se o usuário estiver explicitamente na rota Master!
+        const masterRouteKey = import.meta.env.VITE_MASTER_ROUTE_KEY || 'master';
+        const isMasterRoute = typeof window !== 'undefined' && (
+            window.location.hash.includes(`/${masterRouteKey}`) ||
+            window.location.hash.includes('/master')
+        );
         const isExplicitImpersonating = typeof window !== 'undefined' && 
             (SessionStorage.get('is_impersonating') === true || (window as any).__NEXUS_IMPERSONATION === true) &&
             authId === 'master-override';
@@ -464,6 +468,13 @@ export const AuthService = {
             }
         }
 
+        // Garante que o JWT do usuário real tenha tenant_id e tenantId sincronizados para políticas RLS
+        if (dbUser.tenant_id && (metadata?.tenant_id !== dbUser.tenant_id || metadata?.tenantId !== dbUser.tenant_id)) {
+            supabase.auth.updateUser({
+                data: { ...metadata, tenant_id: dbUser.tenant_id, tenantId: dbUser.tenant_id }
+            }).then(() => supabase.auth.refreshSession()).catch(() => {});
+        }
+
         return {
             id: dbUser.id,
             name: dbUser.name,
@@ -492,7 +503,11 @@ export const AuthService = {
     },
 
     refreshUser: async (): Promise<User | undefined> => {
-        const isMasterRoute = typeof window !== 'undefined' && window.location.hash.includes('/master');
+        const masterRouteKey = import.meta.env.VITE_MASTER_ROUTE_KEY || 'master';
+        const isMasterRoute = typeof window !== 'undefined' && (
+            window.location.hash.includes(`/${masterRouteKey}`) ||
+            window.location.hash.includes('/master')
+        );
         const isExplicitImpersonating = typeof window !== 'undefined' && 
             (SessionStorage.get('is_impersonating') === true || (window as any).__NEXUS_IMPERSONATION === true);
 
