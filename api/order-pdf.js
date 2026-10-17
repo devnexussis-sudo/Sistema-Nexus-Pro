@@ -1,6 +1,9 @@
+import chromium from '@sparticuz/chromium';
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import fs from 'fs';
+import path from 'path';
+import puppeteerCore from 'puppeteer-core';
 
 // Carrega variáveis de ambiente em execução local / VPS / Docker (no Vercel já vêm injetadas)
 dotenv.config();
@@ -52,6 +55,37 @@ function sanitizeFilename(raw, prefix = 'OS') {
 // ============================================================================
 // 🌐 RESOLUÇÃO PORTÁVEL DO CHROMIUM (VERCEL SERVERLESS / DOCKER / VPS / LOCAL)
 // ============================================================================
+const FALLBACK_CHROMIUM_PACK_URL =
+    'https://github.com/Sparticuz/chromium/releases/download/v153.0.0/chromium-v153.0.0-pack.x64.tar';
+
+async function resolveServerlessExecutablePath() {
+    // 1. Tenta o diretório bin padrão do @sparticuz/chromium (incluído via vercel.json includeFiles)
+    try {
+        const defaultExec = await chromium.executablePath();
+        if (defaultExec && fs.existsSync(defaultExec)) {
+            return defaultExec;
+        }
+    } catch (err) {
+        console.warn('⚠️ [order-pdf] Fallback 1 executablePath:', err?.message);
+    }
+
+    // 2. Tenta caminho absoluto via process.cwd() caso o bundler tenha realocado o módulo
+    try {
+        const cwdBin = path.join(process.cwd(), 'node_modules', '@sparticuz', 'chromium', 'bin');
+        if (fs.existsSync(cwdBin)) {
+            const cwdExec = await chromium.executablePath(cwdBin);
+            if (cwdExec && fs.existsSync(cwdExec)) {
+                return cwdExec;
+            }
+        }
+    } catch (err) {
+        console.warn('⚠️ [order-pdf] Fallback 2 executablePath:', err?.message);
+    }
+
+    // 3. Fallback remoto oficial do Sparticuz caso o ambiente serverless não tenha empacotado bin/
+    return await chromium.executablePath(FALLBACK_CHROMIUM_PACK_URL);
+}
+
 async function launchIsolatedBrowser() {
     const isServerless = Boolean(
         process.env.VERCEL ||
@@ -59,16 +93,19 @@ async function launchIsolatedBrowser() {
         process.env.AWS_EXECUTION_ENV
     );
 
-    const puppeteerCore = await import('puppeteer-core');
-
-    // 1. Ambiente Serverless (Vercel / AWS Lambda) -> @sparticuz/chromium
+    // 1. Ambiente Serverless (Vercel / AWS Lambda) -> @sparticuz/chromium (chrome-headless-shell)
     if (isServerless) {
-        const chromiumModule = await import('@sparticuz/chromium');
-        const chromium = chromiumModule.default || chromiumModule;
+        try {
+            chromium.setGraphicsMode = false;
+        } catch {}
 
-        return puppeteerCore.default.launch({
+        const executablePath = await resolveServerlessExecutablePath();
+        // Remove "--headless='shell'" com aspas simples literais para que o puppeteer-core passe '--headless' limpo via headless: 'shell'
+        const cleanArgs = (chromium.args || []).filter((arg) => !arg.startsWith('--headless'));
+
+        return puppeteerCore.launch({
             args: [
-                ...chromium.args,
+                ...cleanArgs,
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
@@ -76,28 +113,13 @@ async function launchIsolatedBrowser() {
                 '--font-render-hinting=none',
             ],
             defaultViewport: { width: 1024, height: 1440, deviceScaleFactor: 2 },
-            executablePath: await chromium.executablePath(),
-            headless: chromium.headless,
+            executablePath,
+            headless: 'shell',
         });
     }
 
-    // 2. Ambiente Local / VPS / Container -> Tenta binário do Puppeteer ou Chrome nativo
+    // 2. Ambiente Local / VPS / Container -> Tenta Chrome nativo do sistema operacional
     let executablePath = process.env.CHROME_EXECUTABLE_PATH || '';
-
-    if (!executablePath) {
-        try {
-            const fullPuppeteer = await import('puppeteer');
-            const p = fullPuppeteer.default || fullPuppeteer;
-            if (typeof p.executablePath === 'function') {
-                const candidate = p.executablePath();
-                if (candidate && fs.existsSync(candidate)) {
-                    executablePath = candidate;
-                }
-            }
-        } catch {
-            // Segue para candidatos nativos do sistema operacional
-        }
-    }
 
     if (!executablePath) {
         const systemCandidates = [
@@ -117,12 +139,10 @@ async function launchIsolatedBrowser() {
     }
 
     if (!executablePath) {
-        const chromiumModule = await import('@sparticuz/chromium');
-        const chromium = chromiumModule.default || chromiumModule;
-        executablePath = await chromium.executablePath();
+        executablePath = await resolveServerlessExecutablePath();
     }
 
-    return puppeteerCore.default.launch({
+    return puppeteerCore.launch({
         executablePath,
         headless: true,
         defaultViewport: { width: 1024, height: 1440, deviceScaleFactor: 2 },
@@ -364,40 +384,28 @@ export default async function handler(req, res) {
 
     // 5. Renderização Isolada em Headless Chromium
     let browser = null;
-    let context = null;
+    let page = null;
 
     try {
         browser = await launchIsolatedBrowser();
-        context = await browser.createBrowserContext();
-        const page = await context.newPage();
-
-        // Bloqueia acesso a metadados de nuvem interna (AWS/GCP metadata) por segurança extra Anti-SSRF
-        await page.setRequestInterception(true);
-        page.on('request', (request) => {
-            const url = request.url();
-            if (url.includes('169.254.169.254') || url.includes('metadata.google.internal') || url.startsWith('file://')) {
-                request.abort();
-                return;
-            }
-            request.continue();
-        });
+        page = await browser.newPage();
 
         // Ativa o modo de mídia de impressão (@media print -> exibe .print-only-layout / <PrintLayout />)
         await page.emulateMediaType('print');
 
         await page.goto(targetUrl, {
-            waitUntil: 'networkidle2',
-            timeout: 30000,
+            waitUntil: 'domcontentloaded',
+            timeout: 25000,
         });
 
         // Aguarda o sinal determinístico de que dados assíncronos (empresa, visitas, checklists, itens, fotos) carregaram
         try {
             await page.waitForFunction(
                 () => window.__NEXUS_PDF_READY === true || document.body?.getAttribute('data-pdf-ready') === 'true',
-                { timeout: 12000 }
+                { timeout: 15000 }
             );
         } catch {
-            // Fallback seguro caso alguma imagem externa demore mais que 12s
+            // Fallback seguro caso alguma imagem externa demore mais que 15s
         }
 
         // Garante que as fontes (Poppins) e decodificação final de imagens estejam prontas
@@ -435,11 +443,12 @@ export default async function handler(req, res) {
         console.error('❌ [order-pdf] Falha ao renderizar PDF no Chromium:', renderError);
         return res.status(500).json({
             error: `Não foi possível gerar o arquivo PDF ${isQuote ? 'do Orçamento' : 'da Ordem de Serviço'} no momento.`,
+            detail: renderError?.message || 'Erro interno no motor de renderização.',
         });
     } finally {
-        if (context) {
+        if (page) {
             try {
-                await context.close();
+                await page.close();
             } catch {}
         }
         if (browser) {
