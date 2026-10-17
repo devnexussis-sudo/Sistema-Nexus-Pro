@@ -27,9 +27,19 @@
             ]
         }
     ],
+    "functions": {
+        "api/order-pdf.js": {
+            "memory": 1024,
+            "maxDuration": 60
+        }
+    },
     "rewrites": [
         {
-            "source": "/(.*)",
+            "source": "/api/(.*)",
+            "destination": "/api/$1"
+        },
+        {
+            "source": "/((?!api/).*)",
             "destination": "/index.html"
         }
     ]

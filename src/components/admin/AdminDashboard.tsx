@@ -478,8 +478,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
 
-  // 🖨️ Impressão e Exportação em PDF de OS via Iframe Invisível em Segundo Plano
-  const handlePrintOrder = (orderId: string) => {
+  // 📥 Geração e Download Direto de Arquivo PDF da OS via Serverless Headless Chromium
+  const handlePrintOrder = async (orderId: string) => {
     const orderToPrint = pagedOrders.find(o => o.id === orderId) || selectedOrder;
     if (!orderToPrint || printingOrderId) return;
 
@@ -488,83 +488,59 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     setPrintingOrderId(orderKey);
 
-    // Remove qualquer iframe de impressão residual
-    const existingIframe = document.getElementById('nexus-order-print-iframe');
-    if (existingIframe) {
-      existingIframe.remove();
-    }
+    try {
+      const rawPrefix = (orderToPrint.displayId || (orderToPrint as any).serviceOrderNumber || orderToPrint.id?.slice(0, 8) || 'OS')
+        .replace(/^#/, '')
+        .trim();
+      const orderPrefix = rawPrefix.toUpperCase().startsWith('OS') || rawPrefix.includes('-')
+        ? rawPrefix
+        : `OS-${rawPrefix}`;
+      const filename = `${orderPrefix}.pdf`;
 
-    const iframe = document.createElement('iframe');
-    iframe.id = 'nexus-order-print-iframe';
-    iframe.setAttribute('title', 'Impressão de Ordem de Serviço');
-    iframe.setAttribute('aria-hidden', 'true');
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
 
-    // 🍎 Safari macOS & WebKit CoreGraphics: o iframe DEVE ter coordenadas dentro do viewport (top: 0, left: 0)
-    // e pointerEvents: 'auto', caso contrário o motor Quartz PDF do macOS computa CGRect como (0,0) ou descarta
-    // anotações de hyperlinks clicáveis no PDF exportado.
-    Object.assign(iframe.style, {
-      position: 'fixed',
-      top: '0',
-      left: '0',
-      width: '1024px',
-      height: '768px',
-      border: '0',
-      opacity: '0.001',
-      pointerEvents: 'auto',
-      zIndex: '-9999'
-    });
-
-    const rawPrefix = (orderToPrint.displayId || (orderToPrint as any).serviceOrderNumber || orderToPrint.id?.slice(0, 8) || 'OS')
-      .replace(/^#/, '')
-      .trim();
-    const orderPrefix = rawPrefix.toUpperCase().startsWith('OS') || rawPrefix.includes('-')
-      ? rawPrefix
-      : `OS-${rawPrefix}`;
-
-    const originalTitle = document.title;
-    document.title = orderPrefix;
-
-    const targetToken = orderToPrint.publicToken || orderToPrint.id;
-    const printUrl = `${window.location.origin}/#/order/view/${targetToken}?print=true&t=${Date.now()}`;
-
-    let timeoutId: any = null;
-
-    const restoreTitle = () => {
-      setTimeout(() => {
-        document.title = originalTitle;
-      }, 2500);
-    };
-
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'NEXUS_ORDER_PRINT_TRIGGERED') {
-        // Libera o spinner do botão na interface imediatamente
-        setPrintingOrderId(null);
-        restoreTitle();
-        // ⚠️ No Safari, NÃO removemos o iframe aqui! Se o iframe for removido enquanto o
-        // diálogo do sistema macOS está aberto, o WebKit destrói o contexto de anotações PDF.
-      } else if (event.data?.type === 'NEXUS_ORDER_PRINT_FINISHED') {
-        setPrintingOrderId(null);
-        restoreTitle();
-        if (timeoutId) clearTimeout(timeoutId);
-        setTimeout(() => {
-          iframe.remove();
-          window.removeEventListener('message', handleMessage);
-        }, 1500);
+      const headers: Record<string, string> = {};
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
       }
-    };
 
-    window.addEventListener('message', handleMessage);
+      const params = new URLSearchParams();
+      if (orderToPrint.id) params.set('orderId', orderToPrint.id);
+      if (orderToPrint.publicToken) params.set('token', orderToPrint.publicToken);
 
-    // Fallback de segurança para liberar o botão e limpar o iframe após 60s se o diálogo for mantido aberto
-    timeoutId = setTimeout(() => {
+      const response = await fetch(`/api/order-pdf?${params.toString()}`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        let errMessage = 'Não foi possível gerar o PDF da Ordem de Serviço.';
+        try {
+          const errJson = await response.json();
+          if (errJson?.error) errMessage = errJson.error;
+        } catch {}
+        throw new Error(errMessage);
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      setTimeout(() => {
+        window.URL.revokeObjectURL(downloadUrl);
+      }, 5000);
+    } catch (err: any) {
+      console.error('❌ Falha ao baixar PDF da OS:', err);
+      showAlert(err?.message || 'Erro ao baixar o arquivo PDF da Ordem de Serviço.');
+    } finally {
       setPrintingOrderId(null);
-      restoreTitle();
-      iframe.remove();
-      window.removeEventListener('message', handleMessage);
-    }, 60000);
-
-    iframe.src = printUrl;
-    document.body.appendChild(iframe);
+    }
   };
 
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
@@ -4072,6 +4048,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           </div>
         </div>, document.body
+      )}
+
+      {printingOrderId && createPortal(
+        <div className="fixed bottom-6 right-4 sm:right-6 sm:bottom-6 z-[2147483647] pointer-events-none select-none max-w-sm w-[calc(100%-2rem)] sm:w-auto p-4 rounded-xl shadow-2xl border bg-white/95 backdrop-blur-md border-[#1c2d4f]/20 shadow-[#1c2d4f]/10 flex items-start gap-3 animate-fade-in print:hidden">
+          <div className="shrink-0 mt-0.5">
+            <Loader2 size={20} className="animate-spin text-[#1c2d4f]" />
+          </div>
+          <div className="flex-1">
+            <h4 className="text-sm font-semibold text-[#1c2d4f]">Exportando Arquivo PDF...</h4>
+            <p className="text-xs font-medium text-slate-600 mt-1 leading-relaxed">
+              O documento está sendo gerado, aguarde! O download iniciará automaticamente.
+            </p>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

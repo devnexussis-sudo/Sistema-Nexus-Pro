@@ -7,10 +7,55 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import { visualizer } from 'rollup-plugin-visualizer';
 import viteCompression from 'vite-plugin-compression';
 
+const attachLocalApiMiddleware = (middlewares: any) => {
+  middlewares.use('/api/order-pdf', async (req: any, res: any, next: any) => {
+    try {
+      const fullUrl = new URL(req.originalUrl || req.url || '', 'http://localhost');
+      req.query = Object.fromEntries(fullUrl.searchParams.entries());
+
+      if (!res.status) {
+        res.status = (code: number) => {
+          res.statusCode = code;
+          return res;
+        };
+      }
+      if (!res.json) {
+        res.json = (data: any) => {
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(data));
+          return res;
+        };
+      }
+      if (!res.send) {
+        res.send = (data: any) => {
+          res.end(data);
+          return res;
+        };
+      }
+
+      const mod = await import('./api/order-pdf.js');
+      await mod.default(req, res);
+    } catch (err) {
+      next(err);
+    }
+  });
+};
+
 export default defineConfig({
   plugins: [
     react(),
     nodePolyfills(),
+
+    // Middleware local para executar /api/order-pdf em npm run dev / preview
+    {
+      name: 'nexus-local-api-middleware',
+      configureServer(server) {
+        attachLocalApiMiddleware(server.middlewares);
+      },
+      configurePreviewServer(server) {
+        attachLocalApiMiddleware(server.middlewares);
+      },
+    },
 
     // Compressão Brotli para produção
     viteCompression({

@@ -6,9 +6,11 @@ import {
   ClipboardList,
   Clock,
   DollarSign,
+  Download,
   FileText,
   Globe,
   Hexagon,
+  Loader2,
   MapPin,
   Mail,
   Package,
@@ -1183,10 +1185,17 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     };
     fetchTemplates();
   }, [order?.formId, linkedEquipments.length]); // Somente re-executa se o ID do formulário ou qtd de equipamentos mudar
+  const [isTenantReady, setIsTenantReady] = React.useState<boolean>(Boolean(tenantProp));
+  const [isEquipsReady, setIsEquipsReady] = React.useState<boolean>(false);
+  const [isVisitsReady, setIsVisitsReady] = React.useState<boolean>(false);
+  const [isCustomerReady, setIsCustomerReady] = React.useState<boolean>(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = React.useState<boolean>(false);
+
   React.useEffect(() => {
     const fetchTenantData = async () => {
       if (tenantProp) {
         setTenant(tenantProp);
+        setIsTenantReady(true);
         return;
       }
       if (order) {
@@ -1196,6 +1205,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           setTenant(data);
         } catch (error) {
           console.error('Erro ao buscar dados da empresa:', error);
+        } finally {
+          setIsTenantReady(true);
         }
       }
     };
@@ -1212,6 +1223,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         setLinkedEquipments(rows);
       } catch (err) {
         setLinkedEquipments([]);
+      } finally {
+        setIsEquipsReady(true);
       }
     };
     fetchEquips();
@@ -1219,7 +1232,11 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   
   // 🛰️ Busca visitas via RPC (bypassa RLS para visualização pública via Token)
   React.useEffect(() => {
-    if (!order?.id || !order?.publicToken) return;
+    if (!order?.id) return;
+    if (!order?.publicToken) {
+      setIsVisitsReady(true);
+      return;
+    }
     const fetchVisits = async () => {
       try {
         const { data, error } = await supabase.rpc('get_public_order_visits', { search_term: order.publicToken || order.id });
@@ -1228,6 +1245,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
       } catch (err) {
         console.error('Erro ao buscar visitas:', err);
         setOrderVisits([]);
+      } finally {
+        setIsVisitsReady(true);
       }
     };
     fetchVisits();
@@ -1291,6 +1310,55 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     fallbackTimer = setTimeout(doPrint, 1500);
   }, [order]);
 
+  // 📥 Download Direto do Arquivo PDF via API Serverless Headless Chromium
+  const handleDownloadPdf = React.useCallback(async () => {
+    if (!order || isDownloadingPdf) return;
+    setIsDownloadingPdf(true);
+
+    try {
+      const rawPrefix = (order.displayId || (order as any).serviceOrderNumber || order.id?.substring(0, 8) || 'OS')
+        .replace(/^#/, '')
+        .trim();
+      const filename = (rawPrefix.toUpperCase().startsWith('OS') || rawPrefix.includes('-') ? rawPrefix : `OS-${rawPrefix}`) + '.pdf';
+
+      const headers: Record<string, string> = {};
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData?.session?.access_token) {
+          headers['Authorization'] = `Bearer ${sessionData.session.access_token}`;
+        }
+      } catch {}
+
+      const params = new URLSearchParams();
+      if (order.publicToken) params.set('token', order.publicToken);
+      if (order.id) params.set('orderId', order.id);
+
+      const response = await fetch(`/api/order-pdf?${params.toString()}`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => window.URL.revokeObjectURL(url), 5000);
+    } catch (err) {
+      console.error('Erro ao baixar PDF direto, acionando fallback de impressão:', err);
+      triggerSmartPrint(false);
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  }, [order, isDownloadingPdf, triggerSmartPrint]);
+
   React.useEffect(() => {
     try {
       const hash = typeof window !== 'undefined' ? window.location.hash : '';
@@ -1339,10 +1407,16 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
   React.useEffect(() => {
     const fetchCustomerAddress = async () => {
-      if (!order?.customerName) return;
+      if (!order?.customerName) {
+        setIsCustomerReady(true);
+        return;
+      }
       try {
         const tenantId = (order as any).tenant_id || order?.tenantId;
-        if (!tenantId) return;
+        if (!tenantId) {
+          setIsCustomerReady(true);
+          return;
+        }
         const { data } = await import('../../lib/supabase').then(m => m.supabase
           .from('customers')
           .select('address, number, complement, neighborhood, city, state, phone, whatsapp, email')
@@ -1370,10 +1444,53 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         }
       } catch {
         // Se não encontrar, usa o endereço da OS
+      } finally {
+        setIsCustomerReady(true);
       }
     };
     fetchCustomerAddress();
   }, [order?.customerName, order?.id]);
+
+  // 🎯 Sinal determinístico para o motor Headless Chromium (Puppeteer) saber que todos os dados e imagens estão prontos
+  React.useEffect(() => {
+    if (!order || !isTenantReady || !isEquipsReady || !isVisitsReady || !isCustomerReady) return;
+
+    let cancelled = false;
+    const markReady = () => {
+      if (cancelled) return;
+      (window as any).__NEXUS_PDF_READY = true;
+      document.body?.setAttribute('data-pdf-ready', 'true');
+    };
+
+    const timer = setTimeout(() => {
+      const imgs = Array.from(document.querySelectorAll('.print-only-layout img')) as HTMLImageElement[];
+      const pending = imgs.filter(img => !img.complete);
+      if (pending.length === 0) {
+        markReady();
+        return;
+      }
+
+      let done = 0;
+      const fallback = setTimeout(markReady, 2500);
+      const onImgDone = () => {
+        done++;
+        if (done >= pending.length) {
+          clearTimeout(fallback);
+          markReady();
+        }
+      };
+
+      pending.forEach(img => {
+        img.addEventListener('load', onImgDone, { once: true });
+        img.addEventListener('error', onImgDone, { once: true });
+      });
+    }, 150);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [order, isTenantReady, isEquipsReady, isVisitsReady, isCustomerReady]);
 
   if (!order) return (
     <div className="public-view-wrapper font-poppins" style={{ fontFamily: "'Poppins', sans-serif" }}>
@@ -1640,46 +1757,43 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
   // ── PRINT LAYOUT COMPONENT ──
   const PrintLayout = () => (
-    <div className="bg-white text-[10px] leading-tight font-poppins pb-20 print:pb-20" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
-      <table className="print-doc-table w-full border-collapse" style={{ width: '100%', borderCollapse: 'collapse', border: 'none', margin: 0, padding: 0 }}>
-        <tbody>
-          <tr>
-            <td style={{ border: 'none', padding: 0, verticalAlign: 'top' }}>
-              {/* Print Header */}
-      <div className="flex justify-between items-start pb-2 border-b-2 border-slate-800 mb-2">
-        <div className="flex gap-3 items-center">
-          {companyLogo
-            ? <img src={companyLogo} alt="Logo" className="h-12 w-auto object-contain" />
-            : <div className="bg-slate-900 p-1.5 rounded-lg flex items-center justify-center min-w-[50px] min-h-[50px] text-white"><Hexagon size={24} className="text-white fill-white/10" /></div>
-          }
-          <div className="space-y-0.5">
-            <h1 className="text-lg text-slate-900 uppercase tracking-tight">{companyName}</h1>
-            <div className="text-[9px] text-slate-600 max-w-[400px]">
-              {companyAddress && <div className="leading-tight">{companyAddress}</div>}
-              <div className="flex gap-2 mt-0.5">
-                {companyPhone && <span className="">Tel: {companyPhone}</span>}
-                {companyEmail && <span>Email: {companyEmail}</span>}
+    <div className="bg-white text-[10px] leading-tight font-poppins pb-2 print:pb-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+      <div className="print-doc-table w-full">
+        {/* Print Header */}
+        <div className="flex justify-between items-start pb-2 border-b-2 border-slate-800 mb-2">
+          <div className="flex gap-3 items-center">
+            {companyLogo
+              ? <img src={companyLogo} alt="Logo" className="h-12 w-auto object-contain" />
+              : <div className="bg-slate-900 p-1.5 rounded-lg flex items-center justify-center min-w-[50px] min-h-[50px] text-white"><Hexagon size={24} className="text-white fill-white/10" /></div>
+            }
+            <div className="space-y-0.5">
+              <h1 className="text-lg text-slate-900 uppercase tracking-tight">{companyName}</h1>
+              <div className="text-[9px] text-slate-600 max-w-[400px]">
+                {companyAddress && <div className="leading-tight">{companyAddress}</div>}
+                <div className="flex gap-2 mt-0.5">
+                  {companyPhone && <span className="">Tel: {companyPhone}</span>}
+                  {companyEmail && <span>Email: {companyEmail}</span>}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        <div className="text-right">
-          <div className="border-2 border-slate-800 px-3 py-1 rounded-lg bg-slate-50">
-            <div className="text-[8px] text-slate-500 uppercase tracking-wider">Ordem de Serviço</div>
-            <div className="text-xl text-slate-900 tracking-tighter">#{order.displayId || order.id.slice(0, 8).toUpperCase()}</div>
+          <div className="text-right">
+            <div className="border-2 border-slate-800 px-3 py-1 rounded-lg bg-slate-50">
+              <div className="text-[8px] text-slate-500 uppercase tracking-wider">Ordem de Serviço</div>
+              <div className="text-xl text-slate-900 tracking-tighter">#{order.displayId || order.id.slice(0, 8).toUpperCase()}</div>
+            </div>
+            <p className="text-[8px] text-slate-400 mt-1 uppercase tracking-wide">
+              Emissão: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </p>
           </div>
-          <p className="text-[8px] text-slate-400 mt-1 uppercase tracking-wide">
-            Emissão: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </p>
         </div>
-      </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {/* Dados do Atendimento — print-no-break: card compacto, nunca cortar */}
         <div className="border border-slate-300 rounded-lg overflow-hidden print-no-break">
           <div className="grid grid-cols-12 divide-x divide-slate-200">
             <div className="col-span-12 bg-slate-100 px-3 py-1 border-b border-slate-300 text-[9px] uppercase tracking-wider text-slate-700">Dados do Atendimento e Cliente</div>
-            <div className="col-span-7 p-2 grid grid-cols-2 gap-x-4 gap-y-2">
+            <div className="col-span-7 p-2 grid grid-cols-2 gap-x-4 gap-y-1.5">
               <div className="col-span-2"><label className="block text-[8px] text-slate-400 uppercase">Cliente</label><div className="text-slate-900 text-xs uppercase">{order.customerName}</div></div>
               <div className="col-span-2 flex flex-col gap-1">
                 <div><label className="block text-[8px] text-slate-400 uppercase">Endereço</label><div className="text-slate-700 text-xs uppercase leading-tight whitespace-pre-line">{displayAddress || 'N/A'}</div></div>
@@ -1695,7 +1809,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 )}
               </div>
             </div>
-            <div className="col-span-5 p-2 grid grid-cols-2 gap-2 bg-slate-50/50">
+            <div className="col-span-5 p-2 grid grid-cols-2 gap-1.5 bg-slate-50/50">
               <div><label className="block text-[8px] text-slate-400 uppercase">Abertura</label><div className="">{fmt(order.createdAt)}</div></div>
               <div><label className="block text-[8px] text-slate-400 uppercase">Tipo</label><div className="uppercase text-[9px]">{order.operationType || 'Manutenção'}</div></div>
               <div><label className="block text-[8px] text-slate-400 uppercase">Check-In</label><div className="">{fmtDT(orderVisits.find((v: any) => v.arrival_time)?.arrival_time || order.startDate)}</div></div>
@@ -1712,45 +1826,45 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         {/* Equipamentos Vinculados (print) */}
         {linkedEquipments.length > 0 ? (
           <div className="border border-slate-300 rounded-lg overflow-hidden print-no-break">
-            <div className="bg-sky-50 text-sky-900 px-3 py-2 border-b border-sky-100 text-sm uppercase tracking-wider print-section-header">
+            <div className="bg-sky-50 text-sky-900 px-3 py-1.5 border-b border-sky-100 text-xs uppercase tracking-wider print-section-header">
               Equipamentos Vinculados ({linkedEquipments.length})
             </div>
             <div className="w-full"><table className="w-full text-left break-words table-fixed">
               <thead>
-                <tr className="bg-slate-50 text-xs text-slate-500 uppercase border-b border-slate-200">
-                  <th className="px-3 py-1.5">#</th>
-                  <th className="px-3 py-1.5">Equipamento</th>
-                  <th className="px-3 py-1.5">Modelo</th>
-                  <th className="px-3 py-1.5">Nº Série</th>
-                  <th className="px-3 py-1.5">Família</th>
+                <tr className="bg-slate-50 text-[10px] text-slate-500 uppercase border-b border-slate-200">
+                  <th className="px-3 py-1">#</th>
+                  <th className="px-3 py-1">Equipamento</th>
+                  <th className="px-3 py-1">Modelo</th>
+                  <th className="px-3 py-1">Nº Série</th>
+                  <th className="px-3 py-1">Família</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
                 {linkedEquipments.map((eq: any, i: number) => (
                   <tr key={eq.id || i}>
-                    <td className="px-3 py-1.5 text-xs text-slate-400">{i + 1}</td>
-                    <td className="px-3 py-1.5 text-xs text-slate-800 uppercase">{eq.equipment_name || eq.equipmentName || '—'}</td>
-                    <td className="px-3 py-1.5 text-xs text-slate-600 uppercase">{eq.equipment_model || eq.equipmentModel || '—'}</td>
-                    <td className="px-3 py-1.5 text-xs font-mono text-[#1c2d4f]">{eq.equipment_serial || eq.equipmentSerial || '—'}</td>
-                    <td className="px-3 py-1.5 text-xs text-slate-600 uppercase">{eq.equipment_family || eq.equipmentFamily || '—'}</td>
+                    <td className="px-3 py-1 text-[10px] text-slate-400">{i + 1}</td>
+                    <td className="px-3 py-1 text-[10px] text-slate-800 uppercase">{eq.equipment_name || eq.equipmentName || '—'}</td>
+                    <td className="px-3 py-1 text-[10px] text-slate-600 uppercase">{eq.equipment_model || eq.equipmentModel || '—'}</td>
+                    <td className="px-3 py-1 text-[10px] font-mono text-[#1c2d4f]">{eq.equipment_serial || eq.equipmentSerial || '—'}</td>
+                    <td className="px-3 py-1 text-[10px] text-slate-600 uppercase">{eq.equipment_family || eq.equipmentFamily || '—'}</td>
                   </tr>
                 ))}
               </tbody>
             </table></div>
           </div>
         ) : (order.equipmentName || order.equipmentModel || order.equipmentSerial) && (
-          <div className="border border-slate-200 rounded-lg overflow-hidden print-no-break shadow-sm">
-            <div className="bg-sky-50 text-sky-900 px-3 py-2 border-b border-sky-100 text-sm uppercase tracking-wider">Dados do Equipamento</div>
-            <div className="p-3 bg-white grid grid-cols-3 gap-4">
-              <div className="col-span-1"><label className="block text-[10px] text-slate-400 uppercase tracking-widest">Equipamento</label><div className="text-slate-800 text-sm uppercase">{order.equipmentName || '—'}</div></div>
-              <div className="col-span-1"><label className="block text-[10px] text-slate-400 uppercase tracking-widest">Modelo</label><div className="text-slate-700 text-sm uppercase">{order.equipmentModel || '—'}</div></div>
-              <div className="col-span-1"><label className="block text-[10px] text-slate-400 uppercase tracking-widest">Nº Sér / ID</label><div className="font-mono text-[#1c2d4f] text-sm uppercase ">{order.equipmentSerial || '—'}</div></div>
+          <div className="border border-slate-200 rounded-lg overflow-hidden print-no-break">
+            <div className="bg-sky-50 text-sky-900 px-3 py-1.5 border-b border-sky-100 text-xs uppercase tracking-wider">Dados do Equipamento</div>
+            <div className="p-2.5 bg-white grid grid-cols-3 gap-4">
+              <div className="col-span-1"><label className="block text-[9px] text-slate-400 uppercase tracking-widest">Equipamento</label><div className="text-slate-800 text-xs uppercase">{order.equipmentName || '—'}</div></div>
+              <div className="col-span-1"><label className="block text-[9px] text-slate-400 uppercase tracking-widest">Modelo</label><div className="text-slate-700 text-xs uppercase">{order.equipmentModel || '—'}</div></div>
+              <div className="col-span-1"><label className="block text-[9px] text-slate-400 uppercase tracking-widest">Nº Sér / ID</label><div className="font-mono text-[#1c2d4f] text-xs uppercase ">{order.equipmentSerial || '—'}</div></div>
             </div>
           </div>
         )}
 
         {order.description && (
-          <div className="border border-slate-300 rounded-lg overflow-hidden print-section">
+          <div className="border border-slate-300 rounded-lg overflow-visible print-section">
             <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 text-[9px] uppercase tracking-wider text-slate-700 print-section-header">Descrição do problema</div>
             <div className="p-2 bg-white text-[9px] text-slate-800 whitespace-pre-wrap leading-tight">
               {order.description}
@@ -1759,7 +1873,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         )}
 
         {(order.status === 'IMPEDIDO' || formDataPrint.impediment_reason || (order.notes && order.notes.includes('IMPEDIMENTO'))) && (
-          <div className="border border-red-300 rounded-lg overflow-hidden print-no-break shadow-sm text-red-900">
+          <div className="border border-red-300 rounded-lg overflow-hidden print-no-break text-red-900">
             <div className="bg-red-100 px-3 py-1 border-b border-red-300 text-[9px] uppercase tracking-wider text-red-700 print-section-header">Aviso de Impedimento / Pendência</div>
             <div className="p-2 bg-red-50 text-[9px] whitespace-pre-wrap italic leading-tight">
               {formDataPrint.impediment_reason || (order.notes ? order.notes.replace('IMPEDIMENTO: ', '') : 'Motivo não mapeado detalhadamente.')}
@@ -1883,9 +1997,9 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             const grpEqName = eq ? (eq.equipment_name || eq.equipmentName) : gName.replace(/\s*-\s*(Financeiro|Técnico|Tecnico)\s*$/i, '').replace(/^.*?\]\s*-?\s*/, '');
 
             return (
-              // print-section: permite que o conteúdo do grupo flua entre páginas sem cortar bordas
-              <div key={gIdx} className="border border-slate-300 rounded-lg mt-2 print-section overflow-visible">
-                <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 text-[10px] uppercase tracking-wider text-slate-700 flex justify-between items-center print-section-header">
+              // print-section: permite que o conteúdo do grupo flua entre páginas aproveitando 100% da folha
+              <div key={gIdx} className="border border-slate-300 rounded-lg mt-1.5 print-section overflow-visible">
+                <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 text-[10px] uppercase tracking-wider text-slate-700 flex justify-between items-center print-section-header">
                   <div className="flex items-center gap-1.5">
                     <span>Checklist — {grpEqName}</span>
                     {isGrpFinanceiro && <span className="text-[8px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">Financeiro</span>}
@@ -1895,25 +2009,25 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     <span className="text-[9px] text-slate-500">S/N: {eq.equipment_serial || eq.equipmentSerial}</span>
                   )}
                 </div>
-                <div className="p-2 bg-white space-y-2 print-checklist-container">
+                <div className="p-1.5 bg-white print-checklist-container">
                   {items.map((item, iIdx) => (
-                    <div key={iIdx} className="print-checklist-row border border-slate-200 rounded bg-white overflow-hidden mb-2">
+                    <div key={iIdx} className="print-checklist-row border border-slate-200 rounded bg-white overflow-hidden mb-1.5 last:mb-0">
                       <table className="w-full border-collapse table-fixed print-qa-table" style={{ width: '100%', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                         <tbody>
                           <tr>
-                            <td className="w-1/2 p-2 bg-slate-50/50 align-top border-r border-slate-200 print-question">
+                            <td className="w-1/2 p-1.5 bg-slate-50/50 align-top border-r border-slate-200 print-question">
                               <p className="text-[10px] font-medium uppercase tracking-tight text-slate-600">
                                 {resolvePublicLabel(item.key)}
                               </p>
                             </td>
-                            <td className="w-1/2 p-2 align-top print-answer bg-white">
+                            <td className="w-1/2 p-1.5 align-top print-answer bg-white">
                               {item.text && (
                                 <p className={`text-xs uppercase font-semibold leading-tight ${item.text.toLowerCase() === 'sim' || item.text.toLowerCase() === 'ok' ? 'text-emerald-700 font-bold' : 'text-slate-900'}`}>
                                   {formatPublicValue(item.text)}
                                 </p>
                               )}
                               {item.photos.length > 0 && (
-                                <div className="print-photos flex flex-wrap gap-2 mt-2">
+                                <div className="print-photos flex flex-wrap gap-2 mt-1.5">
                                   {item.photos.map((p: string, pIdx: number) => (
                                     <PrintMediaCard key={pIdx} url={p} alt={`Anexo ${pIdx + 1}`} widthClass="w-[130px]" mediaHeightClass="h-[95px]" />
                                   ))}
@@ -1949,24 +2063,24 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   if (eqParts.length === 0) return null;
 
                   return (
-                    <div className="p-3 border-t border-slate-200 bg-slate-50/50 print-no-break">
+                    <div className="p-2 border-t border-slate-200 bg-slate-50/50 print-no-break">
                       <div className="bg-slate-50 rounded-md border border-slate-300 overflow-hidden">
                         <table className="w-full text-left break-words">
                           <thead>
                             <tr className="bg-slate-200/50 text-[8px] text-slate-600 uppercase border-b border-slate-300">
-                              <th className="px-3 py-1.5">Peças Utilizadas neste Equipamento</th>
-                              <th className="px-3 py-1.5 text-center whitespace-nowrap">Qtd</th>
-                              {showPrices && <th className="px-3 py-1.5 text-right whitespace-nowrap">Total</th>}
+                              <th className="px-3 py-1">Peças Utilizadas neste Equipamento</th>
+                              <th className="px-3 py-1 text-center whitespace-nowrap">Qtd</th>
+                              {showPrices && <th className="px-3 py-1 text-right whitespace-nowrap">Total</th>}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-200">
                             {eqParts.map((pIt, pIdx) => (
                               <tr key={pIdx}>
-                                <td className="px-3 py-1.5 text-[9px] text-slate-700 uppercase break-words whitespace-normal">
+                                <td className="px-3 py-1 text-[9px] text-slate-700 uppercase break-words whitespace-normal">
                                   <span className="text-slate-900 mr-1">{pIt.quantity || 1}x</span> {pIt.description}
                                 </td>
-                                <td className="px-3 py-1.5 text-[9px] text-center text-slate-900 whitespace-nowrap">{pIt.quantity || 1}</td>
-                                {showPrices && <td className="px-3 py-1.5 text-[9px] text-right text-slate-900 whitespace-nowrap">R$ {(pIt.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                                <td className="px-3 py-1 text-[9px] text-center text-slate-900 whitespace-nowrap">{pIt.quantity || 1}</td>
+                                {showPrices && <td className="px-3 py-1 text-[9px] text-right text-slate-900 whitespace-nowrap">R$ {(pIt.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
                               </tr>
                             ))}
                           </tbody>
@@ -1999,9 +2113,9 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           if (!order.videoUrl && !formDataPrint.videoUrl && !formDataPrint.video_url && allValidExtrasPrint.length === 0) return null;
 
           return (
-            <div className="border border-slate-300 rounded-lg overflow-hidden mt-4 print-no-break">
-              <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 text-xs uppercase tracking-wider text-slate-700">Evidências Fotográficas e de Conclusão</div>
-              <div className="p-3 bg-white flex flex-wrap gap-3">
+            <div className="border border-slate-300 rounded-lg overflow-visible mt-2 print-section">
+              <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 text-xs uppercase tracking-wider text-slate-700 print-section-header">Evidências Fotográficas e de Conclusão</div>
+              <div className="p-2 bg-white flex flex-wrap gap-2 print-photos">
                 {(() => {
                   const rawVid = order.videoUrl || formDataPrint.videoUrl || formDataPrint.video_url || '';
                   const vidArr = typeof rawVid === 'string' ? rawVid.split(',').map(u => u.trim()).filter(Boolean) : [];
@@ -2028,7 +2142,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               })();
           if (visibleVisitsPrint.length === 0) return null;
           return (
-          <div className="space-y-4 mt-4">
+          <div className="space-y-2 mt-2">
             {visibleVisitsPrint.map((v, i) => {
               const vFd = typeof v.form_data === 'string' ? JSON.parse(v.form_data) : (v.form_data || {});
               
@@ -2062,8 +2176,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               const visitPhotos = photosArr.filter((p: any) => typeof p === 'string' && (p.startsWith('http') || p.startsWith('data:image')));
 
               return (
-                // print-section: a visita toda pode fluir, mas o cabeçalho não fica órfão
-                <div key={v.id} className="border border-slate-200 rounded-lg overflow-hidden print-section mt-4 shadow-sm">
+                // print-section: a visita flui continuamente aproveitando o espaço da 1ª folha
+                <div key={v.id} className="border border-slate-200 rounded-lg overflow-visible print-section mt-2">
                   {(() => {
                     let statusLabel = '';
                     let statusColor = 'bg-sky-50 text-sky-900 border-sky-100';
@@ -2092,11 +2206,11 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     }
                     
                     return (
-                      <div className={`${statusColor} px-3 py-2 border-b text-sm uppercase tracking-wider flex justify-between items-center print-section-header`}>
+                      <div className={`${statusColor} px-3 py-1.5 border-b text-xs uppercase tracking-wider flex justify-between items-center print-section-header`}>
                         <div className="flex items-center gap-2">
                           <span>Visita #{i + 1} — {safeFormatDate(v.scheduled_date || v.created_at)}</span>
                           {statusLabel && (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-md shadow-sm whitespace-nowrap ${badgeColor}`}>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded-md whitespace-nowrap ${badgeColor}`}>
                               {statusLabel}
                             </span>
                           )}
@@ -2117,12 +2231,10 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     );
                   })()}
                   
-                  <div className="p-3 bg-white space-y-3">
-                    {/* O relatório de técnico e as peças foram removidos daqui e movidos para o final (abaixo dos formulários) */}
-
+                  <div className="p-2 bg-white space-y-2">
                     {/* Formulários (Checklists) */}
                     {Object.keys(grps).length > 0 && (
-                      <div className="space-y-2 mt-2">
+                      <div className="space-y-1.5">
                         {Object.entries(grps).sort((a, b) => {
                           // Financeiro primeiro, Técnico segundo, Relatório por último
                           const printGroupPriority = (name: string): number => {
@@ -2146,7 +2258,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                           const printEqDisplayName = eq ? (eq.equipment_name || eq.equipmentName) : gName.replace(/\s*-\s*(Financeiro|Técnico|Tecnico)\s*$/i, '').replace(/^.*?\]\s*-?\s*/, '');
                           return (
                             <div key={gName} className="border border-slate-200 rounded print-section overflow-visible">
-                              <div className="bg-slate-50 border-b border-slate-200 px-3 py-1.5 flex flex-col items-center justify-center text-center print-section-header">
+                              <div className="bg-slate-50 border-b border-slate-200 px-3 py-1 flex flex-col items-center justify-center text-center print-section-header">
                                 <div className="flex items-center gap-1.5">
                                   <span className="text-xs uppercase tracking-wider text-slate-700">
                                     {gName === 'Relatório de Atendimento'
@@ -2160,7 +2272,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                   <span className="text-[9px] text-slate-500 mt-0.5">S/N: {eq.equipment_serial || eq.equipmentSerial}</span>
                                 )}
                               </div>
-                              <div className="p-2 bg-white space-y-2 print-checklist-container">
+                              <div className="p-1.5 bg-white print-checklist-container">
                                 {Object.entries(gData).sort((a, b) => {
                                   const matchA = a[0].replace(/^\[.*?\]\s*-\s*/, '').match(/(?:#\s*(\d+)|^(\d+)\s*#)/);
                                   const matchB = b[0].replace(/^\[.*?\]\s*-\s*/, '').match(/(?:#\s*(\d+)|^(\d+)\s*#)/);
@@ -2183,23 +2295,23 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                   if (!text && photos.length === 0) return null;
                                   
                                   return (
-                                    <div key={idx} className="print-checklist-row border border-slate-200 rounded bg-white overflow-hidden mb-2">
+                                    <div key={idx} className="print-checklist-row border border-slate-200 rounded bg-white overflow-hidden mb-1.5 last:mb-0">
                                       <table className="w-full border-collapse table-fixed print-qa-table" style={{ width: '100%', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                                         <tbody>
                                           <tr>
-                                            <td className="w-1/2 p-2 bg-slate-50/50 align-top border-r border-slate-200 print-question">
+                                            <td className="w-1/2 p-1.5 bg-slate-50/50 align-top border-r border-slate-200 print-question">
                                               <p className="text-[10px] font-medium uppercase tracking-tight text-slate-600">
                                                 {resolvePublicLabel(key)}
                                               </p>
                                             </td>
-                                            <td className="w-1/2 p-2 align-top print-answer bg-white">
+                                            <td className="w-1/2 p-1.5 align-top print-answer bg-white">
                                               {text && (
                                                 <p className={`text-xs uppercase font-semibold leading-tight ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok' ? 'text-emerald-600 font-bold' : 'text-slate-800'}`}>
                                                   {formatPublicValue(text)}
                                                 </p>
                                               )}
                                               {photos.length > 0 && (
-                                                <div className="print-photos flex flex-wrap gap-2 mt-2">
+                                                <div className="print-photos flex flex-wrap gap-2 mt-1.5">
                                                   {Array.from(new Set(photos)).map((p, pIdx) => (
                                                     <PrintMediaCard key={pIdx} url={p} alt={`Anexo ${pIdx + 1}`} widthClass="w-[120px]" mediaHeightClass="h-[90px]" />
                                                   ))}
@@ -2273,14 +2385,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
                     {/* Relatório de Atendimento e Evidências (Movido para baixo dos formulários) */}
                     {(vFd.technical_report || vFd.technicalReport || v.notes || vFd.parts_used || vFd.partsUsed || visitPhotos.length > 0 || vFd.videoUrl || vFd.video_url) && (
-                      <div className="mt-4 border border-slate-200 rounded-lg bg-slate-50 overflow-hidden print-no-break shadow-sm">
-                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-700">
+                      <div className="mt-2 border border-slate-200 rounded-lg bg-slate-50 overflow-visible print-section">
+                        <div className="bg-slate-100 px-3 py-1 border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-700 print-section-header">
                           Relatório de Atendimento da Visita
                         </div>
-                        <div className="p-3 bg-white flex flex-col gap-3">
+                        <div className="p-2.5 bg-white flex flex-col gap-2">
                           {/* Relato do Técnico */}
                           {(vFd.technical_report || vFd.technicalReport || v.notes) && (
-                            <div className="text-[10px] text-slate-800 leading-tight whitespace-pre-wrap">
+                            <div className="text-[10px] text-slate-800 leading-tight whitespace-pre-wrap print-no-break">
                               <span className="uppercase text-slate-400 block mb-0.5 text-[9px]">Relato do Técnico:</span> 
                               {vFd.technical_report || vFd.technicalReport || v.notes}
                             </div>
@@ -2288,7 +2400,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
                           {/* Peças da Visita */}
                           {(vFd.parts_used || vFd.partsUsed) && (
-                            <div className="text-[9px] text-slate-700 leading-tight">
+                            <div className="text-[9px] text-slate-700 leading-tight print-no-break">
                               <span className="uppercase text-slate-400 block mb-0.5 text-[9px]">Peças Utilizadas (Relato):</span> 
                               {vFd.parts_used || vFd.partsUsed}
                             </div>
@@ -2298,7 +2410,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                           {(visitPhotos.length > 0 || vFd.videoUrl || vFd.video_url) && (
                             <div className={`mt-1 ${vFd.technical_report || vFd.technicalReport || v.notes || vFd.parts_used || vFd.partsUsed ? 'border-t border-slate-100 pt-2' : ''}`}>
                               <span className="uppercase text-[9px] text-slate-400 block mb-1.5">Evidências e Anexos:</span>
-                              <div className="flex flex-wrap gap-2">
+                              <div className="flex flex-wrap gap-2 print-photos">
                                 {(() => {
                                   const rawVid = vFd.videoUrl || vFd.video_url || '';
                                   const vidArr = typeof rawVid === 'string' ? rawVid.split(',').map((u: string) => u.trim()).filter(Boolean) : [];
@@ -2504,20 +2616,10 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
         </div>
       </div>
-            </td>
-          </tr>
-        </tbody>
-        <tfoot>
-          <tr>
-            <td style={{ border: 'none', padding: 0, height: '56px' }}>
-              <div className="print-footer-spacer" style={{ height: '56px', visibility: 'hidden', pointerEvents: 'none' }}>&nbsp;</div>
-            </td>
-          </tr>
-        </tfoot>
-      </table>
+      </div>
 
       {/* ── Print Footer Fixo ── */}
-      <div className="print-fixed-footer print:fixed print:bottom-0 print:left-0 print:w-full print:px-6 print:pb-1 print:pt-2 print:bg-white border-t-2 border-slate-800 flex justify-between items-center text-slate-500 opacity-80">
+      <div className="print-fixed-footer print:fixed print:bottom-0 print:left-0 print:w-full print:px-6 print:pb-1 print:pt-1.5 print:bg-white border-t-2 border-slate-800 flex justify-between items-center text-slate-500 opacity-80">
         <div className="flex items-center gap-2">
           <NexusBranding size="lg" className="origin-left scale-75" />
         </div>
@@ -2538,7 +2640,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         }
         @media print {
           @page {
-            margin: 14mm 8mm 20mm 8mm;
+            margin: 10mm 8mm 16mm 8mm;
             size: A4 portrait;
           }
           html, body {
@@ -2551,24 +2653,25 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           }
           .print-doc-table {
             width: 100% !important;
-            border-collapse: collapse !important;
+            display: block !important;
             border: none !important;
             margin: 0 !important;
             padding: 0 !important;
           }
-          /* Permite que o conteúdo flua entre páginas naturalmente sem corte de bordas */
+          /* Permite que o conteúdo flua entre páginas aproveitando 100% da folha */
           .print-section {
             break-inside: auto !important;
             page-break-inside: auto !important;
+            break-before: auto !important;
+            page-break-before: auto !important;
             overflow: visible !important;
-            orphans: 3;
-            widows: 3;
+            box-shadow: none !important;
+            display: block !important;
           }
-          /* O cabeçalho de cada bloco/grupo não pode ficar órfão */
+          /* Cabeçalho de seção nunca é cortado ao meio, mas permite fluxo imediato dos itens */
           .print-section-header {
-            break-after: avoid !important;
-            page-break-after: avoid !important;
-            -webkit-column-break-after: avoid !important;
+            break-after: auto !important;
+            page-break-after: auto !important;
             break-inside: avoid !important;
             page-break-inside: avoid !important;
             -webkit-column-break-inside: avoid !important;
@@ -2576,6 +2679,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           .print-checklist-container {
             display: block !important;
             width: 100% !important;
+            break-inside: auto !important;
+            page-break-inside: auto !important;
           }
           .print-checklist-columns {
             column-count: 1 !important;
@@ -2583,7 +2688,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             display: block !important;
             width: 100% !important;
           }
-          /* Bloco de item de checklist: INDIVISÍVEL, nunca corta pergunta nem resposta */
+          /* Bloco de item de checklist: INDIVISÍVEL, nunca corta pergunta nem resposta nem imagem */
           .print-checklist-row {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
@@ -2592,7 +2697,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             width: 100% !important;
             box-sizing: border-box !important;
             overflow: visible !important;
-            margin-bottom: 8px !important;
+            margin-bottom: 6px !important;
             page-break-after: auto !important;
             break-after: auto !important;
           }
@@ -2615,23 +2720,21 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             -webkit-column-break-inside: avoid !important;
           }
           .print-question {
-            break-after: avoid !important;
-            page-break-after: avoid !important;
-            -webkit-column-break-after: avoid !important;
-          }
-          .print-answer {
-            break-before: avoid !important;
-            page-break-before: avoid !important;
-            -webkit-column-break-before: avoid !important;
-          }
-          .print-photos {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
-            -webkit-column-break-inside: avoid !important;
+          }
+          .print-answer {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .print-photos {
+            break-inside: auto !important;
+            page-break-inside: auto !important;
           }
           .print-photos > div, .print-photos img {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
+            -webkit-column-break-inside: avoid !important;
           }
           .print-photos a, .print-photos a:visited, a.print-media-link, .print-media-link {
             text-decoration: none !important;
@@ -2680,16 +2783,11 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             left: 0 !important;
             right: 0 !important;
             width: 100% !important;
-            height: 38px !important;
+            height: 36px !important;
             background-color: white !important;
             z-index: 9999 !important;
             box-sizing: border-box !important;
             margin: 0 !important;
-          }
-          .print-footer-spacer {
-            height: 50px !important;
-            visibility: hidden !important;
-            pointer-events: none !important;
           }
           /* Evita página em branco no final */
           .print-last-section {
@@ -2738,7 +2836,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
           @media print {
             @page {
-              margin: 14mm 8mm 20mm 8mm;
+              margin: 10mm 8mm 16mm 8mm;
               size: A4 portrait;
             }
             html, body {
@@ -2751,24 +2849,25 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             }
             .print-doc-table {
               width: 100% !important;
-              border-collapse: collapse !important;
+              display: block !important;
               border: none !important;
               margin: 0 !important;
               padding: 0 !important;
             }
-            /* Permite que o conteúdo flua entre páginas naturalmente sem corte de bordas */
+            /* Permite que o conteúdo flua entre páginas aproveitando 100% da folha */
             .print-section {
               break-inside: auto !important;
               page-break-inside: auto !important;
+              break-before: auto !important;
+              page-break-before: auto !important;
               overflow: visible !important;
-              orphans: 3;
-              widows: 3;
+              box-shadow: none !important;
+              display: block !important;
             }
-            /* O cabeçalho de cada bloco/grupo não pode ficar órfão */
+            /* Cabeçalho de seção nunca é cortado ao meio, mas permite fluxo imediato dos itens */
             .print-section-header {
-              break-after: avoid !important;
-              page-break-after: avoid !important;
-              -webkit-column-break-after: avoid !important;
+              break-after: auto !important;
+              page-break-after: auto !important;
               break-inside: avoid !important;
               page-break-inside: avoid !important;
               -webkit-column-break-inside: avoid !important;
@@ -2776,6 +2875,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             .print-checklist-container {
               display: block !important;
               width: 100% !important;
+              break-inside: auto !important;
+              page-break-inside: auto !important;
             }
             .print-checklist-columns {
               column-count: 1 !important;
@@ -2783,7 +2884,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               display: block !important;
               width: 100% !important;
             }
-            /* Bloco de item de checklist: INDIVISÍVEL, nunca corta pergunta nem resposta */
+            /* Bloco de item de checklist: INDIVISÍVEL, nunca corta pergunta nem resposta nem imagem */
             .print-checklist-row {
               break-inside: avoid !important;
               page-break-inside: avoid !important;
@@ -2792,7 +2893,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               width: 100% !important;
               box-sizing: border-box !important;
               overflow: visible !important;
-              margin-bottom: 8px !important;
+              margin-bottom: 6px !important;
               page-break-after: auto !important;
               break-after: auto !important;
             }
@@ -2815,23 +2916,21 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               -webkit-column-break-inside: avoid !important;
             }
             .print-question {
-              break-after: avoid !important;
-              page-break-after: avoid !important;
-              -webkit-column-break-after: avoid !important;
-            }
-            .print-answer {
-              break-before: avoid !important;
-              page-break-before: avoid !important;
-              -webkit-column-break-before: avoid !important;
-            }
-            .print-photos {
               break-inside: avoid !important;
               page-break-inside: avoid !important;
-              -webkit-column-break-inside: avoid !important;
+            }
+            .print-answer {
+              break-inside: avoid !important;
+              page-break-inside: avoid !important;
+            }
+            .print-photos {
+              break-inside: auto !important;
+              page-break-inside: auto !important;
             }
             .print-photos > div, .print-photos img {
               break-inside: avoid !important;
               page-break-inside: avoid !important;
+              -webkit-column-break-inside: avoid !important;
             }
             .print-photos a, .print-photos a:visited, a.print-media-link, .print-media-link {
               text-decoration: none !important;
@@ -2880,16 +2979,11 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               left: 0 !important;
               right: 0 !important;
               width: 100% !important;
-              height: 38px !important;
+              height: 36px !important;
               background-color: white !important;
               z-index: 9999 !important;
               box-sizing: border-box !important;
               margin: 0 !important;
-            }
-            .print-footer-spacer {
-              height: 50px !important;
-              visibility: hidden !important;
-              pointer-events: none !important;
             }
             /* Evita página em branco no final */
             .print-last-section {
@@ -2901,6 +2995,21 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         <PrintLayout />
       </div>
       <div className="web-only-layout min-h-screen bg-slate-50 font-poppins selection:bg-[#1c2d4f]/10">
+        {/* ── TOAST PADRÃO DE EXPORTAÇÃO PDF ── */}
+        {isDownloadingPdf && (
+          <div className="fixed bottom-6 right-4 sm:right-6 sm:bottom-6 z-[2147483647] pointer-events-none select-none max-w-sm w-[calc(100%-2rem)] sm:w-auto p-4 rounded-xl shadow-2xl border bg-white/95 backdrop-blur-md border-[#1c2d4f]/20 shadow-[#1c2d4f]/10 flex items-start gap-3 animate-fade-in print:hidden">
+            <div className="shrink-0 mt-0.5">
+              <Loader2 size={20} className="animate-spin text-[#1c2d4f]" />
+            </div>
+            <div className="flex-1">
+              <h4 className="text-sm font-semibold text-[#1c2d4f]">Exportando Arquivo PDF...</h4>
+              <p className="text-xs font-medium text-slate-600 mt-1 leading-relaxed">
+                O documento está sendo gerado, aguarde! O download iniciará automaticamente.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* ── TOP ACCENT BAR ── */}
         <div className="h-1 w-full bg-gradient-to-r from-[#1c2d4f] via-[#3e5b99] to-[#1c2d4f]" />
 
@@ -2944,10 +3053,11 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               </div>
             </div>
 
-            {/* Print button */}
+            {/* Print button (Link Público mantém o padrão de impressão) */}
             <button
               onClick={() => triggerSmartPrint(false)}
-              className="flex items-center justify-center h-10 w-10 sm:w-auto sm:px-4 sm:py-2.5 bg-[#1c2d4f] text-white rounded-xl text-xs uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0"
+              title="Imprimir Ordem de Serviço"
+              className="flex items-center justify-center h-10 w-10 sm:w-auto sm:px-4 sm:py-2.5 bg-[#1c2d4f] text-white rounded-xl text-xs uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0 cursor-pointer"
             >
               <Printer size={16} />
               <span className="hidden sm:inline ml-2">Imprimir</span>

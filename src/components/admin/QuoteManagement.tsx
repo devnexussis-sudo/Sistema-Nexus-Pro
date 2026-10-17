@@ -698,8 +698,8 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
         }
     };
 
-    // 🖨️ Impressão e Exportação em PDF via Iframe Invisível em Segundo Plano
-    const handlePrintQuote = (quoteToPrint: Quote) => {
+    // 📥 Exportação Direta de Arquivo PDF (Serverless Headless Chromium + Segurança Multi-Tenant)
+    const handlePrintQuote = async (quoteToPrint: Quote) => {
         if (!quoteToPrint || printingQuoteId) return;
 
         const quoteKey = quoteToPrint.id || quoteToPrint.displayId || quoteToPrint.publicToken;
@@ -707,74 +707,51 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
         setPrintingQuoteId(quoteKey);
 
-        // Remove qualquer iframe de impressão residual
-        const existingIframe = document.getElementById('nexus-quote-print-iframe');
-        if (existingIframe) {
-            existingIframe.remove();
-        }
+        try {
+            const rawPrefix = (quoteToPrint.displayId || quoteToPrint.id?.slice(0, 8) || 'ORCAMENTO')
+                .replace(/^#/, '')
+                .trim();
+            const quotePrefix = rawPrefix.toUpperCase().startsWith('ORC') || rawPrefix.includes('-')
+                ? rawPrefix
+                : `ORC-${rawPrefix}`;
 
-        const iframe = document.createElement('iframe');
-        iframe.id = 'nexus-quote-print-iframe';
-        iframe.setAttribute('title', 'Impressão de Orçamento');
-        iframe.setAttribute('aria-hidden', 'true');
+            const { data: sessionData } = await supabase.auth.getSession();
+            const accessToken = sessionData?.session?.access_token || '';
 
-        // Configuração invisível fora da tela com dimensões desktop para garantir fidelidade A4
-        Object.assign(iframe.style, {
-            position: 'fixed',
-            top: '-9999px',
-            left: '-9999px',
-            width: '1024px',
-            height: '1000px',
-            border: '0',
-            opacity: '0',
-            pointerEvents: 'none',
-            zIndex: '-9999'
-        });
+            const params = new URLSearchParams();
+            params.set('type', 'quote');
+            if (quoteToPrint.id) params.set('quoteId', quoteToPrint.id);
+            if (quoteToPrint.publicToken) params.set('token', quoteToPrint.publicToken);
 
-        const rawPrefix = (quoteToPrint.displayId || quoteToPrint.id?.slice(0, 8) || 'ORCAMENTO')
-            .replace(/^#/, '')
-            .trim();
-        const quotePrefix = rawPrefix.toUpperCase().startsWith('ORC') || rawPrefix.includes('-')
-            ? rawPrefix
-            : `ORC-${rawPrefix}`;
+            const response = await fetch(`/api/order-pdf?${params.toString()}`, {
+                method: 'GET',
+                headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+            });
 
-        const originalTitle = document.title;
-        document.title = quotePrefix;
-
-        const targetToken = quoteToPrint.publicToken || quoteToPrint.id;
-        const printUrl = `${window.location.origin}/#/view-quote/${targetToken}?print=true&t=${Date.now()}`;
-
-        let timeoutId: any = null;
-
-        const restoreTitle = () => {
-            setTimeout(() => {
-                document.title = originalTitle;
-            }, 2500);
-        };
-
-        const handleMessage = (event: MessageEvent) => {
-            if (event.data?.type === 'NEXUS_QUOTE_PRINT_TRIGGERED' || event.data?.type === 'NEXUS_QUOTE_PRINT_FINISHED') {
-                setPrintingQuoteId(null);
-                restoreTitle();
-                if (timeoutId) clearTimeout(timeoutId);
-                setTimeout(() => {
-                    iframe.remove();
-                    window.removeEventListener('message', handleMessage);
-                }, 2000);
+            if (!response.ok) {
+                let errMsg = 'Não foi possível gerar o PDF do Orçamento.';
+                try {
+                    const errJson = await response.json();
+                    if (errJson?.error) errMsg = errJson.error;
+                } catch {}
+                throw new Error(errMsg);
             }
-        };
 
-        window.addEventListener('message', handleMessage);
-
-        // Fallback de segurança para liberar o botão caso o diálogo seja cancelado
-        timeoutId = setTimeout(() => {
+            const pdfBlob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(pdfBlob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = `${quotePrefix}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => window.URL.revokeObjectURL(blobUrl), 5000);
+        } catch (err: any) {
+            console.error('❌ [QuoteManagement] Erro ao baixar PDF do Orçamento:', err);
+            showAlert(err?.message || 'Erro ao gerar o arquivo PDF do Orçamento.', 'error');
+        } finally {
             setPrintingQuoteId(null);
-            restoreTitle();
-            window.removeEventListener('message', handleMessage);
-        }, 10000);
-
-        iframe.src = printUrl;
-        document.body.appendChild(iframe);
+        }
     };
 
     return (
@@ -1945,12 +1922,12 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     onClick={() => handlePrintQuote(viewQuote)}
                                     disabled={printingQuoteId === (viewQuote.id || viewQuote.displayId || viewQuote.publicToken)}
                                     className="inline-flex items-center justify-center min-w-max h-8 sm:h-9 px-3 sm:px-3.5 gap-1.5 border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg text-xs font-medium transition-all shrink-0 whitespace-nowrap disabled:opacity-60 cursor-pointer"
-                                    title="Imprimir / Salvar Orçamento em PDF"
+                                    title="Baixar arquivo PDF do Orçamento"
                                 >
                                     {printingQuoteId === (viewQuote.id || viewQuote.displayId || viewQuote.publicToken) ? (
                                         <>
                                             <Loader2 size={14} className="shrink-0 animate-spin text-[#1c2d4f]" />
-                                            <span className="leading-none hidden sm:inline">Preparando PDF...</span>
+                                            <span className="leading-none hidden sm:inline">Exportando PDF...</span>
                                         </>
                                     ) : (
                                         <>
@@ -2323,6 +2300,22 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                     </div>
                 </div>
             , document.body)}
+
+            {/* 📥 Aviso Flutuante de Exportação de PDF */}
+            {printingQuoteId && createPortal(
+                <div className="fixed bottom-6 right-4 sm:right-6 sm:bottom-6 z-[2147483647] pointer-events-none select-none max-w-sm w-[calc(100%-2rem)] sm:w-auto p-4 rounded-xl shadow-2xl border bg-white/95 backdrop-blur-md border-[#1c2d4f]/20 shadow-[#1c2d4f]/10 flex items-start gap-3 animate-fade-in print:hidden">
+                    <div className="shrink-0 mt-0.5">
+                        <Loader2 size={20} className="animate-spin text-[#1c2d4f]" />
+                    </div>
+                    <div className="flex-1">
+                        <h4 className="text-sm font-semibold text-[#1c2d4f]">Exportando Arquivo PDF...</h4>
+                        <p className="text-xs font-medium text-slate-600 mt-1 leading-relaxed">
+                            O documento está sendo gerado, aguarde! O download iniciará automaticamente.
+                        </p>
+                    </div>
+                </div>,
+                document.body
+            )}
 
         </div>
     );

@@ -22,6 +22,7 @@
   "dependencies": {
     "@google/genai": "^1.35.0",
     "@mercadopago/sdk-react": "^1.0.7",
+    "@sparticuz/chromium": "^153.0.0",
     "@supabase/supabase-js": "^2.93.1",
     "@turf/turf": "^7.3.5",
     "@types/dompurify": "^3.0.5",
@@ -43,6 +44,7 @@
     "leaflet.markercluster": "^1.5.3",
     "lucide-react": "^0.562.0",
     "pdfjs-dist": "^3.11.174",
+    "puppeteer-core": "^25.14.0",
     "qrcode": "^1.5.4",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",

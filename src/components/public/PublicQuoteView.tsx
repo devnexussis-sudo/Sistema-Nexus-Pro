@@ -103,13 +103,20 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
     const [freshCustomerAddress, setFreshCustomerAddress] = useState<string | null>(null);
     const [freshCustomerPhone, setFreshCustomerPhone] = useState<string | null>(null);
     const [freshCustomerEmail, setFreshCustomerEmail] = useState<string | null>(null);
+    const [customerAddressLoaded, setCustomerAddressLoaded] = useState(false);
 
     useEffect(() => {
         const fetchCustomerAddress = async () => {
-            if (!quote?.customerName) return;
+            if (!quote?.customerName) {
+                if (quote) setCustomerAddressLoaded(true);
+                return;
+            }
             try {
                 const tenantId = (quote as any).tenant_id || quote?.tenantId;
-                if (!tenantId) return;
+                if (!tenantId) {
+                    setCustomerAddressLoaded(true);
+                    return;
+                }
                 const { data } = await import('../../lib/supabase').then(m => m.supabase
                     .from('customers')
                     .select('address, number, complement, neighborhood, city, state, phone, whatsapp, email')
@@ -134,6 +141,8 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                     if (clean(data.email)) setFreshCustomerEmail(data.email);
                 }
             } catch {
+            } finally {
+                setCustomerAddressLoaded(true);
             }
         };
         fetchCustomerAddress();
@@ -141,6 +150,10 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
 
     useEffect(() => {
         let isMounted = true;
+        setCustomerAddressLoaded(false);
+        (window as any).__NEXUS_PDF_READY = false;
+        document.body?.removeAttribute('data-pdf-ready');
+
         const fetchQuote = async () => {
             try {
                 // 1. Fetch Rápido do Orçamento
@@ -182,6 +195,42 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
         fetchQuote();
         return () => { isMounted = false; };
     }, [id]);
+
+    // Sinal determinístico para o motor Headless Chromium (Serverless PDF Export)
+    useEffect(() => {
+        if (loading || !quote || !customerAddressLoaded) return;
+
+        let cancelled = false;
+        const markReady = () => {
+            if (cancelled) return;
+            (window as any).__NEXUS_PDF_READY = true;
+            document.body?.setAttribute('data-pdf-ready', 'true');
+        };
+
+        const timer = setTimeout(() => {
+            const imgs = Array.from(document.querySelectorAll('img')) as HTMLImageElement[];
+            const pending = imgs.filter(img => !img.complete);
+            if (pending.length === 0) {
+                markReady();
+                return;
+            }
+            let doneCount = 0;
+            const onDone = () => {
+                doneCount++;
+                if (doneCount >= pending.length) markReady();
+            };
+            pending.forEach(img => {
+                img.addEventListener('load', onDone, { once: true });
+                img.addEventListener('error', onDone, { once: true });
+            });
+            setTimeout(markReady, 3000);
+        }, 150);
+
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [loading, quote, tenant, customerAddressLoaded]);
 
     const captureDeviceMetadata = () => {
         return {
@@ -641,7 +690,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                 const totalFinal = quote.totalValue || subtotal;
 
                 return (
-                    <div className="mb-4 break-inside-avoid">
+                    <div className="mb-4">
                         {/* ── MOBILE CARDS (hidden on print/md+) ── */}
                         <div className="md:hidden print:hidden space-y-2">
                             <div className="bg-[#1c2d4f] px-3 py-2 rounded-t-xl">
@@ -683,7 +732,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                                     <col style={{ width: '26%' }} />
                                 </colgroup>
                                 <thead>
-                                    <tr style={{ backgroundColor: '#1c2d4f', color: 'white', fontSize: '8px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                    <tr style={{ backgroundColor: '#1c2d4f', color: 'white', fontSize: '8px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                                         <th style={{ padding: '4px 4px', textAlign: 'left', borderRight: '1px solid rgba(255,255,255,0.2)', borderRadius: '11px 0 0 0' }}>#</th>
                                         <th style={{ padding: '4px 4px', textAlign: 'left', borderRight: '1px solid rgba(255,255,255,0.2)' }}>Código</th>
                                         <th style={{ padding: '4px 4px', textAlign: 'left', borderRight: '1px solid rgba(255,255,255,0.2)' }}>Descrição</th>
@@ -694,7 +743,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                                 </thead>
                                 <tbody>
                                     {quote.items.map((it: any, i: number) => (
-                                        <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: i % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                                        <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: i % 2 === 0 ? '#fff' : '#f8fafc', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                                             <td style={{ padding: '4px 4px', textAlign: 'left', fontWeight: 700, color: '#94a3b8', fontSize: '9px', borderRight: '1px solid #e2e8f0' }}>{String(i + 1).padStart(2, '0')}</td>
                                             <td style={{ padding: '4px 4px', textAlign: 'left', fontSize: '9px', fontWeight: 700, color: '#3e5b99', fontFamily: "'Poppins', sans-serif", letterSpacing: '0.05em', borderRight: '1px solid #e2e8f0', wordBreak: 'break-all' }}>
                                                 {it.stockCode || it.stock_code || <span style={{ color: '#cbd5e1', fontStyle: 'italic', fontWeight: 400 }}>—</span>}
@@ -714,7 +763,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
 
                             {/* ── CONDIÇÕES DE PAGAMENTO (PRINT) ── */}
                             {(quote.paymentMethod || quote.paymentNotes) && (
-                                <div style={{ padding: '6px 12px', borderTop: '1px solid rgba(0,0,0,0.1)', backgroundColor: '#f8fafc' }}>
+                                <div style={{ padding: '6px 12px', borderTop: '1px solid rgba(0,0,0,0.1)', backgroundColor: '#f8fafc', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                                     <div style={{ fontSize: '9px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '2px' }}>Condições de Pagamento</div>
                                     {quote.paymentMethod && (
                                         <div style={{ fontSize: '10px', fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', marginBottom: '0' }}>
@@ -730,7 +779,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                             )}
 
                             {/* ── TOTAL FOOTER (always visible inside desktop/print) ── */}
-                            <div className="flex flex-col md:flex-row print:flex-row bg-[#1c2d4f] text-white">
+                            <div className="flex flex-col md:flex-row print:flex-row bg-[#1c2d4f] text-white" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                                 <div className="flex-1 p-2 print:p-2 border-b md:border-b-0 print:border-b-0 md:border-r print:border-r border-white/20 flex flex-col justify-center">
                                     <span className="text-[8px] font-bold text-white/70 uppercase mb-0.5">Notas sobre Condições Financeiras:</span>
                                     <span className="text-[8px] font-medium text-white/90 uppercase tracking-tight italic">Valores expressos em Reais (BRL). O aceite eletrônico via portal possui validade jurídica.</span>
@@ -858,7 +907,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
         <div className="public-view-wrapper font-poppins" style={{ fontFamily: "'Poppins', sans-serif" }}>
             {fontStyle}
             
-            <div className="hidden print:!block">
+            <div className="hidden print:!block print-quote-layout">
                 <PrintLayout />
             </div>
 
