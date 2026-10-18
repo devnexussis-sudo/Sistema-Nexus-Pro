@@ -14,6 +14,21 @@ serve(async (req) => {
 
   try {
     const { action, path, bucketType, contentType, base64 } = await req.json()
+
+    // Auto-detecta Content-Type pela extensão do arquivo quando não informado
+    const detectMime = (filePath: string): string => {
+      const ext = filePath.toLowerCase().split('.').pop() || '';
+      const mimeMap: Record<string, string> = {
+        'mp4': 'video/mp4', 'mov': 'video/quicktime', 'webm': 'video/webm',
+        '3gp': 'video/3gpp', 'avi': 'video/x-msvideo', 'mkv': 'video/x-matroska',
+        'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
+        'gif': 'image/gif', 'webp': 'image/webp', 'svg': 'image/svg+xml',
+        'pdf': 'application/pdf', 'heic': 'image/heic', 'heif': 'image/heif',
+      };
+      return mimeMap[ext] || 'application/octet-stream';
+    };
+    const resolvedContentType = contentType || detectMime(path);
+
     
     const accountId = Deno.env.get('R2_ACCOUNT_ID')?.trim()
     const accessKeyId = Deno.env.get('R2_ACCESS_KEY_ID')?.trim()
@@ -51,7 +66,7 @@ serve(async (req) => {
         const command = new PutObjectCommand({
             Bucket: bucketName,
             Key: path,
-            ContentType: contentType || 'application/octet-stream'
+            ContentType: resolvedContentType
         })
         
         // Gera URL assinada válida por 1 hora
@@ -74,7 +89,7 @@ serve(async (req) => {
             Bucket: bucketName,
             Key: path,
             Body: binary,
-            ContentType: contentType || 'image/webp'
+            ContentType: resolvedContentType
         })
         await S3.send(command)
 

@@ -1,5 +1,5 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { VolumeX, Volume2, RotateCcw, Play, ExternalLink } from 'lucide-react';
+import { VolumeX, Volume2, RotateCcw, Play, ExternalLink, Loader2 } from 'lucide-react';
 
 interface InlineVideoPlayerProps {
   src: string;
@@ -8,6 +8,31 @@ interface InlineVideoPlayerProps {
   autoPlay?: boolean;
 }
 
+/**
+ * Detecta MIME type correto a partir da URL do vídeo.
+ * Necessário porque o R2 pode retornar application/octet-stream.
+ */
+const getMimeFromUrl = (url: string): string => {
+  const clean = url.toLowerCase().split('?')[0].split('#')[0];
+  if (clean.endsWith('.webm')) return 'video/webm';
+  if (clean.endsWith('.mov')) return 'video/quicktime';
+  if (clean.endsWith('.3gp')) return 'video/3gpp';
+  if (clean.endsWith('.avi')) return 'video/x-msvideo';
+  if (clean.endsWith('.mkv')) return 'video/x-matroska';
+  // Padrão seguro — mp4/h264 é aceito em 100% dos browsers mobile
+  return 'video/mp4';
+};
+
+/**
+ * InlineVideoPlayer — Player de vídeo BigTech.
+ * 
+ * PROBLEMA RESOLVIDO: O R2 Cloudflare armazena vídeos com Content-Type 
+ * "application/octet-stream" quando o upload não especifica contentType.
+ * Navegadores mobile recusam reproduzir <video> com esse Content-Type.
+ * 
+ * SOLUÇÃO: Fetch → Blob com MIME correto → URL.createObjectURL.
+ * Isso contorna completamente o Content-Type do servidor.
+ */
 export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({
   src,
   poster,
@@ -15,17 +40,115 @@ export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({
   autoPlay = true,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const hasLoadedRef = useRef(false);
+  const blobUrlRef = useRef<string | null>(null);
+  const [blobSrc, setBlobSrc] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadProgress, setLoadProgress] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
   const [showPlayOverlay, setShowPlayOverlay] = useState(false);
   const [showError, setShowError] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [useFallback, setUseFallback] = useState(false);
 
-  // Tenta autoplay mudo quando o vídeo carrega (100% dos browsers permitem autoplay mudo)
-  const handleCanPlay = useCallback(() => {
-    hasLoadedRef.current = true;
+  // Cleanup blob URL ao desmontar ou trocar de vídeo
+  useEffect(() => {
+    return () => {
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  // Busca o vídeo via fetch e cria blob URL com MIME correto
+  useEffect(() => {
+    let cancelled = false;
+
+    // Cleanup anterior
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
+
+    setBlobSrc(null);
+    setIsLoading(true);
+    setLoadProgress(0);
     setShowError(false);
+    setShowPlayOverlay(false);
+    setIsPlaying(false);
+    setIsMuted(true);
+    setUseFallback(false);
 
+    const fetchVideo = async () => {
+      try {
+        const response = await fetch(src);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        // Lê com progresso se possível
+        const contentLength = response.headers.get('content-length');
+        const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+        if (total > 0 && response.body) {
+          // Stream com progresso
+          const reader = response.body.getReader();
+          const chunks: Uint8Array[] = [];
+          let received = 0;
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (cancelled) { reader.cancel(); return; }
+            chunks.push(value);
+            received += value.length;
+            setLoadProgress(Math.round((received / total) * 100));
+          }
+
+          const fullArray = new Uint8Array(received);
+          let offset = 0;
+          for (const chunk of chunks) {
+            fullArray.set(chunk, offset);
+            offset += chunk.length;
+          }
+
+          if (cancelled) return;
+
+          const mime = getMimeFromUrl(src);
+          const blob = new Blob([fullArray], { type: mime });
+          const url = URL.createObjectURL(blob);
+          blobUrlRef.current = url;
+          setBlobSrc(url);
+          setIsLoading(false);
+        } else {
+          // Fallback sem progresso
+          const arrayBuffer = await response.arrayBuffer();
+          if (cancelled) return;
+
+          const mime = getMimeFromUrl(src);
+          const blob = new Blob([arrayBuffer], { type: mime });
+          const url = URL.createObjectURL(blob);
+          blobUrlRef.current = url;
+          setBlobSrc(url);
+          setIsLoading(false);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        console.warn('[VideoPlayer] Fetch falhou, usando src direto:', err);
+        // Se o fetch falhar (CORS, etc), usa src direto como fallback
+        setUseFallback(true);
+        setIsLoading(false);
+      }
+    };
+
+    fetchVideo();
+
+    return () => { cancelled = true; };
+  }, [src]);
+
+  // Autoplay quando o blob está pronto
+  const handleCanPlay = useCallback(() => {
     if (autoPlay && videoRef.current?.paused) {
       videoRef.current.play()
         .then(() => {
@@ -33,41 +156,27 @@ export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({
           setShowPlayOverlay(false);
         })
         .catch(() => {
-          // Browser bloqueou autoplay — mostra botão de play
           setShowPlayOverlay(true);
         });
     }
   }, [autoPlay]);
 
-  // Reset quando troca de vídeo
-  useEffect(() => {
-    hasLoadedRef.current = false;
-    setShowError(false);
-    setShowPlayOverlay(false);
-    setIsPlaying(false);
-    setIsMuted(true);
-  }, [src]);
-
-  // Tap para dar play (gesto do usuário — aceito por todos os browsers)
+  // Tap para dar play
   const handleTapPlay = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
     e.preventDefault();
     const v = videoRef.current;
     if (!v) return;
-
     v.muted = true;
     v.play()
       .then(() => {
         setIsPlaying(true);
         setShowPlayOverlay(false);
       })
-      .catch(() => {
-        // Se nem com gesto funcionar, abre em nova aba
-        window.open(src, '_blank');
-      });
+      .catch(() => window.open(src, '_blank'));
   }, [src]);
 
-  // Toggle mute/unmute
+  // Toggle som
   const handleToggleSound = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -78,57 +187,68 @@ export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({
     if (v.paused) v.play().catch(() => {});
   }, []);
 
-  // Tratamento de erro REAL (ignora erros espúrios durante o carregamento inicial)
-  const handleError = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    const err = v.error;
-
-    // Ignora se não temos um erro real do MediaElement
-    if (!err) return;
-    // Ignora MEDIA_ERR_ABORTED (1) — é causado por troca de src ou unmount
-    if (err.code === 1) return;
-
-    console.warn('[VideoPlayer] Erro real:', err.code, err.message, 'URL:', src);
-    setShowError(true);
-  }, [src]);
+  // URL efetiva para o <video>
+  const effectiveSrc = useFallback ? src : blobSrc;
 
   return (
     <div
       className={`relative flex items-center justify-center bg-black overflow-hidden select-none rounded-2xl sm:rounded-3xl shadow-2xl ${className}`}
       onClick={(e) => e.stopPropagation()}
     >
-      {/* 
-        === ABORDAGEM DIRETA ===
-        Sem manipulação de src via JS. Sem crossOrigin. Sem <source>.
-        Apenas o <video> mais simples e robusto possível.
-        O React define o src, o browser faz o resto.
-      */}
-      <video
-        ref={videoRef}
-        key={src}
-        src={src}
-        poster={poster}
-        controls
-        playsInline
-        autoPlay={autoPlay}
-        muted
-        preload="auto"
-        className="max-w-full max-h-[75vh] sm:max-h-[82vh] w-auto h-auto object-contain bg-black block pointer-events-auto"
-        onCanPlay={handleCanPlay}
-        onPlay={() => {
-          setIsPlaying(true);
-          setShowPlayOverlay(false);
-        }}
-        onPause={() => setIsPlaying(false)}
-        onVolumeChange={() => {
-          if (videoRef.current) setIsMuted(videoRef.current.muted);
-        }}
-        onError={handleError}
-      />
+      {/* ── Loading overlay com progresso ── */}
+      {isLoading && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
+          <Loader2 size={36} className="text-white animate-spin mb-3" />
+          <span className="text-white text-sm font-semibold">
+            Carregando vídeo...
+          </span>
+          {loadProgress > 0 && (
+            <div className="mt-2 w-48 h-1.5 bg-white/20 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                style={{ width: `${loadProgress}%` }}
+              />
+            </div>
+          )}
+          {loadProgress > 0 && (
+            <span className="text-white/60 text-xs mt-1">{loadProgress}%</span>
+          )}
+        </div>
+      )}
 
-      {/* ── Overlay Tap-to-Play (quando autoplay é bloqueado no mobile) ── */}
-      {showPlayOverlay && !showError && (
+      {/* ── Video Player ── */}
+      {effectiveSrc && (
+        <video
+          ref={videoRef}
+          key={effectiveSrc}
+          src={effectiveSrc}
+          poster={poster}
+          controls
+          playsInline
+          autoPlay={autoPlay}
+          muted
+          preload="auto"
+          className="max-w-full max-h-[75vh] sm:max-h-[82vh] w-auto h-auto object-contain bg-black block pointer-events-auto"
+          onCanPlay={handleCanPlay}
+          onPlay={() => {
+            setIsPlaying(true);
+            setShowPlayOverlay(false);
+          }}
+          onPause={() => setIsPlaying(false)}
+          onVolumeChange={() => {
+            if (videoRef.current) setIsMuted(videoRef.current.muted);
+          }}
+          onError={() => {
+            const err = videoRef.current?.error;
+            if (!err || err.code === 1) return; // Ignora ABORTED
+            console.warn('[VideoPlayer] Erro:', err.code, err.message);
+            setShowError(true);
+          }}
+        />
+      )}
+
+      {/* ── Play overlay (autoplay bloqueado) ── */}
+      {showPlayOverlay && !showError && !isLoading && (
         <div
           className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm cursor-pointer"
           onClick={handleTapPlay}
@@ -143,7 +263,7 @@ export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({
         </div>
       )}
 
-      {/* ── Pílula: ativar som ── */}
+      {/* ── Pílula ativar som ── */}
       {isMuted && isPlaying && !showError && !showPlayOverlay && (
         <button
           onClick={handleToggleSound}
@@ -154,7 +274,7 @@ export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({
         </button>
       )}
 
-      {/* ── Pílula: som ativado ── */}
+      {/* ── Som ativado ── */}
       {!isMuted && isPlaying && !showError && (
         <button
           onClick={handleToggleSound}
@@ -165,12 +285,12 @@ export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({
         </button>
       )}
 
-      {/* ── Erro fatal — retry + abrir em nova aba ── */}
+      {/* ── Erro com retry + nova aba ── */}
       {showError && (
         <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/85 backdrop-blur-md p-6 text-center">
           <div className="bg-red-950/90 border border-red-500/50 rounded-2xl p-5 max-w-sm w-full shadow-2xl">
             <p className="text-white text-sm font-semibold mb-1">Não foi possível reproduzir</p>
-            <p className="text-red-200/80 text-xs mb-4">O navegador não suportou este formato inline.</p>
+            <p className="text-red-200/80 text-xs mb-4">Tente recarregar ou abrir em nova aba.</p>
             <div className="flex flex-col gap-2">
               <button
                 onClick={(e) => {
