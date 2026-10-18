@@ -3766,18 +3766,34 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         {/* ── LIGHTBOX CAROUSEL ── */}
         {lightboxState && (
           <div
-            className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-10 animate-fade-in"
+            className="fixed inset-0 z-[9999] bg-black flex items-center justify-center p-4 sm:p-10 animate-fade-in"
           >
             <div className="absolute inset-0 cursor-zoom-out" onClick={() => setLightboxState(null)} />
             
             <div className="relative z-10 w-full h-full flex items-center justify-center p-2 sm:p-6" onClick={(e) => e.stopPropagation()}>
               {isVideoUrl(lightboxState.images[lightboxState.currentIndex]) ? (
                 <div className="max-w-full max-h-full flex items-center justify-center">
-                  <InlineVideoPlayer
+                  {/* Video HTML5 puro — sem componente wrapper, máxima compatibilidade mobile */}
+                  <video
                     key={lightboxState.images[lightboxState.currentIndex]}
                     src={lightboxState.images[lightboxState.currentIndex]}
-                    className="max-w-full max-h-[78vh] sm:max-h-[84vh] rounded-2xl sm:rounded-3xl shadow-2xl border border-white/10"
-                  />
+                    controls
+                    playsInline
+                    autoPlay
+                    muted
+                    preload="auto"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '84vh',
+                      width: 'auto',
+                      height: 'auto',
+                      borderRadius: '16px',
+                      backgroundColor: '#000',
+                      display: 'block',
+                    }}
+                  >
+                    Seu navegador não suporta este vídeo.
+                  </video>
                 </div>
               ) : (
                 <img
