@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from './supabase';
+import { resilientUpload } from './upload-resilient';
 
 const OFFLINE_ORDERS_KEY = '@nexus_offline_today_orders';
 const OFFLINE_ORDER_DETAIL_PREFIX = '@nexus_offline_order_';
@@ -35,20 +36,25 @@ class SyncService {
     async loadSettings() {
         const val = await AsyncStorage.getItem(APP_OFFLINE_MODE_KEY);
         this.offlineModeEnabled = val === 'true';
+        resilientUpload.setForcedOfflineMode(this.offlineModeEnabled);
+        this.startListening();
 
-        if (this.offlineModeEnabled) {
-            this.startListening();
+        if (!this.offlineModeEnabled) {
+            resilientUpload.resumeAll().catch(() => {});
+            this.triggerSync(false).catch(() => {});
         }
     }
 
     async toggleOfflineMode(enabled: boolean) {
         this.offlineModeEnabled = enabled;
+        resilientUpload.setForcedOfflineMode(enabled);
         await AsyncStorage.setItem(APP_OFFLINE_MODE_KEY, enabled ? 'true' : 'false');
-        if (enabled) {
-            this.startListening();
-        } else {
-            this.stopListening();
-            // Garantir que a UI atualize mesmo se a fila já estava vazia
+        this.startListening();
+
+        if (!enabled) {
+            // Modo Online ativado: disparar imediatamente a fila de uploads R2 e tarefas pendentes
+            resilientUpload.resumeAll().catch(() => {});
+            this.triggerSync(true).catch(() => {});
             this.notifySyncingSubscribers(false);
             const queue = await this.getQueue();
             this.notifySubscribers(queue);
@@ -94,6 +100,11 @@ class SyncService {
      * On failure, tasks remain in the queue (cache preserved).
      */
     async safeSyncBeforeOnline(): Promise<{ success: number; failed: number; total: number }> {
+        // Liberar motor de upload resiliente para R2 antes de sincronizar as OSs
+        resilientUpload.setForcedOfflineMode(false);
+        await resilientUpload.resumeAll();
+        await resilientUpload.waitForActiveUploads(15000);
+
         const queue = await this.getQueue();
         const pendingTasks = queue.filter(t => t.status === 'pending' || t.status === 'error');
 
@@ -196,9 +207,11 @@ class SyncService {
         queue.push(newTask);
         await this.saveQueue(queue);
 
-        // Notify user implicitly through badge update
-        // NOTE: Sync will only happen when user toggles back to online mode
-        console.log('[Sync] Tarefa adicionada à fila offline. Será sincronizada ao voltar para modo online.');
+        console.log('[Sync] Tarefa adicionada à fila offline.');
+        if (!this.offlineModeEnabled) {
+            // Se está no modo Online mas caiu na fila por oscilação momentânea da internet, tenta sincronizar assim que possível
+            this.triggerSync(false).catch(() => {});
+        }
     }
 
     async removeFromQueue(taskId: string) {
@@ -221,10 +234,14 @@ class SyncService {
 
     async triggerSync(force = false) {
         if (this.isSyncing) return;
-        if (!force && !this.offlineModeEnabled) return;
+        // Se estiver em Modo Offline manual e não foi forçado, aguarda ativar Modo Online
+        if (!force && this.offlineModeEnabled) return;
 
         const state = await NetInfo.fetch();
-        if (!state.isConnected) return;
+        if (!state.isConnected || state.isInternetReachable === false) return;
+
+        // Garantir que uploads de mídia pendentes no ResilientUploadService subam
+        resilientUpload.resumeAll().catch(() => {});
 
         const queue = await this.getQueue();
         const pendingTasks = queue.filter(t => t.status === 'pending' || t.status === 'error');
@@ -234,6 +251,8 @@ class SyncService {
         this.isSyncing = true;
         this.notifySyncingSubscribers(true);
         console.log(`[Sync] Iniciando sincronização de ${pendingTasks.length} itens...`);
+
+        await resilientUpload.waitForActiveUploads(12000);
 
         for (const task of pendingTasks) {
             await this.updateTaskStatus(task.id, 'syncing');
@@ -275,7 +294,7 @@ class SyncService {
             if (typeof str !== 'string') return false;
             const s = str.trim();
             if (!s || s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:')) return false;
-            return (
+            return Boolean(
                 s.startsWith('file://') ||
                 s.startsWith('/var/') ||
                 s.startsWith('/private/') ||
@@ -287,68 +306,72 @@ class SyncService {
             );
         };
 
-        // 1. Processar fotos extras — substituir file:// ou rotas locais por URLs remotas
-        const processedExtraPhotos: string[] = [];
+        // 1. Processar fotos extras em paralelo — substituir file:// ou rotas locais por URLs remotas
+        let processedExtraPhotos: string[] = [];
         if (payload.extraPhotos && Array.isArray(payload.extraPhotos)) {
-            for (const uri of payload.extraPhotos) {
-                if (isLocalPath(uri)) {
-                    try {
-                        const url = await OrderService.uploadFile(uri, `orders/${targetFolderId}/extra_photos`, tenantId);
-                        if (url) processedExtraPhotos.push(url);
-                    } catch (e) { console.error('[Sync] Falha foto extra:', e); }
-                } else {
-                    processedExtraPhotos.push(uri);
-                }
-            }
+            const results = await Promise.all(
+                payload.extraPhotos.map(async (uri: string) => {
+                    if (isLocalPath(uri)) {
+                        try {
+                            const url = await OrderService.uploadFile(uri, `orders/${targetFolderId}/extra_photos`, tenantId);
+                            return url || null;
+                        } catch (e) {
+                            console.error('[Sync] Falha foto extra:', e);
+                            return null;
+                        }
+                    }
+                    return uri;
+                })
+            );
+            processedExtraPhotos = results.filter((u): u is string => !!u);
         }
 
-        // 2. UPLOAD DE MÍDIAS DENTRO DOS FORMULÁRIOS DINÂMICOS
+        // 2. UPLOAD DE MÍDIAS DENTRO DOS FORMULÁRIOS DINÂMICOS (em paralelo)
         const finalFormData: Record<string, any> = payload.formData || {};
-        for (const key of Object.keys(finalFormData)) {
-            let value = finalFormData[key];
-            if (Array.isArray(value)) {
-                const uploadedUrls: string[] = [];
-                for (const item of value) {
-                    if (isLocalPath(item)) {
-                        try {
-                            const isVideo = item.toLowerCase().endsWith('.mov') || item.toLowerCase().endsWith('.mp4');
-                            const url = await OrderService.uploadFile(item, `orders/${targetFolderId}/${isVideo ? 'videos' : 'form_photos'}`, tenantId, isVideo ? 'video/mp4' : undefined);
-                            if (url) uploadedUrls.push(url);
-                            else uploadedUrls.push(item);
-                        } catch (e) {
-                            console.error('[Sync] Falha foto/vídeo form:', e);
-                            uploadedUrls.push(item);
-                        }
-                    } else {
-                        uploadedUrls.push(item);
-                    }
-                }
-                finalFormData[key] = uploadedUrls;
-            } else if (typeof value === 'string') {
-                const urls = value.split(',').map(u => u.trim()).filter(Boolean);
-                const hasLocalFiles = urls.some(u => isLocalPath(u));
-                
-                if (hasLocalFiles) {
-                    const uploadedUrls: string[] = [];
-                    for (const item of urls) {
-                        if (isLocalPath(item)) {
-                            try {
-                                const isVideo = item.toLowerCase().endsWith('.mov') || item.toLowerCase().endsWith('.mp4');
-                                const url = await OrderService.uploadFile(item, `orders/${targetFolderId}/${isVideo ? 'videos' : 'form_photos'}`, tenantId, isVideo ? 'video/mp4' : undefined);
-                                if (url) uploadedUrls.push(url);
-                                else uploadedUrls.push(item);
-                            } catch (e) {
-                                console.error('[Sync] Falha foto/vídeo form:', e);
-                                uploadedUrls.push(item);
+        await Promise.all(
+            Object.keys(finalFormData).map(async (key) => {
+                const value = finalFormData[key];
+                if (Array.isArray(value)) {
+                    const uploadedUrls = await Promise.all(
+                        value.map(async (item: any) => {
+                            if (isLocalPath(item)) {
+                                try {
+                                    const isVideo = item.toLowerCase().endsWith('.mov') || item.toLowerCase().endsWith('.mp4');
+                                    const url = await OrderService.uploadFile(item, `orders/${targetFolderId}/${isVideo ? 'videos' : 'form_photos'}`, tenantId, isVideo ? 'video/mp4' : undefined);
+                                    return url || item;
+                                } catch (e) {
+                                    console.error('[Sync] Falha foto/vídeo form:', e);
+                                    return item;
+                                }
                             }
-                        } else {
-                            uploadedUrls.push(item);
-                        }
+                            return item;
+                        })
+                    );
+                    finalFormData[key] = uploadedUrls;
+                } else if (typeof value === 'string') {
+                    const urls = value.split(',').map(u => u.trim()).filter(Boolean);
+                    const hasLocalFiles = urls.some(u => isLocalPath(u));
+                    if (hasLocalFiles) {
+                        const uploadedUrls = await Promise.all(
+                            urls.map(async (item) => {
+                                if (isLocalPath(item)) {
+                                    try {
+                                        const isVideo = item.toLowerCase().endsWith('.mov') || item.toLowerCase().endsWith('.mp4');
+                                        const url = await OrderService.uploadFile(item, `orders/${targetFolderId}/${isVideo ? 'videos' : 'form_photos'}`, tenantId, isVideo ? 'video/mp4' : undefined);
+                                        return url || item;
+                                    } catch (e) {
+                                        console.error('[Sync] Falha foto/vídeo form:', e);
+                                        return item;
+                                    }
+                                }
+                                return item;
+                            })
+                        );
+                        finalFormData[key] = uploadedUrls.join(',');
                     }
-                    finalFormData[key] = uploadedUrls.join(',');
                 }
-            }
-        }
+            })
+        );
 
         // 3. Processar assinatura
         let processedSignature = payload.signature || null;
@@ -363,25 +386,24 @@ class SyncService {
             }
         }
 
-        // 4. Processar videoUrls locais, se houver (agora suporta múltiplos separados por vírgula)
+        // 4. Processar videoUrls locais em paralelo (suporta múltiplos separados por vírgula)
         let processedVideoUrl = payload.videoUrl || null;
         if (processedVideoUrl && typeof processedVideoUrl === 'string') {
             const urls = processedVideoUrl.split(',').map(u => u.trim()).filter(Boolean);
-            const uploadedUrls: string[] = [];
-            for (const vUri of urls) {
-                if (vUri.startsWith('file://') || (FileSystem.documentDirectory && vUri.startsWith(FileSystem.documentDirectory))) {
-                    try {
-                        const url = await OrderService.uploadFile(vUri, `orders/${targetFolderId}/videos`, tenantId, 'video/mp4');
-                        if (url) uploadedUrls.push(url);
-                        else uploadedUrls.push(vUri);
-                    } catch (e) {
-                        console.error('[Sync] Falha upload de vídeo:', e);
-                        uploadedUrls.push(vUri);
+            const uploadedUrls = await Promise.all(
+                urls.map(async (vUri) => {
+                    if (vUri.startsWith('file://') || (FileSystem.documentDirectory && vUri.startsWith(FileSystem.documentDirectory))) {
+                        try {
+                            const url = await OrderService.uploadFile(vUri, `orders/${targetFolderId}/videos`, tenantId, 'video/mp4');
+                            return url || vUri;
+                        } catch (e) {
+                            console.error('[Sync] Falha upload de vídeo:', e);
+                            return vUri;
+                        }
                     }
-                } else {
-                    uploadedUrls.push(vUri);
-                }
-            }
+                    return vUri;
+                })
+            );
             processedVideoUrl = uploadedUrls.length > 0 ? uploadedUrls.join(',') : null;
         }
 
@@ -390,7 +412,7 @@ class SyncService {
             partsUsed: payload.parts_used || '',
             photos: processedExtraPhotos,
             signature: processedSignature,
-            videoUrl: processedVideoUrl, // <-- Added here
+            videoUrl: processedVideoUrl,
             formData: finalFormData,
             clientName: payload.clientName,
             clientDoc: payload.clientDoc,
@@ -414,39 +436,43 @@ class SyncService {
             console.warn('[Sync] Could not fetch DB order for displayId, defaulting to orderId');
         }
 
-        const processedBlockPhotos: string[] = [];
+        let processedBlockPhotos: string[] = [];
         if (payload.blockPhotoUrls && Array.isArray(payload.blockPhotoUrls)) {
-            for (const uri of payload.blockPhotoUrls) {
-                if (typeof uri === 'string' && (uri.startsWith('file://') || (FileSystem.documentDirectory && uri.startsWith(FileSystem.documentDirectory)))) {
-                    try {
-                        const url = await OrderService.uploadFile(uri, `orders/${targetFolderId}/block_photos`, tenantId);
-                        if (url) processedBlockPhotos.push(url);
-                    } catch (e) { console.error('[Sync] Falha foto block:', e); }
-                } else {
-                    processedBlockPhotos.push(uri);
-                }
-            }
+            const results = await Promise.all(
+                payload.blockPhotoUrls.map(async (uri: string) => {
+                    if (typeof uri === 'string' && (uri.startsWith('file://') || (FileSystem.documentDirectory && uri.startsWith(FileSystem.documentDirectory)))) {
+                        try {
+                            const url = await OrderService.uploadFile(uri, `orders/${targetFolderId}/block_photos`, tenantId);
+                            return url || null;
+                        } catch (e) {
+                            console.error('[Sync] Falha foto block:', e);
+                            return null;
+                        }
+                    }
+                    return uri;
+                })
+            );
+            processedBlockPhotos = results.filter((u): u is string => !!u);
         }
 
         let processedVideoUrl = payload.videoUrl || null;
         if (processedVideoUrl && typeof processedVideoUrl === 'string') {
             const urls = processedVideoUrl.split(',').map(u => u.trim()).filter(Boolean);
-            const uploadedUrls: string[] = [];
-            for (const vUri of urls) {
-                if (vUri.startsWith('file://') || vUri.startsWith('/var/') || vUri.startsWith('/private/') || (FileSystem.documentDirectory && vUri.startsWith(FileSystem.documentDirectory))) {
-                    try {
-                        const url = await OrderService.uploadFile(vUri, `orders/${targetFolderId}/videos`, tenantId, 'video/mp4');
-                        if (url) uploadedUrls.push(url);
-                        // NÃO adiciona URI local como fallback — LAST-GATE no OrderService tratará
-                        else console.warn(`[Sync] ⚠️ Upload de vídeo retornou null, será tratado pelo LAST-GATE: ${vUri.substring(0, 50)}`);
-                    } catch (e) {
-                        console.warn(`[Sync] ⚠️ Falha no upload de vídeo, será tratado pelo LAST-GATE: ${vUri.substring(0, 50)}`);
-                        // NÃO adiciona URI local como fallback
+            const results = await Promise.all(
+                urls.map(async (vUri) => {
+                    if (vUri.startsWith('file://') || vUri.startsWith('/var/') || vUri.startsWith('/private/') || (FileSystem.documentDirectory && vUri.startsWith(FileSystem.documentDirectory))) {
+                        try {
+                            const url = await OrderService.uploadFile(vUri, `orders/${targetFolderId}/videos`, tenantId, 'video/mp4');
+                            return url || null;
+                        } catch (e) {
+                            console.warn(`[Sync] ⚠️ Falha no upload de vídeo, será tratado pelo LAST-GATE: ${vUri.substring(0, 50)}`);
+                            return null;
+                        }
                     }
-                } else {
-                    uploadedUrls.push(vUri);
-                }
-            }
+                    return vUri;
+                })
+            );
+            const uploadedUrls = results.filter((u): u is string => !!u);
             processedVideoUrl = uploadedUrls.length > 0 ? uploadedUrls.join(',') : null;
         }
 
@@ -455,54 +481,51 @@ class SyncService {
             finalFormData.video_url = processedVideoUrl;
         }
 
-        // 3.5 UPLOAD DE MÍDIAS DENTRO DOS FORMULÁRIOS DINÂMICOS (Fotos/Vídeos nos templates de impedimento)
-        for (const key of Object.keys(finalFormData)) {
-            let value = finalFormData[key];
-            if (Array.isArray(value)) {
-                const uploadedUrls: string[] = [];
-                for (const item of value) {
-                    if (typeof item === 'string' && (item.startsWith('file://') || item.startsWith('/var/') || item.startsWith('/private/') || (FileSystem.documentDirectory && item.startsWith(FileSystem.documentDirectory)))) {
-                        try {
-                            const isVideo = item.toLowerCase().endsWith('.mov') || item.toLowerCase().endsWith('.mp4');
-                            const url = await OrderService.uploadFile(item, `orders/${targetFolderId}/${isVideo ? 'videos' : 'form_photos'}`, tenantId, isVideo ? 'video/mp4' : undefined);
-                            if (url) uploadedUrls.push(url);
-                            // NÃO adiciona URI local como fallback
-                            else console.warn('[Sync] ⚠️ Upload de mídia do form retornou null, será tratado pelo LAST-GATE');
-                        } catch (e) {
-                            console.error('[Sync] Falha foto/vídeo form impedido:', e);
-                            // NÃO adiciona URI local como fallback
-                        }
-                    } else {
-                        uploadedUrls.push(item);
-                    }
-                }
-                finalFormData[key] = uploadedUrls;
-            } else if (typeof value === 'string') {
-                const urls = value.split(',').map(u => u.trim()).filter(Boolean);
-                const hasLocalFiles = urls.some(u => u.startsWith('file://') || (FileSystem.documentDirectory && u.startsWith(FileSystem.documentDirectory)));
-                
-                if (hasLocalFiles) {
-                    const uploadedUrls: string[] = [];
-                    for (const item of urls) {
-                        if (item.startsWith('file://') || item.startsWith('/var/') || item.startsWith('/private/') || (FileSystem.documentDirectory && item.startsWith(FileSystem.documentDirectory))) {
-                            try {
-                                const isVideo = item.toLowerCase().endsWith('.mov') || item.toLowerCase().endsWith('.mp4');
-                                const url = await OrderService.uploadFile(item, `orders/${targetFolderId}/${isVideo ? 'videos' : 'form_photos'}`, tenantId, isVideo ? 'video/mp4' : undefined);
-                                if (url) uploadedUrls.push(url);
-                                // NÃO adiciona URI local como fallback
-                                else console.warn('[Sync] ⚠️ Upload de mídia string-split retornou null, será tratado pelo LAST-GATE');
-                            } catch (e) {
-                                console.error('[Sync] Falha foto/vídeo form impedido:', e);
-                                // NÃO adiciona URI local como fallback
+        // 3.5 UPLOAD DE MÍDIAS DENTRO DOS FORMULÁRIOS DINÂMICOS em paralelo
+        await Promise.all(
+            Object.keys(finalFormData).map(async (key) => {
+                const value = finalFormData[key];
+                if (Array.isArray(value)) {
+                    const results = await Promise.all(
+                        value.map(async (item: any) => {
+                            if (typeof item === 'string' && (item.startsWith('file://') || item.startsWith('/var/') || item.startsWith('/private/') || (FileSystem.documentDirectory && item.startsWith(FileSystem.documentDirectory)))) {
+                                try {
+                                    const isVideo = item.toLowerCase().endsWith('.mov') || item.toLowerCase().endsWith('.mp4');
+                                    const url = await OrderService.uploadFile(item, `orders/${targetFolderId}/${isVideo ? 'videos' : 'form_photos'}`, tenantId, isVideo ? 'video/mp4' : undefined);
+                                    return url || null;
+                                } catch (e) {
+                                    console.error('[Sync] Falha foto/vídeo form impedido:', e);
+                                    return null;
+                                }
                             }
-                        } else {
-                            uploadedUrls.push(item);
-                        }
+                            return item;
+                        })
+                    );
+                    finalFormData[key] = results.filter(Boolean);
+                } else if (typeof value === 'string') {
+                    const urls = value.split(',').map(u => u.trim()).filter(Boolean);
+                    const hasLocalFiles = urls.some(u => u.startsWith('file://') || (FileSystem.documentDirectory && u.startsWith(FileSystem.documentDirectory)));
+                    if (hasLocalFiles) {
+                        const results = await Promise.all(
+                            urls.map(async (item) => {
+                                if (item.startsWith('file://') || item.startsWith('/var/') || item.startsWith('/private/') || (FileSystem.documentDirectory && item.startsWith(FileSystem.documentDirectory))) {
+                                    try {
+                                        const isVideo = item.toLowerCase().endsWith('.mov') || item.toLowerCase().endsWith('.mp4');
+                                        const url = await OrderService.uploadFile(item, `orders/${targetFolderId}/${isVideo ? 'videos' : 'form_photos'}`, tenantId, isVideo ? 'video/mp4' : undefined);
+                                        return url || null;
+                                    } catch (e) {
+                                        console.error('[Sync] Falha foto/vídeo form impedido:', e);
+                                        return null;
+                                    }
+                                }
+                                return item;
+                            })
+                        );
+                        finalFormData[key] = results.filter(Boolean).join(',');
                     }
-                    finalFormData[key] = uploadedUrls.join(',');
                 }
-            }
-        }
+            })
+        );
 
         await OrderService.blockOrder(orderId, payload.reason, processedBlockPhotos.length > 0 ? processedBlockPhotos : null, { formData: finalFormData, items: payload.additionalData?.items });
         console.log(`[Sync] OS ${orderId} bloqueada com sucesso via blockOrder.`);
@@ -539,10 +562,15 @@ class SyncService {
     private startListening() {
         if (!this.unsubscribeNetInfo) {
             this.unsubscribeNetInfo = NetInfo.addEventListener(state => {
-                // Only monitor connection state - do NOT auto-sync
-                // Sync will only happen when user explicitly toggles offline mode off
-                if (state.isConnected && this.offlineModeEnabled) {
-                    console.log('[Sync] Conexão detectada, mas sync aguardando mudança manual para modo online.');
+                const online = !!state.isConnected && state.isInternetReachable !== false;
+                if (online) {
+                    if (this.offlineModeEnabled) {
+                        console.log('[Sync] Conexão detectada, mas sync aguardando mudança manual para modo online.');
+                    } else {
+                        // Modo Online ativo + Internet OK: sobe todos os anexos e tarefas pendentes imediatamente!
+                        resilientUpload.resumeAll().catch(() => {});
+                        this.triggerSync(false).catch(() => {});
+                    }
                 }
             });
         }

@@ -19,7 +19,7 @@
       },
       "distribution": "internal",
       "env": {
-        "GRADLE_OPTS": "-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dorg.gradle.daemon=false -Dkotlin.compiler.execution.strategy=in-process"
+        "ORG_GRADLE_PROJECT_reactNativeArchitectures": "armeabi-v7a,arm64-v8a"
       }
     },
     "debug-apk": {
@@ -31,13 +31,13 @@
       "distribution": "internal",
       "env": {
         "NODE_ENV": "development",
-        "GRADLE_OPTS": "-Xmx3g -XX:MaxMetaspaceSize=768m -Dorg.gradle.daemon=false -Dkotlin.compiler.execution.strategy=in-process -Dorg.gradle.workers.max=1"
+        "ORG_GRADLE_PROJECT_reactNativeArchitectures": "armeabi-v7a,arm64-v8a"
       }
     },
     "production": {
       "node": "20.19.4",
       "env": {
-        "GRADLE_OPTS": "-Xmx3g -XX:MaxMetaspaceSize=768m -Dorg.gradle.daemon=false -Dkotlin.compiler.execution.strategy=in-process -Dorg.gradle.workers.max=1"
+        "ORG_GRADLE_PROJECT_reactNativeArchitectures": "armeabi-v7a,arm64-v8a"
       }
     }
   },

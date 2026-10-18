@@ -28,7 +28,7 @@ export function HeaderRightToggle() {
                 .from('notifications')
                 .select('id')
                 .eq('is_read', false)
-                .eq('user_id', session.user.id)
+                .or(`user_id.eq.${session.user.id},user_id.is.null`)
                 .limit(1);
             const unreadFound = !error && data && data.length > 0;
             setHasUnread(unreadFound);

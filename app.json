@@ -2,7 +2,7 @@
   "expo": {
     "name": "Duno",
     "slug": "nexus-mobile",
-    "version": "3.1.36",
+    "version": "3.1.37",
     "orientation": "default",
     "backgroundColor": "#ffffff",
     "icon": "./assets/images/app-icon-duno-v6.png",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nexus.mobile",
-      "buildNumber": "3.1.36",
+      "buildNumber": "3.1.37",
       "infoPlist": {
         "CFBundleDevelopmentRegion": "pt_BR",
         "CFBundleAllowMixedLocalizations": true,
@@ -38,7 +38,7 @@
     },
     "android": {
       "package": "com.nexus.mobile",
-      "versionCode": 22,
+      "versionCode": 23,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
@@ -87,16 +87,18 @@
         {
           "android": {
             "minSdkVersion": 24,
-            "ndk": {
-              "abiFilters": [
-                "armeabi-v7a",
-                "arm64-v8a"
-              ]
-            },
+            "buildArchs": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "useLegacyPackaging": true,
             "packagingOptions": {
               "pickFirst": [
                 "**/builddef.lst",
                 "**/libc++_shared.so",
+                "**/libfbjni.so",
+                "**/libjsi.so",
+                "**/libworklets.so",
                 "**/META-INF/DEPENDENCIES",
                 "**/META-INF/LICENSE",
                 "**/META-INF/LICENSE.txt",

@@ -13,31 +13,40 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
-import { decode } from 'base64-arraybuffer';
 import NetInfo from '@react-native-community/netinfo';
 import { supabase } from './supabase';
 import { isRetryableError } from './connection-diagnostics';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
-const UPLOAD_QUEUE_KEY   = '@nexus:upload_queue_v2';
-const MAX_RETRY_DELAY_MS = 60_000;
-const MAX_RETRIES        = 5;
+const UPLOAD_QUEUE_KEY       = '@nexus:upload_queue_v2';
+const APP_OFFLINE_MODE_KEY   = '@nexus_offline_mode_enabled';
+const MAX_RETRY_DELAY_MS     = 60_000;
+const MAX_RETRIES            = 5;
+const MAX_CONCURRENT_UPLOADS = 3;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface UploadTask {
-    id:            string;
-    localUri:      string;    // Safe copy in documentDirectory
-    remotePath:    string;    // Target path in R2 storage
-    contentType:   string;
-    totalBytes:    number;
-    uploadedBytes: number;
+    id:             string;
+    localUri:       string;    // Safe copy in documentDirectory
+    compressedUri?: string;    // Compressed URI before safe copy
+    originalUri?:   string;    // Original source URI (camera/gallery) before compression
+    remotePath:     string;    // Target path in R2 storage
+    contentType:    string;
+    totalBytes:     number;
+    uploadedBytes:  number;
     status: 'queued' | 'uploading' | 'completed' | 'failed' | 'retrying' | 'offline_pending';
-    retryCount:    number;
-    lastError?:    string;
-    createdAt:     number;
-    completedAt?:  number;
-    resultUrl?:    string;    // Public URL after successful upload
+    retryCount:     number;
+    lastError?:     string;
+    createdAt:      number;
+    completedAt?:   number;
+    resultUrl?:     string;    // Public URL after successful upload
+}
+
+export interface EnqueueOptions {
+    originalUri?: string;
+    tenantId?:    string;
+    onComplete?:  (resultUrl: string, task: UploadTask) => void;
 }
 
 export interface UploadStats {
@@ -55,7 +64,7 @@ type QueueDrainedCallback   = (completedCount: number) => void;
 
 class ResilientUploadService {
     private queue:                UploadTask[]                   = [];
-    private isProcessing          = false;
+    private activeWorkers         = 0;
     private isOffline             = false;  // Tracks real connectivity (from NetInfo)
     private isOfflineModeForced   = false;  // Tracks manual offline mode (from syncService toggle)
     private progressListeners:    Set<UploadProgressCallback>   = new Set();
@@ -64,9 +73,31 @@ class ResilientUploadService {
     private sessionCompletedCount = 0;      // Counts uploads completed since last drain
 
     constructor() {
-        this.loadQueue().then(() => {
-            this.startNetworkListener();
-        });
+        this.init();
+    }
+
+    private async init(): Promise<void> {
+        try {
+            const [offlineVal, netState] = await Promise.all([
+                AsyncStorage.getItem(APP_OFFLINE_MODE_KEY).catch(() => null),
+                NetInfo.fetch().catch(() => null),
+            ]);
+            this.isOfflineModeForced = offlineVal === 'true';
+            if (netState) {
+                this.isOffline = !netState.isConnected || netState.isInternetReachable === false;
+            }
+        } catch { /* ignore */ }
+
+        await this.loadQueue();
+        this.startNetworkListener();
+
+        if (!this.isCurrentlyOffline()) {
+            this.resumeAll().catch(() => {});
+        }
+    }
+
+    public isCurrentlyOffline(): boolean {
+        return this.isOffline || this.isOfflineModeForced;
     }
 
     // ─── Public API ───────────────────────────────────────────────────────────
@@ -88,42 +119,125 @@ class ResilientUploadService {
     }
 
     /**
-     * Enqueue a file for background upload.
+     * Find a task in the queue matching any known URI alias (original, compressed, safe local, or remote).
+     */
+    findMatchingTask(uri: string): UploadTask | undefined {
+        if (!uri) return undefined;
+        const norm = uri.toLowerCase();
+        const filename = norm.split('/').pop();
+
+        // Prefer completed or active tasks first
+        const sorted = [...this.queue].sort((a, b) => {
+            if (a.status === 'completed' && b.status !== 'completed') return -1;
+            if (b.status === 'completed' && a.status !== 'completed') return 1;
+            return b.createdAt - a.createdAt;
+        });
+
+        return sorted.find(t => {
+            if (t.originalUri && t.originalUri === uri) return true;
+            if (t.compressedUri && t.compressedUri === uri) return true;
+            if (t.localUri === uri) return true;
+            if (t.resultUrl && t.resultUrl === uri) return true;
+            if (norm.includes(t.remotePath.toLowerCase())) return true;
+            if (filename && filename.length > 6) {
+                if (t.originalUri && t.originalUri.toLowerCase().endsWith(filename)) return true;
+                if (t.compressedUri && t.compressedUri.toLowerCase().endsWith(filename)) return true;
+                if (t.localUri.toLowerCase().endsWith(filename)) return true;
+                if (t.remotePath.toLowerCase().endsWith(filename)) return true;
+            }
+            return false;
+        });
+    }
+
+    /**
+     * Enqueue a file for immediate background upload (when Online) or safe disk queue (when Offline).
      *
-     * ▸ Online  → copies to safe location + starts upload immediately.
+     * ▸ Online  → copies to safe location + starts parallel upload immediately to R2.
      * ▸ Offline → copies to safe location + marks as `offline_pending`,
-     *             will auto-upload when network returns.
+     *             will auto-upload when network returns and Online Mode is active.
      *
      * Returns the task ID.
      */
     async enqueue(
         localUri:    string,
         remotePath:  string,
-        contentType: string = 'image/webp'
+        contentType: string = 'image/webp',
+        options?:    EnqueueOptions
     ): Promise<string> {
+        // 0. Check if already in queue to avoid duplicate work
+        const existing = this.findMatchingTask(options?.originalUri || localUri) || this.findMatchingTask(localUri);
+        if (existing && (existing.status === 'completed' || existing.status === 'uploading' || existing.status === 'queued')) {
+            if (options?.originalUri && !existing.originalUri) existing.originalUri = options.originalUri;
+            if (existing.status === 'completed' && existing.resultUrl) {
+                options?.onComplete?.(existing.resultUrl, existing);
+                return existing.id;
+            }
+            if (options?.onComplete) {
+                const unsub = this.onProgress(t => {
+                    if (t.id === existing.id && t.status === 'completed' && t.resultUrl) {
+                        options.onComplete!(t.resultUrl, t);
+                        unsub();
+                    }
+                });
+            }
+            if (!this.isCurrentlyOffline()) {
+                this.processQueue();
+            }
+            return existing.id;
+        }
+
         // 1. Persist file to documentDirectory (survive cache wipes)
         const safeUri = await this.copyToSafeLocation(localUri);
 
         // 2. Get file size
-        const fileInfo  = await FileSystem.getInfoAsync(safeUri);
+        const fileInfo   = await FileSystem.getInfoAsync(safeUri);
         const totalBytes = fileInfo.exists ? (fileInfo as any).size || 0 : 0;
 
-        // 3. Determine initial status
-        const isCurrentlyOffline = this.isOffline || this.isOfflineModeForced;
+        // 3. Refresh connectivity state if currently marked offline (avoid stale NetInfo state)
+        if (this.isOffline && !this.isOfflineModeForced) {
+            try {
+                const net = await NetInfo.fetch();
+                this.isOffline = !net.isConnected || net.isInternetReachable === false;
+            } catch { /* ignore */ }
+        }
+
+        // 4. Normalize remotePath with tenantId prefix if provided
+        const cleanRemote = remotePath.replace(/^\/+/, '');
+        const finalRemotePath = (options?.tenantId && !cleanRemote.startsWith(`${options.tenantId}/`))
+            ? `${options.tenantId}/${cleanRemote}`
+            : cleanRemote;
+
+        const isCurrentlyOffline = this.isCurrentlyOffline();
         const initialStatus: UploadTask['status'] = isCurrentlyOffline ? 'offline_pending' : 'queued';
 
-        // 4. Create task
+        // 5. Create task
         const task: UploadTask = {
-            id:           `upload_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-            localUri:     safeUri,
-            remotePath,
+            id:            `upload_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+            localUri:      safeUri,
+            compressedUri: localUri,
+            originalUri:   options?.originalUri || localUri,
+            remotePath:    finalRemotePath,
             contentType,
             totalBytes,
             uploadedBytes: 0,
-            status:       initialStatus,
-            retryCount:   0,
-            createdAt:    Date.now(),
+            status:        initialStatus,
+            retryCount:    0,
+            createdAt:     Date.now(),
         };
+
+        // 6. Register onComplete listener BEFORE pushing/processing so there is ZERO race condition
+        if (options?.onComplete) {
+            const unsub = this.onProgress(t => {
+                if (t.id === task.id) {
+                    if (t.status === 'completed' && t.resultUrl) {
+                        options.onComplete!(t.resultUrl, t);
+                        unsub();
+                    } else if (t.status === 'failed' && t.retryCount >= MAX_RETRIES) {
+                        unsub();
+                    }
+                }
+            });
+        }
 
         this.queue.push(task);
         await this.saveQueue();
@@ -131,15 +245,23 @@ class ResilientUploadService {
 
         console.log(
             `[Upload] 📤 Enqueued [${initialStatus}]: ` +
-            `${task.id} (${(totalBytes / 1024).toFixed(1)}KB → ${remotePath})`
+            `${task.id} (${(totalBytes / 1024).toFixed(1)}KB → ${finalRemotePath})`
         );
 
-        // Start processing immediately if online
+        // 7. Start processing immediately if online
         if (!isCurrentlyOffline) {
             this.processQueue();
         }
 
         return task.id;
+    }
+
+    /**
+     * Get the safe local URI in documentDirectory for a given original or compressed URI.
+     */
+    getSafeLocalUri(uri: string): string | null {
+        const task = this.findMatchingTask(uri);
+        return task?.localUri || null;
     }
 
     /**
@@ -152,46 +274,119 @@ class ResilientUploadService {
         contentType: string = 'image/webp'
     ): Promise<string | null> {
         const taskId = await this.enqueue(localUri, remotePath, contentType);
+        return this.waitForTaskById(taskId, 60_000);
+    }
+
+    private waitForTaskById(taskId: string, timeoutMs: number = 30_000): Promise<string | null> {
+        const existing = this.queue.find(t => t.id === taskId);
+        if (existing?.status === 'completed' && existing.resultUrl) {
+            return Promise.resolve(existing.resultUrl);
+        }
 
         return new Promise<string | null>((resolve) => {
+            const start = Date.now();
             const check = setInterval(() => {
                 const task = this.queue.find(t => t.id === taskId);
-                if (!task)                                          { clearInterval(check); resolve(null);               return; }
-                if (task.status === 'completed')                    { clearInterval(check); resolve(task.resultUrl || null); return; }
-                if (task.status === 'failed' && task.retryCount >= MAX_RETRIES) { clearInterval(check); resolve(null); return; }
-            }, 500);
-
-            // 5-minute hard timeout
-            setTimeout(() => { clearInterval(check); resolve(null); }, 5 * 60_000);
+                if (!task) {
+                    clearInterval(check);
+                    resolve(null);
+                    return;
+                }
+                if (task.status === 'completed' && task.resultUrl) {
+                    clearInterval(check);
+                    resolve(task.resultUrl);
+                    return;
+                }
+                if (task.status === 'failed' && task.retryCount >= MAX_RETRIES) {
+                    clearInterval(check);
+                    resolve(null);
+                    return;
+                }
+                if (Date.now() - start >= timeoutMs) {
+                    clearInterval(check);
+                    resolve(null);
+                }
+            }, 150);
         });
     }
 
     /**
+     * Resolve an already-completed upload OR wait for an in-flight/queued upload matching `uri`.
+     * Prevents duplicate uploads when the technician clicks Concluir/Impedir while a background upload is finishing.
+     */
+    async resolveOrWaitForUpload(uri: string, timeoutMs: number = 25_000): Promise<string | null> {
+        if (!uri) return null;
+        if (uri.startsWith('http://') || uri.startsWith('https://')) return uri;
+
+        const task = this.findMatchingTask(uri);
+        if (!task) return null;
+
+        if (task.status === 'completed' && task.resultUrl) {
+            return task.resultUrl;
+        }
+
+        if (this.isCurrentlyOffline()) {
+            return null;
+        }
+
+        // If task was offline_pending or failed earlier, promote to queued and kick workers
+        if (task.status === 'offline_pending' || task.status === 'failed') {
+            task.status = 'queued';
+            task.retryCount = 0;
+            this.processQueue();
+        } else if (task.status === 'queued' || task.status === 'retrying') {
+            this.processQueue();
+        }
+
+        return this.waitForTaskById(task.id, timeoutMs);
+    }
+
+    /**
+     * Cancel/remove a pending task if the technician deletes the attachment from the UI.
+     */
+    async cancelOrDelete(uri: string): Promise<void> {
+        if (!uri) return;
+        const task = this.findMatchingTask(uri);
+        if (task && task.status !== 'completed') {
+            this.queue = this.queue.filter(t => t.id !== task.id);
+            await this.saveQueue();
+        }
+    }
+
+    /**
      * Resume all interrupted/offline-pending uploads.
-     * Called on app start, foreground return, and network reconnect.
+     * Called on app start, foreground return, network reconnect, and online mode activation.
      */
     async resumeAll(): Promise<void> {
         await this.loadQueue();
 
-        const isCurrentlyOffline = this.isOffline || this.isOfflineModeForced;
-        if (isCurrentlyOffline) {
+        if (!this.isOfflineModeForced) {
+            try {
+                const net = await NetInfo.fetch();
+                this.isOffline = !net.isConnected || net.isInternetReachable === false;
+            } catch { /* ignore */ }
+        }
+
+        if (this.isCurrentlyOffline()) {
             console.log('[Upload] ⏸ resumeAll skipped — still offline');
             return;
         }
 
         const pending = this.queue.filter(t =>
-            t.status === 'pending'       ||
-            t.status === 'queued'        ||
-            t.status === 'retrying'      ||
-            t.status === 'offline_pending'
+            (t.status as string) === 'pending' ||
+            t.status === 'queued'              ||
+            t.status === 'retrying'            ||
+            t.status === 'offline_pending'     ||
+            t.status === 'failed'
         );
 
         if (pending.length > 0) {
-            console.log(`[Upload] 🔄 Resuming ${pending.length} uploads (online restored)`);
+            console.log(`[Upload] 🔄 Resuming ${pending.length} uploads (online active)`);
             pending.forEach(t => {
-                // Promote offline_pending → queued so processQueue picks them up
-                if (t.status === 'offline_pending') t.status = 'queued';
-                if (t.status === 'uploading')       t.status = 'retrying';
+                if (t.status === 'offline_pending' || t.status === 'failed' || (t.status as string) === 'pending') {
+                    t.status = 'queued';
+                    t.retryCount = 0;
+                }
             });
             await this.saveQueue();
             this.processQueue();
@@ -215,28 +410,57 @@ class ResilientUploadService {
     /** Check if a localUri or filename has a completed remote URL */
     getCompletedUrl(localUri: string): string | null {
         if (!localUri) return null;
-        const norm = localUri.toLowerCase();
-        const filename = norm.split('/').pop();
-        const task = this.queue.find(t => {
-            if (t.status !== 'completed' || !t.resultUrl) return false;
-            if (t.localUri === localUri) return true;
-            if (norm.includes(t.remotePath.toLowerCase())) return true;
-            if (filename && t.localUri.toLowerCase().endsWith(filename)) return true;
-            if (filename && t.remotePath.toLowerCase().endsWith(filename)) return true;
-            return false;
-        });
-        return task?.resultUrl || null;
+        if (localUri.startsWith('http://') || localUri.startsWith('https://')) return localUri;
+        const task = this.findMatchingTask(localUri);
+        if (task && task.status === 'completed' && task.resultUrl) {
+            return task.resultUrl;
+        }
+        return null;
+    }
+
+    /**
+     * Aguarda uploads ativos/em fila terminarem antes de submeter o formulário ou impedir OS.
+     * Retorna true quando todos terminaram, ou false em caso de timeout.
+     */
+    async waitForActiveUploads(timeoutMs: number = 15000): Promise<boolean> {
+        if (this.isCurrentlyOffline()) return true;
+
+        // Kick queue in case any items are sitting in 'queued' or 'offline_pending'
+        const waiting = this.queue.filter(t => t.status === 'offline_pending' || t.status === 'queued' || t.status === 'retrying');
+        if (waiting.length > 0) {
+            waiting.forEach(t => {
+                if (t.status === 'offline_pending') t.status = 'queued';
+            });
+            this.processQueue();
+        }
+
+        const start = Date.now();
+        while (Date.now() - start < timeoutMs) {
+            const active = this.queue.filter(t =>
+                t.status === 'uploading' || t.status === 'queued' || t.status === 'retrying'
+            );
+            if (active.length === 0) return true;
+            await new Promise(r => setTimeout(r, 150));
+        }
+        return false;
     }
 
     /**
      * Notify the service that the user toggled manual offline mode.
-     * When false (going online), promotes offline_pending → queued.
+     * When false (going online), promotes offline_pending → queued and starts uploading immediately.
      */
     setForcedOfflineMode(forced: boolean): void {
         this.isOfflineModeForced = forced;
-        if (!forced && !this.isOffline) {
-            console.log('[Upload] 🟢 Forced offline lifted — resuming queue');
-            this.resumeAll();
+        if (forced) {
+            this.queue.forEach(t => {
+                if (t.status === 'queued' || t.status === 'retrying') {
+                    t.status = 'offline_pending';
+                }
+            });
+            this.saveQueue().catch(() => {});
+        } else if (!this.isOffline) {
+            console.log('[Upload] 🟢 Forced offline lifted — resuming queue immediately');
+            this.resumeAll().catch(() => {});
         }
     }
 
@@ -252,79 +476,94 @@ class ResilientUploadService {
         if (this.unsubscribeNetInfo) return; // Already listening
 
         this.unsubscribeNetInfo = NetInfo.addEventListener(state => {
-            const wasOffline    = this.isOffline;
-            this.isOffline      = !state.isConnected;
+            const wasOffline = this.isOffline;
+            this.isOffline   = !state.isConnected || state.isInternetReachable === false;
 
             if (wasOffline && !this.isOffline && !this.isOfflineModeForced) {
                 // Transition: offline → online
                 console.log('[Upload] 🌐 Network restored — flushing offline queue...');
-                this.resumeAll();
+                this.resumeAll().catch(() => {});
             }
         });
 
         console.log('[Upload] 👂 Network listener registered');
     }
 
-    // ─── Internal Processing ──────────────────────────────────────────────────
+    // ─── Internal Parallel Worker Pool ────────────────────────────────────────
 
-    private async processQueue(): Promise<void> {
-        if (this.isProcessing) return;
-        this.isProcessing = true;
-        this.sessionCompletedCount = 0;
+    private pickNextTask(): UploadTask | undefined {
+        const candidates = this.queue.filter(t => t.status === 'queued' || t.status === 'retrying');
+        if (candidates.length === 0) return undefined;
 
-        try {
-            while (true) {
-                const nextTask = this.queue.find(t =>
-                    t.status === 'queued' || t.status === 'retrying'
-                );
-                if (!nextTask) break;
+        // Prioritize images/signatures (small files < 300KB) ahead of videos so photos complete in < 1s
+        candidates.sort((a, b) => {
+            const aIsVideo = a.contentType.includes('video') ? 1 : 0;
+            const bIsVideo = b.contentType.includes('video') ? 1 : 0;
+            if (aIsVideo !== bIsVideo) return aIsVideo - bIsVideo;
+            return a.createdAt - b.createdAt;
+        });
 
-                // Stop processing if we went offline mid-queue
-                if (this.isOffline || this.isOfflineModeForced) {
-                    console.log('[Upload] ⏸ Gone offline — pausing queue');
-                    nextTask.status = 'offline_pending';
-                    await this.saveQueue();
-                    break;
+        return candidates[0];
+    }
+
+    private processQueue(): void {
+        if (this.isCurrentlyOffline()) return;
+
+        while (this.activeWorkers < MAX_CONCURRENT_UPLOADS) {
+            const nextTask = this.pickNextTask();
+            if (!nextTask) break;
+
+            // Mark as 'uploading' synchronously before spawning worker so next iteration picks a different task
+            nextTask.status = 'uploading';
+            this.activeWorkers++;
+
+            this.runWorker(nextTask).finally(() => {
+                this.activeWorkers--;
+                if (!this.isCurrentlyOffline() && this.pickNextTask()) {
+                    this.processQueue();
+                } else if (this.activeWorkers === 0) {
+                    const hasPending = this.queue.some(t =>
+                        ['queued','retrying','uploading','offline_pending'].includes(t.status)
+                    );
+                    if (!hasPending && this.sessionCompletedCount > 0) {
+                        console.log(`[Upload] ✨ Queue drained — ${this.sessionCompletedCount} file(s) uploaded`);
+                        const count = this.sessionCompletedCount;
+                        this.sessionCompletedCount = 0;
+                        this.drainedListeners.forEach(cb => {
+                            try { cb(count); } catch { /* silent */ }
+                        });
+                    }
                 }
-
-                await this.uploadSingleFile(nextTask);
-            }
-        } finally {
-            this.isProcessing = false;
-
-            // Check if all uploads are now done — fire drain callbacks
-            const hasPending = this.queue.some(t =>
-                ['queued','retrying','uploading','offline_pending'].includes(t.status)
-            );
-
-            if (!hasPending && this.sessionCompletedCount > 0) {
-                console.log(`[Upload] ✨ Queue drained — ${this.sessionCompletedCount} file(s) uploaded`);
-                const count = this.sessionCompletedCount;
-                this.sessionCompletedCount = 0;
-                this.drainedListeners.forEach(cb => {
-                    try { cb(count); } catch { /* silent */ }
-                });
-            }
+            });
         }
     }
 
-    private async uploadSingleFile(task: UploadTask): Promise<void> {
-        task.status = 'uploading';
+    private async runWorker(task: UploadTask): Promise<void> {
         this.notifyProgress(task);
         await this.saveQueue();
 
         for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
             try {
                 // Abort if we went offline while waiting for retry
-                if (this.isOffline || this.isOfflineModeForced) {
+                if (this.isCurrentlyOffline()) {
                     task.status = 'offline_pending';
                     this.notifyProgress(task);
                     await this.saveQueue();
                     return;
                 }
 
-                // Verify file still exists (Section 6.3)
-                const fileInfo = await FileSystem.getInfoAsync(task.localUri);
+                // Verify file still exists (fallback to compressedUri or originalUri if needed)
+                let sourceUri = task.localUri;
+                let fileInfo = await FileSystem.getInfoAsync(sourceUri);
+                if (!fileInfo.exists && task.compressedUri) {
+                    fileInfo = await FileSystem.getInfoAsync(task.compressedUri);
+                    if (fileInfo.exists) sourceUri = task.compressedUri;
+                }
+                if (!fileInfo.exists && task.originalUri) {
+                    fileInfo = await FileSystem.getInfoAsync(task.originalUri);
+                    if (fileInfo.exists) sourceUri = task.originalUri;
+                }
+
                 if (!fileInfo.exists) {
                     console.error(`[Upload] ❌ File missing: ${task.localUri}`);
                     task.status    = 'failed';
@@ -334,15 +573,6 @@ class ResilientUploadService {
                     return;
                 }
 
-                // Read as base64 and decode to ArrayBuffer
-                const base64 = await FileSystem.readAsStringAsync(task.localUri, {
-                    encoding: 'base64',
-                });
-                if (!base64 || base64.length === 0) throw new Error('Empty file content');
-
-                const arrayBuffer   = decode(base64);
-                task.uploadedBytes  = arrayBuffer.byteLength;
-
                 // Get signed URL from R2 Edge Function
                 const { data: signData, error: signError } = await supabase.functions.invoke('r2-operations', {
                     body: { action: 'upload', path: task.remotePath, bucketType: 'private', contentType: task.contentType }
@@ -351,40 +581,33 @@ class ResilientUploadService {
                     throw new Error(signError?.message || 'Failed to get signed URL');
                 }
 
-                // Upload with 60s network timeout
-                const networkTimeout = new Promise<Response>((_, rej) =>
-                    setTimeout(() => rej(new Error('NETWORK_TIMEOUT_60S')), 60_000)
-                );
-                const response = await Promise.race([
-                    fetch(signData.signedUrl, {
-                        method:  'PUT',
-                        body:    arrayBuffer,
-                        headers: { 'Content-Type': task.contentType },
-                    }),
-                    networkTimeout,
-                ]);
+                // 🚀 Native binary streaming upload from disk to R2 (zero Base64 OOM, max throughput)
+                const fileUri = (sourceUri.startsWith('/') && !sourceUri.startsWith('file://'))
+                    ? `file://${sourceUri}`
+                    : sourceUri;
 
-                if (!response.ok) {
-                    throw new Error(`R2 Upload Failed: ${response.status} ${response.statusText}`);
+                const uploadResult = await FileSystem.uploadAsync(signData.signedUrl, fileUri, {
+                    httpMethod: 'PUT',
+                    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+                    headers: {
+                        'Content-Type': task.contentType,
+                    },
+                });
+
+                if (uploadResult.status < 200 || uploadResult.status >= 300) {
+                    throw new Error(`R2 Upload Failed: status ${uploadResult.status}`);
                 }
 
                 // ✅ Success
-                task.status       = 'completed';
-                task.resultUrl    = signData.publicUrl;
-                task.completedAt  = Date.now();
+                task.status        = 'completed';
+                task.resultUrl     = signData.publicUrl;
+                task.completedAt   = Date.now();
                 task.uploadedBytes = task.totalBytes;
                 this.sessionCompletedCount++;
 
                 console.log(`[Upload] ✅ ${task.id} → ${signData.publicUrl}`);
-                this.notifyProgress(task);
                 await this.saveQueue();
-
-                // Delete the safe-copy after successful upload
-                try {
-                    if (task.localUri.includes('nexus_upload_')) {
-                        await FileSystem.deleteAsync(task.localUri, { idempotent: true });
-                    }
-                } catch { /* silent cleanup */ }
+                this.notifyProgress(task);
 
                 return; // Exit retry loop
 
@@ -392,9 +615,16 @@ class ResilientUploadService {
                 task.retryCount = attempt + 1;
                 task.lastError  = error?.message || 'Unknown error';
 
+                if (this.isCurrentlyOffline()) {
+                    task.status = 'offline_pending';
+                    this.notifyProgress(task);
+                    await this.saveQueue();
+                    return;
+                }
+
                 if (attempt < MAX_RETRIES && isRetryableError(error)) {
                     const delay = Math.min(
-                        1000 * Math.pow(2, attempt) + Math.random() * 1000,
+                        800 * Math.pow(2, attempt) + Math.random() * 500,
                         MAX_RETRY_DELAY_MS
                     );
                     console.warn(
@@ -405,6 +635,7 @@ class ResilientUploadService {
                     this.notifyProgress(task);
                     await this.saveQueue();
                     await new Promise(r => setTimeout(r, delay));
+                    task.status = 'uploading';
                 } else {
                     console.error(`[Upload] ❌ ${task.id} failed: ${error.message}`);
                     task.status = 'failed';
@@ -427,6 +658,15 @@ class ResilientUploadService {
     private async saveQueue(): Promise<void> {
         try {
             const cutoff = Date.now() - 24 * 60 * 60 * 1000; // 24h retention
+            const fileCleanupCutoff = Date.now() - 2 * 60 * 60 * 1000; // 2h local file retention after completion
+
+            // Cleanup old completed safe-copy files on disk (> 2h old)
+            for (const t of this.queue) {
+                if (t.status === 'completed' && t.completedAt && t.completedAt < fileCleanupCutoff && t.localUri.includes('nexus_upload_')) {
+                    FileSystem.deleteAsync(t.localUri, { idempotent: true }).catch(() => {});
+                }
+            }
+
             this.queue = this.queue.filter(t =>
                 t.createdAt > cutoff || t.status !== 'completed'
             );
@@ -444,12 +684,19 @@ class ResilientUploadService {
             if (raw) {
                 const docDir = FileSystem.documentDirectory || '';
                 const restored = raw.split('<DOC_DIR>').join(docDir);
-                this.queue = JSON.parse(restored);
+                const parsed: UploadTask[] = JSON.parse(restored);
+                // Merge with any in-memory tasks added before loadQueue resolved
+                const existingIds = new Set(this.queue.map(t => t.id));
+                for (const item of parsed) {
+                    if (!existingIds.has(item.id)) {
+                        if (item.status === 'uploading') item.status = 'retrying';
+                        this.queue.push(item);
+                    }
+                }
                 console.log(`[Upload] 📦 Loaded ${this.queue.length} tasks from disk`);
             }
         } catch (e) {
             console.warn('[Upload] ⚠️ Failed to load queue:', e);
-            this.queue = [];
         }
     }
 
@@ -461,7 +708,7 @@ class ResilientUploadService {
 
             if (uri.startsWith('data:')) {
                 const ext      = uri.includes('png') ? 'png' : 'webp';
-                const safePath = `${FileSystem.documentDirectory}nexus_upload_${Date.now()}.${ext}`;
+                const safePath = `${FileSystem.documentDirectory}nexus_upload_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
                 const base64   = uri.split(',')[1];
                 await FileSystem.writeAsStringAsync(safePath, base64, {
                     encoding: FileSystem.EncodingType.Base64,
@@ -470,7 +717,7 @@ class ResilientUploadService {
             }
 
             const filename = uri.split('/').pop() || `file_${Date.now()}`;
-            const safePath = `${FileSystem.documentDirectory}nexus_upload_${filename}`;
+            const safePath = `${FileSystem.documentDirectory}nexus_upload_${Date.now()}_${filename}`;
             await FileSystem.copyAsync({ from: uri, to: safePath });
             return safePath;
 
@@ -482,3 +729,4 @@ class ResilientUploadService {
 }
 
 export const resilientUpload = new ResilientUploadService();
+

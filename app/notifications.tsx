@@ -4,7 +4,7 @@ import { supabase } from '@/services/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, Text, View, DeviceEventEmitter } from 'react-native';
 import { useI18n } from '@/services/i18n';
 import Constants from 'expo-constants';
 
@@ -68,13 +68,11 @@ export default function NotificationsScreen() {
             const unreadIds = fetchedData.filter(n => !n.is_read).map(n => n.id);
             if (unreadIds.length > 0) {
                 // Marca as notificações lidas no Supabase
-                supabase.from('notifications').update({ is_read: true }).in('id', unreadIds).then(() => {
-                    DeviceEventEmitter?.emit?.('refreshNotifications');
-                    NotificationService.syncAppIconBadge().catch(() => {});
-                });
+                await supabase.from('notifications').update({ is_read: true }).in('id', unreadIds);
+                DeviceEventEmitter?.emit?.('refreshNotifications');
             }
-            // Zera o badge no ícone do sistema operacional do celular
-            NotificationService.syncAppIconBadge().catch(() => {});
+            // Zera o badge no ícone do sistema operacional do celular (iOS e Android)
+            await NotificationService.clearAppIconBadge();
         } catch (error) {
             console.error('Error fetching notifications:', error);
         } finally {
@@ -100,7 +98,12 @@ export default function NotificationsScreen() {
     };
 
     const handleNotificationPress = (item: any) => {
+        if (!item.is_read) {
+            item.is_read = true;
+            NotificationService.markNotificationAsRead(item.id).catch(() => {});
+        }
         if (item.data && item.data.orderId) {
+            NotificationService.markOrderNotificationsAsRead(item.data.orderId).catch(() => {});
             router.push(`/os/${item.data.orderId}`);
         }
     };

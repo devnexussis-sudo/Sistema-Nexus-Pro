@@ -47,7 +47,7 @@ export enum FormFieldType {
 // ============================================
 
 export interface UserPermissions {
-    // Atividades (O.S.)
+    // Ordens de Serviço (O.S.)
     orders: { create: boolean; read: boolean; update: boolean; delete: boolean };
     // Clientes
     customers: { create: boolean; read: boolean; update: boolean; delete: boolean };

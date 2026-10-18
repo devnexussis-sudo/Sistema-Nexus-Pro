@@ -32,7 +32,7 @@ export const CONSCIOUSNESS_BASE: KnowledgeNode[] = [
     ],
     description: "Fluxo passo a passo para abertura de Ordens de Serviço (OS) pelo painel administrativo.",
     steps: [
-      "Acesse o menu 'Atividade' na barra lateral esquerda do painel.",
+      "Acesse o menu 'Ordens de Serviço' na barra lateral esquerda do painel.",
       "Clique no botão '+ Nova OS' localizado no canto superior direito.",
       "Etapa 1 (Cliente): Digite o nome ou selecione o cliente desejado no campo de busca.",
       "Etapa 2 (Tipo de Serviço): Escolha o tipo de intervenção (Corretiva, Preventiva, Instalação, etc.).",
@@ -579,16 +579,16 @@ export interface CopilotModule {
 
 export const COPILOT_MODULES: CopilotModule[] = [
   {
-    name: "Ordens de Serviço (Atividades)",
+    name: "Ordens de Serviço",
     nouns: ['os', 'ordem', 'ordens', 'servico', 'servicos', 'atividade', 'atividades', 'chamado', 'chamados', 'visita', 'visitas'],
-    menuPath: "Menu Principal > Atividade",
+    menuPath: "Menu Principal > Ordens de Serviço",
     filePath: "src/components/admin/AdminDashboard.tsx",
     dbTable: "orders",
     steps: {
       create: "Clique em '+ Nova OS' no topo direito e complete o assistente em 5 etapas (Cliente, Tipo, Detalhes, Técnico e Revisão).",
       update: "Clique na OS desejada na listagem e depois no botão 'Editar OS' no cabeçalho.",
       delete: "Abra a OS na tela e clique no botão 'Cancelar OS' no topo direito. Confirme no modal.",
-      read: "Veja a listagem de chamados na aba Atividade. Utilize a barra de busca no topo por número ou cliente.",
+      read: "Veja a listagem de chamados na aba Ordens de Serviço. Utilize a barra de busca no topo por número ou cliente.",
       report: "Clique no botão 'Gerar PDF' no cabeçalho interno da OS para exportar o relatório técnico."
     }
   },
@@ -673,7 +673,7 @@ export const COPILOT_MODULES: CopilotModule[] = [
       update: "Abra os detalhes do contrato para pausá-lo, prorrogar a vigência ou mudar as datas de inspeção.",
       delete: "Clique em 'Encerrar Recorrência' ou 'Excluir Plano' nas opções internas do contrato.",
       read: "Acesse a listagem para acompanhar todos os contratos de preventivas recorrentes ativos.",
-      report: "As ordens de serviço preventivas geradas pelo PMOC são agendadas e listadas na tela de Atividades."
+      report: "As ordens de serviço preventivas geradas pelo PMOC são agendadas e listadas na tela de Ordens de Serviço."
     }
   },
   {

@@ -54,6 +54,14 @@ export class ImageService {
         try {
             // v6: Quality upgrade — 1280px + WebP 0.55 = ~160-220KB (mais nitidez para laudos)
             const MAX_SIZE_BYTES = 280 * 1024;
+
+            // Fast-path: se já é um arquivo .webp comprimido dentro do limite, evita recomprimir
+            if (uri.toLowerCase().endsWith('.webp') && (uri.startsWith('file://') || uri.startsWith('/'))) {
+                const existingInfo = await FileSystem.getInfoAsync(uri);
+                if (existingInfo.exists && (existingInfo as any).size && (existingInfo as any).size <= MAX_SIZE_BYTES) {
+                    return uri;
+                }
+            }
             
             let result = await ImageManipulator.manipulateAsync(
                 uri,

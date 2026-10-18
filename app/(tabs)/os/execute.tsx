@@ -10,6 +10,7 @@ import { StockService, TechStockItem } from '@/services/stock-service';
 import { syncService } from '@/services/sync-service';
 import { resilientUpload } from '@/services/upload-resilient';
 import { TenantService } from '@/services/tenant-service';
+import { NotificationService } from '@/services/notification-service';
 import { appLifecycle } from '@/services/app-lifecycle';
 import { supabase } from '@/services/supabase';
 import { Ionicons } from '@expo/vector-icons';
@@ -39,6 +40,26 @@ export interface VideoAsset {
     isProcessing: boolean;
 }
 
+// 🧠 Singleton in-memory execution state: prevents reloads/delays and preserves exact page/inputs when switching to Duno IA and back
+interface ActiveExecutionMemory {
+    orderId: string;
+    order: any;
+    formsConfig: Record<string, { equipamento: any, template: any, data: any }>;
+    currentPage: number;
+    technicalReport: string;
+    usedItems: any[];
+    extraPhotos: string[];
+    videos: any[];
+    signature: string | null;
+    clientName: string;
+    clientDoc: string;
+    showPrice: boolean;
+    allowImpediment: boolean;
+    requireClientSignature: boolean;
+    myStock: any[];
+}
+let activeExecutionMemory: ActiveExecutionMemory | null = null;
+
 export default function ExecuteOSScreen() {
     const { id } = useLocalSearchParams();
     const router = useRouter();
@@ -56,8 +77,8 @@ export default function ExecuteOSScreen() {
     const navigation = useNavigation();
 
     // Multi-equipment forms state
-    // { equipmentIndex_or_id: { equipamento: any, template: any, data: any } }
-    const [formsConfig, setFormsConfig] = useState<Record<string, { equipamento: any, template: any, data: any }>>({});
+    // { equipmentIndex_or_id: { equipamento: any, template: any, data: any, financialTemplate?: any } }
+    const [formsConfig, setFormsConfig] = useState<Record<string, { equipamento: any, template: any, data: any, financialTemplate?: any }>>({});
 
     // Collapsible State (true means collapsed)
     const [collapsedForms, setCollapsedForms] = useState<Record<string, boolean>>({});
@@ -88,6 +109,7 @@ export default function ExecuteOSScreen() {
     const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] as any[] });
     const [showPrice, setShowPrice] = useState(false);
     const [allowImpediment, setAllowImpediment] = useState(true);
+    const [requireClientSignature, setRequireClientSignature] = useState(true);
 
     const [isScannerVisible, setIsScannerVisible] = useState(false);
     const [scanned, setScanned] = useState(false);
@@ -152,17 +174,22 @@ export default function ExecuteOSScreen() {
 
     React.useEffect(() => {
         if (order?.tenantId) {
-            supabase.from('tenants').select('metadata').eq('id', order.tenantId).single().then(({ data }) => {
-                if (data?.metadata?.video_quality === 'basic') {
-                    videoModeRef.current = 'basic';
+            (async () => {
+                try {
+                    const { data } = await supabase.from('tenants').select('metadata').eq('id', order.tenantId).single();
+                    if (data?.metadata?.video_quality === 'basic') {
+                        videoModeRef.current = 'basic';
+                    }
+                } catch (e) {
+                    console.warn(e);
                 }
-            }).catch((e: Error) => console.warn(e));
+            })();
         }
     }, [order?.tenantId]);
     const [isPartsVisible, setIsPartsVisible] = useState(false);
     const [isPhotoSourceModalVisible, setIsPhotoSourceModalVisible] = useState(false);
     const [isPartSourceModalVisible, setIsPartSourceModalVisible] = useState(false);
-    const [photoSourceTarget, setPhotoSourceTarget] = useState<{ type: 'extra' | 'field', eqKey?: string, fieldId?: string } | null>(null);
+    const [photoSourceTarget, setPhotoSourceTarget] = useState<{ type: 'extra' | 'field' | 'impediment', eqKey?: string, fieldId?: string } | null>(null);
     const [videoSourceTarget, setVideoSourceTarget] = useState<{ type: 'global' | 'field', eqKey?: string, fieldId?: string } | null>(null);
     const signatureRef = useRef<any>(null);
     const scrollViewRef = useRef<ScrollView>(null);
@@ -294,11 +321,7 @@ export default function ExecuteOSScreen() {
 
         const processValue = async (val: any): Promise<any> => {
             if (Array.isArray(val)) {
-                const result: any[] = [];
-                for (const item of val) {
-                    result.push(await processValue(item));
-                }
-                return result;
+                return await Promise.all(val.map(item => processValue(item)));
             }
             if (typeof val === 'string' && isLocalMediaUri(val)) {
                 // 1. Tentar mapa local ou resilientUpload
@@ -306,12 +329,12 @@ export default function ExecuteOSScreen() {
                 if (cached && !isLocalMediaUri(cached)) {
                     return cached;
                 }
-                // 2. Se continua local, faz upload síncrono emergencial agora!
+                // 2. Se continua local, aguarda upload em andamento ou faz upload síncrono emergencial
                 try {
                     const isVideo = val.toLowerCase().endsWith('.mov') || val.toLowerCase().endsWith('.mp4') || val.includes('/videos/') || val.includes('/form_videos/');
                     const folder = isVideo ? 'videos' : 'form_photos';
                     const contentType = isVideo ? 'video/mp4' : undefined;
-                    console.log(`[SanitizeUpload] 🚀 Upload síncrono emergencial de mídia local: ${val}`);
+                    console.log(`[SanitizeUpload] 🚀 Resolvendo mídia local: ${val}`);
                     const uploadedUrl = await OrderService.uploadFile(val, `orders/${displayFolderId}/${folder}`, tenantId, contentType);
                     if (uploadedUrl) {
                         uploadedUrlMapRef.current.set(val, uploadedUrl);
@@ -333,20 +356,26 @@ export default function ExecuteOSScreen() {
             return val;
         };
 
-        for (const key of Object.keys(copy)) {
-            if (key === 'execution_forms' && typeof copy[key] === 'object') {
-                const ef = copy[key];
-                for (const eqKey of Object.keys(ef)) {
-                    if (ef[eqKey]?.data) {
-                        for (const fId of Object.keys(ef[eqKey].data)) {
-                            ef[eqKey].data[fId] = await processValue(ef[eqKey].data[fId]);
-                        }
-                    }
+        await Promise.all(
+            Object.keys(copy).map(async (key) => {
+                if (key === 'execution_forms' && typeof copy[key] === 'object' && copy[key] !== null) {
+                    const ef = copy[key];
+                    await Promise.all(
+                        Object.keys(ef).map(async (eqKey) => {
+                            if (ef[eqKey]?.data) {
+                                await Promise.all(
+                                    Object.keys(ef[eqKey].data).map(async (fId) => {
+                                        ef[eqKey].data[fId] = await processValue(ef[eqKey].data[fId]);
+                                    })
+                                );
+                            }
+                        })
+                    );
+                } else {
+                    copy[key] = await processValue(copy[key]);
                 }
-            } else {
-                copy[key] = await processValue(copy[key]);
-            }
-        }
+            })
+        );
 
         return copy;
     }, [isLocalMediaUri, resolvePhotoUri]);
@@ -539,21 +568,66 @@ export default function ExecuteOSScreen() {
         React.useCallback(() => {
             if (!id) return;
 
-            // 🎯 Se o usuário já abriu esta mesma OS e apenas alternou para a aba de IA (ou outra aba) e voltou:
-            // NÃO reseta nada! Mantém a página atual (currentPage), inputs, fotos, itens e relatórios exatamente onde parou!
-            if (currentLoadedOrderIdRef.current === id && order && order.id === id) {
-                console.log(`[ExecuteOS] Retornou para a mesma OS (${id}) em andamento. Mantendo página ${currentPage} e preenchimento intactos.`);
+            const orderIdStr = String(id);
+
+            // 🎯 FAST-PATH: Se o usuário já abriu esta mesma OS e apenas alternou para a aba de IA (ou outra aba) e voltou:
+            // NÃO reseta nada! Mantém a página atual (currentPage), formulários e preenchimento exatamente onde parou, ZERO loading e ZERO delay!
+            if (activeExecutionMemory && activeExecutionMemory.orderId === orderIdStr) {
+                console.log(`[ExecuteOS] ⚡ Retorno instantâneo para OS #${orderIdStr} da memória ativa. Mantendo página ${activeExecutionMemory.currentPage} e formulários intactos.`);
+                
+                // Se o componente foi remontado, restaura os estados instantaneamente sem passar por loadData nem showLoading
+                if (!order || String(order.id) !== orderIdStr) {
+                    setOrder(activeExecutionMemory.order);
+                    setFormsConfig(activeExecutionMemory.formsConfig);
+                    setCurrentPage(activeExecutionMemory.currentPage);
+                    setTechnicalReport(activeExecutionMemory.technicalReport);
+                    setUsedItems(activeExecutionMemory.usedItems);
+                    setExtraPhotos(activeExecutionMemory.extraPhotos);
+                    setVideos(activeExecutionMemory.videos);
+                    setSignature(activeExecutionMemory.signature);
+                    setClientName(activeExecutionMemory.clientName);
+                    setClientDoc(activeExecutionMemory.clientDoc);
+                    setShowPrice(activeExecutionMemory.showPrice);
+                    setAllowImpediment(activeExecutionMemory.allowImpediment);
+                    if (typeof activeExecutionMemory.requireClientSignature === 'boolean') {
+                        setRequireClientSignature(activeExecutionMemory.requireClientSignature);
+                    }
+                    if (activeExecutionMemory.myStock) setMyStock(activeExecutionMemory.myStock);
+                }
+                
+                setIsLoading(false);
+                hideLoading();
+                currentLoadedOrderIdRef.current = orderIdStr;
+
+                NotificationService.markOrderNotificationsAsRead(orderIdStr).catch(() => {});
+
                 TenantService.getSettings(!syncService.isOfflineModeEnabled())
                     .then(settings => {
                         setShowPrice(settings.showStockPrice);
                         setAllowImpediment(settings.allowImpediment);
+                        setRequireClientSignature(settings.requireClientSignature);
                     })
                     .catch(() => {});
                 return;
             }
 
+            // Fallback caso a instância local continue com a mesma OS:
+            if (currentLoadedOrderIdRef.current === orderIdStr && order && String(order.id) === orderIdStr) {
+                console.log(`[ExecuteOS] Retornou para a mesma OS (${orderIdStr}) em andamento. Mantendo página ${currentPage} e preenchimento intactos.`);
+                TenantService.getSettings(!syncService.isOfflineModeEnabled())
+                    .then(settings => {
+                        setShowPrice(settings.showStockPrice);
+                        setAllowImpediment(settings.allowImpediment);
+                        setRequireClientSignature(settings.requireClientSignature);
+                    })
+                    .catch(() => {});
+                return;
+            }
+
+            // Caso seja uma OS DIFERENTE ou primeira abertura real da OS:
+            activeExecutionMemory = null;
             let isActive = true;
-            currentLoadedOrderIdRef.current = id as string;
+            currentLoadedOrderIdRef.current = orderIdStr;
 
             // 🧹 RESET ALL GLOBAL CACHED STATES apenas quando abrir uma nova OS
             setOrder(null);
@@ -591,6 +665,7 @@ export default function ExecuteOSScreen() {
                         if (isActive) {
                             setShowPrice(settings.showStockPrice);
                             setAllowImpediment(settings.allowImpediment);
+                            setRequireClientSignature(settings.requireClientSignature);
                         }
                     } catch (err) {
                         console.error("[ExecuteOS] Error loading settings:", err);
@@ -766,26 +841,9 @@ export default function ExecuteOSScreen() {
                             setFormsConfig(newFormsConfig);
                         }
 
-                        // Limpar badge de notificação para esta OS
-                        try {
-                            const { data: { session } } = await supabase.auth.getSession();
-                            if (session?.user && id) {
-                                const { data: notifs } = await supabase
-                                    .from('notifications')
-                                    .select('id')
-                                    .eq('is_read', false)
-                                    .eq('data->>orderId', id as string);
-                                    
-                                if (notifs && notifs.length > 0) {
-                                    await supabase
-                                        .from('notifications')
-                                        .update({ is_read: true })
-                                        .in('id', notifs.map(n => n.id));
-                                    DeviceEventEmitter?.emit?.('refreshNotifications');
-                                }
-                            }
-                        } catch (err) {
-                            console.warn('[ExecuteOS] Erro ao limpar notificacao', err);
+                        // Limpar badge de notificação para esta OS e atualizar ícone do app
+                        if (id) {
+                            NotificationService.markOrderNotificationsAsRead(id as string).catch(() => {});
                         }
 
                         // Carregar estoque do técnico
@@ -806,6 +864,7 @@ export default function ExecuteOSScreen() {
                             if (isActive) {
                                 setShowPrice(s.showStockPrice);
                                 setAllowImpediment(s.allowImpediment);
+                                setRequireClientSignature(s.requireClientSignature);
                             }
                         }).catch(() => { });
                     }
@@ -862,8 +921,34 @@ export default function ExecuteOSScreen() {
             }
         };
         const t = setTimeout(saveToCache, 500);
-        return () => clearTimeout(t);
+        return () => {
+            clearTimeout(t);
+            saveToCache();
+        };
     }, [id, currentPage, formsConfig, technicalReport, usedItems, extraPhotos, signature, clientName, clientDoc, videos, isLoading, order]);
+
+    // 🧠 Sincronização síncrona na memória ativa: garante persistência instantânea ao mudar de aba para Duno IA
+    React.useEffect(() => {
+        if (id && order && String(order.id) === String(id) && !isLoading) {
+            activeExecutionMemory = {
+                orderId: String(id),
+                order,
+                formsConfig,
+                currentPage,
+                technicalReport,
+                usedItems,
+                extraPhotos,
+                videos,
+                signature,
+                clientName,
+                clientDoc,
+                showPrice,
+                allowImpediment,
+                requireClientSignature,
+                myStock,
+            };
+        }
+    }, [id, order, formsConfig, currentPage, technicalReport, usedItems, extraPhotos, videos, signature, clientName, clientDoc, showPrice, allowImpediment, requireClientSignature, myStock, isLoading]);
 
     // Registra OS ativa para que a aba de IA mostre o banner de retorno fácil
     React.useEffect(() => {
@@ -879,11 +964,23 @@ export default function ExecuteOSScreen() {
     // Ouvinte em tempo real para alterações de configurações feitas pelo admin no painel
     React.useEffect(() => {
         const unsub = TenantService.onSettingsChange(settings => {
-            console.log('[ExecuteOS] ⚡ Atualizando configurações da tela de execução em tempo real!');
+            console.log('[ExecuteOS] ⚡ Atualizando configurações da tela de execução em tempo real!', settings);
             setShowPrice(settings.showStockPrice);
             setAllowImpediment(settings.allowImpediment);
+            setRequireClientSignature(settings.requireClientSignature);
         });
-        return () => unsub();
+        const sub = DeviceEventEmitter.addListener('tenantSettingsChanged', (settings) => {
+            if (settings) {
+                console.log('[ExecuteOS] ⚡ DeviceEventEmitter tenantSettingsChanged recebido!', settings);
+                setShowPrice(settings.showStockPrice);
+                setAllowImpediment(settings.allowImpediment);
+                setRequireClientSignature(settings.requireClientSignature);
+            }
+        });
+        return () => {
+            unsub();
+            sub.remove();
+        };
     }, []);
 
 
@@ -940,6 +1037,18 @@ export default function ExecuteOSScreen() {
         setSignature(processed);
         setSignatureModalVisible(false);
         ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+
+        // 🚀 Enfileira imediatamente no motor resiliente (Online → sobe na hora pro R2; Offline → salva seguro e sobe ao reconectar)
+        const remotePath = `orders/${order?.displayId || id}/signatures/${Date.now()}.png`;
+        resilientUpload.enqueue(processed, remotePath, 'image/png', {
+            originalUri: signatureData,
+            tenantId: order?.tenantId,
+            onComplete: (resultUrl) => {
+                uploadedUrlMapRef.current.set(signatureData, resultUrl);
+                uploadedUrlMapRef.current.set(processed, resultUrl);
+                setSignature(resultUrl);
+            }
+        }).catch(e => console.warn('[Signature] Background enqueue failed:', e));
     };
 
     const processPhotoChoice = async (source: 'camera' | 'library', callback: (uris: string[]) => void, limit = 1) => {
@@ -973,11 +1082,6 @@ export default function ExecuteOSScreen() {
             });
 
             if (!result.canceled && result.assets && result.assets.length > 0) {
-                // v5: INSTANT — Envia URIs originais direto para o callback.
-                // O callback (uploadExtraPhoto / uploadFieldPhoto) adiciona as URIs
-                // ao estado IMEDIATAMENTE (cards aparecem na hora), e depois roda
-                // compressão + upload em background sem travar a UI.
-                // NÃO usamos await — fire-and-forget para não bloquear.
                 const rawUris = result.assets.map(asset => asset.uri);
                 callback(rawUris);
             }
@@ -1001,6 +1105,18 @@ export default function ExecuteOSScreen() {
         setImpedimentSignature(processed);
         setIsImpedimentSignatureVisible(false);
         ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+
+        // 🚀 Enfileira imediatamente no motor resiliente (Online → sobe na hora pro R2; Offline → salva seguro e sobe ao reconectar)
+        const remotePath = `orders/${order?.displayId || id}/signatures/impediment_${Date.now()}.png`;
+        resilientUpload.enqueue(processed, remotePath, 'image/png', {
+            originalUri: signatureData,
+            tenantId: order?.tenantId,
+            onComplete: (resultUrl) => {
+                uploadedUrlMapRef.current.set(signatureData, resultUrl);
+                uploadedUrlMapRef.current.set(processed, resultUrl);
+                setImpedimentSignature(resultUrl);
+            }
+        }).catch(e => console.warn('[ImpedimentSignature] Background enqueue failed:', e));
     };
 
 
@@ -1017,23 +1133,25 @@ export default function ExecuteOSScreen() {
             });
             setExtraPhotos(prev => [...prev, ...localUris]);
 
-            // ── BACKGROUND QUEUE (v6 — Big Tech Pattern) ──────────────────────
-            // resilientUpload.enqueue() decide automaticamente:
-            //   ▸ Online  → sobe na hora, retry exponencial se falhar
-            //   ▸ Offline → salva local, sobe quando voltar a conexão
-            // O callback onProgress atualiza o mapa de URLs quando o upload completa.
+            // ── BACKGROUND QUEUE (Big Tech Pattern) ──────────────────────
+            // Comprime em WebP e enfileira imediatamente no R2 (Online) ou disco seguro (Offline)
             await Promise.allSettled(localUris.map(async (uri) => {
                 try {
                     const compressedUri = await ImageService.compressImage(uri);
                     const remotePath    = `orders/${order?.displayId || id}/extra_photos/${Date.now()}_${Math.random().toString(36).slice(2,6)}.webp`;
 
-                    const taskId = await resilientUpload.enqueue(compressedUri, remotePath, 'image/webp');
+                    // Atualiza estado com a URI comprimida enquanto o upload roda (ou se estiver offline)
+                    if (compressedUri !== uri) {
+                        setExtraPhotos(prev => prev.map(p => p === uri ? compressedUri : p));
+                    }
 
-                    // Ouvir conclusão desta task específica para atualizar o mapa de URLs
-                    const unsub = resilientUpload.onProgress(task => {
-                        if (task.id === taskId && task.status === 'completed' && task.resultUrl) {
-                            uploadedUrlMapRef.current.set(uri, task.resultUrl);
-                            unsub();
+                    await resilientUpload.enqueue(compressedUri, remotePath, 'image/webp', {
+                        originalUri: uri,
+                        tenantId: order?.tenantId,
+                        onComplete: (resultUrl) => {
+                            uploadedUrlMapRef.current.set(uri, resultUrl);
+                            uploadedUrlMapRef.current.set(compressedUri, resultUrl);
+                            setExtraPhotos(prev => prev.map(p => (p === uri || p === compressedUri) ? resultUrl : p));
                         }
                     });
                 } catch (e) {
@@ -1207,29 +1325,6 @@ export default function ExecuteOSScreen() {
                         }
                     }
 
-                    // ── BACKGROUND QUEUE (Offline-First / Resilient Upload) ────────────────
-                    // Salva em disco localmente se estiver offline e agenda upload automático ao reconectar!
-                    const remotePath = `orders/${order?.displayId || id}/form_videos/${Date.now()}_${Math.random().toString(36).slice(2, 6)}.mp4`;
-                    const taskId = await resilientUpload.enqueue(finalUriToUpload, remotePath, 'video/mp4');
-
-                    const finalUrl = finalUriToUpload;
-
-                    // Escutar progresso: se subir online, mapeia a URL pública para a versão web
-                    const unsub = resilientUpload.onProgress(task => {
-                        if (task.id === taskId && task.status === 'completed' && task.resultUrl) {
-                            uploadedUrlMapRef.current.set(finalUriToUpload, task.resultUrl);
-                            uploadedUrlMapRef.current.set(rawUri, task.resultUrl);
-                            unsub();
-                        }
-                    });
-
-                    // Verificar imediatamente se o upload já foi finalizado
-                    const immediateResult = resilientUpload.getCompletedUrl(finalUriToUpload) || resilientUpload.getCompletedUrl(rawUri);
-                    if (immediateResult) {
-                        uploadedUrlMapRef.current.set(finalUriToUpload, immediateResult);
-                        uploadedUrlMapRef.current.set(rawUri, immediateResult);
-                    }
-
                     const existingVal = (formsConfig[eqKey]?.data || {})[fieldId];
                     const currentFieldVideos: string[] = Array.isArray(existingVal)
                         ? existingVal
@@ -1245,8 +1340,39 @@ export default function ExecuteOSScreen() {
                         return;
                     }
 
-                    const updatedVideos = [...currentFieldVideos, finalUrl].slice(0, 2);
+                    // Adiciona a URI comprimida imediatamente ao campo para feedback visual instantâneo
+                    const updatedVideos = [...currentFieldVideos, finalUriToUpload].slice(0, 2);
                     updateFieldData(eqKey, fieldId, updatedVideos);
+
+                    // ── BACKGROUND QUEUE (Offline-First / Resilient Upload) ────────────────
+                    const remotePath = `orders/${order?.displayId || id}/form_videos/${Date.now()}_${Math.random().toString(36).slice(2, 6)}.mp4`;
+                    await resilientUpload.enqueue(finalUriToUpload, remotePath, 'video/mp4', {
+                        originalUri: rawUri,
+                        tenantId: order?.tenantId,
+                        onComplete: (resultUrl) => {
+                            uploadedUrlMapRef.current.set(finalUriToUpload, resultUrl);
+                            uploadedUrlMapRef.current.set(rawUri, resultUrl);
+                            setFormsConfig(prev => {
+                                const newConfig = { ...prev };
+                                if (!newConfig[eqKey]?.data) return prev;
+                                const current = newConfig[eqKey].data[fieldId];
+                                if (Array.isArray(current)) {
+                                    newConfig[eqKey].data = {
+                                        ...newConfig[eqKey].data,
+                                        [fieldId]: current.map((item: any) =>
+                                            (item === finalUriToUpload || item === rawUri) ? resultUrl : item
+                                        )
+                                    };
+                                } else if (current === finalUriToUpload || current === rawUri) {
+                                    newConfig[eqKey].data = {
+                                        ...newConfig[eqKey].data,
+                                        [fieldId]: resultUrl
+                                    };
+                                }
+                                return newConfig;
+                            });
+                        }
+                    });
                 } catch (err) {
                     console.error('[VideoField] Erro no processamento do vídeo do campo:', err);
                     setAlertConfig({
@@ -1284,7 +1410,7 @@ export default function ExecuteOSScreen() {
             
             setVideos(prev => [...prev, newVideo]);
             
-            let thumb = null;
+            let thumb: string | null = null;
             try {
                 const result = await VideoThumbnails.getThumbnailAsync(localUri, { time: 500, quality: 0.7 });
                 thumb = result.uri;
@@ -1324,7 +1450,6 @@ export default function ExecuteOSScreen() {
             } catch (err: any) {
                 console.error('[Video] ❌ FALHA NA COMPRESSÃO:', err?.message || err);
                 finalUriToUpload = inputUri;
-                // Camada 1 garante que o vídeo da câmera já tem bitrate baixo (1.5-2.5 Mbps)
             } finally {
                 if (isTemp && inputUri !== finalUriToUpload) {
                     FileSystem.deleteAsync(inputUri, { idempotent: true }).catch(() => {});
@@ -1333,38 +1458,45 @@ export default function ExecuteOSScreen() {
 
             const info = await FileSystem.getInfoAsync(finalUriToUpload);
             const sizeMB = Math.round((((info as any).size ?? 0) / 1024 / 1024) * 10) / 10;
-            setVideos(prev => prev.map(v => v.uri === localUri ? { ...v, sizeMB, status: 'Processando vídeo...' } : v));
+            setVideos(prev => prev.map(v => v.uri === localUri ? { ...v, uri: finalUriToUpload, sizeMB, status: 'Processando vídeo...' } : v));
 
-            // ── BACKGROUND QUEUE (v6 — Big Tech Pattern) ──────────────────────────
-            // resilientUpload decide: Online → sobe agora | Offline → salva, sobe ao reconectar
+            // ── BACKGROUND QUEUE (Big Tech Pattern) ──────────────────────────
+            // resilientUpload decide: Online → sobe agora pro R2 | Offline → salva, sobe ao reconectar
             const remotePath = `orders/${order?.displayId || id}/videos/${Date.now()}.mp4`;
-            const taskId     = await resilientUpload.enqueue(finalUriToUpload, remotePath, 'video/mp4');
+            const taskId     = await resilientUpload.enqueue(finalUriToUpload, remotePath, 'video/mp4', {
+                originalUri: localUri,
+                tenantId: order?.tenantId,
+                onComplete: (resultUrl) => {
+                    uploadedUrlMapRef.current.set(localUri, resultUrl);
+                    uploadedUrlMapRef.current.set(finalUriToUpload, resultUrl);
+                    setVideos(prev => prev.map(v =>
+                        (v.uri === localUri || v.uri === finalUriToUpload) ? { ...v, uri: resultUrl, status: null, isProcessing: false } : v
+                    ));
+                }
+            });
 
-            // Ouvir conclusão para atualizar URI do vídeo com URL pública
+            // Ouvir mudanças de estado da fila (ex: salvo offline ou falha)
             const unsub = resilientUpload.onProgress(task => {
                 if (task.id === taskId) {
-                    if (task.status === 'completed' && task.resultUrl) {
-                        setVideos(prev => prev.map(v =>
-                            v.uri === localUri ? { ...v, uri: task.resultUrl!, status: null, isProcessing: false } : v
-                        ));
+                    if (task.status === 'completed') {
                         unsub();
                     } else if (task.status === 'failed') {
                         setVideos(prev => prev.map(v =>
-                            v.uri === localUri ? { ...v, status: null, isProcessing: false } : v
+                            (v.uri === localUri || v.uri === finalUriToUpload) ? { ...v, status: null, isProcessing: false } : v
                         ));
                         unsub();
                     } else if (task.status === 'offline_pending') {
                         setVideos(prev => prev.map(v =>
-                            v.uri === localUri ? { ...v, status: '📦 Salvo offline', isProcessing: false } : v
+                            (v.uri === localUri || v.uri === finalUriToUpload) ? { ...v, status: '📦 Salvo offline', isProcessing: false } : v
                         ));
                         unsub();
                     }
                 }
             });
 
-            // Estado inicial após enqueue (já não está mais processando localmente)
+            // Estado inicial após enqueue (já não está mais comprimindo na thread local)
             setVideos(prev => prev.map(v =>
-                v.uri === localUri ? { ...v, status: null, isProcessing: false } : v
+                (v.uri === localUri || v.uri === finalUriToUpload) ? { ...v, status: null, isProcessing: false } : v
             ));
         } catch (error) {
             console.error('[Video] Erro backstage fatal:', error);
@@ -1394,19 +1526,58 @@ export default function ExecuteOSScreen() {
                 return newConfig;
             });
 
-            // ── BACKGROUND QUEUE (v6 — Big Tech Pattern) ──────────────────────
+            // ── BACKGROUND QUEUE (Big Tech Pattern) ──────────────────────
             await Promise.allSettled(localUris.map(async (uri) => {
                 try {
                     const compressedUri = await ImageService.compressImage(uri);
                     const remotePath    = `orders/${order?.displayId || id}/form_photos/${eqKey}_${fieldId}_${Date.now()}_${Math.random().toString(36).slice(2,6)}.webp`;
 
-                    const taskId = await resilientUpload.enqueue(compressedUri, remotePath, 'image/webp');
+                    // Atualiza estado com a URI comprimida enquanto o upload roda (ou se estiver offline)
+                    if (compressedUri !== uri) {
+                        setFormsConfig(prev => {
+                            const newConfig = { ...prev };
+                            if (!newConfig[eqKey]?.data) return prev;
+                            const current = newConfig[eqKey].data[fieldId];
+                            if (Array.isArray(current)) {
+                                newConfig[eqKey].data = {
+                                    ...newConfig[eqKey].data,
+                                    [fieldId]: current.map((item: any) => item === uri ? compressedUri : item)
+                                };
+                            } else if (current === uri) {
+                                newConfig[eqKey].data = {
+                                    ...newConfig[eqKey].data,
+                                    [fieldId]: compressedUri
+                                };
+                            }
+                            return newConfig;
+                        });
+                    }
 
-                    // Ouvir conclusão desta task para atualizar o mapa de URLs
-                    const unsub = resilientUpload.onProgress(task => {
-                        if (task.id === taskId && task.status === 'completed' && task.resultUrl) {
-                            uploadedUrlMapRef.current.set(uri, task.resultUrl);
-                            unsub();
+                    await resilientUpload.enqueue(compressedUri, remotePath, 'image/webp', {
+                        originalUri: uri,
+                        tenantId: order?.tenantId,
+                        onComplete: (resultUrl) => {
+                            uploadedUrlMapRef.current.set(uri, resultUrl);
+                            uploadedUrlMapRef.current.set(compressedUri, resultUrl);
+                            setFormsConfig(prev => {
+                                const newConfig = { ...prev };
+                                if (!newConfig[eqKey]?.data) return prev;
+                                const current = newConfig[eqKey].data[fieldId];
+                                if (Array.isArray(current)) {
+                                    newConfig[eqKey].data = {
+                                        ...newConfig[eqKey].data,
+                                        [fieldId]: current.map((item: any) =>
+                                            (item === uri || item === compressedUri) ? resultUrl : item
+                                        )
+                                    };
+                                } else if (current === uri || current === compressedUri) {
+                                    newConfig[eqKey].data = {
+                                        ...newConfig[eqKey].data,
+                                        [fieldId]: resultUrl
+                                    };
+                                }
+                                return newConfig;
+                            });
                         }
                     });
                 } catch (e) {
@@ -1431,7 +1602,7 @@ export default function ExecuteOSScreen() {
     };
 
     const handleSubmit = async () => {
-        if (!signature) {
+        if (requireClientSignature && !signature) {
             showValidation(t('alertAttention'), t('execSignatureRequired'));
             return;
         }
@@ -1480,10 +1651,13 @@ export default function ExecuteOSScreen() {
             setSubmitProgress({ current: 0, total: 0, label: 'Verificando conexão...' });
 
             const netInfo = await NetInfo.fetch();
-            // Fallback imediato: Se o NetInfo estiver fora OU se o nosso Watchdog interno (appLifecycle)
-            // identificar que estamos numa zona zumbi, bloqueia a tentativa online instantaneamente e força sincronismo off.
-            const isOffline = !netInfo.isConnected || syncService.isOfflineModeEnabled() || 
-                (appLifecycle.globalNetworkState !== 'CONNECTED' && appLifecycle.globalNetworkState !== 'CONNECTED_IDLE');
+            // Modo Offline apenas quando o modo offline manual está ativo OU quando o aparelho realmente está sem internet
+            const isOffline = !netInfo.isConnected || netInfo.isInternetReachable === false || syncService.isOfflineModeEnabled();
+
+            if (!isOffline) {
+                setSubmitProgress({ current: 0, total: 0, label: 'Sincronizando anexos...' });
+                await resilientUpload.waitForActiveUploads(12000);
+            }
 
             const finalFormData: Record<string, any> = {};
             let localPhotosToSync: string[] = [];
@@ -1491,7 +1665,6 @@ export default function ExecuteOSScreen() {
             const allReports: string[] = [];
 
             // ─── FASE 1: Coletar todos os arquivos locais que precisam de upload ───
-            // Em vez de uploadar um por um (sequencial), coletamos TUDO e enviamos em paralelo.
             type PendingUpload = { uri: string; resolvedUrl?: string };
             const pendingUploads: PendingUpload[] = [];
 
@@ -1527,8 +1700,8 @@ export default function ExecuteOSScreen() {
                             for (let i = 0; i < value.length; i++) {
                                 const item = value[i];
                                 if (typeof item === 'string' && (item.startsWith('file://') || item.startsWith('content://') || item.startsWith('/'))) {
-                                    const alreadyUploaded = uploadedUrlMapRef.current.get(item);
-                                    if (alreadyUploaded && alreadyUploaded.startsWith('http')) {
+                                    const alreadyUploaded = resolvePhotoUri(item);
+                                    if (alreadyUploaded && (alreadyUploaded.startsWith('http://') || alreadyUploaded.startsWith('https://'))) {
                                         resolvedArray.push(alreadyUploaded);
                                     } else if (isOffline) {
                                         localPhotosToSync.push(item);
@@ -1553,7 +1726,10 @@ export default function ExecuteOSScreen() {
                                 for (let i = 0; i < urls.length; i++) {
                                     const item = urls[i];
                                     if (item.startsWith('file://') || item.startsWith('content://') || item.startsWith('/')) {
-                                        if (isOffline) {
+                                        const alreadyUploaded = resolvePhotoUri(item);
+                                        if (alreadyUploaded && (alreadyUploaded.startsWith('http://') || alreadyUploaded.startsWith('https://'))) {
+                                            resolvedArray.push(alreadyUploaded);
+                                        } else if (isOffline) {
                                             localPhotosToSync.push(item);
                                             resolvedArray.push(item);
                                         } else {
@@ -1566,7 +1742,7 @@ export default function ExecuteOSScreen() {
                                         resolvedArray.push(item);
                                     }
                                 }
-                                finalFormData[fieldLabel] = resolvedArray;
+                                finalFormData[fieldLabel] = resolvedArray.length === 1 && !Array.isArray(config.data[field.id]) ? resolvedArray[0] : resolvedArray;
                             } else if (value !== undefined && value !== '') {
                                 finalFormData[fieldLabel] = value;
                             }
@@ -1586,7 +1762,7 @@ export default function ExecuteOSScreen() {
                 combinedReport = combinedReport ? `${combinedReport}\n\n[Resumo Geral]\n${technicalReport.trim()}` : technicalReport.trim();
             }
 
-            if (isOffline) {
+            const enqueueOfflineCompletion = async () => {
                 for (const photo of extraPhotos) {
                     if (photo.startsWith('file://')) localPhotosToSync.push(photo);
                 }
@@ -1616,9 +1792,9 @@ export default function ExecuteOSScreen() {
 
                 await AsyncStorage.removeItem(`os_cache_${id}`);
                 await AsyncStorage.removeItem('@nexus_active_os').catch(() => {});
+                activeExecutionMemory = null;
                 currentLoadedOrderIdRef.current = null;
 
-                // Atualizar cache local para a OS aparecer como concluída na aba de Concluídas
                 try {
                     const todayOrders = await syncService.getTodayOrders();
                     const updatedOrders = todayOrders.map(o => {
@@ -1642,7 +1818,6 @@ export default function ExecuteOSScreen() {
                         await syncService.saveOrderDetail(id as string, orderDetail);
                     }
 
-                    // Notify UI to refresh offline list
                     appLifecycle.notifyOrderChange({ orderId: id, eventType: 'UPDATE' });
                 } catch (e) {
                     console.log('[ExecuteOS] Erro ao atualizar status offline da OS:', e);
@@ -1650,35 +1825,40 @@ export default function ExecuteOSScreen() {
 
                 setTimeout(() => {
                     setIsSubmitting(false);
-                    setTimeout(() => {
-                        router.replace({ pathname: '/', params: { filter: 'completed' } });
-                    }, 100);
-                }, 1500);
+                    router.replace({ pathname: '/', params: { filter: 'completed' } });
+                }, 150);
+            };
+
+            if (isOffline) {
+                await enqueueOfflineCompletion();
             } else {
-                // ─── FASE 2: Upload PARALELO de todos os arquivos locais ───────────
+                // ─── FASE 2: Upload PARALELO de quaisquer arquivos locais remanescentes ───────────
                 const totalUploads = pendingUploads.length;
                 let completedUploads = 0;
 
                 if (totalUploads > 0) {
                     setSubmitProgress({ current: 0, total: totalUploads, label: `Enviando 0/${totalUploads} arquivos...` });
 
-                    for (let i = 0; i < totalUploads; i++) {
-                        const item = pendingUploads[i];
-                        try {
-                            setSubmitProgress({
-                                current: completedUploads,
-                                total: totalUploads,
-                                label: `Enviando arquivo ${completedUploads + 1}/${totalUploads}...`
-                            });
-                            
-                            const url = await OrderService.uploadFile(item.uri, `orders/${order?.displayId || id}/form_photos`, order?.tenantId);
-                            item.resolvedUrl = url || item.uri;
-                        } catch (e) {
-                            console.warn('[Sync] Falha no upload sequencial:', e);
-                            item.resolvedUrl = item.uri;
-                        }
-                        completedUploads++;
-                    }
+                    await Promise.all(
+                        pendingUploads.map(async (item) => {
+                            try {
+                                const isVideo = item.uri.toLowerCase().endsWith('.mov') || item.uri.toLowerCase().endsWith('.mp4');
+                                const folder = isVideo ? `orders/${order?.displayId || id}/form_videos` : `orders/${order?.displayId || id}/form_photos`;
+                                const url = await OrderService.uploadFile(item.uri, folder, order?.tenantId, isVideo ? 'video/mp4' : undefined);
+                                item.resolvedUrl = url || item.uri;
+                            } catch (e) {
+                                console.warn('[Sync] Falha no upload paralelo:', e);
+                                item.resolvedUrl = item.uri;
+                            } finally {
+                                completedUploads++;
+                                setSubmitProgress({
+                                    current: completedUploads,
+                                    total: totalUploads,
+                                    label: `Enviando arquivo ${completedUploads}/${totalUploads}...`
+                                });
+                            }
+                        })
+                    );
                 }
 
                 // ─── FASE 3: Substituir placeholders pelos URLs reais ──────────────
@@ -1707,41 +1887,68 @@ export default function ExecuteOSScreen() {
                 }
 
                 finalFormData['technical_report'] = combinedReport;
-                // v5: Resolver URIs locais → URLs remotas via o mapa de uploads
+                // Resolver URIs locais → URLs remotas via o mapa de uploads / resilientUpload
                 const resolvedExtraPhotos = extraPhotos.map(p => resolvePhotoUri(p));
                 finalFormData['extra_photos'] = resolvedExtraPhotos;
-                // Salvar metadados dos formulários (nomes reais dos templates) para retroatividade
-                finalFormData['execution_forms'] = formsConfig;
 
-                // Sanitizar e garantir que nenhuma mídia local (file://, /var/mobile/...) vá para a DB
-                const sanitizedFormData = await sanitizeAndUploadFormData(finalFormData, order?.displayId || (id as string), order?.tenantId);
-
-                // Passa tudo já com URLs HTTP para completeOrder — evita re-upload
-                await OrderService.completeOrder(id as string, {
-                    technicalReport: combinedReport,
-                    partsUsed: '',
-                    photos: resolvedExtraPhotos,
-                    videoUrl: videos.map(v => resolvePhotoUri(v.uri)).join(','),
-                    signature,
-                    formData: sanitizedFormData,
-                    clientName,
-                    clientDoc,
-                    tenantId: order?.tenantId,
-                    items: usedItems
+                // Resolver também todos os campos dentro de execution_forms antes da sanitização
+                const resolvedFormsConfig = JSON.parse(JSON.stringify(formsConfig));
+                Object.keys(resolvedFormsConfig).forEach(eqKey => {
+                    if (resolvedFormsConfig[eqKey]?.data) {
+                        Object.keys(resolvedFormsConfig[eqKey].data).forEach(fId => {
+                            const val = resolvedFormsConfig[eqKey].data[fId];
+                            if (Array.isArray(val)) {
+                                resolvedFormsConfig[eqKey].data[fId] = val.map((p: any) => typeof p === 'string' ? resolvePhotoUri(p) : p);
+                            } else if (typeof val === 'string') {
+                                resolvedFormsConfig[eqKey].data[fId] = resolvePhotoUri(val);
+                            }
+                        });
+                    }
                 });
+                finalFormData['execution_forms'] = resolvedFormsConfig;
 
-                // Clear cache on success
-                await AsyncStorage.removeItem(`os_cache_${id}`);
-                await AsyncStorage.removeItem('@nexus_active_os').catch(() => {});
-                currentLoadedOrderIdRef.current = null;
+                try {
+                    // Sanitizar e garantir que nenhuma mídia local (file://, /var/mobile/...) vá para a DB
+                    const sanitizedFormData = await sanitizeAndUploadFormData(finalFormData, order?.displayId || (id as string), order?.tenantId);
 
-                // Navigate directly to completed tab
-                setTimeout(() => {
-                    setIsSubmitting(false);
+                    // Passa tudo já com URLs HTTP para completeOrder — zero re-upload
+                    await OrderService.completeOrder(id as string, {
+                        technicalReport: combinedReport,
+                        partsUsed: '',
+                        photos: resolvedExtraPhotos,
+                        videoUrl: videos.map(v => resolvePhotoUri(v.uri)).join(','),
+                        signature: signature ? resolvePhotoUri(signature) : null,
+                        formData: sanitizedFormData,
+                        clientName,
+                        clientDoc,
+                        tenantId: order?.tenantId,
+                        items: usedItems
+                    });
+
+                    // Clear cache on success
+                    await AsyncStorage.removeItem(`os_cache_${id}`);
+                    await AsyncStorage.removeItem('@nexus_active_os').catch(() => {});
+                    activeExecutionMemory = null;
+                    currentLoadedOrderIdRef.current = null;
+
+                    // Navigate directly to completed tab
                     setTimeout(() => {
+                        setIsSubmitting(false);
                         router.replace({ pathname: '/', params: { filter: 'completed' } });
-                    }, 100);
-                }, 1500);
+                    }, 150);
+                } catch (onlineErr: any) {
+                    // Se a internet do aparelho caiu exatamente durante o clique em Concluir, salva na fila offline sem perder nada
+                    const netAfter = await NetInfo.fetch();
+                    const isNetError = !netAfter.isConnected || netAfter.isInternetReachable === false ||
+                        String(onlineErr?.message || onlineErr).toLowerCase().includes('network') ||
+                        String(onlineErr?.message || onlineErr).toLowerCase().includes('fetch');
+                    if (isNetError) {
+                        console.warn('[ExecuteOS] ⚠️ Oscilação de rede durante conclusão online. Salvando na fila segura para sincronização imediata:', onlineErr);
+                        await enqueueOfflineCompletion();
+                        return;
+                    }
+                    throw onlineErr;
+                }
             }
         } catch (error) {
             console.error(error);
@@ -1771,7 +1978,7 @@ export default function ExecuteOSScreen() {
             return;
         }
 
-        if (!signature) {
+        if (requireClientSignature && !signature) {
             Alert.alert(t('alertAttention'), t('execSignatureValidationRequired'));
             return;
         }
@@ -1779,13 +1986,16 @@ export default function ExecuteOSScreen() {
         // FECHAR O MODAL DE IMPEDIMENTO PRIMEIRO PARA EVITAR CRASH NO IOS (Modal sobre Modal)
         setShowImpedimentForm(false);
         // Aguardar o SO finalizar o unmount do primeiro modal
-        await new Promise(resolve => setTimeout(resolve, 400));
+        await new Promise(resolve => setTimeout(resolve, 350));
 
         try {
             setIsBlockingFromForm(true);
             const netInfo = await NetInfo.fetch();
-            const isOffline = !netInfo.isConnected || syncService.isOfflineModeEnabled() || 
-                (appLifecycle.globalNetworkState !== 'CONNECTED' && appLifecycle.globalNetworkState !== 'CONNECTED_IDLE');
+            const isOffline = !netInfo.isConnected || netInfo.isInternetReachable === false || syncService.isOfflineModeEnabled();
+
+            if (!isOffline) {
+                await resilientUpload.waitForActiveUploads(12000);
+            }
 
             // 1. Montar formData acumulado (tudo que foi preenchido nos formulários)
             const finalFormData: Record<string, any> = {};
@@ -1839,7 +2049,7 @@ export default function ExecuteOSScreen() {
                 finalFormData['technical_report'] = allReports.join('\n\n');
             }
             if (extraPhotos.length > 0) {
-                finalFormData['extra_photos'] = extraPhotos;
+                finalFormData['extra_photos'] = extraPhotos.map(p => resolvePhotoUri(p));
             }
 
             // Garante que os templates e mídias resolvidos sejam salvos para renderização perfeita no visualizador
@@ -1859,13 +2069,11 @@ export default function ExecuteOSScreen() {
             finalFormData['execution_forms'] = resolvedFormsConfig;
 
             // 1.5 Sync the extra signature/name to finalized data structure
-            // Use specific impediment fields first, fall back to main client fields
             finalFormData['impediment_responsible'] = impedimentResponsibleName || clientName || '';
             finalFormData['impediment_reason'] = impedimentReason.trim();
-            if (impedimentSignature) finalFormData['impediment_signature'] = impedimentSignature;
+            if (impedimentSignature) finalFormData['impediment_signature'] = resolvePhotoUri(impedimentSignature);
 
-            // Upload the impediment signature if present, otherwise use main client signature
-            if (isOffline) {
+            const enqueueOfflineBlock = async () => {
                 const localPhotosToSync: string[] = [];
                 for (const photo of extraPhotos) if (photo.startsWith('file://')) localPhotosToSync.push(photo);
                 if (signature) localPhotosToSync.push(signature);
@@ -1878,7 +2086,7 @@ export default function ExecuteOSScreen() {
                     orderId: id as string,
                     payload: {
                         reason: impedimentReason.trim(),
-                        blockPhotoUrls: impedimentPhotos, // Resolved by background queue
+                        blockPhotoUrls: impedimentPhotos,
                         additionalData: { formData: finalFormData, items: usedItems },
                         signature,
                         impedimentSignature,
@@ -1892,6 +2100,7 @@ export default function ExecuteOSScreen() {
 
                 await AsyncStorage.removeItem(`os_cache_${id}`);
                 await AsyncStorage.removeItem('@nexus_active_os').catch(() => {});
+                activeExecutionMemory = null;
                 currentLoadedOrderIdRef.current = null;
                 try {
                     const todayOrders = await syncService.getTodayOrders();
@@ -1913,7 +2122,6 @@ export default function ExecuteOSScreen() {
                     appLifecycle.notifyOrderChange({ orderId: id, eventType: 'UPDATE' });
                 } catch (e) {}
 
-                // EXPLICITLY CLEAR CACHE/STATE FOR IMPEDIMENT FIELDS
                 setImpedimentReason('');
                 setImpedimentPhotos([]);
                 setImpedimentResponsibleName('');
@@ -1921,104 +2129,113 @@ export default function ExecuteOSScreen() {
 
                 setTimeout(() => {
                     setIsBlockingFromForm(false);
-                    setTimeout(() => {
-                        router.replace({ pathname: '/', params: { filter: 'blocked' } });
-                    }, 100);
-                }, 1500);
+                    router.replace({ pathname: '/', params: { filter: 'blocked' } });
+                }, 150);
+            };
+
+            if (isOffline) {
+                await enqueueOfflineBlock();
                 return;
             }
 
-            if (impedimentSignature) {
-                try {
-                    const sigUrl = await OrderService.uploadFile(impedimentSignature, `orders/${order?.displayId || id}/signatures`, order?.tenantId);
-                    if (sigUrl) finalFormData['impediment_signature'] = sigUrl;
-                } catch (e) {
-                    console.warn('Falha no upload da assinatura de impedimento', e);
-                }
-            } else if (signature) {
-                // Use main client signature as fallback for the impediment auth
-                try {
-                    const sigUrl = await OrderService.uploadFile(signature, `orders/${order?.displayId || id}/signatures`, order?.tenantId);
-                    if (sigUrl) finalFormData['impediment_signature'] = sigUrl;
-                } catch (e) {
-                    console.warn('Falha no upload da assinatura principal para impedimento', e);
-                }
-            }
+            try {
+                // Resolver assinaturas, fotos de impedimento e vídeos em PARALELO (reutilizando uploads já concluídos no R2)
+                if (clientName) finalFormData['clientName'] = clientName;
 
-            // Also persist clientName/signature for backward compat display in [id].tsx
-            if (clientName) finalFormData['clientName'] = clientName;
-            if (signature) {
-                try {
-                    if (finalFormData['impediment_signature']?.startsWith('http')) {
-                        finalFormData['signature'] = finalFormData['impediment_signature'];
-                    } else {
-                        const sigUrl = await OrderService.uploadFile(signature, `orders/${order?.displayId || id}/signatures`, order?.tenantId);
-                        if (sigUrl) finalFormData['signature'] = sigUrl;
-                    }
-                } catch (e) {
-                    console.warn('Falha no upload da assinatura do cliente', e);
-                }
-            }
-
-            // 2. Upload das fotos do impedimento
-            let blockPhotoUrls: string[] = [];
-            for (const uri of impedimentPhotos) {
-                const url = await OrderService.uploadFile(uri, `orders/${order?.displayId || id}/block_photos`, order?.tenantId);
-                if (url) blockPhotoUrls.push(url);
-            }
-
-            // 2.5 Persistir vídeo no form_data do impedimento
-            if (videos.length > 0) {
-                try {
-                    let uploadedUrls = [];
-                    for (const v of videos) {
-                        if (!v.uri.startsWith('http')) {
-                            const uploaded = await OrderService.uploadFile(v.uri, `orders/${order?.displayId || id}/videos`, order?.tenantId);
-                            if (uploaded) uploadedUrls.push(uploaded);
-                            // Se upload retornou null, NÃO adiciona URI local — LAST-GATE no OrderService fará upload emergencial
-                            else console.warn(`[ExecuteOS] ⚠️ Upload de vídeo retornou null, será tratado pelo LAST-GATE: ${v.uri.substring(0, 50)}`);
-                        } else {
-                            uploadedUrls.push(v.uri);
+                const [resolvedImpSig, resolvedMainSig, blockPhotoUrls, uploadedVideoUrls] = await Promise.all([
+                    (async () => {
+                        const targetSig = impedimentSignature || signature;
+                        if (!targetSig) return null;
+                        const resolved = resolvePhotoUri(targetSig);
+                        if (resolved && (resolved.startsWith('http://') || resolved.startsWith('https://'))) return resolved;
+                        try {
+                            const sigUrl = await OrderService.uploadFile(targetSig, `orders/${order?.displayId || id}/signatures`, order?.tenantId);
+                            if (sigUrl) uploadedUrlMapRef.current.set(targetSig, sigUrl);
+                            return sigUrl;
+                        } catch (e) {
+                            console.warn('Falha no upload da assinatura de impedimento', e);
+                            return null;
                         }
-                    }
-                    if (uploadedUrls.length > 0) {
-                        finalFormData['video_url'] = uploadedUrls.join(',');
-                    }
-                } catch (e) {
-                    console.warn('[ExecuteOS] Falha ao persistir vídeos no impedimento:', e);
-                    // NÃO escreve URIs locais como fallback — LAST-GATE no OrderService tratará
+                    })(),
+                    (async () => {
+                        if (!signature) return null;
+                        const resolved = resolvePhotoUri(signature);
+                        if (resolved && (resolved.startsWith('http://') || resolved.startsWith('https://'))) return resolved;
+                        try {
+                            const sigUrl = await OrderService.uploadFile(signature, `orders/${order?.displayId || id}/signatures`, order?.tenantId);
+                            if (sigUrl) uploadedUrlMapRef.current.set(signature, sigUrl);
+                            return sigUrl;
+                        } catch (e) {
+                            console.warn('Falha no upload da assinatura do cliente', e);
+                            return null;
+                        }
+                    })(),
+                    Promise.all(
+                        impedimentPhotos.map(async (uri) => {
+                            const resolved = resolvePhotoUri(uri);
+                            if (resolved && (resolved.startsWith('http://') || resolved.startsWith('https://'))) return resolved;
+                            const url = await OrderService.uploadFile(uri, `orders/${order?.displayId || id}/block_photos`, order?.tenantId);
+                            if (url) uploadedUrlMapRef.current.set(uri, url);
+                            return url;
+                        })
+                    ).then(urls => urls.filter((u): u is string => !!u)),
+                    Promise.all(
+                        videos.map(async (v) => {
+                            const resolvedVideo = resolvePhotoUri(v.uri);
+                            if (resolvedVideo && (resolvedVideo.startsWith('http://') || resolvedVideo.startsWith('https://'))) return resolvedVideo;
+                            const uploaded = await OrderService.uploadFile(v.uri, `orders/${order?.displayId || id}/videos`, order?.tenantId, 'video/mp4');
+                            if (uploaded) uploadedUrlMapRef.current.set(v.uri, uploaded);
+                            return uploaded;
+                        })
+                    ).then(urls => urls.filter((u): u is string => !!u))
+                ]);
+
+                if (resolvedImpSig) finalFormData['impediment_signature'] = resolvedImpSig;
+                if (resolvedMainSig) finalFormData['signature'] = resolvedMainSig;
+                else if (resolvedImpSig) finalFormData['signature'] = resolvedImpSig;
+
+                if (uploadedVideoUrls.length > 0) {
+                    finalFormData['video_url'] = uploadedVideoUrls.join(',');
                 }
-            }
 
+                // 3. Sanitizar e garantir que nenhuma mídia local (file://, /var/mobile/...) vá para a DB
+                const sanitizedFormData = await sanitizeAndUploadFormData(finalFormData, order?.displayId || (id as string), order?.tenantId);
 
-            // 3. Sanitizar e garantir que nenhuma mídia local (file://, /var/mobile/...) vá para a DB
-            const sanitizedFormData = await sanitizeAndUploadFormData(finalFormData, order?.displayId || (id as string), order?.tenantId);
+                // 4. Bloquear a OS passando todos os dados preenchidos como additionalData
+                await OrderService.blockOrder(
+                    id as string,
+                    impedimentReason.trim(),
+                    blockPhotoUrls.length > 0 ? blockPhotoUrls : null,
+                    { formData: sanitizedFormData, items: usedItems }
+                );
 
-            // 4. Bloquear a OS passando todos os dados preenchidos como additionalData
-            await OrderService.blockOrder(
-                id as string,
-                impedimentReason.trim(),
-                blockPhotoUrls.length > 0 ? blockPhotoUrls : null,
-                { formData: sanitizedFormData, items: usedItems }
-            );
+                // 5. Limpar cache local desta OS
+                await AsyncStorage.removeItem(`os_cache_${id}`);
+                await AsyncStorage.removeItem('@nexus_active_os').catch(() => {});
+                activeExecutionMemory = null;
+                currentLoadedOrderIdRef.current = null;
 
-            // 4. Limpar cache local desta OS
-            await AsyncStorage.removeItem(`os_cache_${id}`);
-            await AsyncStorage.removeItem('@nexus_active_os').catch(() => {});
-            currentLoadedOrderIdRef.current = null;
+                setImpedimentReason('');
+                setImpedimentPhotos([]);
+                setImpedimentResponsibleName('');
+                setImpedimentSignature(null);
 
-            // EXPLICITLY CLEAR CACHE/STATE FOR IMPEDIMENT FIELDS
-            setImpedimentReason('');
-            setImpedimentPhotos([]);
-            setImpedimentResponsibleName('');
-            setImpedimentSignature(null);
-
-            setTimeout(() => {
-                setIsBlockingFromForm(false);
                 setTimeout(() => {
+                    setIsBlockingFromForm(false);
                     router.replace({ pathname: '/', params: { filter: 'blocked' } });
-                }, 100);
-            }, 1500);
+                }, 150);
+            } catch (onlineBlockErr: any) {
+                const netAfter = await NetInfo.fetch();
+                const isNetError = !netAfter.isConnected || netAfter.isInternetReachable === false ||
+                    String(onlineBlockErr?.message || onlineBlockErr).toLowerCase().includes('network') ||
+                    String(onlineBlockErr?.message || onlineBlockErr).toLowerCase().includes('fetch');
+                if (isNetError) {
+                    console.warn('[ExecuteOS] ⚠️ Oscilação de rede durante impedimento online. Salvando na fila segura:', onlineBlockErr);
+                    await enqueueOfflineBlock();
+                    return;
+                }
+                throw onlineBlockErr;
+            }
         } catch (error) {
             console.error('[ExecuteOS] Error blocking from form:', error);
             setIsBlockingFromForm(false);
@@ -2028,6 +2245,47 @@ export default function ExecuteOSScreen() {
                 message: t('execCouldNotRegister'),
                 buttons: [{ text: 'OK', style: 'default' }]
             });
+        }
+    };
+
+    const uploadImpedimentPhoto = async (uris: string[]) => {
+        setIsUploadingImpedimentPhoto(true);
+        try {
+            const remaining = 10 - impedimentPhotos.length;
+            const toAdd = uris.slice(0, remaining);
+            if (toAdd.length === 0) return;
+
+            // INSTANT PREVIEW: Mostrar imagem local imediatamente na UI
+            const localUris = [...toAdd];
+            setImpedimentPhotos(prev => [...prev, ...localUris].slice(0, 10));
+
+            // ── BACKGROUND QUEUE (Big Tech Pattern) ──────────────────────
+            await Promise.allSettled(localUris.map(async (uri) => {
+                try {
+                    const compressedUri = await ImageService.compressImage(uri);
+                    const remotePath    = `orders/${order?.displayId || id}/block_photos/${Date.now()}_${Math.random().toString(36).slice(2,6)}.webp`;
+
+                    if (compressedUri !== uri) {
+                        setImpedimentPhotos(prev => prev.map(p => p === uri ? compressedUri : p));
+                    }
+
+                    await resilientUpload.enqueue(compressedUri, remotePath, 'image/webp', {
+                        originalUri: uri,
+                        tenantId: order?.tenantId,
+                        onComplete: (resultUrl) => {
+                            uploadedUrlMapRef.current.set(uri, resultUrl);
+                            uploadedUrlMapRef.current.set(compressedUri, resultUrl);
+                            setImpedimentPhotos(prev => prev.map(p => (p === uri || p === compressedUri) ? resultUrl : p));
+                        }
+                    });
+                } catch (e) {
+                    console.warn('[ImpedimentPhoto] Enqueue failed:', (e as Error).message);
+                }
+            }));
+        } catch (error) {
+            console.error('[ImpedimentPhoto] Upload error:', error);
+        } finally {
+            setIsUploadingImpedimentPhoto(false);
         }
     };
 
@@ -2047,18 +2305,8 @@ export default function ExecuteOSScreen() {
                 setCameraConfig({
                     visible: true,
                     mode: 'photo',
-                    onPhotoCaptured: async (uri) => {
-                        setMediaProcessingLabel('Carregando...');
-                        setIsProcessingMedia(true);
-                        try {
-                            const { ImageService } = require('@/services/image-service');
-                            const compressed = await ImageService.compressImage(uri);
-                            setImpedimentPhotos(prev => [...prev, compressed]);
-                        } catch {
-                            setImpedimentPhotos(prev => [...prev, uri]);
-                        } finally {
-                            setIsProcessingMedia(false);
-                        }
+                    onPhotoCaptured: (uri) => {
+                        uploadImpedimentPhoto([uri]);
                     }
                 });
                 return;
@@ -2068,8 +2316,6 @@ export default function ExecuteOSScreen() {
                     Alert.alert(t('alertPermission'), 'Precisamos de permissão para acessar a galeria de fotos.');
                     return;
                 }
-                setMediaProcessingLabel(t('execOpeningGallery') || 'Abrindo galeria...');
-                setIsProcessingMedia(true);
             }
             
             const options: ImagePicker.ImagePickerOptions = {
@@ -2083,47 +2329,11 @@ export default function ExecuteOSScreen() {
             });
 
             if (!result.canceled && result.assets && result.assets.length > 0) {
-                setMediaProcessingLabel('Carregando...');
-                setIsProcessingMedia(true);
-                
-                // Pequeno delay para garantir UI
-                setTimeout(async () => {
-                    const newUris: string[] = [];
-                    for (const asset of result.assets) {
-                        try {
-                            const { ImageService } = require('@/services/image-service');
-                            const compressed = await ImageService.compressImage(asset.uri);
-                            newUris.push(compressed);
-                        } catch {
-                            newUris.push(asset.uri);
-                        }
-                    }
-                    setImpedimentPhotos(prev => [...prev, ...newUris].slice(0, 10));
-                    setIsProcessingMedia(false);
-                }, 100);
-            } else {
-                setIsProcessingMedia(false);
+                const rawUris = result.assets.map(asset => asset.uri);
+                uploadImpedimentPhoto(rawUris);
             }
         } catch {
-            setIsProcessingMedia(false);
             Alert.alert(t('alertError'), t('osCouldNotMedia'));
-        }
-    };
-
-    const uploadImpedimentPhoto = async (uris: string[]) => {
-        setIsUploadingImpedimentPhoto(true);
-        try {
-            for (const uri of uris) {
-                if (impedimentPhotos.length >= 10) break;
-                const compressedUri = await ImageService.compressImage(uri);
-                const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${order?.displayId || id}/impediment_photos`, order?.tenantId);
-                const finalUri = publicUrl || compressedUri;
-                setImpedimentPhotos(prev => [...prev, finalUri]);
-            }
-        } catch (error) {
-            console.error('[ImpedimentPhoto] Upload error:', error);
-        } finally {
-            setIsUploadingImpedimentPhoto(false);
         }
     };
 
@@ -3061,7 +3271,9 @@ export default function ExecuteOSScreen() {
                             blurOnSubmit={true}
                         />
 
-                        <Text style={[styles.fieldLabel, { marginTop: 24, marginBottom: 8 }]}>{t('execDigitalSignature')}</Text>
+                        <Text style={[styles.fieldLabel, { marginTop: 24, marginBottom: 8 }]}>
+                            {t('execDigitalSignature')}{requireClientSignature ? ' *' : ' (Opcional)'}
+                        </Text>
                         {signature ? (
                             <Pressable 
                                 onPress={() => {
@@ -3210,7 +3422,9 @@ export default function ExecuteOSScreen() {
                         <View style={styles.impedimentInfoBox}>
                             <Ionicons name="alert-circle-outline" size={16} color="#991b1b" />
                             <Text style={[styles.impedimentInfoText, { color: '#991b1b' }]}>
-                                O Nome e a Assinatura do Cliente (presentes na página de Validação do formulário) são obrigatórios para confirmar este impedimento.
+                                {requireClientSignature
+                                    ? 'O Nome e a Assinatura do Cliente (presentes na página de Validação do formulário) são obrigatórios para confirmar este impedimento.'
+                                    : 'O Nome do Cliente (presente na página de Validação do formulário) é obrigatório para confirmar este impedimento.'}
                             </Text>
                         </View>
                     </ScrollView>
@@ -3304,6 +3518,7 @@ export default function ExecuteOSScreen() {
                             <Pressable style={[styles.paginationButton, styles.backButton]} onPress={() => {
                                 currentLoadedOrderIdRef.current = null;
                                 AsyncStorage.removeItem('@nexus_active_os').catch(() => {});
+                                activeExecutionMemory = null;
                                 router.back();
                             }}>
                                 <Ionicons name="close" size={20} color="#475569" />
@@ -3631,7 +3846,7 @@ export default function ExecuteOSScreen() {
                                     const callback = photoSourceTarget.type === 'extra' 
                                         ? uploadExtraPhoto 
                                         : photoSourceTarget.type === 'impediment'
-                                            ? (uris: string[]) => setImpedimentPhotos(prev => [...prev, ...uris].slice(0, 10))
+                                            ? uploadImpedimentPhoto
                                             : (uris: string[]) => uploadFieldPhoto(uris, photoSourceTarget.eqKey!, photoSourceTarget.fieldId!);
                                     
                                     processPhotoChoice('camera', callback);
@@ -3650,7 +3865,7 @@ export default function ExecuteOSScreen() {
                                     const callback = photoSourceTarget.type === 'extra' 
                                         ? uploadExtraPhoto 
                                         : photoSourceTarget.type === 'impediment'
-                                            ? (uris: string[]) => setImpedimentPhotos(prev => [...prev, ...uris].slice(0, 10))
+                                            ? uploadImpedimentPhoto
                                             : (uris: string[]) => uploadFieldPhoto(uris, photoSourceTarget.eqKey!, photoSourceTarget.fieldId!);
                                     
                                     processPhotoChoice('library', callback, limit);
@@ -3899,12 +4114,15 @@ const styles = StyleSheet.create({
     optionTextSelected: { color: '#ffffff', fontWeight: 'bold', fontSize: 13 },
     photoFieldPlaceholder: { height: 90, borderWidth: 1.5, borderColor: '#cbd5e1', borderStyle: 'dashed', borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', marginTop: 8, gap: 6 },
     fieldLabel: { fontSize: 11, color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+    sectionTitle: { fontSize: 14, fontWeight: '700', color: '#1e293b', marginBottom: 8 },
     signaturePlaceholder: { height: 110, borderWidth: 1.5, borderColor: '#cbd5e1', borderStyle: 'dashed', borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', marginTop: 8, gap: 8 },
     signaturePlaceholderText: { color: '#64748b', fontSize: 13, fontWeight: '600' },
     signaturePreviewContainer: { alignItems: 'center', marginTop: 10 },
     signaturePreview: { width: '100%', height: 110, backgroundColor: '#ffffff', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0' },
+    clearSignatureText: { color: '#64748b', fontSize: 12, fontWeight: '500', marginTop: 4, textAlign: 'center' },
     footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#ffffff', borderTopWidth: 1, borderTopColor: '#e2e8f0', shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 8 },
     submitButton: { backgroundColor: '#10b981', paddingVertical: 14, borderRadius: 12, alignItems: 'center', shadowColor: '#10b981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 3 },
+    submitButtonText: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
     signatureFullScreenOverlay: {
         position: 'absolute',
         top: 0,

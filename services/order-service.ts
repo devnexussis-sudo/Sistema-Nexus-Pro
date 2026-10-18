@@ -120,17 +120,34 @@ export class OrderService {
 
     public static async uploadFile(uri: string, folder: string, manualTenantId?: string, contentType?: string): Promise<string | null> {
         try {
-            console.log(`[OrderService] 📤 Iniciando upload. URI local: ${uri.substring(0, 60)}...`);
+            if (!uri) return null;
+
+            // 0. Fast-path: se já é URL remota da nuvem, retorna em 0ms (zero retrabalho)
+            if (uri.startsWith('http://') || uri.startsWith('https://')) {
+                return uri;
+            }
+
+            // 0.1 Deduplicação Big Tech: verificar se o ResilientUpload já subiu ou está subindo este arquivo em background!
+            try {
+                const { resilientUpload } = require('./upload-resilient');
+                const existingOrInFlightUrl = await resilientUpload.resolveOrWaitForUpload(uri, 25000);
+                if (existingOrInFlightUrl) {
+                    console.log(`[OrderService] ⚡ Upload reaproveitado do ResilientUpload (zero re-upload): ${existingOrInFlightUrl}`);
+                    return existingOrInFlightUrl;
+                }
+            } catch (_) { /* prossegue para upload direto */ }
+
+            console.log(`[OrderService] 📤 Iniciando upload direto. URI local: ${uri.substring(0, 60)}...`);
 
             let processUri = uri;
             const isVideo = contentType?.includes('video') || processUri.toLowerCase().endsWith('.mp4') || processUri.toLowerCase().endsWith('.mov');
+            const isSignature = folder.includes('signature') || contentType === 'image/png';
             
             // 🚀 GARANTIA GLOBAL DE COMPRESSÃO WEBP (Targeted by user request)
-            // Se for imagem e NÃO for assinatura (data URI), forçamos compressão WebP
-            if (!processUri.startsWith('data:') && !isVideo) {
+            // Se for imagem e NÃO for assinatura (data URI ou PNG de assinatura), forçamos compressão WebP
+            if (!processUri.startsWith('data:') && !isVideo && !isSignature) {
                 try {
                     const { ImageService } = require('./image-service');
-                    console.log(`[OrderService] 🗜️ Forçando compressão global para WebP...`);
                     processUri = await ImageService.compressImage(processUri);
                 } catch (compressErr) {
                     console.warn(`[OrderService] ⚠️ Falha na compressão global, usando imagem original:`, compressErr);
@@ -151,18 +168,16 @@ export class OrderService {
             console.log(`[OrderService] 🏢 Tenant detectado para upload: ${tenantId || 'N/A'}`);
 
             const cleanFolder = folder.replace(/^\/+/, '').replace(/\/+$/, '');
-            const finalFolder = tenantId ? `${tenantId}/${cleanFolder}` : cleanFolder;
+            const finalFolder = (tenantId && !cleanFolder.startsWith(`${tenantId}/`)) ? `${tenantId}/${cleanFolder}` : cleanFolder;
 
             // Determinar extensão pelo contentType
-            let ext = 'webp';
-            let finalContentType = contentType || 'image/webp';
+            let ext = isSignature ? 'png' : 'webp';
+            let finalContentType = contentType || (isSignature ? 'image/png' : 'image/webp');
             
             if (isVideo) {
                 ext = 'mp4';
                 finalContentType = contentType || 'video/mp4';
-            } else if (contentType && !contentType.includes('webp')) {
-                // Se o app mandou image/jpeg ou png explicitamente e passou pelo compressor, 
-                // vamos forçar a extensão webp, a menos que seja data URI de signature png
+            } else if (contentType && !contentType.includes('webp') && !isSignature) {
                 if (!processUri.startsWith('data:')) {
                     finalContentType = 'image/webp';
                     ext = 'webp';
@@ -365,6 +380,16 @@ export class OrderService {
         try {
             if (!publicUrl) return false;
 
+            // Cancelar caso ainda esteja na fila local de upload resiliente
+            try {
+                const { resilientUpload } = require('./upload-resilient');
+                await resilientUpload.cancelOrDelete(publicUrl);
+            } catch (_) {}
+
+            if (publicUrl.startsWith('file://') || publicUrl.startsWith('content://') || publicUrl.startsWith('ph://')) {
+                return true;
+            }
+
             // 1. Extração Segura Analítica via Object Proxy
             let urlObj: URL;
             try {
@@ -374,17 +399,22 @@ export class OrderService {
                 return false;
             }
 
-            // Suporta links do tipo public, sign, ou authenticated (Bypass de hardcodes vulneráveis)
-            const regex = new RegExp(`\\/storage\\/v1\\/object\\/(?:public|sign|authenticated)\\/${BUCKET_NAME}\\/(.+)`);
-            const match = urlObj.pathname.match(regex);
-            
-            if (!match) {
-                console.warn('[OrderService] ⚠️ URL não corresponde ao padrão do bucket local:', publicUrl);
-                return false;
-            }
+            let storagePath = '';
+            let isR2 = false;
 
-            // Recuperamos inteiramente o Path limpo da engrenagem do supabase.
-            const storagePath = decodeURIComponent(match[1]);
+            // Suporta links Cloudflare R2 (.r2.dev) ou Supabase Storage
+            if (urlObj.hostname.includes('r2.dev') || urlObj.hostname.includes('cloudflarestorage.com')) {
+                isR2 = true;
+                storagePath = decodeURIComponent(urlObj.pathname.replace(/^\/+/, ''));
+            } else {
+                const regex = new RegExp(`\\/storage\\/v1\\/object\\/(?:public|sign|authenticated)\\/${BUCKET_NAME}\\/(.+)`);
+                const match = urlObj.pathname.match(regex);
+                if (!match) {
+                    console.warn('[OrderService] ⚠️ URL não corresponde ao padrão do bucket local:', publicUrl);
+                    return false;
+                }
+                storagePath = decodeURIComponent(match[1]);
+            }
 
             if (!storagePath) {
                 return false;
@@ -421,14 +451,17 @@ export class OrderService {
             // 4. Execução Física com Retry de Resiliência Automático via Edge Function (Service Role)
             const maxAttempts = 3;
             for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-                console.log(`[OrderService] 🗑️ [Tentativa ${attempt}/${maxAttempts}] API Edge Function (Service Role): ${storagePath}`);
+                console.log(`[OrderService] 🗑️ [Tentativa ${attempt}/${maxAttempts}] API Edge Function (${isR2 ? 'R2' : 'Storage'}): ${storagePath}`);
                 try {
-                    const { data, error } = await supabase.functions.invoke('delete-storage-file', {
-                        body: { bucket: BUCKET_NAME, path: storagePath },
-                        headers: {
-                            Authorization: `Bearer ${session.access_token}`
-                        }
-                    });
+                    const { data, error } = isR2
+                        ? await supabase.functions.invoke('r2-operations', {
+                            body: { action: 'delete', path: storagePath, bucketType: 'private' },
+                            headers: { Authorization: `Bearer ${session.access_token}` }
+                        })
+                        : await supabase.functions.invoke('delete-storage-file', {
+                            body: { bucket: BUCKET_NAME, path: storagePath },
+                            headers: { Authorization: `Bearer ${session.access_token}` }
+                        });
 
                     if (error) {
                         // Extrair o corpo real da resposta do Edge Function (o SDK esconde dentro de error.context)
@@ -893,35 +926,31 @@ export class OrderService {
         items?: OrderItem[];
     }): Promise<void> {
         try {
-            // 1. Upload Photos (Standard ones)
-            const uploadedPhotos: string[] = [];
-            if (details.photos && details.photos.length > 0) {
-                for (const photoUri of details.photos) {
-                    if (photoUri && typeof photoUri === 'string') {
-                        if (photoUri.startsWith('http')) {
-                            uploadedPhotos.push(photoUri);
-                        } else {
-                            const url = await this.uploadFile(photoUri, `orders/${id}/photos`, details.tenantId);
-                            if (url) uploadedPhotos.push(url);
-                        }
+            // 1 & 2. Resolve Photos and Signature in parallel (reusing background R2 uploads)
+            const [uploadedPhotosResult, signatureUrl] = await Promise.all([
+                (async () => {
+                    if (!details.photos || details.photos.length === 0) return [];
+                    const results = await Promise.all(
+                        details.photos.map(async (photoUri) => {
+                            if (!photoUri || typeof photoUri !== 'string') return null;
+                            if (photoUri.startsWith('http://') || photoUri.startsWith('https://')) return photoUri;
+                            return await this.uploadFile(photoUri, `orders/${id}/photos`, details.tenantId);
+                        })
+                    );
+                    return results.filter((u): u is string => !!u);
+                })(),
+                (async () => {
+                    if (!details.signature) return null;
+                    if (details.signature.startsWith('http://') || details.signature.startsWith('https://')) {
+                        return details.signature;
                     }
-                }
-            }
-
-            // 2. Upload Signature
-            let signatureUrl = null;
-            if (details.signature) {
-                if (details.signature.startsWith('http://') || details.signature.startsWith('https://')) {
-                    signatureUrl = details.signature;
-                } else {
                     const url = await this.uploadFile(details.signature, `orders/${id}/signatures`, details.tenantId);
-                    if (url) {
-                        signatureUrl = url;
-                    } else if (details.signature.startsWith('data:image')) {
-                        signatureUrl = details.signature;
-                    }
-                }
-            }
+                    if (url) return url;
+                    if (details.signature.startsWith('data:image')) return details.signature;
+                    return null;
+                })()
+            ]);
+            const uploadedPhotos: string[] = uploadedPhotosResult;
 
             // Fetch current DB order to preserve existing form_data and items context
             const { data: currentOrder } = await supabase.from('orders').select('form_data, items').eq('id', id).single();
@@ -952,26 +981,29 @@ export class OrderService {
 
             const finalItems = mergedItems;
 
-            // 3. Process Stock Consumption (only if online and items provided)
+            // 3. Process Stock Consumption in parallel (only if online and items provided)
             if (finalItems && finalItems.length > 0) {
                 const { data: userData } = await supabase.auth.getUser();
                 const uid = userData?.user?.id;
 
                 if (uid) {
-                    for (const item of finalItems) {
-                        if (item.fromStock && item.stockItemId) {
-                            try {
-                                await supabase.rpc('consume_tech_stock', {
-                                    p_tech_id: uid,
-                                    p_item_id: item.stockItemId,
-                                    p_quantity: item.quantity,
-                                    p_order_id: id,
-                                    p_created_by: uid
-                                });
-                            } catch (e) {
-                                logger.log(`Error consuming stock for ${item.description}: ${e}`, 'error');
-                            }
-                        }
+                    const stockItems = finalItems.filter(item => item.fromStock && item.stockItemId);
+                    if (stockItems.length > 0) {
+                        await Promise.allSettled(
+                            stockItems.map(async (item) => {
+                                try {
+                                    await supabase.rpc('consume_tech_stock', {
+                                        p_tech_id: uid,
+                                        p_item_id: item.stockItemId,
+                                        p_quantity: item.quantity,
+                                        p_order_id: id,
+                                        p_created_by: uid
+                                    });
+                                } catch (e) {
+                                    logger.log(`Error consuming stock for ${item.description}: ${e}`, 'error');
+                                }
+                            })
+                        );
                     }
                 }
             }
@@ -985,10 +1017,12 @@ export class OrderService {
             const formTotal = Number((currentFormData as any)?.totalValue || (currentFormData as any)?.price || 0);
             const totalOrderValue = itemsValue + formTotal;
 
-            // 🛡️ LAST-GATE: Sanitizar video_url e formData antes de gravar no DB
-            const sanitizedVideoUrl = await OrderService.sanitizeVideoUrl(details.videoUrl, id, details.tenantId);
-            const sanitizedFormDataForDB = await OrderService.deepSanitizeFormData(details.formData || {}, id, details.tenantId);
-            const sanitizedUploadedPhotos = await OrderService.deepSanitizeFormData(uploadedPhotos, id, details.tenantId);
+            // 🛡️ LAST-GATE: Sanitizar video_url e formData em paralelo antes de gravar no DB
+            const [sanitizedVideoUrl, sanitizedFormDataForDB, sanitizedUploadedPhotos] = await Promise.all([
+                OrderService.sanitizeVideoUrl(details.videoUrl, id, details.tenantId),
+                OrderService.deepSanitizeFormData(details.formData || {}, id, details.tenantId),
+                OrderService.deepSanitizeFormData(uploadedPhotos, id, details.tenantId)
+            ]);
 
             const updateData: any = {
                 status: 'CONCLUÍDO',
@@ -1052,10 +1086,8 @@ export class OrderService {
                 logger.log(`Warning: Failed to update service_visits: ${vErr}`, 'warn');
             }
 
-            // Ping milestone
-            await this.pingMilestoneLocation();
-
-            // Trigger commission generation in background
+            // Ping milestone e comissão em background (não bloqueia UI de conclusão)
+            this.pingMilestoneLocation().catch(err => logger.log(`Milestone ping error: ${err}`, 'warn'));
             this.generateCommissionForOrder(id, 'CONCLUÍDO').catch(err => logger.log(`Commission error: ${err}`, 'warn'));
 
             logger.log(`Order ${id} completed successfully`, 'info');
@@ -1084,6 +1116,14 @@ export class OrderService {
                 .limit(1)
                 .single();
 
+            // 🛡️ LAST-GATE: Sanitizar blockPhotoUrls e formData em paralelo antes de gravar no DB
+            const [sanitizedBlockPhotoUrls, sanitizedAdditionalFormData] = await Promise.all([
+                blockPhotoUrls && blockPhotoUrls.length > 0
+                    ? OrderService.deepSanitizeFormData(blockPhotoUrls, id, order?.tenant_id)
+                    : Promise.resolve(null),
+                OrderService.deepSanitizeFormData(additionalData?.formData || {}, id, order?.tenant_id)
+            ]);
+
             // 1. REGISTRO ESTRUTURADO (Inquebrável)
             const { error: insertErr } = await supabase.from('order_impediments').insert({
                 tenant_id: order?.tenant_id,
@@ -1091,16 +1131,13 @@ export class OrderService {
                 visit_id: currentVisit?.id,
                 technician_id: userData?.user?.id,
                 reason: reason,
-                photo_url: blockPhotoUrls && blockPhotoUrls.length > 0 ? JSON.stringify(blockPhotoUrls) : null,
+                photo_url: sanitizedBlockPhotoUrls && sanitizedBlockPhotoUrls.length > 0 ? JSON.stringify(sanitizedBlockPhotoUrls) : null,
             });
 
             if (insertErr) throw insertErr;
 
             // 2. ATUALIZAÇÃO DE STATUS DA OS E ANEXOS NO FORM DATA
             const currentFormData = order?.form_data || {};
-
-            // 🛡️ LAST-GATE: Sanitizar TODOS os dados de formulário antes de gravar no DB
-            const sanitizedAdditionalFormData = await OrderService.deepSanitizeFormData(additionalData?.formData || {}, id, order?.tenant_id);
             
             const updatePayload: any = {
                 status: 'IMPEDIDO',
@@ -1108,9 +1145,9 @@ export class OrderService {
                     ...currentFormData,
                     ...sanitizedAdditionalFormData,
                     blockReason: reason,
-                    blockPhotoUrls: blockPhotoUrls || null,
-                    block_photo_urls: blockPhotoUrls || null,
-                    blockPhotoUrl: blockPhotoUrls && blockPhotoUrls.length > 0 ? blockPhotoUrls[0] : null,
+                    blockPhotoUrls: sanitizedBlockPhotoUrls || null,
+                    block_photo_urls: sanitizedBlockPhotoUrls || null,
+                    blockPhotoUrl: sanitizedBlockPhotoUrls && sanitizedBlockPhotoUrls.length > 0 ? sanitizedBlockPhotoUrls[0] : null,
                     blockedAt: new Date().toISOString(),
                 }
             };
@@ -1131,9 +1168,9 @@ export class OrderService {
                 const visitFormData = {
                     ...sanitizedAdditionalFormData,
                     blockReason: reason,
-                    blockPhotoUrls: blockPhotoUrls || null,
-                    block_photo_urls: blockPhotoUrls || null,
-                    blockPhotoUrl: blockPhotoUrls && blockPhotoUrls.length > 0 ? blockPhotoUrls[0] : null,
+                    blockPhotoUrls: sanitizedBlockPhotoUrls || null,
+                    block_photo_urls: sanitizedBlockPhotoUrls || null,
+                    blockPhotoUrl: sanitizedBlockPhotoUrls && sanitizedBlockPhotoUrls.length > 0 ? sanitizedBlockPhotoUrls[0] : null,
                     blockedAt: new Date().toISOString(),
                 };
 
@@ -1166,10 +1203,8 @@ export class OrderService {
                 }
             }
 
-            // Ping milestone
-            await this.pingMilestoneLocation();
-
-            // Trigger commission generation in background
+            // Ping milestone e comissão em background (não bloqueia UI de impedimento)
+            this.pingMilestoneLocation().catch(err => logger.log(`Milestone ping error: ${err}`, 'warn'));
             this.generateCommissionForOrder(id, 'IMPEDIDO').catch(err => logger.log(`Commission error: ${err}`, 'warn'));
 
             logger.log(`Order ${id} blocked structurally`, 'info');
@@ -1300,11 +1335,30 @@ export class OrderService {
 
     static async startDisplacement(id: string, lat?: number, lon?: number): Promise<void> {
         try {
+            const nowIso = new Date().toISOString();
+
+            // 1. Atualiza a timeline da OS
+            let updatedTimeline: any = { travelStartAt: nowIso };
+            try {
+                const { data: currentOrder } = await supabase
+                    .from('orders')
+                    .select('timeline')
+                    .eq('id', id)
+                    .maybeSingle();
+
+                if (currentOrder?.timeline && typeof currentOrder.timeline === 'object') {
+                    updatedTimeline = { ...currentOrder.timeline, travelStartAt: nowIso };
+                }
+            } catch (tErr) {
+                console.warn('[OrderService] timeline read warn:', tErr);
+            }
+
             const { error } = await supabase
                 .from('orders')
                 .update({
                     status: 'EM DESLOCAMENTO',
-                    updated_at: new Date().toISOString()
+                    timeline: updatedTimeline,
+                    updated_at: nowIso
                 })
                 .eq('id', id);
 
@@ -1312,28 +1366,36 @@ export class OrderService {
 
             try {
                 const { data: userData } = await supabase.auth.getUser();
-                if (userData?.user?.id) {
-                    const { data: visitData } = await supabase.from('service_visits')
-                        .select('id, form_data')
-                        .eq('order_id', id)
-                        .eq('technician_id', userData.user.id)
-                        .in('status', ['pending', 'paused'])
-                        .single();
+                let visitQuery = supabase.from('service_visits')
+                    .select('id, form_data')
+                    .eq('order_id', id);
 
-                    if (visitData) {
-                        const currentFormData = visitData.form_data || {};
-                        const displacement = {
-                            start_time: new Date().toISOString(),
-                            start_lat: lat,
-                            start_lon: lon
-                        };
-                        await supabase.from('service_visits')
-                            .update({
-                                form_data: { ...currentFormData, displacement },
-                                updated_at: new Date().toISOString()
-                            })
-                            .eq('id', visitData.id);
-                    }
+                if (userData?.user?.id) {
+                    visitQuery = visitQuery.eq('technician_id', userData.user.id);
+                }
+
+                const { data: visitList } = await visitQuery
+                    .in('status', ['pending', 'paused', 'ongoing'])
+                    .order('visit_number', { ascending: false })
+                    .limit(1);
+
+                const visitData = visitList && visitList.length > 0 ? visitList[0] : null;
+
+                if (visitData) {
+                    const currentFormData = visitData.form_data || {};
+                    const existingDisplacement = currentFormData.displacement || {};
+                    const displacement = {
+                        ...existingDisplacement,
+                        start_time: nowIso,
+                        start_lat: lat,
+                        start_lon: lon
+                    };
+                    await supabase.from('service_visits')
+                        .update({
+                            form_data: { ...currentFormData, displacement },
+                            updated_at: nowIso
+                        })
+                        .eq('id', visitData.id);
                 }
             } catch (vErr) {
                 logger.log(`Warning: Failed to update service_visits displacement: ${vErr}`, 'warn');
@@ -1368,13 +1430,35 @@ export class OrderService {
 
         try {
             console.log(`[OrderService] 🚀 startExecution: Setting status to EM ANDAMENTO for order ${id}`);
+            const nowIso = new Date().toISOString();
+
+            // 1. Atualiza a timeline da OS
+            let updatedTimeline: any = { arrivedAt: nowIso, serviceStartAt: nowIso };
+            try {
+                const { data: currentOrder } = await supabase
+                    .from('orders')
+                    .select('timeline')
+                    .eq('id', id)
+                    .maybeSingle();
+
+                if (currentOrder?.timeline && typeof currentOrder.timeline === 'object') {
+                    updatedTimeline = {
+                        ...currentOrder.timeline,
+                        arrivedAt: currentOrder.timeline.arrivedAt || nowIso,
+                        serviceStartAt: currentOrder.timeline.serviceStartAt || nowIso
+                    };
+                }
+            } catch (tErr) {
+                console.warn('[OrderService] timeline read warn:', tErr);
+            }
             
             const { data, error, count } = await supabase
                 .from('orders')
                 .update({
                     status: 'EM ANDAMENTO',
-                    start_date: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
+                    start_date: nowIso,
+                    timeline: updatedTimeline,
+                    updated_at: nowIso
                 })
                 .eq('id', id)
                 .select('id, status');
@@ -1392,8 +1476,9 @@ export class OrderService {
                     .from('orders')
                     .update({ 
                         status: 'EM ANDAMENTO', 
-                        start_date: new Date().toISOString(),
-                        updated_at: new Date().toISOString()
+                        start_date: nowIso,
+                        timeline: updatedTimeline,
+                        updated_at: nowIso
                     })
                     .eq('id', id);
                 if (retryError) console.error('[OrderService] ❌ Retry also failed:', retryError);
@@ -1403,45 +1488,49 @@ export class OrderService {
 
             try {
                 const { data: userData } = await supabase.auth.getUser();
+                let visitQuery = supabase.from('service_visits')
+                    .select('id, form_data')
+                    .eq('order_id', id);
+
                 if (userData?.user?.id) {
-                    // Get current visit first to append to form_data
-                    const { data: visitData } = await supabase.from('service_visits')
-                        .select('id, form_data')
+                    visitQuery = visitQuery.eq('technician_id', userData.user.id);
+                }
+
+                const { data: visitList } = await visitQuery
+                    .in('status', ['pending', 'paused', 'ongoing'])
+                    .order('visit_number', { ascending: false })
+                    .limit(1);
+
+                const visitData = visitList && visitList.length > 0 ? visitList[0] : null;
+
+                if (visitData) {
+                    const currentFormData = visitData.form_data || {};
+                    const existingDisplacement = currentFormData.displacement || {};
+                    const updatedDisplacement = {
+                        ...existingDisplacement,
+                        arrival_time: nowIso,
+                        arrival_lat: lat,
+                        arrival_lon: lon
+                    };
+
+                    await supabase.from('service_visits')
+                        .update({
+                            status: 'ongoing',
+                            arrival_time: nowIso,
+                            updated_at: nowIso,
+                            form_data: { ...currentFormData, displacement: updatedDisplacement }
+                        })
+                        .eq('id', visitData.id);
+                } else if (userData?.user?.id) {
+                    await supabase.from('service_visits')
+                        .update({
+                            status: 'ongoing',
+                            arrival_time: nowIso,
+                            updated_at: nowIso
+                        })
                         .eq('order_id', id)
                         .eq('technician_id', userData.user.id)
-                        .in('status', ['pending', 'paused'])
-                        .single();
-
-                    if (visitData) {
-                         const currentFormData = visitData.form_data || {};
-                         const existingDisplacement = currentFormData.displacement || {};
-                         const updatedDisplacement = {
-                             ...existingDisplacement,
-                             arrival_time: new Date().toISOString(),
-                             arrival_lat: lat,
-                             arrival_lon: lon
-                         };
-
-                         await supabase.from('service_visits')
-                             .update({
-                                 status: 'ongoing',
-                                 arrival_time: new Date().toISOString(),
-                                 updated_at: new Date().toISOString(),
-                                 form_data: { ...currentFormData, displacement: updatedDisplacement }
-                             })
-                             .eq('id', visitData.id);
-                    } else {
-                         // Fallback just in case
-                         await supabase.from('service_visits')
-                            .update({
-                                status: 'ongoing',
-                                arrival_time: new Date().toISOString(),
-                                updated_at: new Date().toISOString()
-                            })
-                            .eq('order_id', id)
-                            .eq('technician_id', userData.user.id)
-                            .in('status', ['pending', 'paused']);
-                    }
+                        .in('status', ['pending', 'paused']);
                 }
             } catch (vErr) {
                 logger.log(`Warning: Failed to update service_visits: ${vErr}`, 'warn');

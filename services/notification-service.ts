@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
-import { Platform } from 'react-native';
+import { Platform, DeviceEventEmitter } from 'react-native';
 import { supabase } from './supabase';
 
 // No SDK 55, o pacote expo-notifications causa crash imediato no Android se rodar via Expo Go.
@@ -189,34 +189,137 @@ export const NotificationService = {
 
     /**
      * Sincroniza a bolinha/badge do ícone do aplicativo (no celular) com o número REAL de notificações não lidas DO USUÁRIO.
-     * Se 0 -> remove a bolinha do ícone e descarta notificações da bandeja do sistema.
+     * Se 0 -> remove a bolinha do ícone no Android e iOS e descarta notificações da bandeja do sistema.
      */
     async syncAppIconBadge() {
         if (isExpoGoAndroid || !Notifications) return;
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session?.user) {
-                await Notifications.setBadgeCountAsync(0).catch(() => {});
-                await Notifications.dismissAllNotificationsAsync().catch(() => {});
+                await this.clearAppIconBadge();
                 return;
             }
 
-            // Busca estritamente notificações não lidas atribuídas a ESTE usuário específico.
-            // Notificações com user_id nulo (broadcasts antigos) não devem travar a bolinha do ícone.
+            // Busca notificações não lidas deste usuário
             const { count, error } = await supabase
                 .from('notifications')
                 .select('id', { count: 'exact', head: true })
                 .eq('is_read', false)
-                .eq('user_id', session.user.id);
+                .or(`user_id.eq.${session.user.id},user_id.is.null`);
 
             const unreadCount = (!error && typeof count === 'number') ? count : 0;
-            await Notifications.setBadgeCountAsync(unreadCount).catch(() => {});
 
-            if (unreadCount === 0) {
-                await Notifications.dismissAllNotificationsAsync().catch(() => {});
+            if (unreadCount <= 0) {
+                await this.clearAppIconBadge();
+            } else {
+                await Notifications.setBadgeCountAsync(unreadCount).catch(() => {});
             }
         } catch (e) {
-            await Notifications.setBadgeCountAsync(0).catch(() => {});
+            await this.clearAppIconBadge();
+        }
+    },
+
+    /**
+     * Marca como lidas todas as notificações relacionadas a uma Ordem de Serviço específica
+     * e recalcula/zera a bolinha do app imediatamente.
+     */
+    async markOrderNotificationsAsRead(orderId: string) {
+        if (!orderId) return;
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.user) return;
+
+            const orderIdStr = String(orderId);
+
+            // Busca notificações não lidas desta OS vinculadas ao usuário
+            const { data: notifs } = await supabase
+                .from('notifications')
+                .select('id')
+                .eq('is_read', false)
+                .or(`user_id.eq.${session.user.id},user_id.is.null`)
+                .eq('data->>orderId', orderIdStr);
+
+            if (notifs && notifs.length > 0) {
+                const ids = notifs.map(n => n.id);
+                await supabase
+                    .from('notifications')
+                    .update({ is_read: true })
+                    .in('id', ids);
+
+                DeviceEventEmitter?.emit?.('refreshNotifications');
+            }
+
+            // Sincroniza e zera a badge se todas as notificações tiverem sido vistas
+            await this.syncAppIconBadge();
+        } catch (err) {
+            console.warn('[NotificationService] markOrderNotificationsAsRead error:', err);
+        }
+    },
+
+    /**
+     * Marca uma notificação individual como lida e sincroniza a bolinha do ícone.
+     */
+    async markNotificationAsRead(notificationId: string) {
+        if (!notificationId) return;
+        try {
+            await supabase
+                .from('notifications')
+                .update({ is_read: true })
+                .eq('id', notificationId);
+
+            DeviceEventEmitter?.emit?.('refreshNotifications');
+            await this.syncAppIconBadge();
+        } catch (err) {
+            console.warn('[NotificationService] markNotificationAsRead error:', err);
+        }
+    },
+
+    /**
+     * Marca TODAS as notificações do usuário como lidas e zera instantaneamente o badge no ícone.
+     */
+    async markAllAsRead() {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.user) return;
+
+            await supabase
+                .from('notifications')
+                .update({ is_read: true })
+                .eq('is_read', false)
+                .or(`user_id.eq.${session.user.id},user_id.is.null`);
+
+            DeviceEventEmitter?.emit?.('refreshNotifications');
+            await this.clearAppIconBadge();
+        } catch (err) {
+            console.warn('[NotificationService] markAllAsRead error:', err);
+        }
+    },
+
+    /**
+     * Trata o clique/abertura de uma notificação (no iOS e Android).
+     * Descarta a notificação da bandeja imediatamente e atualiza/zera o badge.
+     */
+    async handleNotificationResponse(response: any) {
+        if (!response) return;
+        try {
+            const identifier = response?.notification?.request?.identifier;
+            if (identifier && Notifications && typeof Notifications.dismissNotificationAsync === 'function') {
+                await Notifications.dismissNotificationAsync(identifier).catch(() => {});
+            }
+
+            const data = response?.notification?.request?.content?.data;
+            const orderId = data?.orderId;
+            const notifId = data?.notificationId || data?.id;
+
+            if (orderId) {
+                await this.markOrderNotificationsAsRead(String(orderId));
+            } else if (notifId) {
+                await this.markNotificationAsRead(String(notifId));
+            } else {
+                await this.syncAppIconBadge();
+            }
+        } catch (e) {
+            console.warn('[NotificationService] handleNotificationResponse error:', e);
         }
     },
 };

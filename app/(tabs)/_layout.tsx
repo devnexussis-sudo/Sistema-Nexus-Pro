@@ -11,6 +11,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useI18n } from '@/services/i18n';
 import { supabase } from '@/services/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
 
@@ -31,6 +32,7 @@ export default function TabLayout() {
           tabBarInactiveTintColor: '#94a3b8',
           headerShown: true,
           tabBarButton: HapticTab,
+          tabBarHideOnKeyboard: true,
           tabBarStyle: {
             backgroundColor: '#1c2d4f',
             borderTopColor: '#2a3f68',
@@ -64,6 +66,20 @@ export default function TabLayout() {
             tabBarIcon: ({ color }) => <IconSymbol size={24} name="house.fill" color={color} />,
             headerRight: () => <HeaderRightToggle />
           }}
+          listeners={({ navigation }) => ({
+            tabPress: async (e) => {
+              try {
+                const activeStr = await AsyncStorage.getItem('@nexus_active_os');
+                if (activeStr) {
+                  const active = JSON.parse(activeStr);
+                  if (active?.id) {
+                    e.preventDefault();
+                    navigation.navigate('os/execute', { id: active.id });
+                  }
+                }
+              } catch {}
+            }
+          })}
         />
         <Tabs.Screen
           name="calendar"
@@ -83,6 +99,7 @@ export default function TabLayout() {
           name="ai"
           options={{
             title: 'Duno IA',
+            headerShown: false,
             tabBarIcon: ({ color }) => <IconSymbol size={24} name="sparkles" color={color} />,
           }}
         />

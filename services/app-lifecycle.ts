@@ -430,6 +430,17 @@ class AppLifecycleManager {
     }
 
     /**
+     * Notifica os ouvintes sobre mudanças de ordem.
+     */
+    notifyOrderChange(payload: any) {
+        this.orderChangeThrottle(() => {
+            this.orderChangeListeners.forEach(cb => {
+                try { cb(payload); } catch (e) { /* silent */ }
+            });
+        });
+    }
+
+    /**
      * Dispara fetch imediato e silencioso na camada de View.
      */
     forceUISync() {
@@ -932,15 +943,41 @@ class AppLifecycleManager {
             }
         );
 
-        // Handle notification taps → deep link to OS detail
+        // Handle notification taps → deep link to OS detail & immediately dismiss/clear badge
         this.notificationResponseSub = Notifications.addNotificationResponseReceivedListener(
-            (response: any) => {
+            async (response: any) => {
+                console.log('[Lifecycle] 👆 Notification Tapped:', response?.notification?.request?.content?.title);
+                try {
+                    await NotificationService.handleNotificationResponse(response);
+                } catch (e) {
+                    console.warn('[Lifecycle] Erro ao processar resposta de notificação:', e);
+                }
+
                 const orderId = response?.notification?.request?.content?.data?.orderId;
                 if (orderId && this.notificationResponseHandler) {
                     this.notificationResponseHandler(orderId);
                 }
             }
         );
+
+        // Handle cold-start notification tap
+        if (typeof Notifications.getLastNotificationResponseAsync === 'function') {
+            Notifications.getLastNotificationResponseAsync()
+                .then(async (response: any) => {
+                    if (response) {
+                        console.log('[Lifecycle] 🚀 Cold start from notification response:', response?.notification?.request?.content?.title);
+                        try {
+                            await NotificationService.handleNotificationResponse(response);
+                        } catch (e) {}
+
+                        const orderId = response?.notification?.request?.content?.data?.orderId;
+                        if (orderId && this.notificationResponseHandler) {
+                            this.notificationResponseHandler(orderId);
+                        }
+                    }
+                })
+                .catch(() => {});
+        }
     }
 
     private teardownNotificationListeners() {

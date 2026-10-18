@@ -1,5 +1,6 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DeviceEventEmitter } from 'react-native';
 import { authService } from './auth-service';
 import { logger } from './logger';
 import { supabase } from './supabase';
@@ -14,6 +15,7 @@ export interface TenantSettings {
     showVisitHistory: boolean;
     requireLocationForExecution: boolean;
     allowOsSharing: boolean;
+    requireClientSignature: boolean;
 }
 
 const DEFAULT_SETTINGS: TenantSettings = {
@@ -25,6 +27,7 @@ const DEFAULT_SETTINGS: TenantSettings = {
     showVisitHistory: true,
     requireLocationForExecution: false,
     allowOsSharing: true,
+    requireClientSignature: true,
 };
 
 export class TenantService {
@@ -82,6 +85,9 @@ export class TenantService {
                             console.error('[TenantService] Erro ao notificar listener:', err);
                         }
                     });
+                    try {
+                        DeviceEventEmitter.emit('tenantSettingsChanged', newSettings);
+                    } catch (e) {}
                 }
             )
             .subscribe((status) => {
@@ -192,9 +198,10 @@ export class TenantService {
                 showVisitHistory: meta?.showVisitHistory ?? true,
                 requireLocationForExecution: meta?.requireLocationForExecution ?? false,
                 allowOsSharing: meta?.allowOsSharing ?? true,
+                requireClientSignature: meta?.requireClientSignature ?? true,
             };
 
-            console.log(`[TenantService] ✅ Configuração final -> showStockPrice: ${settings.showStockPrice}, showClientContact: ${settings.showClientContact}, showStockHistory: ${settings.showStockHistory}, allowImpediment: ${settings.allowImpediment}, showVisitHistory: ${settings.showVisitHistory}, allowOsSharing: ${settings.allowOsSharing}`);
+            console.log(`[TenantService] ✅ Configuração final -> showStockPrice: ${settings.showStockPrice}, showClientContact: ${settings.showClientContact}, showStockHistory: ${settings.showStockHistory}, allowImpediment: ${settings.allowImpediment}, showVisitHistory: ${settings.showVisitHistory}, allowOsSharing: ${settings.allowOsSharing}, requireClientSignature: ${settings.requireClientSignature}`);
 
             this.settingsCache[userId] = settings;
             AsyncStorage.setItem('@nexus:tenant_settings', JSON.stringify(settings)).catch(() => {});

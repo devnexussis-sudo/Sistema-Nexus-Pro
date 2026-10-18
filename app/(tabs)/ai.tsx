@@ -19,6 +19,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/services/supabase';
 import { searchKnowledgeBase, getAvailableManuals, ManualSummary } from '@/services/duno-ai/dunoQueryService';
 import { useLanguage } from '@/services/i18n';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ── Types ──
 interface Message {
@@ -122,6 +123,7 @@ const renderMarkdown = (text: string, isUser: boolean, isDark: boolean) => {
 
 export default function DunoAIScreen() {
   const { t, language } = useLanguage();
+  const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
   const isDark = false; // Forced light theme as requested
 
@@ -134,8 +136,6 @@ export default function DunoAIScreen() {
   const [manuals, setManuals] = useState<ManualSummary[]>([]);
   const [isLoadingManuals, setIsLoadingManuals] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
-  const lastResponseId = useRef<string | null>(null);
-  const messageYPositions = useRef<Record<string, number>>({});
 
   const router = useRouter();
   const [activeOs, setActiveOs] = useState<{ id: string; displayId: string; customer?: string } | null>(null);
@@ -200,9 +200,31 @@ export default function DunoAIScreen() {
     }]);
   }, [firstName, language, t]);
 
-  const scrollToEnd = useCallback(() => {
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+  const scrollToEnd = useCallback((animated = true) => {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollToEnd({ animated });
+    });
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated });
+    }, 100);
   }, []);
+
+  // Rola automaticamente para as mensagens mais recentes
+  useEffect(() => {
+    scrollToEnd();
+  }, [messages, scrollToEnd]);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => {
+        scrollToEnd();
+      }
+    );
+    return () => {
+      showSub.remove();
+    };
+  }, [scrollToEnd]);
 
   const handleSend = useCallback(async () => {
     if (!input.trim() || isLoading) return;
@@ -253,9 +275,9 @@ export default function DunoAIScreen() {
     }
 
     const newResponseId = Date.now().toString();
-    lastResponseId.current = newResponseId;
     setMessages(p => p.map(m => m.id === typingId ? { id: newResponseId, role: 'assistant', content: response } : m));
     setIsLoading(false);
+    scrollToEnd();
   }, [input, isLoading, firstName, fullName, messages, scrollToEnd, language, t]);
 
   const handleReset = () => {
@@ -269,28 +291,38 @@ export default function DunoAIScreen() {
 
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
-      {/* ── Header Premium (Fixo, Imutável) ── */}
-      <View style={[styles.header, isDark && styles.headerDark]}>
+      {/* ── Header Premium Integrado com Safe Area ── */}
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) }, isDark && styles.headerDark]}>
         <View style={styles.headerLeft}>
-          <View style={styles.headerIconContainer}>
-            <Ionicons name="sparkles" size={18} color="#ffffff" />
-          </View>
+          {activeOs ? (
+            <Pressable
+              style={styles.headerBackButton}
+              onPress={() => router.push({ pathname: '/(tabs)/os/execute', params: { id: activeOs.id } })}
+              hitSlop={8}
+            >
+              <Ionicons name="arrow-back" size={22} color="#ffffff" />
+            </Pressable>
+          ) : (
+            <View style={styles.headerIconContainer}>
+              <Ionicons name="sparkles" size={18} color="#ffffff" />
+            </View>
+          )}
           <View>
             <View style={styles.headerTitleRow}>
-              <Text style={styles.headerTitle}>{t('aiHeaderTitle')}</Text>
+              <Text style={styles.headerTitle}>{t('aiHeaderTitle') || 'DUNO IA'}</Text>
               <View style={styles.statusContainer}>
                 <View style={styles.statusDot} />
-                <Text style={styles.statusText}>{t('aiHeaderStatus')}</Text>
+                <Text style={styles.statusText}>{t('aiHeaderStatus') || 'ONLINE'}</Text>
               </View>
             </View>
-            <Text style={styles.headerSubtitle}>{t('aiHeaderSubtitle')}</Text>
+            <Text style={styles.headerSubtitle}>{t('aiHeaderSubtitle') || 'Assistente Técnica • Manuais & RAG'}</Text>
           </View>
         </View>
 
         <View style={styles.headerRight}>
           <Pressable style={styles.manualsButton} onPress={handleOpenManuals}>
-            <Ionicons name="book-outline" size={16} color="#ffffff" />
-            <Text style={styles.manualsButtonText}>{t('aiManualsBtn')}</Text>
+            <Ionicons name="book-outline" size={15} color="#ffffff" />
+            <Text style={styles.manualsButtonText}>{t('aiManualsBtn') || 'Manuais'}</Text>
             {manuals.length > 0 && (
               <View style={styles.manualsBadge}>
                 <Text style={styles.manualsBadgeText}>{manuals.length}</Text>
@@ -298,8 +330,8 @@ export default function DunoAIScreen() {
             )}
           </Pressable>
 
-          <Pressable style={styles.resetButton} onPress={handleReset}>
-            <Ionicons name="refresh" size={18} color="#ffffff" />
+          <Pressable style={styles.resetButton} onPress={handleReset} hitSlop={8}>
+            <Ionicons name="refresh" size={17} color="#ffffff" />
           </Pressable>
         </View>
       </View>
@@ -312,19 +344,24 @@ export default function DunoAIScreen() {
         >
           <View style={styles.activeOsBannerLeft}>
             <View style={styles.activeOsPulseBadge}>
-              <Ionicons name="construct" size={14} color="#ffffff" />
+              <Ionicons name="construct" size={15} color="#ffffff" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.activeOsBannerTitle} numberOfLines={1}>
-                OS #{activeOs.displayId} em andamento
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.activeOsBannerTitle} numberOfLines={1}>
+                  OS #{activeOs.displayId} em andamento
+                </Text>
+                <View style={styles.activeOsLivePill}>
+                  <Text style={styles.activeOsLiveText}>ATIVO</Text>
+                </View>
+              </View>
               <Text style={styles.activeOsBannerSub} numberOfLines={1}>
                 {activeOs.customer ? `${activeOs.customer} • ` : ''}Toque para continuar o preenchimento de onde parou
               </Text>
             </View>
           </View>
           <View style={styles.activeOsBannerBtn}>
-            <Text style={styles.activeOsBannerBtnText}>Voltar para OS</Text>
+            <Text style={styles.activeOsBannerBtnText}>Voltar à OS</Text>
             <Ionicons name="arrow-forward" size={13} color="#ffffff" />
           </View>
         </Pressable>
@@ -333,16 +370,20 @@ export default function DunoAIScreen() {
       {/* ── Área Dinâmica do Chat (Encolhe com o teclado) ── */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior="padding"
-        keyboardVerticalOffset={90}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <ScrollView
           ref={scrollRef}
-        style={styles.chatArea}
-        contentContainerStyle={[styles.chatContent, messages.length <= 1 && { flexGrow: 1, justifyContent: 'center' }]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
+          style={styles.chatArea}
+          contentContainerStyle={[styles.chatContent, messages.length <= 1 && { flexGrow: 1, justifyContent: 'center' }]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          showsVerticalScrollIndicator={false}
+          onContentSizeChange={() => {
+            scrollToEnd();
+          }}
+        >
         {/* Dashboard de Entrada / Boas-vindas */}
         {messages.length <= 1 && (
           <View style={styles.welcomeHeroContainer}>
@@ -364,15 +405,6 @@ export default function DunoAIScreen() {
         {messages.length > 0 && messages.map(msg => (
           <View
             key={msg.id}
-            onLayout={(e) => {
-              const y = e.nativeEvent.layout.y;
-              messageYPositions.current[msg.id] = y;
-              if (msg.id === lastResponseId.current) {
-                setTimeout(() => {
-                  scrollRef.current?.scrollTo({ y: Math.max(0, y - 10), animated: true });
-                }, 50);
-              }
-            }}
             style={[
               styles.messageRow,
               msg.role === 'user' ? styles.messageRowUser : styles.messageRowAssistant,
@@ -424,6 +456,9 @@ export default function DunoAIScreen() {
             returnKeyType="send"
             blurOnSubmit={false}
             onSubmitEditing={handleSend}
+            onFocus={() => {
+              setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
+            }}
           />
           <Pressable
             style={[
@@ -559,6 +594,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  headerBackButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
   headerIconContainer: {
     width: 38,
@@ -999,12 +1044,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#1c2d4f',
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#2b3e66',
-    borderTopWidth: 1,
-    borderTopColor: '#2b3e66',
   },
   activeOsBannerLeft: {
     flexDirection: 'row',
@@ -1013,12 +1056,25 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   activeOsPulseBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: '#f59e0b',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  activeOsLivePill: {
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  activeOsLiveText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#fbbf24',
   },
   activeOsBannerTitle: {
     fontSize: 13,
@@ -1027,16 +1083,16 @@ const styles = StyleSheet.create({
   },
   activeOsBannerSub: {
     fontSize: 11,
-    color: '#cbd5e1',
+    color: '#94a3b8',
     marginTop: 1,
   },
   activeOsBannerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
     backgroundColor: '#2563eb',
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: 8,
     marginLeft: 8,
   },

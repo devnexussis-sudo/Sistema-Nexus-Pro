@@ -11,12 +11,15 @@ import { useI18n } from '@/services/i18n';
 import { OrderService } from '@/services/order-service';
 import { supabase } from '@/services/supabase';
 import { syncService } from '@/services/sync-service';
+import { resilientUpload } from '@/services/upload-resilient';
 import { TenantService } from '@/services/tenant-service';
+import { NotificationService } from '@/services/notification-service';
 import { ImageService } from '@/services/image-service';
 import { authService } from '@/services/auth-service';
 import { VoiceTextInput } from '@/components/VoiceTextInput';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 import { Tabs, useFocusEffect, useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { useGlobalLoading } from '@/contexts/GlobalLoadingContext';
 import React, { useCallback, useState } from 'react';
@@ -187,6 +190,11 @@ export default function OrderDetailsScreen() {
                     }
 
                     if (!currentOrder) return;
+
+                    // Marca as notificações desta OS como lidas e sincroniza/zera o badge do app imediatamente
+                    if (id) {
+                        NotificationService.markOrderNotificationsAsRead(id as string).catch(() => {});
+                    }
 
                     // 3. Fetch aggregate dependent data concurrently
                     const [visitsResult] = await Promise.all([
@@ -679,17 +687,28 @@ export default function OrderDetailsScreen() {
             });
 
             if (!result.canceled && result.assets && result.assets.length > 0) {
-                // Compress each image before adding
-                const newUris: string[] = [];
-                for (const asset of result.assets) {
+                const rawUris = result.assets.map(a => a.uri);
+                setImpedimentPhotoUris(prev => [...prev, ...rawUris].slice(0, 10));
+
+                // 🚀 Comprime e enfileira imediatamente no motor resiliente (Online → sobe na hora pro R2; Offline → salva local e sobe ao reconectar)
+                await Promise.allSettled(rawUris.map(async (uri) => {
                     try {
-                        const compressedUri = await ImageService.compressImage(asset.uri);
-                        newUris.push(compressedUri);
-                    } catch (e) {
-                        newUris.push(asset.uri); // Fallback se a compressão falhar
+                        const compressedUri = await ImageService.compressImage(uri);
+                        if (compressedUri !== uri) {
+                            setImpedimentPhotoUris(prev => prev.map(p => p === uri ? compressedUri : p));
+                        }
+                        const remotePath = `orders/${order.displayId || order.id}/block_photos/${Date.now()}_${Math.random().toString(36).slice(2, 6)}.webp`;
+                        await resilientUpload.enqueue(compressedUri, remotePath, 'image/webp', {
+                            originalUri: uri,
+                            tenantId: order.tenantId,
+                            onComplete: (resultUrl) => {
+                                setImpedimentPhotoUris(prev => prev.map(p => (p === uri || p === compressedUri) ? resultUrl : p));
+                            }
+                        });
+                    } catch (err) {
+                        console.warn('[OS Detail] Background impediment photo enqueue failed:', err);
                     }
-                }
-                setImpedimentPhotoUris(prev => [...prev, ...newUris].slice(0, 10));
+                }));
             }
         } catch (err) {
             console.error('[processPhotoChoice] Error:', err);
@@ -706,7 +725,10 @@ export default function OrderDetailsScreen() {
         try {
             setIsUploadingBlock(true);
 
-            if (syncService.isOfflineModeEnabled()) {
+            const netInfo = await NetInfo.fetch();
+            const isOffline = !netInfo.isConnected || netInfo.isInternetReachable === false || syncService.isOfflineModeEnabled();
+
+            const enqueueOfflineBlock = async () => {
                 const localPhotosToSync: string[] = [];
                 for (const photo of impedimentPhotoUris) {
                     if (photo.startsWith('file://')) localPhotosToSync.push(photo);
@@ -751,27 +773,52 @@ export default function OrderDetailsScreen() {
                 setModalVisible(false);
                 setImpedimentReason('');
                 setImpedimentPhotoUris([]);
+            };
+
+            if (isOffline) {
+                await enqueueOfflineBlock();
                 return;
             }
 
-            // Upload das fotos antes de bloquear
-            let blockPhotoUrls: string[] = [];
-            if (impedimentPhotoUris.length > 0) {
-                for (let i = 0; i < impedimentPhotoUris.length; i++) {
-                    const url = await OrderService.uploadFile(
-                        impedimentPhotoUris[i],
-                        `orders/${order.displayId || order.id}/block_photos`,
-                        order.tenantId
-                    );
-                    if (url) blockPhotoUrls.push(url);
-                }
-            }
+            try {
+                await resilientUpload.waitForActiveUploads(10000);
 
-            await OrderService.blockOrder(order.id, impedimentReason.trim(), blockPhotoUrls);
-            customAlert(t('osBlockRegistered'), `Motivo: ${impedimentReason}`);
-            setModalVisible(false);
-            setImpedimentReason('');
-            setImpedimentPhotoUris([]);
+                // Resolver fotos em paralelo (reutilizando uploads em andamento ou já concluídos no R2)
+                let blockPhotoUrls: string[] = [];
+                if (impedimentPhotoUris.length > 0) {
+                    const results = await Promise.all(
+                        impedimentPhotoUris.map(async (photoUri) => {
+                            if (photoUri.startsWith('http://') || photoUri.startsWith('https://')) {
+                                return photoUri;
+                            }
+                            const completed = resilientUpload.getCompletedUrl(photoUri);
+                            if (completed) return completed;
+                            return await OrderService.uploadFile(
+                                photoUri,
+                                `orders/${order.displayId || order.id}/block_photos`,
+                                order.tenantId
+                            );
+                        })
+                    );
+                    blockPhotoUrls = results.filter((u): u is string => !!u);
+                }
+
+                await OrderService.blockOrder(order.id, impedimentReason.trim(), blockPhotoUrls);
+                customAlert(t('osBlockRegistered'), `Motivo: ${impedimentReason}`);
+                setModalVisible(false);
+                setImpedimentReason('');
+                setImpedimentPhotoUris([]);
+            } catch (onlineErr: any) {
+                const netAfter = await NetInfo.fetch();
+                const isNetError = !netAfter.isConnected || netAfter.isInternetReachable === false ||
+                    String(onlineErr?.message || onlineErr).toLowerCase().includes('network') ||
+                    String(onlineErr?.message || onlineErr).toLowerCase().includes('fetch');
+                if (isNetError) {
+                    await enqueueOfflineBlock();
+                    return;
+                }
+                throw onlineErr;
+            }
 
             // re-fetch
             const u = await OrderService.getOrderById(id as string, true);
@@ -1980,11 +2027,27 @@ export default function OrderDetailsScreen() {
                         onClose={() => setCameraModalVisible(false)} 
                         onPhotoCaptured={async (uri) => {
                             setCameraModalVisible(false);
+                            setImpedimentPhotoUris(prev => [...prev, uri].slice(0, 10));
+                            let targetUri = uri;
                             try {
-                                const compressedUri = await ImageService.compressImage(uri);
-                                setImpedimentPhotoUris(prev => [...prev, compressedUri].slice(0, 10));
-                            } catch (e) {
-                                setImpedimentPhotoUris(prev => [...prev, uri].slice(0, 10));
+                                targetUri = await ImageService.compressImage(uri);
+                                if (targetUri !== uri) {
+                                    setImpedimentPhotoUris(prev => prev.map(p => p === uri ? targetUri : p));
+                                }
+                            } catch (e) {}
+
+                            // 🚀 Enfileira imediatamente no motor resiliente (Online → sobe na hora pro R2; Offline → salva local e sobe ao reconectar)
+                            try {
+                                const remotePath = `orders/${order.displayId || order.id}/block_photos/${Date.now()}_${Math.random().toString(36).slice(2, 6)}.webp`;
+                                await resilientUpload.enqueue(targetUri, remotePath, 'image/webp', {
+                                    originalUri: uri,
+                                    tenantId: order.tenantId,
+                                    onComplete: (resultUrl) => {
+                                        setImpedimentPhotoUris(prev => prev.map(p => (p === uri || p === targetUri) ? resultUrl : p));
+                                    }
+                                });
+                            } catch (err) {
+                                console.warn('[OS Detail Camera] Background impediment photo enqueue failed:', err);
                             }
                         }} 
                     />
