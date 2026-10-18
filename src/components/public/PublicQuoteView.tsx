@@ -196,6 +196,14 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
         return () => { isMounted = false; };
     }, [id]);
 
+    // 🛡️ Garante fundo branco puro mesmo em navegadores com tema escuro habilitado
+    useEffect(() => {
+        document.documentElement.style.backgroundColor = '#ffffff';
+        document.documentElement.style.colorScheme = 'light';
+        document.body.style.backgroundColor = '#ffffff';
+        document.body.style.colorScheme = 'light';
+    }, []);
+
     // Sinal determinístico para o motor Headless Chromium (Serverless PDF Export)
     useEffect(() => {
         if (loading || !quote || !customerAddressLoaded) return;
@@ -574,33 +582,37 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
         <style>{`
             @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
             
-            /* 🛡️ Nexus Fix: Força a rolagem no Link Público */
-            html, body {
+            /* 🛡️ Nexus Fix: Força a rolagem e fundo branco absoluto em qualquer navegador */
+            html, body, #root {
                 overflow: auto !important;
                 height: auto !important;
                 min-height: 100vh !important;
+                background-color: #ffffff !important;
+                background: #ffffff !important;
+                color-scheme: light !important;
             }
 
             .public-view-wrapper, .public-view-wrapper * {
                 font-family: 'Poppins', sans-serif !important;
+                color-scheme: light !important;
             }
         `}</style>
     );
 
     if (loading) return (
-        <div className="public-view-wrapper font-poppins" style={{ fontFamily: "'Poppins', sans-serif" }}>
+        <div className="public-view-wrapper min-h-screen bg-white font-poppins" style={{ fontFamily: "'Poppins', sans-serif", backgroundColor: '#ffffff', colorScheme: 'light' }}>
             {fontStyle}
-            <div className="min-h-screen bg-white flex items-center justify-center">
+            <div className="min-h-screen bg-white flex items-center justify-center" style={{ backgroundColor: '#ffffff' }}>
                 <img src="/duno-icon.png" alt="Duno" className="h-20 w-auto object-contain animate-pulse" />
             </div>
         </div>
     );
 
     if (error || !quote) return (
-        <div className="public-view-wrapper font-poppins" style={{ fontFamily: "'Poppins', sans-serif" }}>
+        <div className="public-view-wrapper min-h-screen bg-white font-poppins" style={{ fontFamily: "'Poppins', sans-serif", backgroundColor: '#ffffff', colorScheme: 'light' }}>
             {fontStyle}
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-                <div className="bg-white p-10 rounded-[3rem] shadow-xl text-center max-w-sm">
+            <div className="min-h-screen bg-white flex items-center justify-center p-6" style={{ backgroundColor: '#ffffff' }}>
+                <div className="bg-white p-10 rounded-[3rem] shadow-xl text-center max-w-sm border border-slate-100">
                     <AlertCircle size={48} className="text-rose-500 mx-auto mb-4" />
                     <h2 className="text-xl font-bold text-slate-900 uppercase italic mb-2">Acesso Negado</h2>
                     <p className="text-sm text-slate-500 font-bold uppercase">{error || 'Esta proposta não está mais disponível.'}</p>
@@ -977,14 +989,14 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
     );
 
     return (
-        <div className="public-view-wrapper font-poppins" style={{ fontFamily: "'Poppins', sans-serif" }}>
+        <div className="public-view-wrapper min-h-screen bg-white font-poppins" style={{ fontFamily: "'Poppins', sans-serif", backgroundColor: '#ffffff', colorScheme: 'light' }}>
             {fontStyle}
             
             <div className="hidden print:!block print-quote-layout">
                 <PrintLayout />
             </div>
 
-            <div className="min-h-screen bg-slate-50 font-poppins selection:bg-[#1c2d4f]/10 print:hidden">
+            <div className="min-h-screen bg-white font-poppins selection:bg-[#1c2d4f]/10 print:hidden" style={{ backgroundColor: '#ffffff', colorScheme: 'light' }}>
                 {/* ── TOP ACCENT BAR ── */}
                 <div className="h-1 w-full bg-gradient-to-r from-[#1c2d4f] via-[#3e5b99] to-[#1c2d4f]" />
 

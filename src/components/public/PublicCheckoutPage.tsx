@@ -515,7 +515,7 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f2f5f9] flex flex-col items-center justify-center text-slate-900 font-poppins p-4">
+      <div className="public-view-wrapper min-h-screen bg-white flex flex-col items-center justify-center text-slate-900 font-poppins p-4" style={{ backgroundColor: '#ffffff', colorScheme: 'light' }}>
         <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center shadow-md mb-4 border border-slate-200">
           <Loader2 size={32} className="animate-spin text-[#1c2d4f]" />
         </div>
@@ -526,7 +526,7 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
 
   if (error && !item) {
     return (
-      <div className="min-h-screen bg-[#f2f5f9] flex flex-col items-center justify-center text-slate-900 font-poppins p-4">
+      <div className="public-view-wrapper min-h-screen bg-white flex flex-col items-center justify-center text-slate-900 font-poppins p-4" style={{ backgroundColor: '#ffffff', colorScheme: 'light' }}>
         <div className="bg-white border border-slate-200 p-8 rounded-3xl max-w-md w-full text-center space-y-4 shadow-xl">
           <AlertCircle size={48} className="text-rose-500 mx-auto" />
           <h2 className="text-xl font-bold text-slate-900 uppercase tracking-wide">Página Indisponível</h2>
@@ -537,7 +537,7 @@ export const PublicCheckoutPage: React.FC<PublicCheckoutPageProps> = ({ typeProp
   }
 
   return (
-    <div className="min-h-screen bg-[#f2f5f9] font-poppins text-slate-900 flex flex-col selection:bg-[#1c2d4f] selection:text-white">
+    <div className="public-view-wrapper min-h-screen bg-white font-poppins text-slate-900 flex flex-col selection:bg-[#1c2d4f] selection:text-white" style={{ backgroundColor: '#ffffff', colorScheme: 'light' }}>
       
       {/* ── TOP ACCENT BAR ── */}
       <div className="h-1 w-full bg-gradient-to-r from-[#1c2d4f] via-[#3e5b99] to-[#1c2d4f]" />

@@ -17,6 +17,20 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* 🛡️ Forçar tema claro e fundo branco puro em links públicos (OS, Orçamento e Checkout) */
+.public-view-wrapper,
+.public-view-wrapper * {
+  color-scheme: light !important;
+}
+
+html:has(.public-view-wrapper),
+body:has(.public-view-wrapper),
+body:has(.public-view-wrapper) #root {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  color-scheme: light !important;
+}
+
 /* 📱 PWA MOBILE TOUCH & SAFE AREA INSETS */
 .pb-safe {
   padding-bottom: max(1rem, env(safe-area-inset-bottom, 1rem)) !important;

@@ -16,6 +16,35 @@ export const PublicApp: React.FC<PublicAppProps> = ({ publicOrderId, publicQuote
     const [techs, setTechs] = useState<User[]>([]);
     const [tenant, setTenant] = useState<any>(null);
 
+    // 🛡️ Garante fundo 100% branco e tema claro no HTML, BODY e theme-color mesmo em navegadores escuros
+    useEffect(() => {
+        const origHtmlBg = document.documentElement.style.backgroundColor;
+        const origBodyBg = document.body.style.backgroundColor;
+        const origHtmlCs = document.documentElement.style.colorScheme;
+        const origBodyCs = document.body.style.colorScheme;
+
+        document.documentElement.style.backgroundColor = '#ffffff';
+        document.documentElement.style.colorScheme = 'light';
+        document.body.style.backgroundColor = '#ffffff';
+        document.body.style.colorScheme = 'light';
+
+        const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+        const origThemeColor = themeColorMeta?.getAttribute('content');
+        if (themeColorMeta) {
+            themeColorMeta.setAttribute('content', '#ffffff');
+        }
+
+        return () => {
+            document.documentElement.style.backgroundColor = origHtmlBg;
+            document.documentElement.style.colorScheme = origHtmlCs;
+            document.body.style.backgroundColor = origBodyBg;
+            document.body.style.colorScheme = origBodyCs;
+            if (themeColorMeta && origThemeColor) {
+                themeColorMeta.setAttribute('content', origThemeColor);
+            }
+        };
+    }, []);
+
     useEffect(() => {
         if (publicOrderId) {
             let isMounted = true;
@@ -73,13 +102,17 @@ export const PublicApp: React.FC<PublicAppProps> = ({ publicOrderId, publicQuote
     }, [publicQuoteId]);
 
     if (publicQuoteId) {
-        return <PublicQuoteView id={publicQuoteId} tenantProp={tenant} />;
+        return (
+            <div className="public-view-wrapper min-h-screen bg-white" style={{ backgroundColor: '#ffffff', colorScheme: 'light' }}>
+                <PublicQuoteView id={publicQuoteId} tenantProp={tenant} />
+            </div>
+        );
     }
 
     if (publicOrderId) {
         if (isFetchingPublicOrder) {
             return (
-                <div className="min-h-screen bg-white flex items-center justify-center">
+                <div className="public-view-wrapper min-h-screen bg-white flex items-center justify-center" style={{ backgroundColor: '#ffffff', colorScheme: 'light' }}>
                     <img
                         src="/duno-icon.png"
                         alt="Duno"
@@ -90,12 +123,16 @@ export const PublicApp: React.FC<PublicAppProps> = ({ publicOrderId, publicQuote
         }
         if (!fetchedPublicOrder) {
             return (
-                <div className="min-h-screen bg-[#111422] flex flex-col items-center justify-center text-white font-poppins" style={{ fontFamily: "'Poppins', sans-serif" }}>
-                    <h2 className="text-xl font-bold uppercase tracking-wider italic">Ordem de Serviço não encontrada</h2>
+                <div className="public-view-wrapper min-h-screen bg-white flex flex-col items-center justify-center text-slate-800 font-poppins" style={{ backgroundColor: '#ffffff', colorScheme: 'light', fontFamily: "'Poppins', sans-serif" }}>
+                    <h2 className="text-xl font-bold uppercase tracking-wider italic text-slate-800">Ordem de Serviço não encontrada</h2>
                 </div>
             );
         }
-        return <PublicOrderView order={fetchedPublicOrder} techs={techs} tenantProp={tenant} />;
+        return (
+            <div className="public-view-wrapper min-h-screen bg-white" style={{ backgroundColor: '#ffffff', colorScheme: 'light' }}>
+                <PublicOrderView order={fetchedPublicOrder} techs={techs} tenantProp={tenant} />
+            </div>
+        );
     }
 
     return null;

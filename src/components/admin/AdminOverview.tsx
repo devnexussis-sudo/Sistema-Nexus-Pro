@@ -142,7 +142,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [techFilter, setTechFilter] = useState<string>('ALL');
   const [customerFilter, setCustomerFilter] = useState<string>('ALL');
-  const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created' | 'completed'>('completed');
+  const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created' | 'completed'>('created');
   const [showFilters, setShowFilters] = useState(false);
   const { data: tenantData } = useTenant();
   const slaTarget = tenantData?.metadata?.slaTargetPercentage ?? 85;
@@ -480,8 +480,8 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
                   onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed')}
                   className="bg-slate-50 text-[10px] font-bold text-[#1c2d4f] px-2 py-1 rounded border border-[#1c2d4f]/10 outline-none cursor-pointer w-full sm:w-auto shrink-0"
                 >
-                  <option value="completed">OS Concluídas (Conclusão)</option>
                   <option value="created">Abertura</option>
+                  <option value="completed">OS Concluídas (Conclusão)</option>
                   <option value="scheduled">Agenda</option>
                 </select>
                 <div className="hidden sm:block w-px h-4 bg-[#1c2d4f]/10 mx-1" />

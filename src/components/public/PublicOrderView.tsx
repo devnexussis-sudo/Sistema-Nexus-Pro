@@ -1465,6 +1465,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     };
   }, [order]);
 
+  // 🛡️ Garante fundo branco puro mesmo em navegadores com tema escuro habilitado
+  React.useEffect(() => {
+    document.documentElement.style.backgroundColor = '#ffffff';
+    document.documentElement.style.colorScheme = 'light';
+    document.body.style.backgroundColor = '#ffffff';
+    document.body.style.colorScheme = 'light';
+  }, []);
+
   // Busca endereço atualizado do cliente na tabela customers
   const [freshCustomerPhone, setFreshCustomerPhone] = React.useState<string | null>(null);
   const [freshCustomerEmail, setFreshCustomerEmail] = React.useState<string | null>(null);
@@ -2866,21 +2874,25 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
   // ── WEB LAYOUT ─────────────────────────────────────────────────────────────
   return (
-    <div className="public-view-wrapper font-poppins" style={{ fontFamily: "'Poppins', sans-serif" }}>
+    <div className="public-view-wrapper min-h-screen bg-white font-poppins" style={{ fontFamily: "'Poppins', sans-serif", backgroundColor: '#ffffff', colorScheme: 'light' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
         
-        /* 🛡️ Nexus Fix: Força a rolagem no Link Público (apenas em tela, para não quebrar a impressão) */
+        /* 🛡️ Nexus Fix: Força a rolagem no Link Público e fundo branco absoluto em qualquer navegador */
         @media screen {
-            html, body {
+            html, body, #root {
                 overflow: auto !important;
                 height: auto !important;
                 min-height: 100vh !important;
+                background-color: #ffffff !important;
+                background: #ffffff !important;
+                color-scheme: light !important;
             }
         }
 
         .public-view-wrapper, .public-view-wrapper * {
             font-family: 'Poppins', sans-serif !important;
+            color-scheme: light !important;
         }
 
         .print-only-layout {
@@ -3058,7 +3070,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         `}</style>
         <PrintLayout />
       </div>
-      <div className="web-only-layout min-h-screen bg-slate-50 font-poppins selection:bg-[#1c2d4f]/10">
+      <div className="web-only-layout min-h-screen bg-white font-poppins selection:bg-[#1c2d4f]/10" style={{ backgroundColor: '#ffffff', colorScheme: 'light' }}>
         {/* ── TOAST PADRÃO DE EXPORTAÇÃO PDF ── */}
         {isDownloadingPdf && (
           <div className="fixed bottom-6 right-4 sm:right-6 sm:bottom-6 z-[2147483647] pointer-events-none select-none max-w-sm w-[calc(100%-2rem)] sm:w-auto p-4 rounded-xl shadow-2xl border bg-white/95 backdrop-blur-md border-[#1c2d4f]/20 shadow-[#1c2d4f]/10 flex items-start gap-3 animate-fade-in print:hidden">

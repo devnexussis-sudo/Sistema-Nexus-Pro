@@ -249,7 +249,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [serviceTypes, setServiceTypes] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created' | 'completed'>('completed');
+  const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created' | 'completed'>('created');
   // techFilter armazena o techId (UUID), não o nome — enviado direto para o servidor
   const [techFilter, setTechFilter] = useState<string>('ALL');
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
@@ -1632,8 +1632,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   onChange={(e) => { setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed'); setCurrentPage(1); }}
                   className="bg-transparent text-xs text-slate-700 outline-none cursor-pointer border-b sm:border-b-0 sm:border-r border-slate-200 pb-1 sm:pb-0 pr-2 pl-1 hover:text-primary-600 transition-colors"
                 >
-                  <option value="completed">OS Concluídas (Conclusão)</option>
                   <option value="created">Abertura</option>
+                  <option value="completed">OS Concluídas (Conclusão)</option>
                   <option value="scheduled">Agendamento</option>
                 </select>
                 <div className="flex items-center gap-1 px-1 flex-1 min-w-0 justify-between">
