@@ -4739,13 +4739,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           >
             <div className="relative max-w-5xl w-full h-full flex items-center justify-center" onClick={e => e.stopPropagation()}>
               {isVideoUrl(fullscreenImage) ? (
-                <video
-                  src={fullscreenImage}
-                  controls
-                  playsInline
-                  preload="auto"
-                  className="max-w-full max-h-full rounded-lg shadow-2xl animate-in zoom-in-95 bg-black"
-                />
+                <div className="max-w-full max-h-full flex flex-col items-center justify-center gap-3">
+                  <div className="relative max-w-full max-h-[75vh] flex items-center justify-center rounded-lg shadow-2xl overflow-hidden bg-black">
+                    <video
+                      src={fullscreenImage}
+                      controls
+                      playsInline
+                      preload="auto"
+                      className="max-w-full max-h-[75vh] rounded-lg bg-black object-contain"
+                    />
+                  </div>
+                  <a
+                    href={fullscreenImage}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-white text-xs sm:text-sm font-bold rounded-xl shadow-lg transition-all"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Play size={14} className="fill-white" />
+                    Abrir no Player do Celular / Tela Cheia
+                  </a>
+                </div>
               ) : (
                 <img
                   src={fullscreenImage}

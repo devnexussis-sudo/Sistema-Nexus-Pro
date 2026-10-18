@@ -3771,17 +3771,29 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             
             <div className="relative z-10 w-full h-full flex items-center justify-center p-2 sm:p-6" onClick={(e) => e.stopPropagation()}>
               {isVideoUrl(lightboxState.images[lightboxState.currentIndex]) ? (
-                <div className="max-w-full max-h-full flex items-center justify-center rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden bg-black">
-                  <video
-                    key={lightboxState.images[lightboxState.currentIndex]}
-                    controls
-                    playsInline
-                    preload="auto"
-                    className="max-w-full max-h-[85vh] rounded-2xl sm:rounded-3xl bg-black"
+                <div className="max-w-full max-h-full flex flex-col items-center justify-center gap-3">
+                  <div className="relative max-w-full max-h-[75vh] flex items-center justify-center rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden bg-black">
+                    <video
+                      key={lightboxState.images[lightboxState.currentIndex]}
+                      src={lightboxState.images[lightboxState.currentIndex]}
+                      controls
+                      playsInline
+                      preload="auto"
+                      className="max-w-full max-h-[75vh] rounded-2xl sm:rounded-3xl bg-black object-contain"
+                    >
+                      Seu navegador não suporta a reprodução deste vídeo.
+                    </video>
+                  </div>
+                  <a
+                    href={lightboxState.images[lightboxState.currentIndex]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-white text-xs sm:text-sm font-bold rounded-xl shadow-lg transition-all"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <source src={lightboxState.images[lightboxState.currentIndex]} type="video/mp4" />
-                    Seu navegador não suporta a reprodução deste vídeo.
-                  </video>
+                    <Play size={14} className="fill-white" />
+                    Abrir no Player do Celular / Tela Cheia
+                  </a>
                 </div>
               ) : (
                 <img
