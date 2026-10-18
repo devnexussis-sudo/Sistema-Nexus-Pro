@@ -13,6 +13,7 @@ import { getCurrentTenantId } from '../lib/tenantContext';
 import { OrderService } from './orderService';
 import { QuoteService } from './quoteService';
 import { ContractService } from './contractService';
+import { SalesOrderService } from './salesOrderService';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 const PAGE_SIZE = 20;
@@ -72,10 +73,16 @@ export const getOrdersPage = async (
     if (filters.dateType === 'completed') targetColumn = 'end_date';
 
     if (filters.startDate) {
-        query = query.gte(targetColumn, filters.startDate);
+        const startVal = (targetColumn === 'created_at' || targetColumn === 'end_date') && filters.startDate.length === 10
+            ? `${filters.startDate}T00:00:00.000Z`
+            : filters.startDate;
+        query = query.gte(targetColumn, startVal);
     }
     if (filters.endDate) {
-        query = query.lte(targetColumn, filters.endDate);
+        const endVal = (targetColumn === 'created_at' || targetColumn === 'end_date') && filters.endDate.length === 10
+            ? `${filters.endDate}T23:59:59.999Z`
+            : filters.endDate;
+        query = query.lte(targetColumn, endVal);
     }
     if (filters.search) {
         // ilike em display_id ou customer_name
@@ -205,6 +212,63 @@ export const getContractsPage = async (
     if (error) throw error;
 
     const mapped = (data || []).map(d => ContractService._mapContractFromDB(d));
+    const total = count || 0;
+    return { data: mapped, total, page, pageSize: PAGE_SIZE, lastPage: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+};
+
+// ─────────────────────────────────────────────
+// SALES ORDERS — paginação server-side real
+// ─────────────────────────────────────────────
+export interface SalesOrderFilters {
+    status?: string;
+    search?: string;
+    startDate?: string;
+    endDate?: string;
+}
+
+export const getSalesOrdersPage = async (
+    page: number = 1,
+    filters: SalesOrderFilters = {},
+    signal?: AbortSignal
+): Promise<PageResult<any>> => {
+    if (!isCloudEnabled) return { data: [], total: 0, page, pageSize: PAGE_SIZE, lastPage: 1 };
+
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) return { data: [], total: 0, page, pageSize: PAGE_SIZE, lastPage: 1 };
+
+    const from = (page - 1) * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    let query = supabase
+        .from('sales_orders')
+        .select('*', { count: 'exact' })
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false });
+
+    if (filters.status && filters.status !== 'ALL') {
+        if (filters.status === 'PENDENTE') {
+            query = query.in('status', ['PENDENTE', 'RASCUNHO']);
+        } else {
+            query = query.eq('status', filters.status);
+        }
+    }
+    if (filters.startDate) {
+        query = query.gte('created_at', filters.startDate);
+    }
+    if (filters.endDate) {
+        query = query.lte('created_at', filters.endDate + 'T23:59:59.999Z');
+    }
+    if (filters.search) {
+        query = query.or(`customer_name.ilike.%${filters.search}%,display_id.ilike.%${filters.search}%,title.ilike.%${filters.search}%`);
+    }
+
+    if (signal) query = query.abortSignal(signal);
+
+    const { data, error, count } = await query.range(from, to);
+
+    if (error) throw error;
+
+    const mapped = (data || []).map(d => SalesOrderService._mapFromDB(d));
     const total = count || 0;
     return { data: mapped, total, page, pageSize: PAGE_SIZE, lastPage: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
 };

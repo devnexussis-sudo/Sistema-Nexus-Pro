@@ -12,10 +12,10 @@ const SYSTEM_MODULES = [
     action: 'Clique no botão "+ Novo Cliente" no canto superior direito para abrir o formulário de cadastro.'
   },
   {
-    keywords: ['os', 'ordem de servico', 'nova os', 'abrir os', 'criar os', 'atividades', 'atividade', 'nova atividade'],
-    module: 'Atividades (OS)',
-    path: 'Menu Principal > Atividades',
-    action: 'Para criar uma nova OS, vá até a tela de Atividades e clique em "+ Nova OS". Preencha os dados do cliente, equipamento e descrição do problema.'
+    keywords: ['os', 'ordem de servico', 'ordens de servico', 'nova os', 'abrir os', 'criar os', 'atividades', 'atividade', 'nova atividade'],
+    module: 'Ordens de Serviço',
+    path: 'Menu Principal > Ordens de Serviço',
+    action: 'Para criar uma nova OS, vá até a tela de Ordens de Serviço e clique em "+ Nova OS". Preencha os dados do cliente, equipamento e descrição do problema.'
   },
   {
     keywords: ['tecnico', 'tecnicos', 'novo tecnico', 'cadastrar tecnico', 'equipe'],

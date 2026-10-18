@@ -6,6 +6,30 @@ const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.V
 
 
 
+export type NexusModule =
+    | 'Ordem_de_Servico'
+    | 'Orcamentos'
+    | 'Vendas'
+    | 'Estoque'
+    | 'Financeiro'
+    | 'Configuracoes_Empresa'
+    | 'Avatares'
+    | 'WhatsApp'
+    | 'Geral';
+
+export interface TenantStorageMeta {
+    companyName?: string;
+    tradeName?: string;
+    tradingName?: string;
+    name?: string;
+    cnpj?: string;
+    document?: string;
+}
+
+// 🛡️ In-Memory Caches de alta performance (0ms overhead para uploads em lote)
+const tenantMasterFolderCache = new Map<string, string>();
+const tenantMetaCache = new Map<string, TenantStorageMeta>();
+
 export interface UploadedFile {
     id: string;
     url: string;
@@ -16,6 +40,213 @@ export interface UploadedFile {
 }
 
 export const StorageService = {
+    /**
+     * 🏛️ Sanitiza nomes de pasta para o padrão Cloudflare R2 / S3
+     * Remove acentos, caracteres proibidos e colapsa underscores
+     */
+    sanitizeFolderSegment: (raw: string, maxLength = 50): string => {
+        if (!raw) return '';
+        return raw
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '') // remove acentos
+            .replace(/[^a-zA-Z0-9]/g, '_')   // substitui símbolos por _
+            .replace(/_+/g, '_')             // remove repetições consecutivas de _
+            .replace(/^_|_$/g, '')           // remove _ do início e fim
+            .toUpperCase()
+            .slice(0, maxLength);
+    },
+
+    /**
+     * 🔢 Extrai apenas os dígitos limpos do CNPJ ou CPF
+     */
+    sanitizeCnpjDigits: (rawDoc?: string): string => {
+        if (!rawDoc) return '';
+        return rawDoc.replace(/\D/g, '');
+    },
+
+    /**
+     * 🏷️ Registra metadados do tenant em memória para resolução instantânea
+     */
+    registerTenantMetadata: (tenantId: string, meta: TenantStorageMeta): void => {
+        if (!tenantId) return;
+        const existing = tenantMetaCache.get(tenantId) || {};
+        const updated = { ...existing, ...meta };
+        tenantMetaCache.set(tenantId, updated);
+        const folder = StorageService.buildTenantMasterFolder(tenantId, updated);
+        tenantMasterFolderCache.set(tenantId, folder);
+    },
+
+    /**
+     * 🏢 Constrói a Pasta Mestre Corporativa no Cloudflare R2
+     * Padrão Oficial Inegociável: [NOME_EMPRESA]_[CNPJ]
+     * Exemplo: DUNO_SOLUCOES_EM_TECNOLOGIA_44123456000199
+     */
+    buildTenantMasterFolder: (tenantId: string, meta?: TenantStorageMeta): string => {
+        const rawName = meta?.companyName || meta?.tradingName || meta?.tradeName || meta?.name || 'EMPRESA';
+        const cleanName = StorageService.sanitizeFolderSegment(rawName, 50) || 'EMPRESA';
+
+        const rawDoc = meta?.cnpj || meta?.document;
+        const digits = StorageService.sanitizeCnpjDigits(rawDoc);
+
+        // Se houver CNPJ ou CPF válido, usamos os dígitos limpos
+        let cleanDoc = digits;
+        if (!cleanDoc || cleanDoc.length < 8) {
+            // Fallback determinístico caso o CNPJ ainda não tenha sido cadastrado
+            cleanDoc = (tenantId && tenantId !== 'global' && tenantId !== 'anon')
+                ? tenantId.replace(/-/g, '').substring(0, 8).toUpperCase()
+                : 'GLOBAL';
+        }
+
+        return `${cleanName}_${cleanDoc}`;
+    },
+
+    /**
+     * 🔍 Resolve a Pasta Mestre com multi-layer fallback (Memória -> DB Auth -> DB RPC)
+     */
+    getTenantMasterFolder: async (tenantIdToUse: string): Promise<string> => {
+        if (!tenantIdToUse || tenantIdToUse === 'anon' || tenantIdToUse === 'global') {
+            return 'EMPRESA_GLOBAL';
+        }
+
+        if (tenantMasterFolderCache.has(tenantIdToUse)) {
+            return tenantMasterFolderCache.get(tenantIdToUse)!;
+        }
+
+        let meta = tenantMetaCache.get(tenantIdToUse);
+
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantIdToUse);
+        if (!meta && isUuid) {
+            try {
+                // 1. Tenta buscar no banco com cliente autenticado
+                const { data: tData, error } = await supabase
+                    .from('tenants')
+                    .select('*')
+                    .eq('id', tenantIdToUse)
+                    .maybeSingle();
+
+                if (tData && !error) {
+                    meta = {
+                        companyName: tData.company_name,
+                        tradeName: tData.trading_name || tData.trade_name,
+                        name: tData.name,
+                        cnpj: tData.cnpj,
+                        document: tData.document
+                    };
+                    tenantMetaCache.set(tenantIdToUse, meta);
+                }
+            } catch (authErr) {
+                console.warn('[Storage/R2] Consulta autenticada de tenant falhou:', authErr);
+            }
+
+            // 2. Fallback público via RPC caso seja link público / dropzone
+            if (!meta) {
+                try {
+                    const { data: pData } = await publicSupabase.rpc('get_public_tenant_info', { p_tenant_id: tenantIdToUse });
+                    if (pData) {
+                        meta = {
+                            companyName: pData.company_name,
+                            tradeName: pData.trading_name || pData.trade_name,
+                            name: pData.name,
+                            cnpj: pData.cnpj,
+                            document: pData.document
+                        };
+                        tenantMetaCache.set(tenantIdToUse, meta);
+                    }
+                } catch (rpcErr) {
+                    console.warn('[Storage/R2] RPC get_public_tenant_info falhou:', rpcErr);
+                }
+            }
+        }
+
+        const masterFolder = StorageService.buildTenantMasterFolder(tenantIdToUse, meta);
+        tenantMasterFolderCache.set(tenantIdToUse, masterFolder);
+        return masterFolder;
+    },
+
+    /**
+     * 🚀 Inicializa no Cloudflare R2 a estrutura completa de pastas mestre e módulos de uma empresa
+     * Cria marcadores .nexus_keep para cada módulo oficial:
+     * - Ordem_de_Servico
+     * - Orcamentos
+     * - Vendas
+     * - Estoque
+     * - Financeiro
+     * - Configuracoes_Empresa
+     * - Avatares
+     * - WhatsApp
+     */
+    initializeTenantMasterFolder: async (tenant: {
+        id: string;
+        name?: string;
+        company_name?: string;
+        companyName?: string;
+        trading_name?: string;
+        tradingName?: string;
+        trade_name?: string;
+        cnpj?: string;
+        document?: string;
+    }): Promise<{ success: boolean; masterFolder: string; createdModules: string[] }> => {
+        const meta: TenantStorageMeta = {
+            companyName: tenant.company_name || tenant.companyName,
+            tradeName: tenant.trading_name || tenant.tradingName || tenant.trade_name,
+            name: tenant.name,
+            cnpj: tenant.cnpj,
+            document: tenant.document
+        };
+
+        const masterFolder = StorageService.buildTenantMasterFolder(tenant.id, meta);
+        StorageService.registerTenantMetadata(tenant.id, meta);
+
+        const modules: string[] = [
+            'Ordem_de_Servico',
+            'Orcamentos',
+            'Vendas',
+            'Estoque/Produtos',
+            'Financeiro/Comprovantes',
+            'Configuracoes_Empresa/Logos',
+            'Avatares/Usuarios',
+            'WhatsApp/Conversas'
+        ];
+
+        console.log(`[Storage/R2] 📁 Provisionando estrutura corporativa para: ${masterFolder}...`);
+
+        const session = (await supabase.auth.getSession())?.data?.session;
+        const token = session?.access_token || safeKey;
+        const authHeaders = {
+            Authorization: `Bearer ${token}`,
+            apikey: safeKey
+        };
+
+        const base64Content = btoa(`Nexus Pro - Master Directory: ${masterFolder}\nCreated: ${new Date().toISOString()}`);
+
+        const results = await Promise.allSettled(
+            modules.map(async (mod) => {
+                const keepPath = `${masterFolder}/${mod}/.nexus_keep`;
+                const res = await supabase.functions.invoke('r2-operations', {
+                    body: {
+                        action: 'direct-upload',
+                        path: keepPath,
+                        bucketType: 'private',
+                        contentType: 'text/plain',
+                        base64: base64Content
+                    },
+                    headers: authHeaders
+                });
+                if (res.error) throw res.error;
+                return keepPath;
+            })
+        );
+
+        const created = results.filter(r => r.status === 'fulfilled').length;
+        console.log(`[Storage/R2] ✅ Pastas criadas no Cloudflare R2: ${created}/${modules.length} módulos em ${masterFolder}`);
+
+        return {
+            success: created > 0,
+            masterFolder,
+            createdModules: modules
+        };
+    },
+
     /**
      * 🎛️ Nexus Image Compression Engine (WebP Optimized)
      * Reduz o peso da imagem drasticamente usando o padrão WebP.
@@ -70,134 +301,307 @@ export const StorageService = {
     },
 
     /**
-     * 🧠 Resolve os paths técnicos para o novo padrão amigável da empresa
+     * 🧠 Resolve os paths técnicos para o novo padrão corporativo Cloudflare R2
+     * Regra Inegociável:
+     * - Toda empresa possui sua pasta mestre: [NOME_EMPRESA]_[CNPJ]
+     * - Dentro dela, estritamente as pastas de módulos:
+     *   - Ordem_de_Servico
+     *   - Orcamentos
+     *   - Vendas
+     *   - Estoque
+     *   - Financeiro
+     *   - Configuracoes_Empresa
+     *   - Avatares
+     *   - WhatsApp
+     *   - Geral
      */
-    _resolveHumanPath: async (originalPath: string, providedTenantId?: string): Promise<{ finalPath: string, resolvedTenantId: string }> => {
+    _resolveHumanPath: async (
+        originalPath: string,
+        providedTenantId?: string
+    ): Promise<{
+        finalPath: string;
+        resolvedTenantId: string;
+        masterFolder: string;
+        moduleName: NexusModule;
+        fileName?: string;
+    }> => {
         let cleanPath = originalPath.toString().replace(/^\/+/, '').replace(/\/+$/, '');
-        let finalHumanPath = cleanPath;
         let tenantIdToUse = providedTenantId;
+        let moduleName: NexusModule = 'Geral';
+        let moduleRelativePath = cleanPath;
+        let extractedFileName: string | undefined = undefined;
+
+        // Se o path fornecido já contém um nome de arquivo no final (ex: .webp, .png, .jpg, .pdf, .mp4)
+        const parts = cleanPath.split('/');
+        const lastPart = parts[parts.length - 1];
+        if (/\.[a-zA-Z0-9]{2,5}$/i.test(lastPart)) {
+            extractedFileName = lastPart;
+            parts.pop();
+            cleanPath = parts.join('/');
+        }
 
         try {
-            if (cleanPath.startsWith('orders/')) {
-                const parts = cleanPath.split('/');
-                const orderId = parts[1];
-                const subfolder = parts[2];
+            // ─────────────────────────────────────────────────────────────
+            // 1. MÓDULO: ORDEM DE SERVIÇO (OS)
+            // ─────────────────────────────────────────────────────────────
+            if (
+                cleanPath.startsWith('orders/') ||
+                cleanPath.startsWith('checklist_photos') ||
+                cleanPath.startsWith('checklist_videos') ||
+                cleanPath.startsWith('service_visits') ||
+                cleanPath.startsWith('order_impediments')
+            ) {
+                moduleName = 'Ordem_de_Servico';
 
-                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
-                const orderQuery = supabase.from('orders').select('display_id, tenant_id');
-                const { data } = isUuid
-                    ? await orderQuery.eq('id', orderId).maybeSingle()
-                    : await orderQuery.eq('display_id', orderId).maybeSingle();
+                if (cleanPath.startsWith('orders/')) {
+                    const orderParts = cleanPath.split('/');
+                    const orderId = orderParts[1];
+                    const rawSubfolder = orderParts[2] || '';
 
-                if (data) {
-                    if (!tenantIdToUse) tenantIdToUse = data.tenant_id;
-                    const code = data.display_id || orderId.substring(0, 8);
+                    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
+                    const orderQuery = supabase.from('orders').select('display_id, tenant_id');
+                    const { data } = isUuid
+                        ? await orderQuery.eq('id', orderId).maybeSingle()
+                        : await orderQuery.eq('display_id', orderId).maybeSingle();
 
-                    let subHuman = 'Arquivos';
-                    if (subfolder === 'evidence') subHuman = 'Evidencias';
-                    else if (subfolder === 'internal_notes') subHuman = 'Observacoes';
-                    else if (subfolder === 'signatures') subHuman = 'Assinaturas';
-                    else if (subfolder) subHuman = subfolder;
-
-                    finalHumanPath = `Ordem de Servico/${code}/${subHuman}`;
-                } else {
-                    // Fallback for public dropzone
-                    const { data: pData } = await publicSupabase.rpc('get_public_document', { doc_token: orderId, doc_type: 'order' });
-                    if (pData) {
-                        if (!tenantIdToUse) tenantIdToUse = pData.tenant_id;
-                        const code = pData.display_id || pData.id?.substring(0, 8) || orderId.substring(0, 8);
-                        let subHuman = 'Arquivos';
-                        if (subfolder === 'signatures') subHuman = 'Assinaturas';
-                        else if (subfolder) subHuman = subfolder;
-                        finalHumanPath = `Ordem de Servico/${code}/${subHuman}`;
+                    let orderCode = orderId;
+                    if (data) {
+                        if (!tenantIdToUse) tenantIdToUse = data.tenant_id;
+                        orderCode = data.display_id || orderId.substring(0, 8);
+                    } else {
+                        // Fallback público para dropzone
+                        const { data: pData } = await publicSupabase.rpc('get_public_document', { doc_token: orderId, doc_type: 'order' });
+                        if (pData) {
+                            if (!tenantIdToUse) tenantIdToUse = pData.tenant_id;
+                            orderCode = pData.display_id || pData.id?.substring(0, 8) || orderId.substring(0, 8);
+                        }
                     }
+
+                    const cleanCode = StorageService.sanitizeFolderSegment(orderCode, 35) || 'Geral';
+                    const orderFolder = cleanCode.startsWith('OS_')
+                        ? cleanCode
+                        : `OS_${cleanCode.replace(/^OS[-_]/i, '')}`;
+
+                    let subHuman = 'Evidencias';
+                    if (rawSubfolder === 'evidence' || rawSubfolder === 'photos' || rawSubfolder === 'extra_photos') subHuman = 'Evidencias';
+                    else if (rawSubfolder === 'signatures' || rawSubfolder === 'signature') subHuman = 'Assinaturas';
+                    else if (rawSubfolder === 'internal_notes' || rawSubfolder === 'notes') subHuman = 'Observacoes';
+                    else if (rawSubfolder === 'block' || rawSubfolder === 'impediments') subHuman = 'Impedimentos';
+                    else if (rawSubfolder === 'videos') subHuman = 'Videos';
+                    else if (rawSubfolder === 'form_photos' || rawSubfolder === 'checklist' || rawSubfolder === 'checklist_photos') subHuman = 'Checklist';
+                    else if (rawSubfolder === 'documents' || rawSubfolder === 'terms') subHuman = 'Documentos';
+                    else if (rawSubfolder) subHuman = StorageService.sanitizeFolderSegment(rawSubfolder, 30) || 'Arquivos';
+
+                    moduleRelativePath = `Ordem_de_Servico/${orderFolder}/${subHuman}`;
+                } else if (cleanPath.startsWith('checklist_photos')) {
+                    moduleRelativePath = `Ordem_de_Servico/Checklist/Fotos`;
+                } else if (cleanPath.startsWith('checklist_videos')) {
+                    moduleRelativePath = `Ordem_de_Servico/Checklist/Videos`;
+                } else {
+                    moduleRelativePath = `Ordem_de_Servico/Geral`;
                 }
             }
-            else if (cleanPath.startsWith('quotes/')) {
-                const parts = cleanPath.split('/');
-                const quoteId = parts[1];
-                const subfolder = parts[2];
 
-                const { data } = await supabase.from('quotes').select('display_id, tenant_id').eq('id', quoteId).maybeSingle();
+            // ─────────────────────────────────────────────────────────────
+            // 2. MÓDULO: ORÇAMENTOS (Prefixo Oficial: Orcamento_)
+            // ─────────────────────────────────────────────────────────────
+            else if (cleanPath.startsWith('quotes/') || cleanPath.startsWith('orcamentos/')) {
+                moduleName = 'Orcamentos';
+                const quoteParts = cleanPath.split('/');
+                const quoteId = quoteParts[1];
+                const rawSubfolder = quoteParts[2] || '';
+
+                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(quoteId);
+                const { data } = await supabase.from('quotes').select('display_id, tenant_id').eq(isUuid ? 'id' : 'display_id', quoteId).maybeSingle();
+
+                let quoteCode = quoteId;
                 if (data) {
                     if (!tenantIdToUse) tenantIdToUse = data.tenant_id;
-                    const code = data.display_id || quoteId.substring(0, 8);
-
-                    let subHuman = 'Arquivos';
-                    if (subfolder === 'signatures') subHuman = 'Assinaturas';
-                    else if (subfolder === 'rejections') subHuman = 'Rejeicoes';
-                    else if (subfolder) subHuman = subfolder;
-
-                    finalHumanPath = `Orcamentos/${code}/${subHuman}`;
+                    quoteCode = data.display_id || quoteId.substring(0, 8);
                 } else {
-                    // Fallback for public dropzone
                     const { data: pData } = await publicSupabase.rpc('get_public_document', { doc_token: quoteId, doc_type: 'quote' });
                     if (pData) {
                         if (!tenantIdToUse) tenantIdToUse = pData.tenant_id;
-                        const code = pData.display_id || pData.id?.substring(0, 8) || quoteId.substring(0, 8);
-                        let subHuman = 'Arquivos';
-                        if (subfolder === 'signatures') subHuman = 'Assinaturas';
-                        else if (subfolder === 'rejections') subHuman = 'Rejeicoes';
-                        else if (subfolder) subHuman = subfolder;
-                        finalHumanPath = `Orcamentos/${code}/${subHuman}`;
+                        quoteCode = pData.display_id || pData.id?.substring(0, 8) || quoteId.substring(0, 8);
                     }
                 }
-            }
-            else if (cleanPath.startsWith('avatars/users/')) {
-                const parts = cleanPath.split('/');
-                const userId = parts[2];
-                if (userId) {
-                    const { data } = await supabase.from('users').select('name').eq('id', userId).maybeSingle();
-                    const userName = data?.name ? data.name.trim().replace(/[^a-zA-Z0-9]/g, '_') : userId;
-                    finalHumanPath = `Avatares/Usuarios/${userName}`;
-                }
-            }
-            else if (cleanPath.startsWith('tenants/')) {
-                const parts = cleanPath.split('/');
-                if (parts[1] && parts[1] !== 'new' && parts[1] !== 'new_tenant' && parts[1] !== 'company') {
-                    if (!tenantIdToUse || tenantIdToUse === 'anon' || tenantIdToUse === 'global') tenantIdToUse = parts[1];
-                }
-                finalHumanPath = `Configuracoes_Empresa/Logos`;
+
+                const cleanQuote = StorageService.sanitizeFolderSegment(quoteCode, 35) || 'Geral';
+                const quoteFolder = cleanQuote.startsWith('Orcamento_')
+                    ? cleanQuote
+                    : `Orcamento_${cleanQuote.replace(/^(ORC|ORCAMENTO)[-_]/i, '')}`;
+
+                let subHuman = 'Arquivos';
+                if (rawSubfolder === 'signatures' || rawSubfolder === 'signature') subHuman = 'Assinaturas';
+                else if (rawSubfolder === 'rejections' || rawSubfolder === 'rejection') subHuman = 'Rejeicoes';
+                else if (rawSubfolder === 'proposals' || rawSubfolder === 'pdf') subHuman = 'Propostas';
+                else if (rawSubfolder === 'evidence' || rawSubfolder === 'photos') subHuman = 'Evidencias';
+                else if (rawSubfolder) subHuman = StorageService.sanitizeFolderSegment(rawSubfolder, 30) || 'Arquivos';
+
+                moduleRelativePath = `Orcamentos/${quoteFolder}/${subHuman}`;
             }
 
-            if (!tenantIdToUse) tenantIdToUse = 'global';
+            // ─────────────────────────────────────────────────────────────
+            // 3. MÓDULO: VENDAS / PEDIDOS DE VENDA (Prefixo Oficial: Pedido_Venda_)
+            // ─────────────────────────────────────────────────────────────
+            else if (cleanPath.startsWith('sales_orders/') || cleanPath.startsWith('sales/') || cleanPath.startsWith('vendas/')) {
+                moduleName = 'Vendas';
+                const salesParts = cleanPath.split('/');
+                const saleId = salesParts[1] || 'Geral';
+                const rawSub = salesParts[2] || 'Arquivos';
+                const cleanSub = rawSub === 'signatures' ? 'Assinaturas' : rawSub === 'receipts' ? 'Comprovantes' : 'Arquivos';
 
-            // Buscar o nome fantasia do tenant caso seja um UUID válido
-            let tenantNameStr = 'Empresa';
-            const isTenantUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantIdToUse);
-            if (isTenantUuid) {
-                try {
-                    // Try auth first
-                    const { data: tData } = await supabase.from('tenants').select('trade_name, name, company_name').eq('id', tenantIdToUse).maybeSingle();
-                    if (tData) {
-                        const tName = tData.trade_name || tData.name || tData.company_name;
-                        if (tName) tenantNameStr = tName.trim().replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
-                    } else {
-                        // Fallback via RPC public
-                        const { data: pData } = await publicSupabase.rpc('get_public_tenant_info', { p_tenant_id: tenantIdToUse });
-                        if (pData) {
-                            const tName = pData.trade_name || pData.name || pData.company_name;
-                            if (tName) tenantNameStr = tName.trim().replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+                const cleanSale = StorageService.sanitizeFolderSegment(saleId, 35) || 'Geral';
+                const saleFolder = cleanSale.startsWith('Pedido_Venda_')
+                    ? cleanSale
+                    : `Pedido_Venda_${cleanSale.replace(/^(PV|PEDIDO|PEDIDO_VENDA|VENDA)[-_]/i, '')}`;
+
+                moduleRelativePath = `Vendas/${saleFolder}/${cleanSub}`;
+            }
+
+            // ─────────────────────────────────────────────────────────────
+            // 4. MÓDULO: ESTOQUE / PRODUTOS (Prefixo Oficial: Produto_)
+            // ─────────────────────────────────────────────────────────────
+            else if (cleanPath.startsWith('inventory/') || cleanPath.startsWith('stock/') || cleanPath.startsWith('items/') || cleanPath.startsWith('estoque/')) {
+                moduleName = 'Estoque';
+                const stockParts = cleanPath.split('/');
+                const itemCode = stockParts[2] || stockParts[1] || 'Geral';
+                const cleanItem = StorageService.sanitizeFolderSegment(itemCode, 40) || 'Geral';
+                const productFolder = cleanItem.startsWith('Produto_')
+                    ? cleanItem
+                    : `Produto_${cleanItem.replace(/^(PROD|PRODUTO|ITEM)[-_]/i, '')}`;
+
+                moduleRelativePath = `Estoque/Produtos/${productFolder}`;
+            }
+
+            // ─────────────────────────────────────────────────────────────
+            // 5. MÓDULO: FINANCEIRO (Prefixo Oficial: Comprovante_)
+            // ─────────────────────────────────────────────────────────────
+            else if (cleanPath.startsWith('financial/') || cleanPath.startsWith('receipts/') || cleanPath.startsWith('financeiro/')) {
+                moduleName = 'Financeiro';
+                const finParts = cleanPath.split('/');
+                const subCategory = finParts[1] === 'receipts' ? 'Comprovantes' : finParts[1] || 'Comprovantes';
+                const folderIdentifier = finParts[2] || new Date().toISOString().slice(0, 7).replace('-', '_');
+                const cleanFinId = StorageService.sanitizeFolderSegment(folderIdentifier, 35);
+                const compFolder = cleanFinId.startsWith('Comprovante_')
+                    ? cleanFinId
+                    : `Comprovante_${cleanFinId.replace(/^COMPROVANTE[-_]/i, '')}`;
+
+                moduleRelativePath = `Financeiro/Comprovantes/${compFolder}`;
+            }
+
+            // ─────────────────────────────────────────────────────────────
+            // 6. MÓDULO: CONFIGURAÇÕES DA EMPRESA (Logos, Documentos)
+            // ─────────────────────────────────────────────────────────────
+            else if (cleanPath.startsWith('tenants/') || cleanPath.startsWith('company/') || cleanPath.startsWith('logos/')) {
+                moduleName = 'Configuracoes_Empresa';
+                const tenantParts = cleanPath.split('/');
+                const possibleId = tenantParts[1];
+                if (possibleId && possibleId !== 'new' && possibleId !== 'new_tenant' && possibleId !== 'company') {
+                    if (!tenantIdToUse || tenantIdToUse === 'anon' || tenantIdToUse === 'global') {
+                        tenantIdToUse = possibleId;
+                    }
+                }
+                const subType = tenantParts[2] === 'logo' || tenantParts[1] === 'logo' ? 'Logos' : 'Logos';
+                moduleRelativePath = `Configuracoes_Empresa/${subType}`;
+            }
+
+            // ─────────────────────────────────────────────────────────────
+            // 7. MÓDULO: AVATARES DE USUÁRIOS E TÉCNICOS (Prefixo Oficial: Usuario_)
+            // ─────────────────────────────────────────────────────────────
+            else if (cleanPath.startsWith('avatars/')) {
+                moduleName = 'Avatares';
+                const avatarParts = cleanPath.split('/');
+                const userId = avatarParts[2] || avatarParts[1];
+                let userName = userId || 'Usuario';
+
+                if (userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+                    try {
+                        const { data } = await supabase.from('users').select('name, tenant_id').eq('id', userId).maybeSingle();
+                        if (data) {
+                            if (data.name) userName = StorageService.sanitizeFolderSegment(data.name, 40);
+                            if (!tenantIdToUse && data.tenant_id) tenantIdToUse = data.tenant_id;
                         }
-                    }
-                } catch (tErr) {
-                    console.warn('[Storage] Não foi possível obter nome do tenant:', tErr);
+                    } catch (_) {}
                 }
+
+                const cleanUser = StorageService.sanitizeFolderSegment(userName, 40) || 'Usuario';
+                const userFolder = cleanUser.startsWith('Usuario_')
+                    ? cleanUser
+                    : `Usuario_${cleanUser.replace(/^USUARIO[-_]/i, '')}`;
+
+                moduleRelativePath = `Avatares/Usuarios/${userFolder}`;
             }
 
-            const rootFolder = `${tenantNameStr}_${tenantIdToUse}`;
+            // ─────────────────────────────────────────────────────────────
+            // 8. MÓDULO: WHATSAPP (CRM / Conversas — Prefixo Oficial: Conversa_)
+            // ─────────────────────────────────────────────────────────────
+            else if (cleanPath.startsWith('whatsapp/')) {
+                moduleName = 'WhatsApp';
+                const wppParts = cleanPath.split('/');
+                const possibleTenant = wppParts[1];
+                const hasTenantInPath = possibleTenant && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(possibleTenant);
+                if (hasTenantInPath && !tenantIdToUse) {
+                    tenantIdToUse = possibleTenant;
+                }
+
+                const rawPhone = hasTenantInPath ? (wppParts[2] || 'Geral') : (possibleTenant || 'Geral');
+                const cleanPhone = rawPhone.replace(/\D/g, '') || StorageService.sanitizeFolderSegment(rawPhone, 25) || 'Geral';
+                const conversaFolder = cleanPhone.startsWith('Conversa_')
+                    ? cleanPhone
+                    : `Conversa_${cleanPhone.replace(/^CONVERSA[-_]/i, '')}`;
+
+                const tipoIndex = hasTenantInPath ? 3 : 2;
+                const dateIndex = hasTenantInPath ? 4 : 3;
+
+                const tipoRaw = (wppParts[tipoIndex] || 'Midia').toLowerCase();
+                let tipo = 'Midia';
+                if (tipoRaw.includes('imagem') || tipoRaw.includes('foto') || tipoRaw.includes('image')) tipo = 'Imagens';
+                else if (tipoRaw.includes('doc') || tipoRaw.includes('pdf')) tipo = 'Documentos';
+                else if (tipoRaw.includes('audio') || tipoRaw.includes('voz') || tipoRaw.includes('ptt')) tipo = 'Audios';
+
+                const dateSub = wppParts[dateIndex] ? `/${StorageService.sanitizeFolderSegment(wppParts[dateIndex], 20)}` : '';
+                moduleRelativePath = `WhatsApp/Conversas/${conversaFolder}/${tipo}${dateSub}`;
+            }
+
+            // ─────────────────────────────────────────────────────────────
+            // 9. CATCH-ALL DEFENSIVO (Zero arquivos fora do tenant)
+            // ─────────────────────────────────────────────────────────────
+            else {
+                moduleName = 'Geral';
+                moduleRelativePath = `Geral/${cleanPath}`;
+            }
+
+            // Resolver o Tenant ID definitivo
+            if (!tenantIdToUse || tenantIdToUse === 'anon') {
+                tenantIdToUse = getCurrentTenantId() || 'global';
+            }
+
+            // Obter a Pasta Mestre corporativa da empresa: [NOME_EMPRESA]_[CNPJ]
+            const masterFolder = await StorageService.getTenantMasterFolder(tenantIdToUse);
+
+            // Montar o caminho final canônico
+            const finalPath = `${masterFolder}/${moduleRelativePath}`.replace(/\/+/g, '/');
 
             return {
-                finalPath: `${rootFolder}/${finalHumanPath}`.replace(/\/+/g, '/'),
-                resolvedTenantId: tenantIdToUse
+                finalPath,
+                resolvedTenantId: tenantIdToUse,
+                masterFolder,
+                moduleName,
+                fileName: extractedFileName
             };
 
         } catch (e) {
             console.error('[StorageService] ⚠️ Falha ao resolver HumanPath:', e);
-            const fallbackRoot = tenantIdToUse ? `Empresa_${tenantIdToUse}` : 'Empresa';
+            const fallbackMaster = (tenantIdToUse && tenantIdToUse !== 'global')
+                ? `EMPRESA_${tenantIdToUse.substring(0, 8).toUpperCase()}`
+                : 'EMPRESA_GLOBAL';
             return {
-                finalPath: `${fallbackRoot}/${cleanPath}`.replace(/\/+/g, '/'),
-                resolvedTenantId: tenantIdToUse || 'global'
+                finalPath: `${fallbackMaster}/Geral/${cleanPath}`.replace(/\/+/g, '/'),
+                resolvedTenantId: tenantIdToUse || 'global',
+                masterFolder: fallbackMaster,
+                moduleName: 'Geral',
+                fileName: extractedFileName
             };
         }
     },
@@ -219,8 +623,8 @@ export const StorageService = {
         const resolved = await StorageService._resolveHumanPath(path, authTenantId);
 
         const ext = options?.extension || 'webp';
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
-        const fullPath = `${resolved.finalPath}/${fileName}`.replace(/\/+/g, '/');
+        const finalFileName = resolved.fileName || `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+        const fullPath = `${resolved.finalPath}/${finalFileName}`.replace(/\/+/g, '/');
         const contentType = options?.contentType || 'image/webp';
 
         console.log(`[Storage/R2] 📤 Uploading ${fullPath} (${(blobOrFile.size / 1024).toFixed(0)}KB)...`);
@@ -356,8 +760,8 @@ export const StorageService = {
     _uploadDropzoneCore: async (blobOrFile: Blob | File, path: string, retryCount = 2, signal?: AbortSignal): Promise<string> => {
         const resolved = await StorageService._resolveHumanPath(path);
 
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.webp`;
-        const fullPath = `${resolved.finalPath}/${fileName}`.replace(/\/+/g, '/');
+        const finalFileName = resolved.fileName || `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.webp`;
+        const fullPath = `${resolved.finalPath}/${finalFileName}`.replace(/\/+/g, '/');
         const contentType = 'image/webp';
 
         console.log(`[Storage/Dropzone-R2] 📤 Uploading strictly to Cloudflare R2: ${fullPath} (${(blobOrFile.size / 1024).toFixed(0)}KB)...`);
@@ -698,8 +1102,16 @@ export const StorageService = {
      * Converte estritamente para WebP preservando transparência e envia para o Cloudflare R2
      * Salva em: ${tenantId}/Configuracoes_Empresa/Logos/logo_${timestamp}.webp
      */
-    uploadTenantLogo: async (file: File | Blob, tenantId: string, signal?: AbortSignal): Promise<string> => {
+    uploadTenantLogo: async (
+        file: File | Blob,
+        tenantId: string,
+        signal?: AbortSignal,
+        tenantMetadata?: TenantStorageMeta
+    ): Promise<string> => {
         const cleanTenantId = tenantId && tenantId !== 'undefined' && tenantId !== 'null' ? tenantId : 'global';
+        if (tenantMetadata && cleanTenantId !== 'global') {
+            StorageService.registerTenantMetadata(cleanTenantId, tenantMetadata);
+        }
         const folderPath = `tenants/${cleanTenantId}/logo`;
         if (!isCloudEnabled) return URL.createObjectURL(file);
         try {
@@ -834,12 +1246,18 @@ export const StorageService = {
                 path = url.split('/nexus-public-dropzone/')[1].split('?')[0];
                 bucketType = 'dropzone';
             }
-            // Novo formato R2
+            // Formato R2 .r2.dev
             else if (url.includes('.r2.dev/')) {
                 path = url.split('.r2.dev/')[1].split('?')[0];
-                // Como não temos distinção clara na URL, assumimos dropzone/public dependendo do path
-                // (Para R2, vamos delegar pra Edge Function tentar deletar baseado na chave)
-                bucketType = url.includes('dropzone') ? 'dropzone' : 'private'; // simplificação
+                bucketType = url.includes('dropzone') ? 'dropzone' : 'private';
+            }
+            // URL absoluta genérica (custom domain)
+            else if (url.startsWith('http://') || url.startsWith('https://')) {
+                try {
+                    const u = new URL(url);
+                    path = u.pathname.replace(/^\/+/, '');
+                    bucketType = url.includes('dropzone') ? 'dropzone' : 'private';
+                } catch (_) {}
             }
 
             // Exclui via Edge Function no R2
@@ -855,7 +1273,6 @@ export const StorageService = {
 
             if (error) {
                 console.error(`[Storage/R2] ⚠️ Falha na Edge Function R2 (fallback pro antigo):`, error);
-                // Fallback para o storage antigo do Supabase apenas como precaução na transição
                 if (bucketType === 'dropzone') {
                     await publicSupabase.storage.from('nexus-public-dropzone').remove([decodeURIComponent(path)]);
                 } else {

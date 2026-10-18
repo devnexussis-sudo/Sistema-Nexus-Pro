@@ -731,88 +731,103 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
         )}
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
+      <div className="relative bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col overflow-hidden flex-1 ring-1 ring-slate-200/80">
         {/* 💻 DESKTOP TABLE VIEW */}
-        <div className="hidden md:block flex-1 overflow-auto p-0 custom-scrollbar">
-          <table className="w-full border-separate border-spacing-y-1">
-            <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
-              <tr className="text-[10px] font-bold text-slate-400  tracking-[0.3em] text-center lowercase">
-                <th className="px-4 py-2 text-left">cliente / documento</th>
-                <th className="px-4 py-2 hidden md:table-cell">contato principal</th>
-                <th className="px-4 py-2 hidden lg:table-cell">localização</th>
-                <th className="px-4 py-2 text-center">status</th>
-                <th className="px-4 py-2 text-right pr-6">ações</th>
+        <div className="hidden md:block flex-1 overflow-auto custom-scrollbar os-table-container">
+          <table className="w-full text-left border-collapse table-auto">
+            <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-md border-b border-slate-200 z-10 shadow-xs font-poppins">
+              <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">
+                <th className="px-4 py-3 text-left">Cliente / Razão Social</th>
+                <th className="px-4 py-3 text-left hidden md:table-cell">Documento</th>
+                <th className="px-4 py-3 text-left hidden md:table-cell">Contato Principal</th>
+                <th className="px-4 py-3 text-left hidden lg:table-cell">Localização</th>
+                <th className="px-4 py-3 text-center">Status</th>
+                <th className="px-4 py-3 text-right pr-6">Ações</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100 bg-white">
               {paginatedCustomers.map(c => {
                 return (
-                  <React.Fragment key={c.id}>
-                    <tr
-                      onClick={(e) => handleView(c, e)}
-                      className={`bg-white hover:bg-slate-50 transition-all group shadow-sm hover:shadow-md cursor-pointer ${!c.active ? 'opacity-50' : ''}`}
-                    >
-                      <td className="px-4 py-1.5 border-y border-slate-100 rounded-l-[1.5rem] border-l">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2.5 rounded-xl border-2 shrink-0 ${c.type === 'PJ' ? 'bg-primary-50 border-primary-100 text-primary-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
-                            {c.type === 'PJ' ? <Building2 size={16} /> : <User size={16} />}
-                          </div>
-                          <div className="truncate">
-                            <p className="text-slate-800 tracking-tight truncate max-w-[150px] md:max-w-[180px] text-[13px] font-medium">{c.name}</p>
-                            <p className="text-[11px] text-slate-400 mt-0.5 truncate">{c.document}</p>
-                            <div className="md:hidden mt-0.5 flex items-center gap-1 text-[10px] text-emerald-500 font-medium">
-                              <Phone size={10} /> {c.whatsapp || c.phone}
-                            </div>
-                          </div>
+                  <tr
+                    key={c.id}
+                    onClick={(e) => handleView(c, e)}
+                    className={`bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md cursor-pointer ${!c.active ? 'opacity-50' : ''}`}
+                  >
+                    <td className="px-4 py-2">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${c.type === 'PJ' ? 'bg-primary-50 border-primary-100 text-primary-600' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
+                          {c.type === 'PJ' ? <Building2 size={16} /> : <User size={16} />}
                         </div>
-                      </td>
-                      <td className="px-4 py-1.5 border-y border-slate-100 hidden md:table-cell">
-                        <div className="space-y-0.5">
-                          <p className="text-[11px] text-slate-600 flex items-center gap-1.5 truncate max-w-[150px]"><Mail size={12} className="text-primary-400" /> {c.email}</p>
-                          <p className="text-[11px] text-emerald-500 flex items-center gap-1.5 tracking-tighter"><Phone size={12} /> {c.whatsapp || c.phone}</p>
+                        <div className="truncate">
+                          <p className="text-slate-900 tracking-tight truncate max-w-[200px] text-[13px] font-medium">{c.name}</p>
+                          <span className="text-[11px] text-slate-400 block md:hidden truncate">{c.document}</span>
                         </div>
-                      </td>
-                      <td className="px-4 py-1.5 border-y border-slate-100 text-[11px] text-slate-500 truncate max-w-[120px] hidden lg:table-cell">
-                        <div className="flex items-center gap-1.5">
-                          <MapPin size={14} className="text-primary-400" />
-                          <span className="truncate">{c.city} • {c.state}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-1.5 border-y border-slate-100 text-center whitespace-nowrap">
-                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold   border ${c.active ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
-                          {c.active ? 'Ativo' : 'Suspenso'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-1.5 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
-
-                        <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
-                            <>
-                              <button onClick={(e) => {
-                                if (!canEdit('customers')) { e.preventDefault(); e.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
-                                toggleStatus(c.id, e);
-                              }} title={c.active ? "Suspender" : "Liberar"} className={`p-2.5 bg-slate-50 text-slate-400 hover:text-amber-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-amber-100 transition-all active:scale-90 ${!canEdit('customers') ? 'opacity-50 !cursor-not-allowed' : ''}`}>
-                                {c.active ? <PowerOff size={16} /> : <Power size={16} />}
-                              </button>
-                              <button onClick={(e) => {
-                                if (!canEdit('customers')) { e.preventDefault(); e.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
-                                handleEdit(c, e);
-                              }} title="Editar" className={`p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90 ${!canEdit('customers') ? 'opacity-50 !cursor-not-allowed' : ''}`}>
-                                <Edit2 size={16} />
-                              </button>
-                            </>
-                            <button onClick={(e) => {
-                              if (!canDelete('customers')) { e.preventDefault(); e.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
-                              handleDelete(c.id, e);
-                            }} title="Excluir" className={`p-2.5 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-90 ${!canDelete('customers') ? 'opacity-50 !cursor-not-allowed' : ''}`}>
-                              <Trash2 size={16} />
-                            </button>
-                        </div>
-
-                      </td>
-                    </tr>
-
-
-                  </React.Fragment>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 hidden md:table-cell">
+                      <span className="font-mono text-[12px] text-slate-600">{c.document || '---'}</span>
+                    </td>
+                    <td className="px-4 py-2 hidden md:table-cell">
+                      <div className="space-y-0.5">
+                        {c.email && (
+                          <p className="text-[12px] text-slate-600 flex items-center gap-1.5 truncate max-w-[180px]">
+                            <Mail size={12} className="text-slate-400 shrink-0" /> {c.email}
+                          </p>
+                        )}
+                        {(c.whatsapp || c.phone) && (
+                          <p className="text-[12px] text-emerald-600 flex items-center gap-1.5">
+                            <Phone size={12} className="shrink-0" /> {c.whatsapp || c.phone}
+                          </p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 hidden lg:table-cell text-[12px] text-slate-600">
+                      <div className="flex items-center gap-1.5 truncate max-w-[150px]">
+                        <MapPin size={13} className="text-slate-400 shrink-0" />
+                        <span className="truncate">{c.city ? `${c.city} • ${c.state}` : 'Não informada'}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 text-center whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-medium border ${c.active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${c.active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                        {c.active ? 'Ativo' : 'Suspenso'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-right pr-4" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={(e) => {
+                            if (!canEdit('customers')) { e.preventDefault(); e.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                            toggleStatus(c.id, e);
+                          }}
+                          title={c.active ? "Suspender Cliente" : "Ativar Cliente"}
+                          className={`p-1.5 bg-slate-50 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg border border-slate-200/60 transition-all ${!canEdit('customers') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                        >
+                          {c.active ? <PowerOff size={15} /> : <Power size={15} />}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            if (!canEdit('customers')) { e.preventDefault(); e.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                            handleEdit(c, e);
+                          }}
+                          title="Editar Cliente"
+                          className={`p-1.5 bg-primary-50/50 text-primary-500 hover:text-primary-700 hover:bg-primary-100 rounded-lg border border-primary-200/60 transition-all ${!canEdit('customers') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                        >
+                          <Edit2 size={15} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            if (!canDelete('customers')) { e.preventDefault(); e.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
+                            handleDelete(c.id, e);
+                          }}
+                          title="Excluir Cliente"
+                          className={`p-1.5 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-rose-100 rounded-lg border border-rose-200/60 transition-all ${!canDelete('customers') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>
@@ -889,20 +904,20 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
 
       {
         isModalOpen && createPortal(
-          <div className="fixed inset-0 z-[160] flex items-end md:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 md:p-8 overflow-hidden animate-in fade-in duration-300">
-            <div className="bg-white md:rounded-2xl w-full max-w-6xl h-full md:h-[92vh] shadow-2xl md:border border-slate-200 overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-300">
+          <div className="fixed inset-0 z-[160] flex items-end md:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 md:p-3 lg:p-5 overflow-hidden animate-in fade-in duration-300">
+            <div className="bg-white md:rounded-2xl w-full max-w-[1420px] h-full md:h-[95vh] shadow-2xl md:border border-slate-200 overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-300">
 
               {/* HEADER */}
-              <div className="px-8 py-5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center text-[#1c2d4f] border border-slate-200">
+              <div className="px-6 py-3.5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-slate-50 rounded-lg flex items-center justify-center text-[#1c2d4f] border border-slate-200">
                     <Building2 size={18} />
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+                    <h2 className="text-base font-semibold text-slate-900 tracking-tight">
                       {isReadOnly ? 'Detalhes do Cliente' : (editingId ? 'Editar Cliente' : 'Novo Cliente')}
                     </h2>
-                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">Nexus Operacional • registro de unidade</p>
+                    <p className="text-[11px] font-normal text-slate-400">Nexus Operacional • registro de unidade</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
@@ -915,122 +930,144 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
               {/* BODY WITH SIDEBAR */}
               <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
                 {/* SIDEBAR MENU */}
-                <div className="w-full md:w-64 bg-slate-50/50 border-b md:border-b-0 md:border-r border-slate-200 p-4 md:p-6 flex flex-row md:flex-col gap-2 shrink-0 overflow-x-auto">
+                <div className="w-full md:w-52 bg-slate-50/60 border-b md:border-b-0 md:border-r border-slate-200 p-3 md:p-4 flex flex-row md:flex-col gap-1.5 shrink-0 overflow-x-auto">
                   <button type="button" onClick={() => setModalTab('dados')}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
-                      modalTab === 'dados' ? 'bg-white text-[#1c2d4f] shadow-sm border border-slate-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                    className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs transition-all ${
+                      modalTab === 'dados' ? 'bg-white text-[#1c2d4f] shadow-sm border border-slate-200 font-semibold' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium'
                     }`}>
-                    <User size={16} /> Dados do Cliente
+                    <User size={15} /> Dados do Cliente
                   </button>
                   {editingId && (
                     <button type="button" onClick={() => setModalTab('ativos')}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
-                        modalTab === 'ativos' ? 'bg-white text-[#1c2d4f] shadow-sm border border-slate-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                      className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs transition-all ${
+                        modalTab === 'ativos' ? 'bg-white text-[#1c2d4f] shadow-sm border border-slate-200 font-semibold' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium'
                       }`}>
-                      <Box size={16} /> Ativos Vinculados
+                      <Box size={15} /> Ativos Vinculados
                     </button>
                   )}
                 </div>
 
                 {/* CONTENT AREA */}
-                <div className="flex-1 overflow-y-auto p-8 bg-white custom-scrollbar">
+                <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50/30 custom-scrollbar">
 
                 {/* ABA: DADOS */}
                 {modalTab === 'dados' && (
-                  <form id="customer-form" onSubmit={handleSubmit} className="space-y-5">
+                  <form id="customer-form" onSubmit={handleSubmit} className="space-y-4">
                     
-                    {/* SEÇÃO SUPERIOR: TIPO + IDENTIFICAÇÃO (OCUPA TODO O ESPAÇO ACIMA) */}
-                    <div className="space-y-4">
-                      {/* Tipo Switcher */}
-                      <div className="flex bg-slate-100 p-1 rounded-xl w-fit border border-slate-200 shadow-xs">
-                        <button type="button" disabled={isReadOnly} onClick={() => setFormData({ ...formData, type: 'PJ' })}
-                          className={`px-6 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                            formData.type === 'PJ' ? 'bg-[#1c2d4f] text-white shadow-sm' : 'text-slate-500 hover:bg-white'
-                          } ${isReadOnly ? 'cursor-not-allowed opacity-70' : ''}`}>Empresa (PJ)</button>
-                        <button type="button" disabled={isReadOnly} onClick={() => setFormData({ ...formData, type: 'PF' })}
-                          className={`px-6 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                            formData.type === 'PF' ? 'bg-[#1c2d4f] text-white shadow-sm' : 'text-slate-500 hover:bg-white'
-                          } ${isReadOnly ? 'cursor-not-allowed opacity-70' : ''}`}>Individual (PF)</button>
+                    {/* SEÇÃO SUPERIOR: IDENTIFICAÇÃO PRINCIPAL COM SWITCHER INTEGRADO */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-xs font-semibold text-slate-800 tracking-tight">Identificação Principal</h3>
+                          <span className="text-[11px] text-slate-400 font-normal">Dados cadastrais básicos</span>
+                        </div>
+                        {/* Tipo Switcher integrado no header do card */}
+                        <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                          <button type="button" disabled={isReadOnly} onClick={() => setFormData({ ...formData, type: 'PJ' })}
+                            className={`px-3 py-1 rounded-md text-[11px] transition-all ${
+                              formData.type === 'PJ' ? 'bg-[#1c2d4f] text-white shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900 font-medium'
+                            } ${isReadOnly ? 'cursor-not-allowed opacity-70' : ''}`}>Empresa (PJ)</button>
+                          <button type="button" disabled={isReadOnly} onClick={() => setFormData({ ...formData, type: 'PF' })}
+                            className={`px-3 py-1 rounded-md text-[11px] transition-all ${
+                              formData.type === 'PF' ? 'bg-[#1c2d4f] text-white shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900 font-medium'
+                            } ${isReadOnly ? 'cursor-not-allowed opacity-70' : ''}`}>Individual (PF)</button>
+                        </div>
                       </div>
 
-                      {/* Card: Identificação Principal (Ocupa Toda a Largura Superior) */}
-                      <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 space-y-3">
-                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Identificação Principal</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                          <div className="md:col-span-2 lg:col-span-2">
-                            <Input label={formData.type === 'PJ' ? 'Razão Social' : 'Nome Completo'} disabled={isReadOnly} required className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
-                          </div>
-                          <div className="relative">
-                            <Input label={formData.type === 'PJ' ? 'CNPJ' : 'CPF'} disabled={isReadOnly} required
-                              className={`rounded-xl py-2 text-xs font-bold border bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50 ${documentDuplicate ? 'border-rose-400 bg-rose-50' : 'border-slate-300'}`}
-                              value={formData.document || ''}
-                              placeholder={formData.type === 'PJ' ? '00.000.000/0000-00' : '000.000.000-00'}
-                              onChange={e => setFormData({ ...formData, document: formData.type === 'PJ' ? formatCNPJ(e.target.value) : formatCPF(e.target.value) })} />
-                            {documentDuplicate && <p className="text-rose-500 text-[10px] font-bold mt-1">⚠️ Cadastrado: {documentDuplicate}</p>}
-                          </div>
-                          <Input label="E-mail" disabled={isReadOnly} type="email" required icon={<Mail size={14} />} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} />
-                          <Input label="Telefone" disabled={isReadOnly} required className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={formData.phone || ''} onChange={e => setFormData({ ...formData, phone: formatPhone(e.target.value) })} placeholder="(00) 0000-0000" />
-                          <Input label="WhatsApp" disabled={isReadOnly} icon={<Phone size={14} className="text-emerald-500" />} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={formData.whatsapp || ''} onChange={e => setFormData({ ...formData, whatsapp: formatPhone(e.target.value) })} placeholder="(00) 00000-0000" />
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-3">
+                        <div className="md:col-span-2 lg:col-span-4">
+                          <Input label={formData.type === 'PJ' ? 'Razão Social' : 'Nome Completo'} disabled={isReadOnly} required className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder={formData.type === 'PJ' ? 'Nome da empresa...' : 'Nome completo...'} />
+                        </div>
+                        <div className="lg:col-span-2 relative">
+                          <Input label={formData.type === 'PJ' ? 'CNPJ' : 'CPF'} disabled={isReadOnly} required
+                            className={`rounded-xl py-2 text-xs font-normal border bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50 ${documentDuplicate ? 'border-rose-400 bg-rose-50' : 'border-slate-300'}`}
+                            value={formData.document || ''}
+                            placeholder={formData.type === 'PJ' ? '00.000.000/0000-00' : '000.000.000-00'}
+                            onChange={e => setFormData({ ...formData, document: formData.type === 'PJ' ? formatCNPJ(e.target.value) : formatCPF(e.target.value) })} />
+                          {documentDuplicate && <p className="text-rose-500 text-[10px] font-medium mt-1">⚠️ Cadastrado: {documentDuplicate}</p>}
+                        </div>
+                        <div className="lg:col-span-3">
+                          <Input label="E-mail" disabled={isReadOnly} type="email" required icon={<Mail size={14} />} className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50" value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} placeholder="email@exemplo.com" />
+                        </div>
+                        <div className="lg:col-span-3 grid grid-cols-2 gap-2">
+                          <Input label="Telefone" disabled={isReadOnly} required className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50" value={formData.phone || ''} onChange={e => setFormData({ ...formData, phone: formatPhone(e.target.value) })} placeholder="(00) 0000-0000" />
+                          <Input label="WhatsApp" disabled={isReadOnly} icon={<Phone size={13} className="text-emerald-500" />} className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50" value={formData.whatsapp || ''} onChange={e => setFormData({ ...formData, whatsapp: formatPhone(e.target.value) })} placeholder="(00) 00000-0000" />
                         </div>
                       </div>
                     </div>
 
-                    {/* SEÇÃO INFERIOR: ENDEREÇO E MAPA (LADO A LADO 50% / 50%) */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
+                    {/* SEÇÃO INFERIOR: ENDEREÇO E MAPA (LADO A LADO) */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
                       {/* ESQUERDA: ENDEREÇO & ATENDIMENTO */}
-                      <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 space-y-3 flex flex-col justify-between">
+                      <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-xs p-4 flex flex-col justify-between space-y-3">
                         <div className="space-y-3">
                           <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Endereço & Atendimento</h3>
+                            <div className="flex items-center gap-2">
+                              <MapPin size={15} className="text-[#1c2d4f]" />
+                              <h3 className="text-xs font-semibold text-slate-800 tracking-tight">Endereço & Atendimento</h3>
+                            </div>
                             {loadingZip && (
-                              <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 animate-pulse">
+                              <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 animate-pulse">
                                 <Loader2 size={12} className="animate-spin" /> Buscando CEP...
                               </span>
                             )}
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <Input 
-                              label="CEP" 
-                              disabled={isReadOnly} 
-                              required 
-                              className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" 
-                              value={formData.zip || ''} 
-                              onChange={e => {
-                                const formatted = formatZip(e.target.value);
-                                setFormData(prev => ({ ...prev, zip: formatted }));
-                                const digits = formatted.replace(/\D/g, '');
-                                if (digits.length === 8 && digits !== lastSearchedZip.current) {
-                                  handleSearchZip(digits);
-                                }
-                              }} 
-                              onBlur={handleZipBlur} 
-                              placeholder="00000-000" 
-                            />
-                            <Input label="Estado (UF)" disabled={isReadOnly} required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={formData.state || ''} onChange={e => setFormData({ ...formData, state: e.target.value })} />
-                            <Input label="Cidade" disabled={isReadOnly} required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={formData.city || ''} onChange={e => setFormData({ ...formData, city: e.target.value })} />
+
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5">
+                            <div className="md:col-span-4">
+                              <Input 
+                                label="CEP" 
+                                disabled={isReadOnly} 
+                                required 
+                                className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50" 
+                                value={formData.zip || ''} 
+                                onChange={e => {
+                                  const formatted = formatZip(e.target.value);
+                                  setFormData(prev => ({ ...prev, zip: formatted }));
+                                  const digits = formatted.replace(/\D/g, '');
+                                  if (digits.length === 8 && digits !== lastSearchedZip.current) {
+                                    handleSearchZip(digits);
+                                  }
+                                }} 
+                                onBlur={handleZipBlur} 
+                                placeholder="00000-000" 
+                              />
+                            </div>
+                            <div className="md:col-span-5">
+                              <Input label="Cidade" disabled={isReadOnly} required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50" value={formData.city || ''} onChange={e => setFormData({ ...formData, city: e.target.value })} placeholder="Cidade" />
+                            </div>
+                            <div className="md:col-span-3">
+                              <Input label="Estado (UF)" disabled={isReadOnly} required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50 uppercase" value={formData.state || ''} onChange={e => setFormData({ ...formData, state: e.target.value })} placeholder="UF" />
+                            </div>
                           </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5">
+                            <div className="md:col-span-6">
+                              <Input label="Logradouro" disabled={isReadOnly} required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50 w-full" value={formData.address || ''} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="Rua / Avenida..." />
+                            </div>
+                            <div className="md:col-span-2">
+                              <Input label="Número" disabled={isReadOnly} required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50" value={formData.number || ''} onChange={e => setFormData({ ...formData, number: e.target.value })} placeholder="123" />
+                            </div>
+                            <div className="md:col-span-4">
+                              <Input label="Bairro" disabled={isReadOnly} required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50" value={formData.neighborhood || ''} onChange={e => setFormData({ ...formData, neighborhood: e.target.value })} placeholder="Bairro" />
+                            </div>
+                          </div>
+
                           <div>
-                            <Input label="Logradouro" disabled={isReadOnly} required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50 w-full" value={formData.address || ''} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="Rua / Avenida / Alameda..." />
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <Input label="Número" disabled={isReadOnly} required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={formData.number || ''} onChange={e => setFormData({ ...formData, number: e.target.value })} placeholder="123" />
-                            <Input label="Bairro" disabled={isReadOnly} required onBlur={handleNumberBlur} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={formData.neighborhood || ''} onChange={e => setFormData({ ...formData, neighborhood: e.target.value })} placeholder="Bairro" />
-                          </div>
-                          <div>
-                            <Input label="Complemento / Referência" disabled={isReadOnly} icon={<Info size={14} />} className="rounded-xl py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50 w-full" value={formData.complement || ''} onChange={e => setFormData({ ...formData, complement: e.target.value })} placeholder="Apto, Sala, Bloco, Ponto de Referência..." />
+                            <Input label="Complemento / Referência" disabled={isReadOnly} icon={<Info size={14} />} className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50 w-full" value={formData.complement || ''} onChange={e => setFormData({ ...formData, complement: e.target.value })} placeholder="Apto, Sala, Ponto de Referência..." />
                           </div>
                         </div>
                       </div>
 
                       {/* DIREITA: MAPA LADO A LADO COM O ENDEREÇO */}
-                      <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 flex flex-col justify-between min-h-[280px] relative overflow-hidden">
+                      <div className="lg:col-span-5 bg-white rounded-xl border border-slate-200 shadow-xs p-4 flex flex-col justify-between min-h-[260px] relative overflow-hidden">
                         <div>
                           <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
                             <div className="flex items-center gap-2">
-                              <MapPin size={16} className="text-[#1c2d4f]" />
-                              <h3 className="text-xs font-bold text-slate-800 tracking-tight">Geolocalização Exata</h3>
+                              <MapPin size={15} className="text-[#1c2d4f]" />
+                              <h3 className="text-xs font-semibold text-slate-800 tracking-tight">Geolocalização Exata</h3>
                             </div>
-                            <span className="text-[9px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                            <span className="text-[9px] font-medium uppercase tracking-wider bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                               Precisão 3 Metros
                             </span>
@@ -1038,11 +1075,11 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                         </div>
 
                         {/* Container do Mapa Leaflet com Invalidator */}
-                        <div className="flex-1 rounded-xl overflow-hidden border border-slate-200 shadow-inner relative min-h-[190px] my-1">
+                        <div className="flex-1 rounded-xl overflow-hidden border border-slate-200 shadow-inner relative min-h-[160px] my-1">
                           {loadingZip && (
                             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs z-30 flex flex-col items-center justify-center gap-2 p-4 text-center text-white animate-fade-in">
-                              <Loader2 size={32} className="animate-spin text-emerald-400" />
-                              <p className="text-xs font-bold uppercase tracking-wider text-white">Localizando imóvel no mapa...</p>
+                              <Loader2 size={28} className="animate-spin text-emerald-400" />
+                              <p className="text-xs font-medium uppercase tracking-wider text-white">Localizando imóvel no mapa...</p>
                               <p className="text-[10px] text-emerald-300 font-mono">Buscando CEP e número do imóvel</p>
                             </div>
                           )}
@@ -1050,7 +1087,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                           <MapContainer 
                             center={[formData.latitude || -23.55052, formData.longitude || -46.63331]} 
                             zoom={16} 
-                            style={{ height: '100%', width: '100%', minHeight: '190px', zIndex: 0 }}
+                            style={{ height: '100%', width: '100%', minHeight: '160px', zIndex: 0 }}
                           >
                             <TileLayer 
                               attribution="&copy; Google Maps"
@@ -1071,31 +1108,31 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                         {/* Lat / Long Badges */}
                         <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2 rounded-xl border border-slate-100 mt-1">
                           <div className="flex flex-col">
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Latitude</span>
-                            <span className="text-xs font-mono font-bold text-slate-700">{formData.latitude ? formData.latitude.toFixed(6) : 'Aguardando CEP'}</span>
+                            <span className="text-[9px] font-medium text-slate-400 uppercase tracking-wider">Latitude</span>
+                            <span className="text-xs font-mono font-medium text-slate-600">{formData.latitude ? formData.latitude.toFixed(6) : 'Aguardando CEP'}</span>
                           </div>
                           <div className="flex flex-col">
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Longitude</span>
-                            <span className="text-xs font-mono font-bold text-slate-700">{formData.longitude ? formData.longitude.toFixed(6) : 'Aguardando CEP'}</span>
+                            <span className="text-[9px] font-medium text-slate-400 uppercase tracking-wider">Longitude</span>
+                            <span className="text-xs font-mono font-medium text-slate-600">{formData.longitude ? formData.longitude.toFixed(6) : 'Aguardando CEP'}</span>
                           </div>
                         </div>
                       </div>
                     </div>
 
                     {errorMessage && (
-                      <div className="mt-3 p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs font-bold">{errorMessage}</div>
+                      <div className="mt-2 p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs font-medium">{errorMessage}</div>
                     )}
                   </form>
                 )}
 
                 {/* ABA: ATIVOS VINCULADOS */}
                 {modalTab === 'ativos' && editingId && (
-                  <div className="max-w-4xl mx-auto space-y-4">
+                  <div className="max-w-5xl mx-auto space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">ativos vinculados ao cliente</h3>
+                      <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Ativos vinculados ao cliente</h3>
                       {!isReadOnly && (
                         <button type="button" onClick={() => { setShowLinkAsset(true); setAssetSearch(''); }}
-                          className="flex items-center gap-2 px-4 py-2 bg-[#1c2d4f] text-white rounded-xl text-[11px] font-bold hover:bg-[#253a66] transition-all">
+                          className="flex items-center gap-2 px-4 py-2 bg-[#1c2d4f] text-white rounded-xl text-[11px] font-medium hover:bg-[#253a66] transition-all">
                           <Plus size={14} /> Vincular Ativo
                         </button>
                       )}
@@ -1115,7 +1152,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                       return (
                         <div className="bg-slate-50 border border-[#1c2d4f]/20 rounded-xl overflow-hidden">
                           <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-white">
-                            <p className="text-xs font-bold text-[#1c2d4f]">Selecione um ativo para vincular</p>
+                            <p className="text-xs font-semibold text-[#1c2d4f]">Selecione um ativo para vincular</p>
                             <button onClick={() => setShowLinkAsset(false)} className="p-1 text-slate-400 hover:text-rose-500 rounded"><X size={16} /></button>
                           </div>
                           <div className="p-3">
@@ -1125,7 +1162,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                                 value={assetSearch}
                                 onChange={e => setAssetSearch(e.target.value)}
                                 placeholder="Buscar por modelo ou serial..."
-                                className="w-full pl-8 pr-3 py-2 text-xs font-bold border border-slate-300 bg-white text-slate-900 rounded-xl outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm"
+                                className="w-full pl-8 pr-3 py-2 text-xs font-normal border border-slate-300 bg-white text-slate-800 rounded-xl outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs"
                               />
                             </div>
                             {available.length === 0 ? (
@@ -1144,7 +1181,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                                     <button
                                       onClick={() => handleLinkAsset(eq)}
                                       disabled={linkingAsset}
-                                      className="px-3 py-1 bg-[#1c2d4f] text-white rounded-lg text-[10px] font-bold hover:bg-[#253a66] transition-colors disabled:opacity-50"
+                                      className="px-3 py-1 bg-[#1c2d4f] text-white rounded-lg text-[10px] font-medium hover:bg-[#253a66] transition-colors disabled:opacity-50"
                                     >
                                       Vincular
                                     </button>
@@ -1156,11 +1193,11 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                         </div>
                       );
                     })()}
-                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
                       {mockEquipments[editingId] && mockEquipments[editingId].length > 0 ? (
                         <table className="w-full">
                           <thead className="bg-slate-50 border-b border-slate-200">
-                            <tr className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                            <tr className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
                               <th className="px-5 py-3 text-left">Modelo / Nome</th>
                               <th className="px-5 py-3 text-left">Nº de Série</th>
                               <th className="px-5 py-3 text-left">Família</th>
@@ -1179,7 +1216,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                                 <td className="px-5 py-3 font-mono text-xs text-slate-500">{eq.serialNumber}</td>
                                 <td className="px-5 py-3 text-xs text-slate-500">{eq.familyName || '—'}</td>
                                 <td className="px-5 py-3 text-center">
-                                  <span className={`px-3 py-1 rounded-full text-[9px] font-bold ${
+                                  <span className={`px-3 py-1 rounded-full text-[9px] font-medium ${
                                     eq.active ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-100 text-slate-400'
                                   }`}>{eq.active ? 'Ativo' : 'Inativo'}</span>
                                 </td>
@@ -1190,8 +1227,8 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                       ) : (
                         <div className="py-16 text-center">
                           <Laptop size={32} className="mx-auto text-slate-200 mb-3" />
-                          <p className="text-sm font-bold text-slate-300">Nenhum ativo vinculado</p>
-                          <p className="text-xs text-slate-300 mt-1">Cadastre ativos na aba de Equipamentos</p>
+                          <p className="text-sm font-medium text-slate-400">Nenhum ativo vinculado</p>
+                          <p className="text-xs text-slate-400 mt-1">Cadastre ativos na aba de Equipamentos</p>
                         </div>
                       )}
                     </div>
@@ -1201,13 +1238,13 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
               </div>
               
               {/* FOOTER */}
-              <div className="px-8 py-4 border-t border-slate-200 bg-white flex justify-end gap-3 shrink-0">
-                <button type="button" onClick={closeModal} className="h-9 px-5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
+              <div className="px-6 py-3.5 border-t border-slate-200 bg-white flex justify-end gap-3 shrink-0">
+                <button type="button" onClick={closeModal} className="h-9 px-5 rounded-xl text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
                   {isReadOnly ? 'Fechar' : t.common.cancel}
                 </button>
                 {modalTab === 'dados' && !isReadOnly && (
                   <Button type="submit" form="customer-form" disabled={!!documentDuplicate}
-                    className={`h-9 px-6 rounded-xl text-xs font-bold ${
+                    className={`h-9 px-6 rounded-xl text-xs font-medium ${
                       documentDuplicate ? 'bg-gray-400 cursor-not-allowed opacity-50' : 'bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]'
                     }`}>
                     <Save size={14} className="mr-2" /> Salvar Cadastro

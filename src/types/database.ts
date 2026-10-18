@@ -140,6 +140,10 @@ export interface DbOrderItem {
     stockItemId?: string;
     customer_id?: string;
     used_by_id?: string;
+    visit_id?: string;
+    visit_number?: number;
+    visitId?: string;
+    visitNumber?: number;
 }
 
 export interface DbOrder {

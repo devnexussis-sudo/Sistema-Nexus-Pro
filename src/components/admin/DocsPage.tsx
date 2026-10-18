@@ -222,7 +222,7 @@ export const DocsPage: React.FC = () => {
             category: 'workflow',
             stepRelation: 6,
             icon: ClipboardList,
-            menuPath: "Menu Lateral > Atividade",
+            menuPath: "Menu Lateral > Ordens de Serviço",
             filePath: "src/components/admin/AdminDashboard.tsx",
             dbTable: "public.orders",
             description: "O centro nervoso de despacho. Gerencia o andamento do técnico, visitas, fotos tiradas em campo e timelines.",
@@ -683,7 +683,7 @@ export const DocsPage: React.FC = () => {
                             {/* Fase 5 */}
                             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                                 <div className="p-3 bg-rose-50/50 border border-rose-150 rounded-xl shadow-xs">
-                                    <div className="text-[10px] font-bold text-rose-600 uppercase">12. Atividades</div>
+                                    <div className="text-[10px] font-bold text-rose-600 uppercase">12. Ordens de Serviço</div>
                                     <div className="font-semibold text-slate-900 mt-1">Ordens de Serviço (OS)</div>
                                 </div>
                                 <div className="p-3 bg-slate-900 border border-slate-950 rounded-xl shadow-xs text-white">

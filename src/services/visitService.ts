@@ -24,6 +24,7 @@ import {
     VisitStatusEnum,
     ImpedimentCategory,
     VisitStatusHistoryEvent,
+    OrderItem,
 } from '../types';
 
 // ─────────────────────────────────────────────────────────────────
@@ -123,6 +124,7 @@ export const VisitService = {
         scheduledTime?: string;
         notes?: string;
         formId?: string;
+        items?: OrderItem[];
     }): Promise<ServiceVisit> => {
         const tenantId = getCurrentTenantId();
         if (!tenantId) throw new Error('TENANT_NOT_FOUND');
@@ -136,7 +138,7 @@ export const VisitService = {
 
         // ── Backup e Limpeza do Estado Atual ─────────────
         const { data: orderData } = await supabase.from('orders')
-            .select('form_data, signature, signature_name, signature_doc, video_url')
+            .select('form_data, signature, signature_name, signature_doc, video_url, items, total_value, description')
             .eq('id', params.orderId)
             .single();
 
@@ -203,6 +205,35 @@ export const VisitService = {
 
         const nextVisitNumber = existingVisits.length + 1;
 
+        // ── Processa novos items e custos da visita (se houver, salvo se o valor for zero) ─────────
+        const newVisitItems: OrderItem[] = (params.items || [])
+            .filter(item => {
+                const tot = Number(item.total) || (Number(item.unitPrice || 0) * Number(item.quantity || 1)) || 0;
+                return tot > 0 || Number(item.unitPrice || 0) > 0;
+            })
+            .map(item => {
+                const qty = Number(item.quantity) || 1;
+                const unit = Number(item.unitPrice) || 0;
+                const tot = Number(item.total) || (qty * unit);
+                return {
+                    id: item.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9)),
+                    description: item.description?.trim() || `Item / Peça - Visita nº ${nextVisitNumber}`,
+                    quantity: qty,
+                    unitPrice: unit,
+                    total: tot,
+                    fromStock: !!item.fromStock,
+                    stockItemId: item.stockItemId || undefined,
+                    visitNumber: nextVisitNumber,
+                };
+            });
+
+        const visitSubtotal = newVisitItems.reduce((acc, i) => acc + (Number(i.total) || 0), 0);
+        const visitFormData: Record<string, any> = {
+            items: newVisitItems,
+            totalValue: visitSubtotal,
+            notes: params.notes || null,
+        };
+
         // ── Obter usuário criador ─────────────────────────────────────
         const { data: { session } } = await supabase.auth.getSession();
         const createdBy = session?.user?.id;
@@ -220,6 +251,7 @@ export const VisitService = {
                 scheduled_time: params.scheduledTime || null,
                 notes: params.notes || null,
                 form_id: params.formId || null,
+                form_data: visitFormData,
                 created_by: createdBy,
             })
             .select()
@@ -291,21 +323,98 @@ export const VisitService = {
         const consolidatedHistory = Array.from(consolidatedHistoryMap.values())
             .sort((a, b) => new Date(a.blockedAt).getTime() - new Date(b.blockedAt).getTime());
 
-        // 2. Reseta a OS mantendo apenas o histórico de impedimentos
-        //    e acrescenta as observações do agendamento à descrição para o técnico
-        const { data: currentOrderDesc } = await supabase.from('orders')
-            .select('description')
-            .eq('id', params.orderId)
-            .single();
+        // 2. Unir items existentes da OS com os novos items da visita de forma cumulativa e estratificada
+        let existingOrderItems: OrderItem[] = [];
+        if (orderData?.items) {
+            existingOrderItems = typeof orderData.items === 'string'
+                ? JSON.parse(orderData.items)
+                : (Array.isArray(orderData.items) ? orderData.items : []);
+        } else if ((orderData?.form_data as any)?.items) {
+            const fdItems = (orderData.form_data as any).items;
+            existingOrderItems = typeof fdItems === 'string' ? JSON.parse(fdItems) : (Array.isArray(fdItems) ? fdItems : []);
+        }
 
-        // Append new visit notes to description so technician sees them in the mobile app
-        const originalDesc: string = currentOrderDesc?.description || '';
+        const taggedNewVisitItems = newVisitItems.map(item => ({
+            ...item,
+            visitId: data.id,
+            visitNumber: nextVisitNumber
+        }));
+
+        const consolidatedItemsMap = new Map<string, OrderItem>();
+
+        // Carrega itens das visitas anteriores arquivadas
+        for (const v of existingVisits) {
+            const vItems = (v.formData as any)?.items;
+            if (Array.isArray(vItems)) {
+                for (const vi of vItems) {
+                    if (vi && (vi.id || vi.description)) {
+                        const key = vi.id || `${vi.description}-${vi.unitPrice}`;
+                        consolidatedItemsMap.set(key, {
+                            ...vi,
+                            visitNumber: vi.visitNumber || v.visitNumber || 1,
+                            visitId: vi.visitId || v.id
+                        });
+                    }
+                }
+            }
+        }
+
+        // Adiciona itens existentes na OS (se não tiverem número de visita, associar à Visita 1)
+        for (const item of existingOrderItems) {
+            if (item && (item.id || item.description)) {
+                const key = item.id || `${item.description}-${item.unitPrice}`;
+                const existing = consolidatedItemsMap.get(key);
+                consolidatedItemsMap.set(key, {
+                    ...item,
+                    visitNumber: item.visitNumber || existing?.visitNumber || 1,
+                    visitId: item.visitId || existing?.visitId
+                });
+            }
+        }
+
+        // Adiciona os novos itens da nova visita
+        for (const item of taggedNewVisitItems) {
+            if (item && (item.id || item.description)) {
+                const key = item.id || `${item.description}-${item.unitPrice}`;
+                consolidatedItemsMap.set(key, item);
+            }
+        }
+
+        const consolidatedItems: OrderItem[] = Array.from(consolidatedItemsMap.values());
+        const consolidatedTotalValue = consolidatedItems.reduce((acc, i) => acc + (Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0), 0);
+
+        // Reseta a OS mantendo o histórico de impedimentos e consolidando items/total_value
+        // e acrescenta as observações do agendamento à descrição para o técnico
+        const originalDesc: string = orderData?.description || '';
         const newNotes: string = params.notes?.trim() || '';
         let updatedDescription: string | null = originalDesc || null;
+        
+        let visitNotesText = '';
         if (newNotes) {
-            const visitLabel = `\n\n📋 Obs. Visita ${nextVisitNumber}: ${newNotes}`;
-            updatedDescription = originalDesc ? `${originalDesc}${visitLabel}` : newNotes;
+            visitNotesText += `\n\n📋 Obs. Visita ${nextVisitNumber}: ${newNotes}`;
         }
+        if (newVisitItems.length > 0) {
+            visitNotesText += `\n📦 Custos/Peças Visita ${nextVisitNumber}:\n` + newVisitItems.map(i => `• ${i.description} (${i.quantity}x R$ ${Number(i.unitPrice || 0).toFixed(2)})`).join('\n');
+        }
+        if (visitNotesText) {
+            updatedDescription = originalDesc ? `${originalDesc}${visitNotesText}` : visitNotesText.trim();
+        }
+
+        const currentFd = (orderData?.form_data || {}) as Record<string, any>;
+        const preservedFormData: Record<string, any> = {
+            ...currentFd,
+            impediment_history: consolidatedHistory,
+            items: consolidatedItems,
+            totalValue: consolidatedTotalValue,
+        };
+        // Limpar apenas execução da visita anterior que não deve persistir na nova
+        delete preservedFormData.signature;
+        delete preservedFormData.signature_url;
+        delete preservedFormData.client_signature_url;
+        delete preservedFormData.client_signature_name;
+        delete preservedFormData.client_signature_doc;
+        delete preservedFormData.videoUrl;
+        delete preservedFormData.video_url;
 
         const { error: resetError } = await supabase.from('orders').update({
             status: 'ATRIBUÍDO',
@@ -313,8 +422,9 @@ export const VisitService = {
             scheduled_date: params.scheduledDate,
             scheduled_time: params.scheduledTime || null,
             description: updatedDescription,
-            // Limpa checklist/execução
-            form_data: {},
+            items: consolidatedItems,
+            total_value: consolidatedTotalValue,
+            form_data: preservedFormData,
             // Limpa assinaturas correspondendo à tipagem verdadeira no DB (DbOrder)
             signature_url: null,
             client_signature_url: null,
@@ -565,6 +675,7 @@ export const VisitService = {
         // scheduledEndTime removed – column does not exist
         technicianId?: string;
         notes?: string;
+        items?: OrderItem[];
     }): Promise<ServiceVisit> => {
         const tenantId = getCurrentTenantId();
         if (!tenantId) throw new Error('TENANT_NOT_FOUND');
@@ -595,14 +706,66 @@ export const VisitService = {
             throw new Error(`RPC_ERROR: ${code}`);
         }
 
+        let finalVisitData = rpcData.visit;
+
+        // Se params.items foi fornecido, atualiza o form_data da visita no banco
+        if (params.items !== undefined) {
+            const currentFd = (finalVisitData?.form_data || {}) as Record<string, any>;
+            const visitNumber = finalVisitData?.visit_number || 1;
+
+            const sanitizedItems: OrderItem[] = (params.items || [])
+                .filter(i => (i.description && i.description.trim()) || Number(i.unitPrice || 0) > 0 || Number(i.total || 0) > 0)
+                .map(i => {
+                    const qty = Number(i.quantity) || 1;
+                    const unit = Number(i.unitPrice) || 0;
+                    const tot = Number(i.total) || (qty * unit);
+                    return {
+                        id: i.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9)),
+                        description: i.description?.trim() || '',
+                        quantity: qty,
+                        unitPrice: unit,
+                        total: tot,
+                        fromStock: !!i.fromStock,
+                        stockItemId: i.stockItemId || undefined,
+                        visitNumber: i.visitNumber || visitNumber,
+                        visitId: params.visitId,
+                    };
+                });
+
+            const visitTotalValue = sanitizedItems.reduce((acc, i) => acc + (Number(i.total) || 0), 0);
+            const updatedFd = {
+                ...currentFd,
+                items: sanitizedItems,
+                totalValue: visitTotalValue,
+                notes: params.notes !== undefined ? params.notes : (currentFd.notes || null),
+            };
+
+            const { data: updatedVisitRow, error: fdErr } = await supabase
+                .from('service_visits')
+                .update({
+                    form_data: updatedFd,
+                    notes: params.notes !== undefined ? params.notes : (finalVisitData?.notes || null),
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', params.visitId)
+                .select()
+                .single();
+
+            if (fdErr) {
+                logger.error('[VisitService] Falha ao atualizar form_data/items da visita', { error: fdErr, visitId: params.visitId });
+            } else if (updatedVisitRow) {
+                finalVisitData = updatedVisitRow;
+            }
+        }
+
         // Audit trail (fire-and-forget — não bloqueia o retorno)
         const { data: { session } } = await supabase.auth.getSession();
         supabase.from('visit_status_history').insert({
             tenant_id: tenantId,
             visit_id: params.visitId,
             order_id: params.orderId,
-            from_status: rpcData.visit?.status ?? 'pending',
-            to_status: rpcData.visit?.status ?? 'pending',
+            from_status: finalVisitData?.status ?? 'pending',
+            to_status: finalVisitData?.status ?? 'pending',
             reason: `Reagendamento: → ${params.scheduledDate}`,
             metadata: {
                 action: 'RESCHEDULE',
@@ -611,6 +774,7 @@ export const VisitService = {
                     scheduledTime: params.scheduledTime,
                     // scheduledEndTime omitted
                     technicianId: params.technicianId,
+                    itemsCount: params.items?.length,
                 },
             },
             changed_by: session?.user?.id ?? null,
@@ -619,13 +783,13 @@ export const VisitService = {
             if (auditErr) logger.error('[VisitService] updateVisitSchedule audit falhou', { auditErr });
         });
 
-        logger.info('[VisitService] Visita reagendada via RPC', {
+        logger.info('[VisitService] Visita reagendada/atualizada via RPC', {
             visitId: params.visitId,
             orderId: params.orderId,
             scheduledDate: params.scheduledDate,
         });
 
-        return _mapVisitFromDB(rpcData.visit);
+        return _mapVisitFromDB(finalVisitData);
     },
 
     // ═══════════════════════════════════════════════════════════════

@@ -721,6 +721,20 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                       <Settings size={15} />
                     </button>
                     <button
+                      onClick={async () => {
+                        try {
+                          const res = await StorageService.initializeTenantMasterFolder(tenant);
+                          alert(`✅ Estrutura Cloudflare R2 provisionada com sucesso!\n\nPasta Mestre:\n${res.masterFolder}\n\nMódulos inicializados:\n${res.createdModules.join('\n- ')}`);
+                        } catch (err: any) {
+                          alert(`Erro ao provisionar pastas R2: ${err?.message || err}`);
+                        }
+                      }}
+                      className="p-2.5 bg-blue-500/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded-xl transition-all border border-blue-500/20"
+                      title="Provisionar / Sincronizar Pastas no Cloudflare R2"
+                    >
+                      <UploadCloud size={15} />
+                    </button>
+                    <button
                       onClick={() => handleToggleStatus(tenant.id, tenant.status)}
                       disabled={isSaving}
                       className={`p-2.5 rounded-xl transition-all border ${tenant.status === 'suspended'
@@ -934,7 +948,11 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                               const file = e.target.files?.[0];
                               if (file) {
                                 try {
-                                  const uploadedUrl = await StorageService.uploadTenantLogo(file, formData.id || 'new_tenant');
+                                  const uploadedUrl = await StorageService.uploadTenantLogo(file, formData.id || 'new_tenant', undefined, {
+                                    companyName: formData.companyName,
+                                    tradeName: formData.tradingName,
+                                    cnpj: formData.cnpj
+                                  });
                                   if (uploadedUrl && !uploadedUrl.startsWith('data:')) {
                                     setFormData({ ...formData, logoUrl: uploadedUrl });
                                   } else {

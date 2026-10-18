@@ -12,10 +12,10 @@
 
 import { useAuth } from '../contexts/AuthContext';
 import SessionStorage from '../lib/sessionStorage';
-import { UserPermissions } from '../types';
+import { UserPermissions, DEFAULT_PERMISSIONS } from '../types';
 
 export type MenuKey = keyof NonNullable<UserPermissions['menuAccess']>;
-export type ModuleKey = 'orders' | 'customers' | 'equipments' | 'technicians' | 'quotes' | 'contracts' | 'stock' | 'forms' | 'whatsapp' | 'solicitacoes' | 'regions' | 'integrations';
+export type ModuleKey = 'orders' | 'customers' | 'equipments' | 'technicians' | 'quotes' | 'sales_orders' | 'contracts' | 'stock' | 'forms' | 'whatsapp' | 'solicitacoes' | 'regions' | 'integrations';
 export type CrudAction = 'create' | 'read' | 'update' | 'delete' | 'invoice' | 'discounts';
 
 const checkImpersonating = (): boolean => {
@@ -30,6 +30,7 @@ const MENU_ACCESS_DEFAULTS: NonNullable<UserPermissions['menuAccess']> = {
   map: true,
   financial: false,
   quotes: true,
+  sales_orders: true,
   stock: true,
   contracts: true,
   customers: true,
@@ -119,6 +120,12 @@ export const usePermissions = (): PermissionUtils => {
     // Object with CRUD actions (orders, customers, etc.)
     if (perms[module] && typeof perms[module] === 'object') {
       return perms[module][action] === true;
+    }
+
+    // Fallback de retrocompatibilidade para pedidos de venda (PVD) se não especificado
+    if (module === 'sales_orders') {
+      const def = (DEFAULT_PERMISSIONS.sales_orders as any) || {};
+      return def[action] === true;
     }
 
     return false;

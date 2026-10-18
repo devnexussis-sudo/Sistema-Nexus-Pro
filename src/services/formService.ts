@@ -602,6 +602,51 @@ export const FormService = {
             const tid = getCurrentTenantId();
             if (!tid) throw new Error('Tenant ID não encontrado.');
 
+            // 1. Remover regras de ativação vinculadas diretamente a este modelo
+            // Isso previne a restrição de chave estrangeira (activation_rules_form_template_id_fkey)
+            try {
+                const { error: ruleDeleteErr } = await supabase
+                    .from('activation_rules')
+                    .delete()
+                    .eq('form_template_id', id)
+                    .eq('tenant_id', tid);
+
+                if (ruleDeleteErr) {
+                    console.warn('[FormService] Falha ao deletar regras por form_template_id, tentando desvincular:', ruleDeleteErr);
+                    await supabase
+                        .from('activation_rules')
+                        .update({ form_template_id: null })
+                        .eq('form_template_id', id)
+                        .eq('tenant_id', tid);
+                }
+            } catch (errRule) {
+                console.warn('[FormService] Erro ao tratar regras vinculadas:', errRule);
+            }
+
+            // 2. Se houver regras cujo conditions.financial_form_id seja esse id, desvincula
+            try {
+                const { data: condRules } = await supabase
+                    .from('activation_rules')
+                    .select('id, conditions')
+                    .eq('tenant_id', tid);
+
+                if (condRules && Array.isArray(condRules)) {
+                    for (const r of condRules) {
+                        if (r.conditions && (r.conditions as any).financial_form_id === id) {
+                            const updatedCond = { ...(r.conditions as any), financial_form_id: null };
+                            await supabase
+                                .from('activation_rules')
+                                .update({ conditions: updatedCond })
+                                .eq('id', r.id)
+                                .eq('tenant_id', tid);
+                        }
+                    }
+                }
+            } catch (condErr) {
+                console.warn('[FormService] Falha ao limpar conditions.financial_form_id:', condErr);
+            }
+
+            // 3. Exclui o modelo de formulário
             const { data, error } = await supabase
                 .from('form_templates')
                 .delete()

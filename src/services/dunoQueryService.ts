@@ -433,7 +433,7 @@ export async function executeDataQuery(intent: DataIntent, userName: string): Pr
 
         let msg = `${userName}, aqui está o **resumo geral em tempo real** do Nexus OS:\n\n`;
 
-        msg += `📋 **Atividades (OS):** ${totalOS}\n`;
+        msg += `📋 **Ordens de Serviço (OS):** ${totalOS}\n`;
         const sorted = Object.entries(byStatus).sort((a, b) => b[1] - a[1]);
         for (const [status, count] of sorted) {
           msg += `  ${STATUS_EMOJI[status] || '•'} ${STATUS_LABEL[status] || status}: ${count}\n`;

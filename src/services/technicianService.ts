@@ -115,7 +115,7 @@ export const TechnicianService = {
 
             const fetcher = async (currentSignal?: AbortSignal): Promise<any[]> => {
                 let query = clientToUse.from('technicians')
-                    .select('id, name, email, phone, avatar, active, tenant_id, last_latitude, last_longitude, last_seen, motion_state, battery_level, device_model')
+                    .select('id, name, email, phone, avatar, active, tenant_id, tech_code, job_title, last_latitude, last_longitude, last_seen, motion_state, battery_level, device_model')
                     .eq('tenant_id', tenantId)
                     .order('name')
                     .limit(100);
@@ -183,7 +183,17 @@ export const TechnicianService = {
                         existingTech.userRole = u.role;
                         if (!existingTech.email && u.email) existingTech.email = u.email;
                         if ((!existingTech.name || existingTech.name === 'Técnico') && u.name) existingTech.name = u.name;
+                        // Sincroniza código se o registro na tabela de técnicos estava sem código
+                        if (!existingTech.techCode || existingTech.techCode === '---') {
+                            const uCode = (u as any).userCode || (u as any).user_code;
+                            if (uCode && uCode !== '---' && uCode.length <= 10) {
+                                existingTech.techCode = uCode;
+                                existingTech.tech_code = uCode;
+                            }
+                        }
                     } else if (hasAppAccess) {
+                        const unifiedCode = (u as any).userCode || (u as any).user_code || '';
+                        const validCode = (unifiedCode && unifiedCode.length <= 10 && unifiedCode !== '---') ? unifiedCode : null;
                         const syntheticTech = {
                             id: u.id,
                             name: u.name || u.email || 'Técnico',
@@ -193,26 +203,29 @@ export const TechnicianService = {
                             avatar: u.avatar || '',
                             role: u.role || UserRole.TECHNICIAN,
                             jobTitle: rawRole === 'ADMIN' ? 'Administrador / Técnico' : 'Técnico de Campo',
-                            techCode: formatTechCode(u.id),
+                            techCode: validCode || '---',
+                            tech_code: validCode || undefined,
                             appScope: userScope,
                             app_scope: userScope,
                             tenantId: u.tenantId || tenantId
                         };
                         techMap.set(u.id, syntheticTech);
 
-                        try {
-                            await supabase.from('technicians').upsert([{
-                                id: u.id,
-                                name: u.name || u.email || 'Técnico',
-                                email: u.email || '',
-                                active: u.active ?? true,
-                                phone: u.phone || '',
-                                avatar: u.avatar || '',
-                                tech_code: formatTechCode(u.id),
-                                tenant_id: tenantId
-                            }], { onConflict: 'id', ignoreDuplicates: true });
-                        } catch (upsertErr) {
-                            // Silencioso em caso de conflitos não críticos no upsert sintético
+                        if (validCode) {
+                            try {
+                                await supabase.from('technicians').upsert([{
+                                    id: u.id,
+                                    name: u.name || u.email || 'Técnico',
+                                    email: u.email || '',
+                                    active: u.active ?? true,
+                                    phone: u.phone || '',
+                                    avatar: u.avatar || '',
+                                    tech_code: validCode,
+                                    tenant_id: tenantId
+                                }], { onConflict: 'id', ignoreDuplicates: true });
+                            } catch (upsertErr) {
+                                // Silencioso em caso de conflitos não críticos no upsert sintético
+                            }
                         }
                     }
                 }
@@ -481,13 +494,50 @@ export const TechnicianService = {
                 console.log("✅ Técnico reabilitado no sistema de autenticação");
             }
 
+            // 🔑 Garante código único de 6 dígitos no update de técnico
+            let techCode = (tech.techCode && tech.techCode.length <= 10 && tech.techCode !== '---' && tech.techCode !== '— gerado ao salvar —')
+                ? tech.techCode
+                : (tech.tech_code && tech.tech_code.length <= 10 && tech.tech_code !== '---' && tech.tech_code !== '— gerado ao salvar —')
+                    ? tech.tech_code
+                    : null;
+
+            if (!techCode) {
+                const { data: currentTechRow } = await supabase.from('technicians').select('tech_code').eq('id', tech.id).maybeSingle();
+                if (currentTechRow?.tech_code && currentTechRow.tech_code.length <= 10 && currentTechRow.tech_code !== '---') {
+                    techCode = currentTechRow.tech_code;
+                }
+            }
+            if (!techCode) {
+                const { data: currentUserRow } = await supabase.from('users').select('user_code').eq('id', tech.id).maybeSingle();
+                if (currentUserRow?.user_code && currentUserRow.user_code.length <= 10 && currentUserRow.user_code !== '---') {
+                    techCode = currentUserRow.user_code;
+                }
+            }
+            if (!techCode) {
+                techCode = await generateUniqueUnifiedCode(tenantId);
+            }
+
+            // Sincroniza metadados no Auth
+            if (techCode) {
+                adminAuthProxy.admin.updateUserById(tech.id, {
+                    user_metadata: {
+                        ...(updateAuthData.user_metadata || {}),
+                        techCode: techCode,
+                        tech_code: techCode,
+                        userCode: techCode,
+                        user_code: techCode
+                    }
+                }).catch(() => {});
+            }
+
             // 2. Sincroniza com as tabelas físicas
             const dbUserData: any = {
                 name: tech.name,
                 email: tech.email?.toLowerCase(),
                 phone: tech.phone || '',
                 avatar: tech.avatar || '',
-                tenant_id: tenantId
+                tenant_id: tenantId,
+                user_code: techCode || undefined
             };
 
             if (isPureMobile) {
@@ -500,14 +550,15 @@ export const TechnicianService = {
             await supabase.from('users').update(dbUserData).eq('id', tech.id).eq('tenant_id', tenantId);
 
             // Atualiza tabela technicians (específica)
-            const dbTechData = {
+            const dbTechData: any = {
                 name: tech.name,
                 email: tech.email?.toLowerCase(),
                 active: tech.active ?? true,
                 phone: tech.phone || '',
                 avatar: tech.avatar || '',
                 job_title: tech.jobTitle || '',
-                tenant_id: tenantId
+                tenant_id: tenantId,
+                tech_code: techCode || undefined
             };
 
             const { data, error } = await supabase.from('technicians')

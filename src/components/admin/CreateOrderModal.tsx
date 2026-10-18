@@ -84,6 +84,9 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
     notes: ''
   });
   const [visitTechSearch, setVisitTechSearch] = useState('');
+  const [visitItems, setVisitItems] = useState<OrderItem[]>([]);
+  const [visitStockSearch, setVisitStockSearch] = useState('');
+  const [isVisitStockListOpen, setIsVisitStockListOpen] = useState(false);
   const [technicians, setTechnicians] = useState<UserType[]>([]);
   const [searchMode, setSearchMode] = useState<'client' | 'serial'>('client');
   const [clientSearch, setClientSearch] = useState(initialData?.customerName || prefill?.customerDocument || prefill?.customerName || '');
@@ -715,8 +718,41 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
       scheduledTime: '',
       notes: ''
     });
+    setVisitItems([]);
+    setVisitStockSearch('');
+    setIsVisitStockListOpen(false);
     setShowNewVisitModal(true);
   };
+
+  const addVisitItem = (item: Partial<OrderItem>) => {
+    const newItem: OrderItem = {
+      id: Math.random().toString(36).substr(2, 9),
+      description: item.description || '',
+      quantity: item.quantity || 1,
+      unitPrice: item.unitPrice || 0,
+      total: (item.quantity || 1) * (item.unitPrice || 0),
+      fromStock: item.fromStock,
+      stockItemId: item.stockItemId
+    };
+    setVisitItems(prev => [...prev, newItem]);
+  };
+
+  const removeVisitItem = (id: string) => {
+    setVisitItems(prev => prev.filter(i => i.id !== id));
+  };
+
+  const updateVisitItem = (id: string, updates: Partial<OrderItem>) => {
+    setVisitItems(prev => prev.map(i => {
+      if (i.id !== id) return i;
+      const updated = { ...i, ...updates };
+      const q = typeof updated.quantity === 'number' ? updated.quantity : parseFloat(String(updated.quantity)) || 0;
+      const u = typeof updated.unitPrice === 'number' ? updated.unitPrice : parseFloat(String(updated.unitPrice)) || 0;
+      updated.total = q * u;
+      return updated;
+    }));
+  };
+
+  const visitTotalValue = visitItems.reduce((acc, i) => acc + (Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0), 0);
 
   const confirmScheduleNewVisit = async () => {
     if (!initialData || !newVisitData.assignedTo || !newVisitData.scheduledDate) {
@@ -725,7 +761,33 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
     }
     setSchedulingVisit(true);
     try {
-      // Usa VisitService com guardas enterprise de estado
+      // Busca visitas existentes para determinar o próximo número sequencial
+      const existingVisits = await VisitService.getVisitsByOrderId(initialData.id);
+      const nextVisitNum = existingVisits.length + 1;
+
+      const itemsToConsolidate: OrderItem[] = visitItems.map(i => ({ ...i, visitNumber: nextVisitNum }));
+
+      const validVisitItems = itemsToConsolidate
+        .filter(i => {
+          const tot = Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0;
+          return tot > 0 || Number(i.unitPrice || 0) > 0;
+        })
+        .map(i => {
+          const qty = Number(i.quantity) || 1;
+          const unit = Number(i.unitPrice) || 0;
+          const tot = Number(i.total) || (qty * unit);
+          return {
+            ...i,
+            id: i.id || `visit-item-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            description: i.description?.trim() || `Item / Peça - Visita nº ${nextVisitNum}`,
+            quantity: qty,
+            unitPrice: unit,
+            total: tot,
+            visitNumber: nextVisitNum,
+          };
+        });
+
+      // Usa VisitService com guardas enterprise de estado e soma de custos/peças
       await VisitService.createNewVisit({
         orderId: initialData.id,
         orderStatus: localStatus || initialData.status,
@@ -733,11 +795,23 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
         scheduledDate: newVisitData.scheduledDate,
         scheduledTime: newVisitData.scheduledTime,
         notes: newVisitData.notes,
+        items: validVisitItems,
       });
       alert("Nova visita agendada com sucesso!");
       setShowNewVisitModal(false);
       setTimelineKey(prev => prev + 1);
       setLocalStatus(OrderStatus.ASSIGNED);
+      if (validVisitItems.length > 0) {
+        setItems(prev => {
+          const prevMap = new Map<string, OrderItem>();
+          prev.map(i => ({ ...i, visitNumber: i.visitNumber || 1 })).forEach(i => prevMap.set(i.id || `${i.description}-${i.unitPrice}`, i));
+          validVisitItems.forEach(i => prevMap.set(i.id || `${i.description}-${i.unitPrice}`, i));
+          return Array.from(prevMap.values());
+        });
+      }
+      setVisitItems([]);
+      setVisitStockSearch('');
+      setNewVisitData({ assignedTo: '', scheduledDate: '', scheduledTime: '', notes: '' });
     } catch (e: any) {
       // Mensagem clara para erros de regra de negócio
       const msg = e.message?.startsWith('INVALID_')
@@ -1432,10 +1506,17 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                     {items.map(item => (
                       <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
                         <td className="px-3 py-2">
-                          <input type="text" value={item.description} disabled={isReadOnly}
-                            onChange={e => updateItem(item.id, { description: e.target.value })}
-                            placeholder="Descreva o item..."
-                            className="bg-transparent border-none text-[11px] font-semibold text-slate-700 outline-none w-full placeholder:text-slate-300 disabled:opacity-50" />
+                          <div className="flex items-center gap-2">
+                            <input type="text" value={item.description} disabled={isReadOnly}
+                              onChange={e => updateItem(item.id, { description: e.target.value })}
+                              placeholder="Descreva o item..."
+                              className="bg-transparent border-none text-[11px] font-semibold text-slate-700 outline-none w-full placeholder:text-slate-300 disabled:opacity-50" />
+                            {item.visitNumber && item.visitNumber > 1 && (
+                              <span className="shrink-0 text-[9px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/10 px-1.5 py-0.5 rounded border border-[#1c2d4f]/20">
+                                Visita {item.visitNumber}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-3 py-2">
                           <input type="number" step="0.1" value={item.quantity} disabled={isReadOnly}
@@ -1785,7 +1866,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   <Button
                     onClick={openNewVisitModal}
                     disabled={!canCreateVisit}
-                    className={`rounded-lg px-4 py-2 font-bold text-xs ${canCreateVisit ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
+                    className={`rounded-lg px-4 py-2 font-bold text-xs ${canCreateVisit ? '!bg-[#1c2d4f] hover:!bg-[#253a66] text-white shadow-md shadow-[#1c2d4f]/20' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
                     title={!canCreateVisit ? "Apenas ordens pausadas ou impedidas permitem novas visitas." : ""}
                   >
                     + Nova Visita
@@ -1873,9 +1954,17 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
       {
         showNewVisitModal && (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg border border-slate-200">
+            <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar border border-slate-200">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-bold text-slate-800">Agendar Nova Visita</h3>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-[#1c2d4f]/10 text-[#1c2d4f] flex items-center justify-center border border-[#1c2d4f]/20">
+                    <Plus size={16} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-800">Agendar Nova Visita</h3>
+                    <p className="text-[10px] text-slate-400 font-medium">Configure data, técnico e adicione custos ou peças necessárias</p>
+                  </div>
+                </div>
                 <button type="button" onClick={() => setShowNewVisitModal(false)} className="text-slate-400 hover:text-slate-600">
                   <X size={20} />
                 </button>
@@ -1898,7 +1987,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   </div>
 
                   {/* Lista de técnicos */}
-                  <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+                  <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
                     {technicians
                       .filter(t =>
                         t.name.toLowerCase().includes(visitTechSearch.toLowerCase()) ||
@@ -1927,7 +2016,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                               }
                               setNewVisitData({ ...newVisitData, assignedTo: t.id });
                             }}
-                            className={`w-full flex items-center gap-3 p-2.5 rounded-xl border text-left transition-all ${
+                            className={`w-full flex items-center gap-3 p-2 rounded-xl border text-left transition-all ${
                               !isAllowed
                                 ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-100'
                                 : isSelected
@@ -1974,26 +2063,26 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                       t.name.toLowerCase().includes(visitTechSearch.toLowerCase()) ||
                       t.email?.toLowerCase().includes(visitTechSearch.toLowerCase())
                     ).length === 0 && (
-                      <p className="text-center text-xs text-slate-400 py-4">Nenhum técnico encontrado</p>
+                      <p className="text-center text-xs text-slate-400 py-3">Nenhum técnico encontrado</p>
                     )}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700  mb-1">data *</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">data *</label>
                     <input
                       type="date"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm font-semibold outline-none focus:border-[#1c2d4f]"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold outline-none focus:border-[#1c2d4f]"
                       value={newVisitData.scheduledDate}
                       onChange={e => setNewVisitData({ ...newVisitData, scheduledDate: e.target.value })}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700  mb-1">horário (opcional)</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">horário (opcional)</label>
                     <input
                       type="time"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm font-semibold outline-none focus:border-[#1c2d4f]"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold outline-none focus:border-[#1c2d4f]"
                       value={newVisitData.scheduledTime}
                       onChange={e => setNewVisitData({ ...newVisitData, scheduledTime: e.target.value })}
                     />
@@ -2009,11 +2098,153 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   />
                 </div>
 
-                <div className="pt-4 flex gap-3 flex-row-reverse">
+                {/* COMPOSIÇÃO DE VALORES / PEÇAS DA NOVA VISITA */}
+                <div className="pt-3 border-t border-slate-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 bg-slate-100 rounded-lg flex items-center justify-center text-slate-600">
+                        <DollarSign size={13} />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-800 tracking-tight">Custos e Peças Desta Visita</h4>
+                        <p className="text-[10px] text-slate-400 font-medium">Adicione itens de estoque ou despesas de retorno para somar ao total da OS</p>
+                      </div>
+                    </div>
+                    {visitTotalValue > 0 && (
+                      <span className="text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        + R$ {visitTotalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* AÇÕES DE ADIÇÃO (ESTOQUE E MANUAL) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="relative">
+                      <Package className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+                      <input
+                        placeholder="Buscar peça no estoque..."
+                        value={visitStockSearch}
+                        onChange={e => { setVisitStockSearch(e.target.value); setIsVisitStockListOpen(true); }}
+                        onFocus={() => setIsVisitStockListOpen(true)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-[11px] font-semibold text-slate-700 outline-none focus:border-[#1c2d4f] transition-all"
+                      />
+                      {(isVisitStockListOpen && visitStockSearch) && (
+                        <div className="absolute z-[180] top-full mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto custom-scrollbar">
+                          {stock.filter(s => s.description.toLowerCase().includes(visitStockSearch.toLowerCase())).length > 0 ? (
+                            stock.filter(s => s.description.toLowerCase().includes(visitStockSearch.toLowerCase())).map(s => (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onClick={() => {
+                                  addVisitItem({ description: s.description, unitPrice: s.sellPrice, fromStock: true, stockItemId: s.id });
+                                  setVisitStockSearch('');
+                                  setIsVisitStockListOpen(false);
+                                }}
+                                className="w-full text-left px-3 py-2 hover:bg-slate-50 flex justify-between items-center border-b border-slate-100 last:border-0 group"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Box size={12} className="text-slate-400 group-hover:text-[#1c2d4f]" />
+                                  <div>
+                                    <p className="text-[11px] font-bold text-slate-700">{s.description}</p>
+                                    <p className="text-[10px] text-[#1c2d4f] font-bold">R$ {s.sellPrice.toLocaleString('pt-BR')}</p>
+                                  </div>
+                                </div>
+                                <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">Qtd: {s.quantity}</span>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="p-3 text-center text-[10px] font-medium text-slate-400">Nenhum item encontrado no estoque</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => addVisitItem({ description: '', unitPrice: 0 })}
+                      className="border border-dashed border-slate-200 text-slate-500 rounded-lg py-2 text-[11px] font-bold flex items-center justify-center gap-1.5 hover:border-[#1c2d4f] hover:text-[#1c2d4f] hover:bg-[#1c2d4f05] transition-all"
+                    >
+                      <Plus size={13} /> Adicionar Item Manual
+                    </button>
+                  </div>
+
+                  {/* TABELA DE ITENS DA VISITA */}
+                  {visitItems.length > 0 && (
+                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="bg-slate-50 text-[9px] font-bold text-slate-400 uppercase border-b border-slate-200">
+                            <th className="px-3 py-1.5">Item / Descrição</th>
+                            <th className="px-2 py-1.5 w-16 text-center">Qtd</th>
+                            <th className="px-2 py-1.5 w-24">Unit. (R$)</th>
+                            <th className="px-2 py-1.5 w-24 text-right">Subtotal</th>
+                            <th className="px-2 py-1.5 text-center w-8"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {visitItems.map(item => (
+                            <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="px-3 py-1.5">
+                                <input
+                                  type="text"
+                                  value={item.description}
+                                  onChange={e => updateVisitItem(item.id, { description: e.target.value })}
+                                  placeholder="Descreva o custo ou peça..."
+                                  className="bg-transparent border-none text-[11px] font-semibold text-slate-700 outline-none w-full placeholder:text-slate-300"
+                                />
+                              </td>
+                              <td className="px-2 py-1.5">
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  value={item.quantity}
+                                  onChange={e => updateVisitItem(item.id, { quantity: parseFloat(e.target.value) || 0 })}
+                                  className="bg-slate-50 rounded px-1.5 py-0.5 text-[11px] font-bold text-slate-700 outline-none w-14 border border-slate-100 focus:border-[#1c2d4f] transition-all text-center"
+                                />
+                              </td>
+                              <td className="px-2 py-1.5">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={item.unitPrice}
+                                  onChange={e => updateVisitItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })}
+                                  className="bg-slate-50 rounded px-1.5 py-0.5 text-[11px] font-bold text-slate-700 outline-none w-20 border border-slate-100 focus:border-[#1c2d4f] transition-all"
+                                />
+                              </td>
+                              <td className="px-2 py-1.5 text-right font-mono font-bold text-[11px] text-slate-800">
+                                R$ {(item.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </td>
+                              <td className="px-2 py-1.5 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => removeVisitItem(item.id)}
+                                  className="p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded transition-all"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {/* TOTAL CONSOLIDADO */}
+                      <div className="bg-slate-50 border-t border-slate-200 px-3 py-2 flex items-center justify-between text-xs">
+                        <span className="text-[10px] font-semibold text-slate-500">
+                          Total anterior: R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          {visitTotalValue > 0 && ` + Visita: R$ ${visitTotalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                        </span>
+                        <span className="text-[11px] font-bold text-slate-900 font-mono">
+                          Novo Total da OS: R$ {(totalValue + visitTotalValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-3 flex gap-3 flex-row-reverse border-t border-slate-100">
                   <Button
                     onClick={confirmScheduleNewVisit}
                     isLoading={schedulingVisit}
-                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-3 font-bold"
+                    className="flex-1 !bg-[#1c2d4f] hover:!bg-[#253a66] text-white rounded-xl py-3 font-bold shadow-md shadow-[#1c2d4f]/20"
                   >
                     Confirmar Agendamento
                   </Button>

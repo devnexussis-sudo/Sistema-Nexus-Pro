@@ -6,7 +6,8 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import {
   Plus, Edit2, X, Save, Lock, AtSign, Loader2,
-  Smartphone, Search, Filter, ChevronLeft, Hash, Globe, Monitor, Trash2
+  Smartphone, Search, Filter, ChevronLeft, Hash, Globe, Monitor, Trash2,
+  Wrench, AlertTriangle, CheckCircle2, Shield
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { DataService } from '../../services/dataService';
@@ -61,7 +62,12 @@ export const TechnicianManagement: React.FC = () => {
 
   // 🔑 Backfill: atribui códigos a técnicos antigos sem código
   useEffect(() => {
-    TechnicianService.backfillMissingCodes().catch(console.warn);
+    TechnicianService.backfillMissingCodes().then((count) => {
+      if (count > 0) {
+        console.log(`[TechnicianManagement] Backfill atribuiu códigos a ${count} técnicos/usuários.`);
+        loadTechs();
+      }
+    }).catch(console.warn);
   }, []);
 
   const filteredTechs = technicians.filter(t => {
@@ -149,7 +155,8 @@ export const TechnicianManagement: React.FC = () => {
   const handleViewTech = (t: UserType, e: React.MouseEvent) => {
     e.stopPropagation();
     setIsReadOnly(true);
-    setFormData(t);
+    const techCode = (t as any).techCode || (t as any).tech_code || (t as any).userCode || (t as any).user_code || '';
+    setFormData({ ...t, techCode });
     setEditingId(t.id);
     setIsModalOpen(true);
   };
@@ -236,7 +243,7 @@ export const TechnicianManagement: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
+      <div className="relative bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col overflow-hidden flex-1 ring-1 ring-slate-200/80">
         {filteredTechs.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center p-12 text-center animate-fade-in">
             <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-4 border border-slate-200 shadow-inner">
@@ -261,30 +268,30 @@ export const TechnicianManagement: React.FC = () => {
         ) : (
           <>
             {/* 💻 DESKTOP TABLE VIEW */}
-            <div className="hidden md:block flex-1 overflow-auto p-0 custom-scrollbar">
-              <table className="w-full border-separate border-spacing-y-1">
-                <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md z-10 border-b border-slate-300 shadow-sm">
-                  <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center font-poppins">
-                    <th className="px-4 py-3 text-left">Identidade Visual</th>
-                    <th className="px-4 py-3 text-center">Código</th>
-                    <th className="px-4 py-3">Credencial (E-mail)</th>
-                    <th className="px-4 py-3 text-center">Acesso / Escopo</th>
-                    <th className="px-4 py-3 text-center">Status App</th>
-                    <th className="px-4 py-3 text-right pr-6">{t.common.actions}</th>
+            <div className="hidden md:block flex-1 overflow-auto custom-scrollbar os-table-container">
+              <table className="w-full text-left border-collapse table-auto">
+                <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-md border-b border-slate-200 z-10 shadow-xs font-poppins">
+                  <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">
+                    <th className="px-4 py-2">Identidade Visual</th>
+                    <th className="px-4 py-2 text-left">Código</th>
+                    <th className="px-4 py-2 text-left">Credencial (E-mail)</th>
+                    <th className="px-4 py-2 text-left">Acesso / Escopo</th>
+                    <th className="px-4 py-2 text-left">Status App</th>
+                    <th className="px-4 py-2 text-right pr-6">{t.common.actions}</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100 bg-white">
                   {paginatedTechs.map(t => {
                     const scope = (t as any).appScope || (t as any).app_scope || 'MOBILE';
                     const isHybrid = scope === 'HYBRID';
                     const isWeb = scope === 'WEB';
 
                     return (
-                    <tr key={t.id} onClick={(e) => handleViewTech(t, e)} className="bg-white hover:bg-emerald-50/40 transition-all group shadow-sm hover:shadow-md cursor-pointer">
-                      <td className="px-4 py-1.5 rounded-l-[1.5rem] border border-slate-100 border-r-0">
-                        <div className="flex items-center gap-4">
+                    <tr key={t.id} onClick={(e) => handleViewTech(t, e)} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md cursor-pointer">
+                      <td className="px-4 py-2">
+                        <div className="flex items-center gap-3">
                           <div className="relative group/avatar shrink-0">
-                            <img src={t.avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(t.name) + '&background=10b981&color=fff'} className="w-10 h-10 rounded-xl object-cover border-2 border-white shadow-md bg-slate-100 transition-transform group-hover/avatar:scale-105" alt={t.name} />
+                            <img src={t.avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(t.name) + '&background=10b981&color=fff'} className="w-8 h-8 rounded-lg object-cover border border-slate-200 shadow-sm bg-slate-100 transition-transform group-hover/avatar:scale-105" alt={t.name} />
                           </div>
                           <div className="truncate">
                             <p className="text-slate-900 tracking-tight text-[13px] font-medium truncate max-w-[150px]">{t.name}</p>
@@ -304,40 +311,41 @@ export const TechnicianManagement: React.FC = () => {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-1.5 border-y border-slate-100 text-center">
-                        <span className="font-mono text-[11px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2.5 py-1 rounded-lg tracking-widest border border-[#1c2d4f]/15">
-                          {formatTechCode((t as any).techCode)}
+                      <td className="px-4 py-2 text-left">
+                        <span className="font-mono text-[11px] font-medium text-[#1c2d4f] bg-[#1c2d4f]/8 px-2.5 py-1 rounded-lg border border-[#1c2d4f]/15">
+                          {formatTechCode((t as any).techCode || (t as any).tech_code || (t as any).userCode || (t as any).user_code)}
                         </span>
                       </td>
-                      <td className="px-4 py-1.5 border-y border-slate-100 text-[12px] text-slate-500 truncate max-w-[180px]">{t.email}</td>
+                      <td className="px-4 py-2 text-left text-[12px] text-slate-600 truncate max-w-[180px]">{t.email}</td>
                       
                       {/* Escopo de Acesso */}
-                      <td className="px-4 py-1.5 border-y border-slate-100 text-center whitespace-nowrap">
+                      <td className="px-4 py-2 text-left whitespace-nowrap">
                         {isHybrid ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs">
                             <Globe size={12} className="text-indigo-600" />
                             <Smartphone size={12} className="text-indigo-600" />
                             Painel + App
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs">
                             <Smartphone size={12} className="text-emerald-600" />
                             Apenas App
                           </span>
                         )}
                       </td>
 
-                      <td className="px-4 py-1.5 border-y border-slate-100 text-center whitespace-nowrap">
+                      <td className="px-4 py-2 text-left whitespace-nowrap">
                         <StatusBadge status={t.active ? OrderStatus.COMPLETED : OrderStatus.CANCELED} />
                       </td>
-                      <td className="px-4 py-1.5 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
-                        <div className="flex items-center justify-end gap-1.5 transition-all">
+                      <td className="px-4 py-2 text-right pr-4">
+                        <div className="flex items-center justify-end gap-1 transition-all">
                           <button onClick={(e) => {
                             if (!canEdit('technicians')) { e.preventDefault(); alert('Acesso Negado: Você não tem permissão para editar.'); return; }
                             e.stopPropagation();
                             setIsReadOnly(false);
-                            setFormData(t); setEditingId(t.id); setIsModalOpen(true);
-                          }} className={`p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90 ${!canEdit('technicians') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar Técnico"><Edit2 size={16} /></button>
+                            const techCode = (t as any).techCode || (t as any).tech_code || (t as any).userCode || (t as any).user_code || '';
+                            setFormData({ ...t, techCode }); setEditingId(t.id); setIsModalOpen(true);
+                          }} className={`p-1.5 bg-slate-50 text-slate-400 hover:text-primary-700 hover:bg-primary-100 rounded-lg border border-slate-200/60 transition-all ${!canEdit('technicians') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar Técnico"><Edit2 size={15} /></button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -347,10 +355,10 @@ export const TechnicianManagement: React.FC = () => {
                               }
                               setTechToDelete(t);
                             }}
-                            className={`p-2.5 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-90 ${(!canDelete('technicians') && !isAdmin) ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                            className={`p-1.5 bg-slate-50 text-slate-400 hover:text-rose-600 hover:bg-rose-100 rounded-lg border border-slate-200/60 transition-all ${(!canDelete('technicians') && !isAdmin) ? 'opacity-50 !cursor-not-allowed' : ''}`}
                             title="Excluir Técnico"
                           >
-                            <Trash2 size={16} />
+                            <Trash2 size={15} />
                           </button>
                         </div>
                       </td>
@@ -391,7 +399,7 @@ export const TechnicianManagement: React.FC = () => {
                     <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-[10px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2 py-0.5 rounded-md border border-[#1c2d4f]/15">
-                          {formatTechCode((t as any).techCode)}
+                          {formatTechCode((t as any).techCode || (t as any).tech_code || (t as any).userCode || (t as any).user_code)}
                         </span>
                         {isHybrid ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
@@ -410,7 +418,8 @@ export const TechnicianManagement: React.FC = () => {
                             if (!canEdit('technicians')) { e.preventDefault(); alert('Acesso Negado: Você não tem permissão para editar.'); return; }
                             e.stopPropagation();
                             setIsReadOnly(false);
-                            setFormData(t); setEditingId(t.id); setIsModalOpen(true);
+                            const techCode = (t as any).techCode || (t as any).tech_code || (t as any).userCode || (t as any).user_code || '';
+                            setFormData({ ...t, techCode }); setEditingId(t.id); setIsModalOpen(true);
                           }}
                           className="p-2 text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
                           title="Editar"
@@ -450,24 +459,24 @@ export const TechnicianManagement: React.FC = () => {
 
       {
         isModalOpen && createPortal(
-          <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
-            <div className="bg-white rounded-xl w-full max-w-[96vw] h-[92vh] shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up">
+          <div className="fixed inset-0 z-[160] flex items-end md:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 md:p-3 lg:p-5 overflow-hidden animate-in fade-in duration-300">
+            <div className="bg-white md:rounded-2xl w-full max-w-[1420px] h-full md:h-[95vh] shadow-2xl md:border border-slate-200 overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-300">
 
-              {/* HEADER — idêntico ao da OS */}
-              <div className="px-8 py-5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center text-[#1c2d4f] border border-slate-200">
-                    {editingId ? <Edit2 size={18} /> : <Plus size={18} />}
+              {/* HEADER — padrão do sistema */}
+              <div className="px-6 py-3.5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-slate-50 rounded-lg flex items-center justify-center text-[#1c2d4f] border border-slate-200">
+                    <Wrench size={18} />
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-                      {isReadOnly ? 'Detalhes do Técnico' : (editingId ? `Editar Técnico` : 'Novo Técnico')}
+                    <h2 className="text-base font-semibold text-slate-900 tracking-tight">
+                      {isReadOnly ? 'Detalhes do Técnico' : (editingId ? 'Editar Técnico' : 'Novo Técnico')}
                     </h2>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <p className="text-[10px] font-bold text-slate-400">Nexus Field • acesso via app móvel</p>
-                      {editingId && (formData as any).techCode && (
-                        <span className="font-mono text-[10px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2 py-0.5 rounded border border-[#1c2d4f]/15 tracking-widest">
-                          {(formData as any).techCode}
+                      <p className="text-[11px] font-normal text-slate-400">Nexus Field • credenciais e acesso do aplicativo de campo</p>
+                      {editingId && ((formData as any).techCode || (formData as any).tech_code || (formData as any).userCode || (formData as any).user_code) && (
+                        <span className="font-mono text-[10px] font-medium text-[#1c2d4f] bg-[#1c2d4f]/8 px-2 py-0.5 rounded border border-[#1c2d4f]/15 tracking-wider">
+                          {(formData as any).techCode || (formData as any).tech_code || (formData as any).userCode || (formData as any).user_code}
                         </span>
                       )}
                     </div>
@@ -482,143 +491,162 @@ export const TechnicianManagement: React.FC = () => {
                 </button>
               </div>
 
-              {/* BODY — bg-slate-50/30 p-8 igual à OS */}
-              <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-8 bg-slate-50/30 custom-scrollbar">
-                <div className="space-y-8 max-w-4xl mx-auto">
+              {/* BODY — Layout Widescreen lado a lado para preenchimento imediato sem rolagem */}
+              <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50/30 custom-scrollbar flex flex-col justify-between">
+                <div className="space-y-4">
 
                   {saveError && (
-                    <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl flex items-start gap-3 text-rose-600 animate-fade-in shadow-sm">
-                      <div className="shrink-0 mt-0.5">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                      </div>
+                    <div className="bg-rose-50 border border-rose-200 p-3.5 rounded-xl flex items-start gap-3 text-rose-600 animate-fade-in shadow-xs">
+                      <AlertTriangle size={18} className="shrink-0 mt-0.5" />
                       <div>
-                        <h4 className="text-sm font-bold">Atenção!</h4>
-                        <p className="text-xs font-medium mt-1">{saveError}</p>
+                        <h4 className="text-xs font-semibold">Atenção ao preencher os dados</h4>
+                        <p className="text-xs font-normal mt-0.5">{saveError}</p>
                       </div>
                     </div>
                   )}
 
-                  {/* Card de Identificação */}
-                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-100">
-                      <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">identificação do técnico</h3>
-                    </div>
-                    
-                    <div className="p-6 flex flex-col sm:flex-row gap-8 items-start">
-                      {/* Quadro da Foto (Avatar) */}
-                      <div className="flex flex-col items-center gap-3 shrink-0 pt-2">
-                        <div className="relative group">
-                          <img
-                            src={formData.avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(formData.name || 'Tech') + '&background=10b981&color=fff&size=256'}
-                            className="w-32 h-32 sm:w-40 sm:h-40 rounded-3xl object-cover border-4 border-white shadow-xl bg-slate-50 transition-transform duration-300 group-hover:scale-105"
-                            alt={formData.name}
-                          />
-                          <div className="absolute inset-0 rounded-3xl ring-1 ring-inset ring-slate-900/10" />
-                          {/* Indicador de Status na foto */}
-                          <div className={`absolute -bottom-2 -right-2 w-10 h-10 rounded-full border-4 border-white flex items-center justify-center shadow-md transition-colors ${formData.active ? 'bg-emerald-500' : 'bg-rose-500'}`}>
-                            <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
-                          </div>
-                        </div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center mt-2 w-32 sm:w-40 leading-relaxed">
-                          Foto do Perfil<br/>(Sincronizada do App)
-                        </p>
-                      </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                    {/* COLUNA ESQUERDA: Identificação do Técnico */}
+                    <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4">
+                      <h3 className="text-xs font-semibold text-slate-800 border-l-3 border-[#1c2d4f] pl-2.5">
+                        Identificação do Técnico
+                      </h3>
 
-                      {/* Campos do Formulário */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 flex-1 w-full">
-                        <div className="md:col-span-2">
+                      <div className="flex flex-col sm:flex-row gap-5 items-start">
+                        {/* Quadro da Foto (Avatar) */}
+                        <div className="flex flex-col items-center gap-2 shrink-0 self-center sm:self-start">
+                          <div className="relative group">
+                            <img
+                              src={formData.avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(formData.name || 'Tech') + '&background=10b981&color=fff&size=256'}
+                              className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-2 border-white shadow-md bg-slate-50"
+                              alt={formData.name || 'Foto'}
+                            />
+                            <div className="absolute inset-0 rounded-2xl ring-1 ring-inset ring-slate-900/10" />
+                            {/* Indicador de Status */}
+                            <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center shadow-xs ${formData.active ? 'bg-emerald-500' : 'bg-rose-500'}`} title={formData.active ? 'Ativo' : 'Suspenso'}>
+                              <div className="w-2 h-2 bg-white rounded-full" />
+                            </div>
+                          </div>
+                          <p className="text-[10px] font-normal text-slate-400 text-center leading-tight">
+                            Foto do Perfil<br/>(App Móvel)
+                          </p>
+                        </div>
+
+                        {/* Campos do Formulário */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 flex-1 w-full">
+                          <div className="md:col-span-2">
+                            <Input
+                              label="Nome Completo"
+                              required
+                              disabled={isReadOnly}
+                              placeholder="Ex: Roberto Refrigeração"
+                              value={formData.name}
+                              onChange={e => setFormData({ ...formData, name: e.target.value })}
+                              className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50"
+                            />
+                          </div>
+
                           <Input
-                            label="Nome Completo"
+                            label="E-mail (Login do App)"
                             required
                             disabled={isReadOnly}
-                            placeholder="Ex: Roberto Refrigeração"
-                            value={formData.name}
-                            onChange={e => setFormData({ ...formData, name: e.target.value })}
-                            className="rounded-xl py-3 font-medium border-slate-200 text-lg disabled:bg-slate-50"
+                            type="email"
+                            placeholder="tecnico@nexus.pro"
+                            value={formData.email}
+                            onChange={e => setFormData({ ...formData, email: e.target.value })}
+                            className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50"
+                            icon={<AtSign size={15} />}
                           />
-                        </div>
 
-                        <Input
-                          label="E-mail (Login do App)"
-                          required
-                          disabled={isReadOnly}
-                          type="email"
-                          placeholder="tecnico@nexus.pro"
-                          value={formData.email}
-                          onChange={e => setFormData({ ...formData, email: e.target.value })}
-                          className="rounded-xl py-3 font-medium border-slate-200 disabled:bg-slate-50"
-                          icon={<AtSign size={16} />}
-                        />
-
-                        <Input
-                          label="Telefone / WhatsApp"
-                          disabled={isReadOnly}
-                          placeholder="(00) 00000-0000"
-                          value={formData.phone}
-                          onChange={handlePhoneChange}
-                          className="rounded-xl py-3 font-medium border-slate-200 disabled:bg-slate-50"
-                          icon={<Smartphone size={16} />}
-                        />
-
-                        <div className="md:col-span-2">
                           <Input
-                            label="Função / Cargo"
+                            label="Telefone / WhatsApp"
                             disabled={isReadOnly}
-                            placeholder="Ex: Técnico de Ar Condicionado"
-                            value={formData.jobTitle}
-                            onChange={e => setFormData({ ...formData, jobTitle: e.target.value })}
-                            className="rounded-xl py-3 font-medium border-slate-200 disabled:bg-slate-50"
-                            icon={<Smartphone size={16} />}
+                            placeholder="(00) 00000-0000"
+                            value={formData.phone}
+                            onChange={handlePhoneChange}
+                            className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50"
+                            icon={<Smartphone size={15} />}
                           />
+
+                          <div className="md:col-span-2">
+                            <Input
+                              label="Função / Cargo Técnico"
+                              disabled={isReadOnly}
+                              placeholder="Ex: Especialista em Refrigeração Industrial"
+                              value={formData.jobTitle}
+                              onChange={e => setFormData({ ...formData, jobTitle: e.target.value })}
+                              className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50"
+                              icon={<Shield size={15} />}
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Card de Controle */}
-                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-100">
-                      <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">controle de acesso</h3>
-                    </div>
-                    <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {/* COLUNA DIREITA: Controle de Acesso & Informações */}
+                    <div className="lg:col-span-5 bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4 flex flex-col justify-between">
+                      <div>
+                        <h3 className="text-xs font-semibold text-slate-800 border-l-3 border-[#1c2d4f] pl-2.5 mb-4">
+                          Controle de Acesso & Segurança
+                        </h3>
 
-                      {/* Código — somente leitura */}
-                      <div className="w-full">
-                        <label className="text-[10px] font-bold text-slate-400 mb-1.5 block ml-1">Código do Técnico</label>
-                        <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
-                          <Hash size={15} className="text-slate-300 shrink-0" />
-                          <span className="font-mono text-sm font-bold text-[#1c2d4f] tracking-[0.2em] flex-1">
-                            {(formData as any).techCode || (formData as any).tech_code || '— gerado ao salvar —'}
-                          </span>
-                          <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest shrink-0">somente leitura</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3.5">
+                          {/* Código — somente leitura */}
+                          <div>
+                            <label className="text-[11px] font-medium text-slate-600 mb-1 block ml-0.5">Código do Técnico</label>
+                            <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-300 rounded-xl px-3 h-10 shadow-xs">
+                              <Hash size={14} className="text-slate-400 shrink-0" />
+                              <span className="font-mono text-xs font-medium text-[#1c2d4f] tracking-wider flex-1 truncate">
+                                {(formData as any).techCode || (formData as any).tech_code || (formData as any).userCode || (formData as any).user_code || '— gerado ao salvar —'}
+                              </span>
+                              <span className="text-[9px] font-medium text-slate-400 uppercase tracking-wider shrink-0">Automático</span>
+                            </div>
+                          </div>
+
+                          {/* Status de Acesso */}
+                          <div>
+                            <label className="text-[11px] font-medium text-slate-600 mb-1 block ml-0.5">Status de Acesso</label>
+                            <select
+                              disabled={isReadOnly}
+                              className="w-full bg-white border border-slate-300 rounded-xl px-3 h-10 text-xs font-normal text-slate-800 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] transition-all outline-none cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed shadow-xs"
+                              value={formData.active ? 'ACTIVE' : 'INACTIVE'}
+                              onChange={e => setFormData({ ...formData, active: e.target.value === 'ACTIVE' })}
+                            >
+                              <option value="ACTIVE">Liberado (App Ativo)</option>
+                              <option value="INACTIVE">Suspenso (Bloqueado)</option>
+                            </select>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="w-full">
-                        <label className="text-[10px] font-bold text-slate-400 mb-1.5 block ml-1">Status de Acesso</label>
-                        <select
-                          disabled={isReadOnly}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] transition-all outline-none cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
-                          value={formData.active ? 'ACTIVE' : 'INACTIVE'}
-                          onChange={e => setFormData({ ...formData, active: e.target.value === 'ACTIVE' })}
-                        >
-                          <option value="ACTIVE">Liberado (App Ativo)</option>
-                          <option value="INACTIVE">Suspenso (Bloqueado)</option>
-                        </select>
+                      {/* Info Card de Integração Mobile */}
+                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-start gap-3 mt-3">
+                        <div className={`p-2 rounded-lg shrink-0 ${formData.active ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-rose-50 text-rose-600 border border-rose-200'}`}>
+                          {formData.active ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+                        </div>
+                        <div className="text-xs">
+                          <p className="font-medium text-slate-800">
+                            {formData.active ? 'Acesso ao Aplicativo Móvel Liberado' : 'Acesso Suspenso no Aplicativo'}
+                          </p>
+                          <p className="text-[11px] text-slate-500 font-normal mt-0.5 leading-relaxed">
+                            {formData.active 
+                              ? 'O técnico pode autenticar no aplicativo de campo, receber ordens de serviço e registrar checklists operacionais.' 
+                              : 'O técnico não conseguirá realizar login ou sincronizar dados no app enquanto estiver suspenso.'}
+                          </p>
+                        </div>
                       </div>
-
                     </div>
                   </div>
 
                 </div>
               </form>
 
-              {/* FOOTER — idêntico ao da OS */}
-              <div className="px-8 py-4 border-t border-slate-200 bg-white flex justify-end gap-3 shrink-0">
+              {/* FOOTER — padrão do sistema */}
+              <div className="px-6 py-3.5 border-t border-slate-200 bg-white flex justify-end gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => { setIsModalOpen(false); setEditingId(null); setIsReadOnly(false); setFormData({ name: '', email: '', active: true, phone: '', jobTitle: '' }); setSaveError(null); }}
-                  className="h-9 px-5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                  className="h-9 px-5 rounded-xl text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
                 >
                   {isReadOnly ? 'Fechar' : 'Cancelar'}
                 </button>
@@ -626,7 +654,7 @@ export const TechnicianManagement: React.FC = () => {
                   <Button
                     onClick={handleSubmit as any}
                     disabled={loading}
-                    className="h-9 px-6 rounded-xl text-xs font-bold bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white disabled:opacity-70 disabled:cursor-not-allowed transition-all"
+                    className="h-9 px-6 rounded-xl text-xs font-semibold bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white disabled:opacity-70 disabled:cursor-not-allowed transition-all shadow-xs"
                   >
                     {loading ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Save size={14} className="mr-2" />}
                     {loading ? 'Salvando...' : editingId ? 'Salvar Alterações' : 'Confirmar Cadastro'}

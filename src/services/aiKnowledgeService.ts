@@ -15,12 +15,18 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 const CHUNK_SIZE = 1500;
 const OVERLAP = 300;
 
+export interface ChatHistoryItem {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
 export interface KnowledgeDocument {
   id: string;
   source_name: string;
   source_type: string;
   created_at: string;
   metadata: any;
+  total_chunks?: number;
 }
 
 function removeAccents(str: string): string {
@@ -33,7 +39,8 @@ function extractKeywords(text: string): string[] {
   const stopwords = new Set([
     'de', 'do', 'da', 'em', 'para', 'com', 'um', 'uma', 'os', 'as', 'o', 'a',
     'que', 'se', 'na', 'no', 'eu', 'por', 'ou', 'e', 'ao', 'das', 'dos', 'nos',
-    'nas', 'num', 'numa', 'pelo', 'pela', 'the', 'and', 'is', 'of', 'to', 'in'
+    'nas', 'num', 'numa', 'pelo', 'pela', 'the', 'and', 'is', 'of', 'to', 'in',
+    'pra', 'pro', 'pras', 'pros', 'pelo', 'pela', 'pelos', 'pelas'
   ]);
   
   // Preserva números e siglas — essenciais para manuais técnicos
@@ -51,6 +58,67 @@ function extractKeywords(text: string): string[] {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 2000)
     .map(e => e[0]);
+}
+
+/**
+ * ENGENHARIA DE RAG MULTI-TURN:
+ * Detecta se a pergunta atual é uma continuação/dependente do turno anterior
+ * (ex: "e como resolvo isso?", "onde fica essa peça?", "qual a voltagem dele?").
+ * Enriquece as palavras-chave da busca no banco com as entidades do turno anterior
+ * para que a recuperação ache exatamente o trecho do manual correto.
+ */
+function contextualizeKeywords(
+  currentQuery: string,
+  history?: ChatHistoryItem[]
+): { searchKeywords: string[]; brandKeywords: string[] } {
+  const currentKeywords = extractKeywords(currentQuery);
+  const currentNorm = removeAccents(currentQuery.toLowerCase());
+
+  // Detecta se a pergunta atual contém anáfora, pronomes demonstrativos ou elipses
+  const hasAnaphora = /\b(isso|disso|nisso|ele|dele|nele|ela|dela|nela|esse|essa|esses|essas|este|esta|estes|estas|aquele|aquela|aqueles|aquelas|o mesmo|a mesma|como resolvo|como faco|como fazer|onde fica|aonde fica|qual a peca|qual e a peca|como testar|como trocar|qual o valor|qual a voltagem|o que significa|o que e|qual defeito|qual erro|e se|mas se|porque|por que|pq)\b/i.test(currentNorm);
+
+  const isShortQuery = currentKeywords.length <= 2;
+
+  let combinedKeywords = [...currentKeywords];
+  let extractedBrands: string[] = [];
+
+  // Marcas/siglas da pergunta atual (ex: Rational, Prática, E18, PVD)
+  const currentBrands = currentQuery
+    .split(/[\s,;:!?()"]+/)
+    .filter(w => /^[A-Z0-9]{2,}$/.test(w) || /^[A-Z][a-záéíóúãõ0-9]+/.test(w))
+    .map(w => removeAccents(w.toLowerCase()))
+    .filter(w => w.length >= 2 && !['para', 'com', 'que', 'voce', 'duno', 'ola', 'sim', 'nao', 'tudo'].includes(w));
+  extractedBrands.push(...currentBrands);
+
+  // Se for uma pergunta dependente/curta e houver histórico
+  if ((hasAnaphora || isShortQuery) && history && history.length > 0) {
+    const reversedHistory = [...history].reverse();
+    for (const msg of reversedHistory.slice(0, 4)) {
+      if (!msg.content) continue;
+
+      // Extrai entidades / modelos / marcas das mensagens anteriores
+      const prevBrands = msg.content
+        .split(/[\s,;:!?()"]+/)
+        .filter(w => /^[A-Z0-9]{2,}$/.test(w) || /^[A-Z][a-záéíóúãõ0-9]+/.test(w))
+        .map(w => removeAccents(w.toLowerCase()))
+        .filter(w => w.length >= 2 && !['para', 'com', 'que', 'voce', 'duno', 'ola', 'sim', 'nao', 'tudo'].includes(w));
+      extractedBrands.push(...prevBrands);
+
+      // Extrai palavras técnicas das mensagens anteriores (ex: erro, forno, sensor, peca, pressostato, pedido, faturamento)
+      const prevKeywords = extractKeywords(msg.content);
+      const technicalNouns = prevKeywords.filter(k =>
+        k.length >= 3 && !['como', 'fazer', 'onde', 'quando', 'quem', 'qual', 'pode', 'ajuda', 'favor', 'obrigado', 'resposta'].includes(k)
+      );
+
+      combinedKeywords.push(...technicalNouns.slice(0, 5));
+      if (combinedKeywords.length >= 10) break;
+    }
+  }
+
+  return {
+    searchKeywords: Array.from(new Set(combinedKeywords)),
+    brandKeywords: Array.from(new Set(extractedBrands))
+  };
 }
 
 // Quebra o texto em chunks respeitando sobreposição
@@ -311,11 +379,34 @@ export const aiKnowledgeService = {
     const tenantId = getCurrentTenantId();
     if (!tenantId) return [];
 
+    // 1. Tenta RPC consolidada que agrupa por source_name no banco de dados
+    try {
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc('list_ai_knowledge_documents', { p_tenant_id: tenantId });
+
+      if (!rpcError && Array.isArray(rpcData)) {
+        return rpcData.map(d => ({
+          id: d.source_name,
+          source_name: d.source_name,
+          source_type: d.source_type || 'pdf',
+          created_at: d.created_at,
+          metadata: {
+            ...(typeof d.metadata === 'object' && d.metadata !== null ? d.metadata : {}),
+            totalChunks: d.total_chunks
+          },
+          total_chunks: d.total_chunks
+        }));
+      }
+    } catch (_e) {
+      // silencioso, vai para o fallback
+    }
+
+    // 2. Fallback: Consulta o banco agrupando por source_name na memória
+    // para nunca omitir arquivos cujo chunk_index 0 não tenha sido encontrado
     const { data, error } = await supabase
       .from('ai_knowledge_base')
-      .select('source_name, source_type, created_at, metadata')
+      .select('source_name, source_type, created_at, metadata, chunk_index')
       .eq('tenant_id', tenantId)
-      .eq('chunk_index', 0) // pega só o primeiro chunk de cada arquivo pra listar
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -323,13 +414,20 @@ export const aiKnowledgeService = {
       return [];
     }
 
-    return (data || []).map(d => ({
-      id: d.source_name, // source_name como id unico por enquanto
-      source_name: d.source_name,
-      source_type: d.source_type,
-      created_at: d.created_at,
-      metadata: d.metadata
-    }));
+    const docMap = new Map<string, KnowledgeDocument>();
+    for (const row of data || []) {
+      if (!docMap.has(row.source_name)) {
+        docMap.set(row.source_name, {
+          id: row.source_name,
+          source_name: row.source_name,
+          source_type: row.source_type || 'pdf',
+          created_at: row.created_at,
+          metadata: row.metadata || {}
+        });
+      }
+    }
+
+    return Array.from(docMap.values());
   },
 
   async deleteDocument(sourceName: string): Promise<number> {
@@ -387,9 +485,22 @@ export const aiKnowledgeService = {
     return count || 0;
   },
 
-  async searchKnowledge(query: string, tenantId: string, topK: number = 7, persona?: string): Promise<string | null> {
-    console.log('[AI Search] Iniciando busca para query:', query);
-    let queryKeywords = extractKeywords(query);
+  async searchKnowledge(
+    query: string,
+    tenantId: string,
+    topK: number = 7,
+    persona?: string,
+    history?: ChatHistoryItem[]
+  ): Promise<string | null> {
+    console.log('[AI Search] Iniciando busca para query:', query, 'com histórico:', history?.length || 0);
+
+    // ══════════════════════════════════════════════════════════════
+    // CONTEXTUALIZAÇÃO INTELIGENTE DE KEYWORDS (Multi-Turn RAG)
+    // Se for uma pergunta dependente do turno anterior, puxa marcas,
+    // modelos e termos do turno anterior para encontrar o trecho exato no banco.
+    // ══════════════════════════════════════════════════════════════
+    const { searchKeywords, brandKeywords } = contextualizeKeywords(query, history);
+    let queryKeywords = searchKeywords;
 
     if (queryKeywords.length === 0) {
       queryKeywords = removeAccents(query.toLowerCase())
@@ -450,7 +561,7 @@ export const aiKnowledgeService = {
     }
 
     if (data.length === 0) {
-      console.log('[AI Search] Nenhum chunk encontrado. Usando apenas o Manual do Sistema.');
+      console.log('[AI Search] Nenhum chunk de manual encontrado para esta pergunta no tenant.');
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -459,10 +570,13 @@ export const aiKnowledgeService = {
     // ══════════════════════════════════════════════════════════════
     const queryNorm = removeAccents(query.toLowerCase());
     const queryWordsRaw = queryNorm.split(/\s+/).filter(w => w.length > 2);
-    const brandWords = query
-      .split(/\s+/)
-      .filter(w => /^[A-Z]{2,}/.test(w) || /^[A-Z][a-záéíóúãõ]+/.test(w))
-      .map(w => removeAccents(w.toLowerCase()));
+    const brandWords = [
+      ...brandKeywords,
+      ...query
+        .split(/\s+/)
+        .filter(w => /^[A-Z]{2,}/.test(w) || /^[A-Z][a-záéíóúãõ]+/.test(w))
+        .map(w => removeAccents(w.toLowerCase()))
+    ];
 
     const scored = data.map((doc: any) => {
       // Base: score de relevância que o banco calculou (V3)
@@ -498,15 +612,17 @@ export const aiKnowledgeService = {
     ));
 
     // ══════════════════════════════════════════════════════════════
-    // ENVIO DIRETO (sem Mini-RAG!)
-    // Com Micro-Chunks de 1500 chars cada, o banco já retorna
-    // pedaços precisos. Enviamos os 4 melhores direto para a IA.
-    // 4 × 1500 chars ≈ 2.000 tokens — longe do limite de 6k TPM!
+    // ENVIO DIRETO (Micro-Chunks)
+    // 4 × 1500 chars ≈ 2.000 tokens — preciso e rápido
     // ══════════════════════════════════════════════════════════════
     const bestMatches: any[] = scored.slice(0, 4);
 
     // Injeção cirúrgica do manual interno oficial do Duno
-    const bestSystemMatch = findBestMatch(query);
+    let bestSystemMatch = findBestMatch(query);
+    if (!bestSystemMatch && queryKeywords.length > 0) {
+      bestSystemMatch = findBestMatch(queryKeywords.join(' '));
+    }
+
     if (bestSystemMatch) {
       bestMatches.unshift({
         content: `[MANUAL OFICIAL DO SISTEMA DUNO]\n${bestSystemMatch}`,
@@ -536,7 +652,11 @@ export const aiKnowledgeService = {
     }
 
     // Injeção do Cérebro Heurístico (Procedimentos de Tela/CRUD)
-    const procMatch = await analyzeAndDiscover(query);
+    let procMatch = await analyzeAndDiscover(query);
+    if (!procMatch && queryKeywords.length > 0) {
+      procMatch = await analyzeAndDiscover(queryKeywords.join(' '));
+    }
+
     if (procMatch) {
       bestMatches.unshift({
         content: `[MÓDULO E PROCEDIMENTOS DE TELA DO SISTEMA DUNO]\n${procMatch}`,
@@ -554,10 +674,8 @@ export const aiKnowledgeService = {
       }
       
       const functionUrl = import.meta.env.VITE_SUPABASE_URL + '/functions/v1/duno-ai-generator';
-      console.log('[AI Search] Chamando Edge Function. Chunks:', bestMatches.length);
+      console.log('[AI Search] Chamando Edge Function. Chunks:', bestMatches.length, 'Histórico:', history?.length || 0);
 
-      // ✅ Micro-Chunks já são pequenos (≤1500 chars = ≤500 tokens cada).
-      // 4 chunks + manual = ≤2500 tokens. Bem abaixo do limite de 6k da Groq!
       const response = await fetch(functionUrl, {
         method: 'POST',
         headers: {
@@ -571,7 +689,8 @@ export const aiKnowledgeService = {
             source_name: m.source_name,
             keywords: m.keywords
           })),
-          persona
+          persona,
+          history
         })
       });
 
@@ -579,7 +698,7 @@ export const aiKnowledgeService = {
       if (json.answer) return json.answer;
 
       if (json.error) {
-        alert("⚠️ AVISO DO DEV: A Edge Function retornou erro: " + json.error);
+        console.error('[AI Search] Edge Function retornou erro:', json.error);
         throw new Error(json.error);
       }
 

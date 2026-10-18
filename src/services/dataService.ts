@@ -28,6 +28,7 @@ import { CustomerService } from './customerService';
 import { EquipmentService } from './equipmentService';
 import { ContractService } from './contractService';
 import { QuoteService } from './quoteService';
+import { SalesOrderService } from './salesOrderService';
 import { StockService } from './stockService';
 import { FinancialService } from './financialService';
 import { FormService } from './formService';
@@ -98,6 +99,7 @@ export const DataService = {
   ...EquipmentService,
   ...ContractService,
   ...QuoteService,
+  ...SalesOrderService,
   ...StockService,
   ...FinancialService,
   ...FormService,

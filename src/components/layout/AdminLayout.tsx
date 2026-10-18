@@ -4,8 +4,8 @@ import {
     Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Calendar,
     Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck,
     Settings, LogOut, Bell, Package, ArrowRight, FileText,
-    AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff, X, Phone, Menu, Bot, Code2, BookOpen, MapPin, MessageCircle, ClipboardCheck,
-    Camera, Upload, Sparkles, Check, CheckCircle2, Loader2, Key, Mail, FolderTree, ExternalLink, Link2
+    AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, ChevronDown, WifiOff, X, Phone, Menu, Bot, Code2, BookOpen, MapPin, MessageCircle, ClipboardCheck,
+    Camera, Upload, Sparkles, Check, CheckCircle2, Loader2, Key, Mail, FolderTree, ExternalLink, Link2, ShoppingBag
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { NexusBranding } from '../ui/NexusBranding';
@@ -55,6 +55,23 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     });
     const [whatsappWaitingCount, setWhatsappWaitingCount] = useState(0);
     const [solicitacoesCount, setSolicitacoesCount] = useState(0);
+    const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>(() => {
+        try {
+            return JSON.parse(localStorage.getItem('nexus_collapsed_menu_categories') || '{}');
+        } catch (e) {
+            return {};
+        }
+    });
+
+    const toggleCategory = useCallback((categoryTitle: string) => {
+        setCollapsedCategories(prev => {
+            const next = { ...prev, [categoryTitle]: !prev[categoryTitle] };
+            try {
+                localStorage.setItem('nexus_collapsed_menu_categories', JSON.stringify(next));
+            } catch (e) {}
+            return next;
+        });
+    }, []);
     const { setAuth, logout } = useAuth();
     const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
     const [avatarInput, setAvatarInput] = useState('');
@@ -442,13 +459,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     const menuItems = [
         { path: '/admin', id: 'dashboard', label: t.nav.dashboard, icon: LayoutDashboard, visible: menuVisible('dashboard'), enabled: isModuleEnabled('dashboard') },
         { path: '/admin/ai', id: 'ai', label: 'Duno IA', icon: Bot, visible: menuVisible('settings'), enabled: isModuleEnabled('ai') },
+        { path: '/admin/solicitacoes', id: 'solicitacoes', label: 'Solicitações', icon: ClipboardCheck, visible: menuVisible('solicitacoes'), enabled: isModuleEnabled('ai'), badge: solicitacoesCount },
         { path: '/admin/docs', id: 'docs', label: 'Docs / FAQ', icon: BookOpen, visible: true, enabled: isModuleEnabled('docs') },
         { path: '/admin/whatsapp', id: 'whatsapp', label: 'WhatsApp Inbox', icon: MessageCircle, visible: menuVisible('whatsapp'), enabled: isModuleEnabled('ai'), badge: whatsappWaitingCount },
-        { path: '/admin/solicitacoes', id: 'solicitacoes', label: 'Solicitações', icon: ClipboardCheck, visible: menuVisible('solicitacoes'), enabled: isModuleEnabled('ai'), badge: solicitacoesCount },
         { path: '/admin/orders', id: 'orders', label: t.nav.orders, icon: ClipboardList, visible: menuVisible('orders'), enabled: isModuleEnabled('orders') },
         { path: '/admin/calendar', id: 'calendar', label: t.nav.calendar, icon: Calendar, visible: menuVisible('calendar'), enabled: isModuleEnabled('calendar') },
         { path: '/admin/map', id: 'map', label: t.nav.map, icon: Navigation, visible: menuVisible('map'), enabled: isModuleEnabled('map') },
         { path: '/admin/financial', id: 'financial', label: t.nav.financial, icon: DollarSign, visible: menuVisible('financial'), enabled: isModuleEnabled('financial') },
+        { path: '/admin/sales-orders', id: 'sales_orders', label: (t.nav as any).sales_orders || 'Pedidos de Venda', icon: ShoppingBag, visible: menuVisible('sales_orders'), enabled: isModuleEnabled('sales_orders') },
         { path: '/admin/quotes', id: 'quotes', label: t.nav.quotes, icon: FileText, visible: menuVisible('quotes'), enabled: isModuleEnabled('quotes') },
         { path: '/admin/stock', id: 'stock', label: t.nav.stock, icon: Package, visible: menuVisible('stock'), enabled: isModuleEnabled('stock') },
         { path: '/admin/contracts', id: 'contracts', label: t.nav.contracts, icon: CalendarClock, visible: menuVisible('contracts'), enabled: isModuleEnabled('contracts') },
@@ -468,82 +486,115 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
     const MENU_CATEGORIES = [
         {
-            title: 'Operação & Atendimentos',
-            ids: ['dashboard', 'orders', 'calendar', 'map', 'solicitacoes', 'whatsapp']
+            title: 'Operação & Atendimento',
+            ids: ['dashboard', 'ai', 'solicitacoes', 'orders', 'calendar', 'map', 'whatsapp']
         },
         {
             title: 'Financeiro & Comercial',
-            ids: ['financial', 'quotes', 'stock', 'contracts']
+            ids: ['financial', 'sales_orders', 'quotes', 'stock', 'contracts']
         },
         {
             title: 'Cadastros & Ativos',
-            ids: ['clients', 'equip', 'forms', 'techs', 'regions']
+            ids: ['clients', 'equip', 'forms', 'techs', 'regions', 'users']
         },
         {
-            title: 'Configurações & IA',
-            ids: ['ai', 'users', 'settings', 'integrations', 'docs']
+            title: 'Configurações & Sistema',
+            ids: ['settings', 'integrations', 'docs']
         }
     ];
 
     // ── Componente de Sidebar Navigation (Cards para Mobile PWA + Minimalista para Desktop) ──
     const SidebarNav = ({ onItemClick }: { onItemClick?: () => void }) => {
         if (onItemClick) {
-            // 📱 MOBILE PWA CARD HUB (Menu em Cards Categorizados Big Tech)
+            // 📱 MOBILE PWA CARD HUB (Menu em Cards Categorizados Big Tech + Retrátil)
             return (
                 <div className="space-y-4 font-poppins">
                     {MENU_CATEGORIES.map(cat => {
-                        const items = menuItems.filter(item => cat.ids.includes(item.id));
+                        const items = cat.ids
+                            .map(id => menuItems.find(item => item.id === id))
+                            .filter((item): item is typeof menuItems[0] => Boolean(item));
                         if (items.length === 0) return null;
+
+                        const isCollapsed = !!collapsedCategories[cat.title];
+                        const hasActiveChild = items.some(item =>
+                            location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path))
+                        );
+                        const totalBadge = items.reduce((acc, curr) => acc + (curr.badge || 0), 0);
 
                         return (
                             <div key={cat.title} className="flex flex-col gap-1.5">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-white/40 px-1">
-                                    {cat.title}
-                                </span>
-                                <div className="space-y-1.5">
-                                    {items.map(item => {
-                                        const isActive = location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path));
-                                        return (
-                                            <Link
-                                                key={item.id}
-                                                to={item.enabled && item.visible ? item.path : '#'}
-                                                onClick={(e) => {
-                                                    if (!item.enabled) {
-                                                        e.preventDefault();
-                                                        alert("Módulo desabilitado temporariamente.");
-                                                    } else if (!item.visible) {
-                                                        e.preventDefault();
-                                                        alert("Acesso Negado: Você não tem permissão para acessar este módulo. Contate o administrador.");
-                                                    } else {
-                                                        onItemClick();
-                                                    }
-                                                }}
-                                                className={`w-full flex items-center justify-between p-2.5 rounded-xl transition-all border ${
-                                                    (!item.enabled || !item.visible)
-                                                        ? 'bg-white/[0.02] border-white/5 text-white/30 cursor-not-allowed'
-                                                        : isActive
-                                                            ? 'bg-white/20 border-white/30 text-white shadow-md'
-                                                            : 'bg-white/[0.05] hover:bg-white/[0.09] border-white/5 text-white/80 active:scale-[0.98]'
-                                                }`}
-                                            >
-                                                <div className="flex items-center gap-2.5 min-w-0">
-                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                                                        isActive ? 'bg-white text-[#1c2d4f]' : 'bg-white/10 text-white/80'
-                                                    }`}>
-                                                        <item.icon size={16} />
-                                                    </div>
-                                                    <span className="text-xs font-semibold truncate">{item.label}</span>
-                                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => toggleCategory(cat.title)}
+                                    className="w-full flex items-center justify-between text-left py-1.5 px-2 rounded-lg hover:bg-white/[0.06] transition-all group select-none cursor-pointer gap-2"
+                                >
+                                    <span className="text-[11px] font-bold uppercase tracking-normal text-white/80 group-hover:text-white transition-colors leading-snug flex-1">
+                                        {cat.title}
+                                    </span>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        {isCollapsed && hasActiveChild && (
+                                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-sm shadow-blue-400/50" title="Item ativo nesta seção" />
+                                        )}
+                                        {isCollapsed && totalBadge > 0 && (
+                                            <span className="min-w-[18px] h-4 px-1 inline-flex items-center justify-center rounded-full bg-amber-400 text-slate-950 text-[9px] font-black leading-none">
+                                                {totalBadge}
+                                            </span>
+                                        )}
+                                        <ChevronDown
+                                            size={14}
+                                            className={`text-white/40 group-hover:text-white/80 transition-transform duration-200 ${
+                                                isCollapsed ? '-rotate-90' : 'rotate-0'
+                                            }`}
+                                        />
+                                    </div>
+                                </button>
 
-                                                {(item.badge || 0) > 0 && (
-                                                    <span className="min-w-[20px] h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-amber-400 text-slate-950 text-[10px] font-black leading-none shadow-sm shadow-amber-400/40 border border-amber-300/50 shrink-0">
-                                                        {item.badge}
-                                                    </span>
-                                                )}
-                                            </Link>
-                                        );
-                                    })}
-                                </div>
+                                {!isCollapsed && (
+                                    <div className="space-y-1.5">
+                                        {items.map(item => {
+                                            const isActive = location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path));
+                                            return (
+                                                <Link
+                                                    key={item.id}
+                                                    to={item.enabled && item.visible ? item.path : '#'}
+                                                    onClick={(e) => {
+                                                        if (!item.enabled) {
+                                                            e.preventDefault();
+                                                            alert("Módulo desabilitado temporariamente.");
+                                                        } else if (!item.visible) {
+                                                            e.preventDefault();
+                                                            alert("Acesso Negado: Você não tem permissão para acessar este módulo. Contate o administrador.");
+                                                        } else {
+                                                            onItemClick();
+                                                        }
+                                                    }}
+                                                    className={`w-full flex items-center justify-between p-2.5 rounded-xl transition-all border ${
+                                                        (!item.enabled || !item.visible)
+                                                            ? 'bg-white/[0.02] border-white/5 text-white/30 cursor-not-allowed'
+                                                            : isActive
+                                                                ? 'bg-white/20 border-white/30 text-white shadow-md'
+                                                                : 'bg-white/[0.05] hover:bg-white/[0.09] border-white/5 text-white/80 active:scale-[0.98]'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-2.5 min-w-0">
+                                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                                            isActive ? 'bg-white text-[#1c2d4f]' : 'bg-white/10 text-white/80'
+                                                        }`}>
+                                                            <item.icon size={16} />
+                                                        </div>
+                                                        <span className="text-xs font-semibold truncate">{item.label}</span>
+                                                    </div>
+
+                                                    {(item.badge || 0) > 0 && (
+                                                        <span className="min-w-[20px] h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-amber-400 text-slate-950 text-[10px] font-black leading-none shadow-sm shadow-amber-400/40 border border-amber-300/50 shrink-0">
+                                                            {item.badge}
+                                                        </span>
+                                                    )}
+                                                </Link>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         );
                     })}
@@ -571,58 +622,114 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             );
         }
 
-        // 💻 DESKTOP SIDEBAR NAV (100% Intact and unmodified)
+        // 💻 DESKTOP SIDEBAR NAV (Segmentado por Tema igual ao PWA + Suporte ao Modo Recolhido e Retrátil)
         return (
-            <>
-                <nav className="space-y-1">
-                    {menuItems.map(item => {
-                        const isActive = location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path));
-                        return (
-                            <Link
-                                key={item.id}
-                                to={item.enabled && item.visible ? item.path : '#'}
-                                onClick={(e) => {
-                                    if (!item.enabled) {
-                                        e.preventDefault();
-                                        alert("Módulo desabilitado temporariamente.");
-                                    } else if (!item.visible) {
-                                        e.preventDefault();
-                                        alert("Acesso Negado: Você não tem permissão para acessar este módulo. Contate o administrador.");
-                                    }
-                                }}
-                                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'px-3'} py-2.5 rounded-md text-sm font-medium transition-all duration-200 ${(!item.enabled || !item.visible)
-                                    ? 'bg-slate-800/30 text-slate-400 cursor-not-allowed hover:bg-slate-800/50'
-                                    : isActive
-                                        ? 'bg-white/10 text-white shadow-sm'
-                                        : 'text-white/70 hover:text-white hover:bg-white/5'
-                                    }`}
-                            >
-                                <div className="flex items-center justify-between w-full relative">
-                                    <div className="flex items-center gap-3">
-                                        <item.icon size={18} className={`${isActive ? 'text-white' : 'text-white/60'}`} />
-                                        {!isSidebarCollapsed && <span>{item.label}</span>}
-                                    </div>
-                                    {(item.badge || 0) > 0 && (
-                                        isSidebarCollapsed ? (
-                                            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-400 rounded-full border border-[#1c2d4f] shadow-sm shadow-amber-400/50" />
-                                        ) : (
-                                            <span className="min-w-[20px] h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-amber-400 text-slate-950 text-[10px] font-black leading-none shadow-sm shadow-amber-400/40 border border-amber-300/50 shrink-0">
-                                                {item.badge}
-                                            </span>
-                                        )
-                                    )}
-                                </div>
-                            </Link>
-                        );
-                    })}
-                </nav>
+            <div className={`space-y-4 font-poppins ${isSidebarCollapsed ? 'w-full flex flex-col items-center' : 'w-full'}`}>
+                {MENU_CATEGORIES.map((cat, catIdx) => {
+                    const items = cat.ids
+                        .map(id => menuItems.find(item => item.id === id))
+                        .filter((item): item is typeof menuItems[0] => Boolean(item));
+                    if (items.length === 0) return null;
 
-                <div className="pt-4 border-t border-white/5 mx-2">
+                    const isCollapsed = !isSidebarCollapsed && !!collapsedCategories[cat.title];
+                    const hasActiveChild = items.some(item =>
+                        location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path))
+                    );
+                    const totalBadge = items.reduce((acc, curr) => acc + (curr.badge || 0), 0);
+
+                    return (
+                        <div key={cat.title} className={`flex flex-col gap-1.5 ${isSidebarCollapsed ? 'w-full items-center' : 'w-full'}`}>
+                            {!isSidebarCollapsed ? (
+                                <button
+                                    type="button"
+                                    onClick={() => toggleCategory(cat.title)}
+                                    className="w-full flex items-center justify-between text-left py-1.5 px-2 rounded-lg hover:bg-white/[0.06] transition-all group select-none cursor-pointer gap-2"
+                                >
+                                    <span className="text-[11px] font-bold uppercase tracking-normal text-white/80 group-hover:text-white transition-colors leading-snug flex-1">
+                                        {cat.title}
+                                    </span>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        {isCollapsed && hasActiveChild && (
+                                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-sm shadow-blue-400/50" title="Item ativo nesta seção" />
+                                        )}
+                                        {isCollapsed && totalBadge > 0 && (
+                                            <span className="min-w-[18px] h-4 px-1 inline-flex items-center justify-center rounded-full bg-amber-400 text-slate-950 text-[9px] font-black leading-none">
+                                                {totalBadge}
+                                            </span>
+                                        )}
+                                        <ChevronDown
+                                            size={14}
+                                            className={`text-white/40 group-hover:text-white/80 transition-transform duration-200 ${
+                                                isCollapsed ? '-rotate-90' : 'rotate-0'
+                                            }`}
+                                        />
+                                    </div>
+                                </button>
+                            ) : (
+                                catIdx > 0 && <div className="w-6 border-t border-white/10 my-0.5 mx-auto" />
+                            )}
+
+                            {(!isCollapsed || isSidebarCollapsed) && (
+                                <div className={`space-y-1.5 ${isSidebarCollapsed ? 'w-full flex flex-col items-center' : 'w-full'}`}>
+                                    {items.map(item => {
+                                        const isActive = location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path));
+                                        return (
+                                            <Link
+                                                key={item.id}
+                                                to={item.enabled && item.visible ? item.path : '#'}
+                                                title={isSidebarCollapsed ? item.label : undefined}
+                                                onClick={(e) => {
+                                                    if (!item.enabled) {
+                                                        e.preventDefault();
+                                                        alert("Módulo desabilitado temporariamente.");
+                                                    } else if (!item.visible) {
+                                                        e.preventDefault();
+                                                        alert("Acesso Negado: Você não tem permissão para acessar este módulo. Contate o administrador.");
+                                                    }
+                                                }}
+                                                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center p-2' : 'justify-between p-2'} rounded-xl transition-all border relative ${
+                                                    (!item.enabled || !item.visible)
+                                                        ? 'bg-white/[0.02] border-white/5 text-white/30 cursor-not-allowed'
+                                                        : isActive
+                                                            ? 'bg-white/20 border-white/30 text-white shadow-md'
+                                                            : 'bg-white/[0.05] hover:bg-white/[0.09] border-white/5 text-white/80 hover:text-white'
+                                                }`}
+                                            >
+                                                <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-2.5 min-w-0'}`}>
+                                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                                                        isActive ? 'bg-white text-[#1c2d4f]' : 'bg-white/10 text-white/80'
+                                                    }`}>
+                                                        <item.icon size={15} />
+                                                    </div>
+                                                    {!isSidebarCollapsed && (
+                                                        <span className="text-xs font-semibold truncate">{item.label}</span>
+                                                    )}
+                                                </div>
+
+                                                {(item.badge || 0) > 0 && (
+                                                    isSidebarCollapsed ? (
+                                                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-400 rounded-full border border-[#1c2d4f] shadow-sm shadow-amber-400/50" />
+                                                    ) : (
+                                                        <span className="min-w-[20px] h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-amber-400 text-slate-950 text-[10px] font-black leading-none shadow-sm shadow-amber-400/40 border border-amber-300/50 shrink-0">
+                                                            {item.badge}
+                                                        </span>
+                                                    )
+                                                )}
+                                            </Link>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+
+                <div className="pt-2 border-t border-white/5 w-full">
                     <a
                         href="https://wa.me/5535984274972"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'px-3 justify-start'} py-2.5 rounded-lg transition-all duration-200 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 group`}
+                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center p-2' : 'p-2.5 justify-start'} rounded-xl transition-all duration-200 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 group`}
                         title="Suporte Técnico"
                     >
                         <div className="flex items-center gap-3">
@@ -631,14 +738,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                             </div>
                             {!isSidebarCollapsed && (
                                 <div className="flex flex-col">
-                                    <span className="text-[10px] font-bold   text-emerald-100/90 group-hover:text-white">suporte</span>
+                                    <span className="text-[10px] font-bold text-emerald-100/90 group-hover:text-white">suporte</span>
                                     <span className="text-[8px] font-bold text-emerald-500/80 group-hover:text-emerald-400">online agora</span>
                                 </div>
                             )}
                         </div>
                     </a>
                 </div>
-            </>
+            </div>
         );
     };
 
@@ -658,7 +765,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     </button>
 
                     {/* Desktop: Logo area */}
-                    <div className={`hidden lg:flex ${isSidebarCollapsed ? 'w-16 justify-center' : 'w-52 justify-start pl-6'} transition-all duration-300 ease-in-out items-center overflow-hidden shrink-0`}>
+                    <div className={`hidden lg:flex ${isSidebarCollapsed ? 'w-16' : 'w-56'} justify-center items-center h-full border-r border-slate-100 transition-all duration-300 ease-in-out overflow-hidden shrink-0`}>
                         {isSidebarCollapsed ? (
                             // Monograma "D" — identidade compacta da marca Duno
                             <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#1c2d4f] shadow-md select-none">
@@ -668,7 +775,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                             <NexusBranding
                                 variant="dark"
                                 size="lg"
-                                className="h-12"
+                                className="h-12 justify-center"
                             />
                         )}
                     </div>
@@ -684,7 +791,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     </div>
 
                     {/* Desktop: Page title */}
-                    <div className="hidden lg:flex items-center gap-6 border-l border-slate-100 pl-6 h-8 ml-4">
+                    <div className="hidden lg:flex items-center gap-6 pl-6 h-8">
                         <h2 className="text-sm font-semibold text-slate-900 lowercase tracking-tight">
                             {activeItem?.label || 'dashboard'}
                         </h2>
@@ -1246,7 +1353,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
                 {/* ── Desktop Sidebar ───────────────────────────────────── */}
                 {!isStandalone && (
-                <aside className={`hidden lg:flex ${isSidebarCollapsed ? 'w-16' : 'w-52'} bg-[#1c2d4f] h-full flex-col shadow-none z-50 transition-all duration-300 ease-in-out relative border-r border-white/5 print:hidden`}>
+                <aside className={`hidden lg:flex ${isSidebarCollapsed ? 'w-16' : 'w-56'} bg-[#1c2d4f] h-full flex-col shadow-none z-50 transition-all duration-300 ease-in-out relative border-r border-white/5 print:hidden`}>
                     <button
                         onClick={onToggleSidebar}
                         className="absolute -right-3 top-6 w-6 h-6 bg-[#1c2d4f] text-white/50 border border-white/10 rounded-full flex items-center justify-center hover:text-white transition-all z-[60]"
@@ -1254,11 +1361,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                         {isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
                     </button>
 
-                    <div className={`flex-1 overflow-y-auto overflow-x-hidden p-4 custom-scrollbar ${isSidebarCollapsed ? 'flex flex-col items-center' : ''}`}>
+                    <div className={`flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 custom-scrollbar ${isSidebarCollapsed ? 'flex flex-col items-center' : ''}`}>
                         <SidebarNav />
                     </div>
 
-                    <div className={`shrink-0 p-4 border-t border-white/5 flex flex-col gap-2 ${isSidebarCollapsed ? 'items-center' : ''}`}>
+                    <div className={`shrink-0 px-3 py-3 border-t border-white/5 flex flex-col gap-2 ${isSidebarCollapsed ? 'items-center' : ''}`}>
                         {isImpersonating && (
                             <button
                                 onClick={() => { SessionStorage.remove('is_impersonating'); onLogout(); }}
@@ -1339,7 +1446,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             </nav>
             )}
 
-            {!isStandalone && <GlobalChatBot />}
+            {!isStandalone && !location.pathname.includes('/ai') && <GlobalChatBot />}
 
 
         </div>

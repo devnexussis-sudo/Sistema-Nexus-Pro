@@ -401,6 +401,14 @@ Deno.serve(async (req: Request) => {
                 tenant_id: installment.tenant_id,
                 updated_at: new Date().toISOString(),
               }).eq('id', item.reference_id);
+            } else if (item.reference_type === 'SALES_ORDER') {
+              await supabase.from('sales_orders').update({
+                billing_status: invoiceStatus,
+                status: invoiceStatus === 'PAID' ? 'FATURADO' : undefined,
+                paid_at: invoiceStatus === 'PAID' ? paidAtDate : null,
+                tenant_id: installment.tenant_id,
+                updated_at: new Date().toISOString(),
+              }).eq('id', item.reference_id);
             }
           }
         }
@@ -477,6 +485,14 @@ Deno.serve(async (req: Request) => {
               } else if (item.reference_type === 'QUOTE') {
                 await supabase.from('quotes').update({
                   billing_status: newStatus,
+                  paid_at: newStatus === 'PAID' ? paidAtDate : null,
+                  tenant_id: invoice.tenant_id,
+                  updated_at: new Date().toISOString(),
+                }).eq('id', item.reference_id);
+              } else if (item.reference_type === 'SALES_ORDER') {
+                await supabase.from('sales_orders').update({
+                  billing_status: newStatus,
+                  status: newStatus === 'PAID' ? 'FATURADO' : undefined,
                   paid_at: newStatus === 'PAID' ? paidAtDate : null,
                   tenant_id: invoice.tenant_id,
                   updated_at: new Date().toISOString(),

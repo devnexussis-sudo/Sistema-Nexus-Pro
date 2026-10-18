@@ -6,6 +6,7 @@ import { MessageCircle, User, Bot, Phone, RefreshCw, Send, UserCheck, RotateCcw,
 import { Customer } from '../../types';
 import { getCurrentTenantId } from '../../lib/tenantContext';
 import { useTenant } from '../../hooks/nexusHooks';
+import { StorageService } from '../../services/storageService';
 
 function parseMessageMedia(content: string) {
   if (!content || !content.startsWith('MEDIA_URL:')) return null;
@@ -1252,32 +1253,19 @@ export const WhatsAppInbox: React.FC = () => {
         finalExt = 'webp';
       }
 
-      const pathStr = `whatsapp/${selected.tenant_id}/${selected.phone_number}/${isImage ? 'imagens' : 'documentos'}/${new Date().toISOString().split('T')[0].replace(/-/g, '_')}/${crypto.randomUUID()}.${finalExt}`;
+      const pathFolder = `whatsapp/${selected.tenant_id}/${selected.phone_number}/${isImage ? 'imagens' : 'documentos'}/${new Date().toISOString().split('T')[0].replace(/-/g, '_')}`;
 
-      const { data: signData, error: signError } = await supabase.functions.invoke('r2-operations', {
-        body: {
-          action: 'upload',
-          path: pathStr,
-          bucketType: 'nexus-files',
-          contentType: isImage ? 'image/webp' : file.type
-        }
+      const publicUrl = await StorageService.uploadBlob(finalBlob, pathFolder, undefined, {
+        contentType: isImage ? 'image/webp' : file.type,
+        extension: finalExt,
+        tenantId: selected.tenant_id
       });
-
-      if (signError || !signData?.signedUrl) throw new Error(signError?.message || 'Falha ao gerar URL de upload');
-
-      const uploadRes = await fetch(signData.signedUrl, {
-        method: 'PUT',
-        body: finalBlob,
-        headers: { 'Content-Type': isImage ? 'image/webp' : file.type }
-      });
-
-      if (!uploadRes.ok) throw new Error('Falha no upload para R2');
 
       const { data: sendData, error: sendErr } = await supabase.functions.invoke('whatsapp-admin-send', {
         body: {
           conversation_id: selected.id,
           action: 'send_media',
-          message: signData.publicUrl,
+          message: publicUrl,
           media_type: isImage ? 'image' : 'document',
           original_name: file.name,
           agent_name: currentUserName
@@ -1286,7 +1274,7 @@ export const WhatsAppInbox: React.FC = () => {
 
       if (sendErr) throw sendErr;
 
-      const safeText = `MEDIA_URL:${isImage ? 'image' : 'document'}:${signData.publicUrl}`;
+      const safeText = `MEDIA_URL:${isImage ? 'image' : 'document'}:${publicUrl}`;
       const nowIso = new Date().toISOString();
       const optimisticMsg = {
         role: "agent",

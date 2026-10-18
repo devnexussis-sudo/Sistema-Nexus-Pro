@@ -84,15 +84,18 @@ export const GlobalChatBot: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // 1. Atrasa a resposta por 1 segundo para melhorar a UI (parecer mais humano digitando)
-      await new Promise(r => setTimeout(r, 1000));
-
       const tenantId = getCurrentTenantId();
       let responseContent: string | null = null;
       
       if (tenantId) {
-        // 1. Usa o Motor Unificado chamando a Edge Function com a persona 'chat'
-        responseContent = await aiKnowledgeService.searchKnowledge(userText, tenantId, 7, 'chat');
+        // Histórico recente (últimas 6 mensagens) para contextualização multi-turn
+        const recentHistory = messages
+          .filter(m => m.content)
+          .slice(-6)
+          .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+
+        // Usa o Motor Unificado chamando a Edge Function com a persona 'chat' e histórico
+        responseContent = await aiKnowledgeService.searchKnowledge(userText, tenantId, 7, 'chat', recentHistory);
       }
       
       // 3. Se a IA não achar contexto ou falhar na geração

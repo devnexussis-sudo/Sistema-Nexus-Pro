@@ -33,18 +33,20 @@ import {
   Camera,
   Upload,
   Sparkles,
-  Smartphone
+  Smartphone,
+  Hash,
+  ShoppingBag
 } from 'lucide-react';
 import { useUserGroups, useUsers } from '../../hooks/nexusHooks';
 import { useI18n } from '../../i18n/I18nContext';
 import { DataService } from '../../services/dataService';
 import { TenantService } from '../../services/tenantService';
-import { TechnicianService, formatUserCode } from '../../services/technicianService';
+import { TechnicianService, formatUserCode, generateUniqueUnifiedCode } from '../../services/technicianService';
 import { AuthService } from '../../services/authService';
 import { StorageService } from '../../services/storageService';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
-import { ADMIN_PERMISSIONS, DEFAULT_PERMISSIONS, User, UserGroup, UserPermissions, UserRole, AppScope } from '../../types';
+import { ADMIN_PERMISSIONS, DEFAULT_PERMISSIONS, normalizeUserPermissions, User, UserGroup, UserPermissions, UserRole, AppScope } from '../../types';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Pagination } from '../ui/Pagination';
@@ -80,7 +82,8 @@ const IamSwitch = ({ checked, onChange, disabled, activeLabel = 'Liberado', inac
   </button>
 );
 
-const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, onSave, title, subtitle, onBack, disabled = false, linkedUsers }: { perms: UserPermissions, onUpdate: (p: UserPermissions) => void, onSave?: () => Promise<void> | void, title: string, subtitle: string, onBack: () => void, disabled?: boolean, linkedUsers?: User[] }) => {
+const PermissionEditor = ({ perms: rawPerms = DEFAULT_PERMISSIONS, onUpdate, onSave, title, subtitle, onBack, disabled = false, linkedUsers }: { perms: UserPermissions, onUpdate: (p: UserPermissions) => void, onSave?: () => Promise<void> | void, title: string, subtitle: string, onBack: () => void, disabled?: boolean, linkedUsers?: User[] }) => {
+  const perms = React.useMemo(() => normalizeUserPermissions(rawPerms), [rawPerms]);
 
   const [activeTab, setActiveTab] = React.useState<'permissions' | 'users'>('permissions');
   const [isSaving, setIsSaving] = React.useState(false);
@@ -105,7 +108,8 @@ const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, onSave, title
     { id: 'customers', label: 'Cadastro de Clientes', icon: Building2, menuKey: 'customers' },
     { id: 'equipments', label: 'Inventário de Ativos', icon: Box, menuKey: 'equipments' },
     { id: 'technicians', label: 'Equipe Técnica', icon: UserCheck, menuKey: 'technicians' },
-    { id: 'quotes', label: 'Orçamentos e Vendas', icon: FileText, menuKey: 'quotes' },
+    { id: 'quotes', label: 'Orçamentos e Propostas', icon: FileText, menuKey: 'quotes' },
+    { id: 'sales_orders', label: 'Pedidos de Venda (PVD)', icon: ShoppingBag, menuKey: 'sales_orders', extraInfo: 'Vendas Diretas, Peças e Balcão' },
     { id: 'contracts', label: 'Contratos e PMOC', icon: CalendarClock, menuKey: 'contracts' },
     { id: 'stock', label: 'Estoque de Peças', icon: Package, menuKey: 'stock' },
     { id: 'forms', label: 'Processos e Checklists', icon: Workflow, menuKey: 'forms' },
@@ -484,7 +488,11 @@ export const UserManagement: React.FC = () => {
   // 🔑 Backfill: atribui e sincroniza código único de 6 dígitos a todos os usuários
   useEffect(() => {
     TenantService.backfillMissingUserCodes().then((count) => {
-      if (count > 0) refetchUsers();
+      if (count > 0) {
+        console.log(`[UserManagement] Backfill atribuiu códigos a ${count} registros.`);
+        refetchUsers();
+        refetchGroups();
+      }
     }).catch(console.warn);
   }, []);
 
@@ -492,19 +500,6 @@ export const UserManagement: React.FC = () => {
   const loadData = async () => {
     await Promise.all([refetchUsers(), refetchGroups()]);
   };
-
-  useEffect(() => {
-    if (isModalOpen && !editingUser) {
-      setFormData({
-        name: '',
-        email: '',
-        active: true,
-        groupIds: [],
-        permissions: { ...DEFAULT_PERMISSIONS },
-        appScope: AppScope.WEB
-      });
-    }
-  }, [users, groups, searchTerm, statusFilter]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -540,6 +535,7 @@ export const UserManagement: React.FC = () => {
 
       const dataToSave = {
         ...formData,
+        userCode: formData.userCode || (formData as any).user_code || editingUser?.userCode || (editingUser as any)?.user_code || undefined,
         groupId: (selectedGroupIds[0] && selectedGroupIds[0].trim() !== '') ? selectedGroupIds[0] : null,
         groupIds: selectedGroupIds,
         permissions: userPermissions,
@@ -675,15 +671,15 @@ export const UserManagement: React.FC = () => {
     if (selectedUser) {
       return (
         <PermissionEditor
-          perms={selectedUser.permissions || DEFAULT_PERMISSIONS}
+          perms={selectedUser.permissions ? normalizeUserPermissions(selectedUser.permissions) : DEFAULT_PERMISSIONS}
           onUpdate={(p) => {
-            const updated = { ...selectedUser, permissions: p };
+            const updated = { ...selectedUser, permissions: normalizeUserPermissions(p) };
             setSelectedUser(updated);
           }}
           onSave={async () => {
             try {
               if (selectedUser.permissions) {
-                await handleUpdatePermissions(selectedUser.id, selectedUser.permissions);
+                await handleUpdatePermissions(selectedUser.id, normalizeUserPermissions(selectedUser.permissions));
                 alert("✅ Permissões do usuário salvas com sucesso!");
               }
             } catch (err: any) {
@@ -701,16 +697,20 @@ export const UserManagement: React.FC = () => {
       const groupUsers = users.filter(u => (u.groupIds || []).includes(selectedGroup.id) || u.groupId === selectedGroup.id);
       return (
         <PermissionEditor
-          perms={isMasterGroup ? ADMIN_PERMISSIONS : (selectedGroup.permissions || DEFAULT_PERMISSIONS)}
+          perms={isMasterGroup ? ADMIN_PERMISSIONS : normalizeUserPermissions(selectedGroup.permissions || DEFAULT_PERMISSIONS)}
           onUpdate={(p) => {
             if (isMasterGroup) return; // Prevent updating if master
-            const updated = { ...selectedGroup, permissions: p };
+            const updated = { ...selectedGroup, permissions: normalizeUserPermissions(p) };
             setSelectedGroup(updated); // Optimistic UI update, DOES NOT save to DB yet
           }}
           onSave={async () => {
             if (isMasterGroup) return;
             try {
-              await TenantService.updateUserGroup(selectedGroup);
+              const groupToSave = {
+                ...selectedGroup,
+                permissions: normalizeUserPermissions(selectedGroup.permissions)
+              };
+              await TenantService.updateUserGroup(groupToSave);
               // Refresh logged in user session se eles pertencerem a este grupo
               await AuthService.refreshUser(); // Updates local storage
               await refreshUser(); // Updates React context to trigger UI re-renders without reload
@@ -789,9 +789,14 @@ export const UserManagement: React.FC = () => {
             </div>
 
             {activeTab === 'users' ? (
-              <button onClick={() => {
+              <button onClick={async () => {
                 setEditingUser(null);
-                setFormData({ name: '', email: '', active: true, groupIds: [], permissions: { ...DEFAULT_PERMISSIONS }, appScope: AppScope.WEB });
+                let autoCode = '';
+                try {
+                  const tid = DataService.getCurrentTenantId() || '';
+                  if (tid) autoCode = await generateUniqueUnifiedCode(tid);
+                } catch (e) {}
+                setFormData({ name: '', email: '', active: true, groupIds: [], permissions: { ...DEFAULT_PERMISSIONS }, appScope: AppScope.WEB, userCode: autoCode });
                 setGroupSearch('');
                 setSaveError(null);
                 setIsReadOnly(false);
@@ -816,48 +821,50 @@ export const UserManagement: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
+      <div className="relative bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col overflow-hidden flex-1 ring-1 ring-slate-200/80">
         {/* 💻 DESKTOP TABLE VIEW */}
-        <div className="hidden md:block flex-1 overflow-auto p-0 custom-scrollbar">
+        <div className="hidden md:block flex-1 overflow-auto custom-scrollbar os-table-container">
           {activeTab === 'users' ? (
-            <table className="w-full border-collapse min-w-[550px]">
-              <thead className="sticky top-0 bg-slate-50 z-10">
-                <tr className="text-[10px] font-poppins font-bold text-slate-500 tracking-wider uppercase text-left border-b border-slate-200">
-                  <th className="px-6 py-3">Identidade</th>
-                  <th className="px-4 py-3 text-center">Código</th>
-                  <th className="px-4 py-3">Credencial (E-mail)</th>
-                  <th className="px-4 py-3">Grupo de Acesso</th>
-                  <th className="px-4 py-3 text-center">Status</th>
-                  <th className="px-6 py-3 text-right">Ações</th>
+            <table className="w-full text-left border-collapse table-auto">
+              <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-md border-b border-slate-200 z-10 shadow-xs font-poppins">
+                <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">
+                  <th className="px-4 py-2">Identidade</th>
+                  <th className="px-4 py-2 text-left">Código</th>
+                  <th className="px-4 py-2 text-left">Credencial (E-mail)</th>
+                  <th className="px-4 py-2 text-left">Grupo de Acesso</th>
+                  <th className="px-4 py-2 text-left">Status</th>
+                  <th className="px-4 py-2 text-right pr-6">Ações</th>
                 </tr>
               </thead>
-              <tbody>
-                {paginatedUsers.length > 0 ? paginatedUsers.map(user => (
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {paginatedUsers.length > 0 ? paginatedUsers.map(user => {
+                  const uCode = user.userCode || (user as any).user_code || (user as any).techCode || (user as any).tech_code || '';
+                  return (
                   <tr key={user.id} 
-                      className={`hover:bg-slate-50/50 transition-colors border-b border-slate-200 last:border-0 group ${!user.active ? 'opacity-60' : ''} cursor-pointer`}
+                      className={`bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md cursor-pointer ${!user.active ? 'opacity-60' : ''}`}
                       onClick={() => {
                         setEditingUser(user);
-                        setFormData({ ...user, groupIds: user.groupIds || (user.groupId ? [user.groupId] : []) });
+                        setFormData({ ...user, groupIds: user.groupIds || (user.groupId ? [user.groupId] : []), userCode: uCode });
                         setGroupSearch('');
                         setSaveError(null);
                         setIsReadOnly(true);
                         setIsModalOpen(true);
                       }}
                   >
-                    <td className="px-6 py-3">
+                    <td className="px-4 py-2">
                       <div className="flex items-center gap-3">
                         <div className="shrink-0">
                           <img
                             src={user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=random&color=fff&bold=true`}
                             alt={user.name}
-                            className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-sm bg-slate-50"
+                            className="w-8 h-8 rounded-lg object-cover border border-slate-200 shadow-sm bg-slate-50"
                             onError={(e) => {
                               (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=random&color=fff&bold=true`;
                             }}
                           />
                         </div>
                         <div className="truncate text-left">
-                          <p className="text-[12px] font-bold text-slate-900 truncate max-w-[200px]">{user.name}</p>
+                          <p className="text-[13px] font-medium text-slate-900 truncate max-w-[200px]">{user.name}</p>
                           {user.appScope === AppScope.HYBRID && (
                             <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-violet-100 text-violet-600 text-[8px] font-bold border border-violet-200">WEB + APP</span>
                           )}
@@ -865,18 +872,18 @@ export const UserManagement: React.FC = () => {
                       </div>
                     </td>
 
-                    <td className="px-4 py-3 text-center whitespace-nowrap">
-                      <span className="font-mono text-[11px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2.5 py-1 rounded-lg tracking-widest border border-[#1c2d4f]/15">
-                        {formatUserCode(user.userCode || (user as any).user_code)}
+                    <td className="px-4 py-2 text-left whitespace-nowrap">
+                      <span className="font-mono text-[11px] font-medium text-[#1c2d4f] bg-[#1c2d4f]/8 px-2.5 py-1 rounded-lg border border-[#1c2d4f]/15">
+                        {formatUserCode(uCode)}
                       </span>
                     </td>
 
-                    <td className="px-4 py-3 text-left whitespace-nowrap">
-                      <p className="text-[11px] font-medium text-slate-600 truncate max-w-[200px]">{user.email}</p>
+                    <td className="px-4 py-2 text-left whitespace-nowrap">
+                      <p className="text-[12px] text-slate-600 truncate max-w-[200px]">{user.email}</p>
                     </td>
 
-                    <td className="px-4 py-3 text-left whitespace-nowrap">
-                      <p className="text-[10px] font-bold text-slate-500 flex items-center gap-1.5 truncate max-w-[150px]">
+                    <td className="px-4 py-2 text-left whitespace-nowrap">
+                      <p className="text-[11px] font-medium text-slate-600 flex items-center gap-1.5 truncate max-w-[150px]">
                         <FolderTree size={12} className="text-slate-400" />
                         {(() => {
                           const groupId = user.groupIds?.[0] || user.groupId;
@@ -886,15 +893,16 @@ export const UserManagement: React.FC = () => {
                       </p>
                     </td>
 
-                    <td className="px-4 py-3 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                      <span className={`px-2.5 py-1 rounded-full text-[9px] font-bold border transition-all ${user.active ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                    <td className="px-4 py-2 text-left whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-medium border ${user.active ? 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-xs' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${user.active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                         {user.active ? 'ATIVO' : 'INATIVO'}
                       </span>
                     </td>
-                    <td className="px-6 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1.5 transition-all">
-                        <button onClick={(e) => { e.stopPropagation(); setEditingUser(user); setFormData({ ...user, groupIds: user.groupIds || (user.groupId ? [user.groupId] : []) }); setGroupSearch(''); setSaveError(null); setIsReadOnly(false); setIsModalOpen(true); }} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Editar Usuário">
-                          <Edit3 size={16} />
+                    <td className="px-4 py-2 text-right pr-4" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1 transition-all">
+                        <button onClick={(e) => { e.stopPropagation(); setEditingUser(user); setFormData({ ...user, groupIds: user.groupIds || (user.groupId ? [user.groupId] : []), userCode: uCode }); setGroupSearch(''); setSaveError(null); setIsReadOnly(false); setIsModalOpen(true); }} className="p-1.5 bg-slate-50 text-slate-400 hover:text-primary-700 hover:bg-primary-100 rounded-lg border border-slate-200/60 transition-all" title="Editar Usuário">
+                          <Edit3 size={15} />
                         </button>
                         <button
                           onClick={(e) => {
@@ -905,18 +913,19 @@ export const UserManagement: React.FC = () => {
                             }
                             setUserToDelete(user);
                           }}
-                          className={`p-2.5 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-90 ${(!canDelete('users') && !isAdmin) ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                          className={`p-1.5 bg-slate-50 text-slate-400 hover:text-rose-600 hover:bg-rose-100 rounded-lg border border-slate-200/60 transition-all ${(!canDelete('users') && !isAdmin) ? 'opacity-50 !cursor-not-allowed' : ''}`}
                           title="Excluir Usuário"
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={15} />
                         </button>
                       </div>
                     </td>
 
                   </tr>
-                )) : (
+                );
+              }) : (
                   <tr>
-                    <td colSpan={5} className="py-24 text-center">
+                    <td colSpan={6} className="py-24 text-center">
                       <Users size={48} className="mx-auto text-slate-200 mb-4" />
                       <p className="text-[10px] font-bold text-slate-300 italic tracking-[0.2em]">Nenhum usuário localizado</p>
                     </td>
@@ -925,15 +934,15 @@ export const UserManagement: React.FC = () => {
               </tbody>
             </table>
           ) : (
-            <table className="w-full border-collapse min-w-[550px]">
-              <thead className="sticky top-0 bg-slate-50 z-10">
-                <tr className="text-[10px] font-poppins font-bold text-slate-500 tracking-wider uppercase text-center border-b border-slate-200">
-                  <th className="px-6 py-2.5 text-left">Grupo / Descrição</th>
-                  <th className="px-4 py-2.5 text-center">Tipo</th>
-                  <th className="px-6 py-2.5 text-right">Ações</th>
+            <table className="w-full text-left border-collapse table-auto">
+              <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-md border-b border-slate-200 z-10 shadow-xs font-poppins">
+                <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">
+                  <th className="px-4 py-2 text-left">Grupo / Descrição</th>
+                  <th className="px-4 py-2 text-left">Tipo / Status</th>
+                  <th className="px-4 py-2 text-right pr-6">Ações</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100 bg-white">
                 {(() => {
                   const searchLower = (searchTerm || '').toLowerCase().trim();
                   const filteredGroups = (groups || []).filter(g => 
@@ -945,38 +954,79 @@ export const UserManagement: React.FC = () => {
 
                   return filteredGroups.length > 0 ? (
                     filteredGroups.map((group) => (
-                      <tr key={group.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-200 last:border-0 group">
-                        <td className="px-6 py-2 text-left">
-                          <div className="flex items-center gap-4">
+                      <tr key={group.id} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md">
+                        <td className="px-4 py-2 text-left">
+                          <div className="flex items-center gap-3">
                             <div className="shrink-0">
-                              <div className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all ${group.isSystem ? 'bg-amber-50 border-amber-200 text-amber-500' : 'bg-slate-50 border-slate-200 text-slate-400 group-hover:text-[#1c2d4f] group-hover:bg-white group-hover:border-[#1c2d4f]/20'}`}>
-                                {group.isSystem ? <ShieldCheck size={18} /> : <FolderTree size={18} />}
+                              <div className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${group.isSystem ? 'bg-amber-50 border-amber-200 text-amber-500' : 'bg-slate-50 border-slate-200 text-slate-400 group-hover:text-[#1c2d4f] group-hover:bg-white group-hover:border-[#1c2d4f]/20'}`}>
+                                {group.isSystem ? <ShieldCheck size={16} /> : <FolderTree size={16} />}
                               </div>
                             </div>
                             <div className="truncate text-left">
-                              <p className="text-[13px] font-bold text-slate-900 truncate max-w-[250px]">{group.name}</p>
-                              <p className="text-[11px] font-bold text-slate-400 mt-0.5 truncate max-w-[300px]">{group.description}</p>
+                              <p className="text-[13px] font-medium text-slate-900 truncate max-w-[250px]">{group.name}</p>
+                              <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[300px]">{group.description}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-2 text-center whitespace-nowrap">
-                          <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold border transition-all ${group.isSystem ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
-                            {group.isSystem ? 'Sistema Protegido' : 'Customizado'}
-                          </span>
+                        <td className="px-4 py-2 text-left whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium border ${group.isSystem ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                              {group.isSystem ? 'Sistema Protegido' : 'Customizado'}
+                            </span>
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium border ${group.active === false ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${group.active === false ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+                              {group.active === false ? 'Inativo' : 'Ativo'}
+                            </span>
+                          </div>
                         </td>
-                        <td className="px-6 py-2 text-right">
-                          <div className="flex items-center justify-end gap-1.5 transition-all">
-                            <button onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Configurar Regras de Acesso">
-                              <Settings size={16} />
+                        <td className="px-4 py-2 text-right pr-4">
+                          <div className="flex items-center justify-end gap-1 transition-all">
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (group.isSystem) {
+                                  alert("Grupos do sistema são protegidos e não podem ser desativados.");
+                                  return;
+                                }
+                                const newActive = group.active === false ? true : false;
+                                const actionText = newActive ? 'ativar' : 'inativar';
+                                if (!confirm(`Deseja realmente ${actionText} o grupo "${group.name}"?`)) return;
+                                try {
+                                  await TenantService.updateUserGroup({ ...group, active: newActive });
+                                  await loadData();
+                                } catch (err: any) {
+                                  alert("Erro ao alterar status do grupo: " + err.message);
+                                }
+                              }}
+                              disabled={group.isSystem}
+                              className={`p-1.5 bg-slate-50 rounded-lg border border-slate-200/60 transition-all ${group.isSystem ? 'opacity-40 cursor-not-allowed text-slate-300' : group.active === false ? 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-100' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-100'}`}
+                              title={group.isSystem ? "Grupo protegido" : group.active === false ? "Ativar Grupo" : "Inativar Grupo"}
+                            >
+                              {group.active === false ? <Power size={15} /> : <PowerOff size={15} />}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingGroup(group);
+                                setGroupFormData({ name: group.name, description: group.description });
+                                setIsGroupModalOpen(true);
+                              }}
+                              className="p-1.5 bg-slate-50 text-slate-400 hover:text-primary-700 hover:bg-primary-100 rounded-lg border border-slate-200/60 transition-all"
+                              title="Editar Nome e Descrição"
+                            >
+                              <Edit3 size={15} />
+                            </button>
+                            <button onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }} className="p-1.5 bg-slate-50 text-slate-400 hover:text-primary-700 hover:bg-primary-100 rounded-lg border border-slate-200/60 transition-all" title="Configurar Regras de Acesso">
+                              <Settings size={15} />
                             </button>
                             {!group.isSystem && (
                               <button
                                 onClick={() => setGroupToDelete(group)}
                                 disabled={isSaving}
-                                className="p-2.5 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-90"
+                                className="p-1.5 bg-slate-50 text-slate-400 hover:text-rose-600 hover:bg-rose-100 rounded-lg border border-slate-200/60 transition-all"
                                 title="Excluir Grupo"
                               >
-                                <Trash2 size={16} />
+                                <Trash2 size={15} />
                               </button>
                             )}
                           </div>
@@ -1008,8 +1058,9 @@ export const UserManagement: React.FC = () => {
                   <div
                     key={user.id}
                     onClick={() => {
+                      const uCode = user.userCode || (user as any).user_code || (user as any).techCode || (user as any).tech_code || '';
                       setEditingUser(user);
-                      setFormData({ ...user, groupIds: user.groupIds || (user.groupId ? [user.groupId] : []) });
+                      setFormData({ ...user, groupIds: user.groupIds || (user.groupId ? [user.groupId] : []), userCode: uCode });
                       setGroupSearch('');
                       setSaveError(null);
                       setIsReadOnly(true);
@@ -1043,7 +1094,7 @@ export const UserManagement: React.FC = () => {
                     <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="font-mono text-[10px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2 py-0.5 rounded-md border border-[#1c2d4f]/15 shrink-0">
-                          {formatUserCode(user.userCode || (user as any).user_code)}
+                          {formatUserCode(user.userCode || (user as any).user_code || (user as any).techCode || (user as any).tech_code)}
                         </span>
                         <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1 truncate max-w-[120px]">
                           <FolderTree size={11} className="text-slate-400 shrink-0" />
@@ -1055,8 +1106,9 @@ export const UserManagement: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
+                            const uCode = user.userCode || (user as any).user_code || (user as any).techCode || (user as any).tech_code || '';
                             setEditingUser(user);
-                            setFormData({ ...user, groupIds: user.groupIds || (user.groupId ? [user.groupId] : []) });
+                            setFormData({ ...user, groupIds: user.groupIds || (user.groupId ? [user.groupId] : []), userCode: uCode });
                             setGroupSearch('');
                             setSaveError(null);
                             setIsReadOnly(false);
@@ -1128,8 +1180,41 @@ export const UserManagement: React.FC = () => {
                       <span className="text-[10px] text-slate-400 font-medium">Toque para regras de acesso</span>
                       <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
                         <button
-                          onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }}
+                          onClick={async () => {
+                            if (group.isSystem) {
+                              alert("Grupos do sistema são protegidos e não podem ser desativados.");
+                              return;
+                            }
+                            const newActive = group.active === false ? true : false;
+                            const actionText = newActive ? 'ativar' : 'inativar';
+                            if (!confirm(`Deseja realmente ${actionText} o grupo "${group.name}"?`)) return;
+                            try {
+                              await TenantService.updateUserGroup({ ...group, active: newActive });
+                              await loadData();
+                            } catch (err: any) {
+                              alert("Erro ao alterar status do grupo: " + err.message);
+                            }
+                          }}
+                          disabled={group.isSystem}
+                          className={`p-2 rounded-lg transition-colors ${group.isSystem ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-300' : group.active === false ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100' : 'text-amber-700 bg-amber-50 hover:bg-amber-100'}`}
+                          title={group.isSystem ? "Grupo protegido" : group.active === false ? "Ativar Grupo" : "Inativar Grupo"}
+                        >
+                          {group.active === false ? <Power size={14} /> : <PowerOff size={14} />}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingGroup(group);
+                            setGroupFormData({ name: group.name, description: group.description });
+                            setIsGroupModalOpen(true);
+                          }}
                           className="p-2 text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
+                          title="Editar Nome e Descrição"
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                        <button
+                          onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }}
+                          className="p-2 text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
                           title="Configurar Regras de Acesso"
                         >
                           <Settings size={14} />
@@ -1188,9 +1273,9 @@ export const UserManagement: React.FC = () => {
                       <p className="text-[10px] font-bold text-slate-400">
                         Nexus Operacional • acesso e privilégios corporativos
                       </p>
-                      {editingUser && (editingUser.userCode || (editingUser as any).user_code) && (
+                      {(editingUser?.userCode || (editingUser as any)?.user_code || formData.userCode || (formData as any)?.user_code) && (
                         <span className="font-mono text-[10px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2 py-0.5 rounded border border-[#1c2d4f]/15 tracking-widest">
-                          {editingUser.userCode || (editingUser as any).user_code}
+                          {editingUser?.userCode || (editingUser as any)?.user_code || formData.userCode || (formData as any)?.user_code}
                         </span>
                       )}
                     </div>
@@ -1302,6 +1387,18 @@ export const UserManagement: React.FC = () => {
                       {/* Dados Cadastrais */}
                       <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 space-y-6">
                         <h3 className="text-sm font-bold text-slate-900 border-l-4 border-[#1c2d4f] pl-3">dados cadastrais</h3>
+
+                        {/* Código do Usuário — somente leitura */}
+                        <div className="space-y-2">
+                          <label className="text-[11px] font-bold text-slate-700 ml-1">Código do Usuário</label>
+                          <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-300 rounded-xl px-4 h-11 shadow-sm">
+                            <Hash size={15} className="text-slate-400 shrink-0" />
+                            <span className="font-mono text-sm font-bold text-[#1c2d4f] tracking-wider flex-1 truncate">
+                              {formData.userCode || (formData as any).user_code || editingUser?.userCode || (editingUser as any)?.user_code || '— gerado ao salvar —'}
+                            </span>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Automático</span>
+                          </div>
+                        </div>
 
                         <div className="space-y-2">
                           <label className="text-[11px] font-bold text-slate-700 ml-1">Nome do Colaborador</label>

@@ -7,6 +7,7 @@ import {
   Clock,
   DollarSign,
   Download,
+  ExternalLink,
   FileText,
   Globe,
   Hexagon,
@@ -68,19 +69,19 @@ const isLocalDeviceUri = (url: string | null | undefined): boolean => {
 const SectionHeader: React.FC<{ icon: React.ReactNode; title: string; color?: string }> = ({
   icon, title, color = 'text-[#1c2d4f]'
 }) => (
-  <div className="flex items-center gap-3 pb-4 border-b border-slate-100 mb-6 font-poppins" style={{ fontFamily: "'Poppins', sans-serif" }}>
-    <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-slate-100 ${color} shadow-sm border border-slate-200/50`}>
+  <div className="flex items-center gap-2.5 sm:gap-3 pb-2.5 sm:pb-4 border-b border-slate-100 mb-3.5 sm:mb-6 font-poppins" style={{ fontFamily: "'Poppins', sans-serif" }}>
+    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center bg-slate-100 ${color} shadow-sm border border-slate-200/50 shrink-0`}>
       {icon}
     </div>
-    <h3 className={`text-sm uppercase tracking-[0.1em] ${color}`}>{title}</h3>
+    <h3 className={`text-xs sm:text-sm font-bold uppercase tracking-[0.1em] ${color}`}>{title}</h3>
   </div>
 );
 
 const InfoPill: React.FC<{ label: string; value: string; mono?: boolean }> = ({ label, value, mono }) => (
-  <div className="flex flex-col gap-1.5 font-poppins" style={{ fontFamily: "'Poppins', sans-serif" }}>
-    <span className="text-xs text-slate-500 uppercase tracking-wide px-0.5">{label}</span>
-    <div className="bg-slate-50/50 rounded-lg px-2 py-1.5 border border-slate-100/50">
-       <span className={`text-sm text-slate-800 ${mono ? '' : 'uppercase'}`}>{value || '—'}</span>
+  <div className="flex flex-col gap-1 sm:gap-1.5 font-poppins" style={{ fontFamily: "'Poppins', sans-serif" }}>
+    <span className="text-[10px] sm:text-xs text-slate-500 uppercase tracking-wide px-0.5">{label}</span>
+    <div className="bg-slate-50/50 rounded-lg px-2 sm:px-2.5 py-1.5 border border-slate-100/50">
+       <span className={`text-xs sm:text-sm text-slate-800 ${mono ? '' : 'uppercase'} font-semibold truncate block`}>{value || '—'}</span>
     </div>
   </div>
 );
@@ -177,29 +178,29 @@ const VisitCard: React.FC<{
   const visitPhotos = extractVisitPhotos(visitData);
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-md shadow-slate-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-6 sm:px-8 py-5 flex items-center justify-between bg-slate-50/50 border-b border-slate-100 hover:bg-slate-100/50 transition-colors group"
+        className="w-full px-3.5 sm:px-8 py-3.5 sm:py-5 flex items-center justify-between bg-slate-50/50 border-b border-slate-100 hover:bg-slate-100/50 transition-colors group"
       >
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 ${
             visit.status === 'completed' ? 'bg-emerald-50 text-emerald-600' : 
             visit.status === 'blocked' ? 'bg-rose-50 text-rose-600' :
             'bg-amber-50 text-amber-600'
           }`}>
-            {visit.status === 'blocked' ? <ShieldAlert size={18} /> : <Calendar size={18} />}
+            {visit.status === 'blocked' ? <ShieldAlert size={16} /> : <Calendar size={16} />}
           </div>
-          <div className="text-left">
-            <p className="text-xs text-slate-400 uppercase tracking-widest">Visita #{idx + 1}</p>
-            <p className="text-sm text-slate-900 uppercase">
+          <div className="text-left min-w-0">
+            <p className="text-[10px] sm:text-xs text-slate-400 uppercase tracking-widest leading-none mb-1">Visita #{idx + 1}</p>
+            <p className="text-xs sm:text-sm font-bold text-slate-900 uppercase truncate">
               {safeFormatDate(visit.scheduled_date || visit.created_at)}
               {visit.scheduled_time && ` às ${visit.scheduled_time.slice(0, 5)}`}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className={`px-3 py-1 rounded-full text-[10px] uppercase tracking-widest border ${
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[9px] sm:text-[10px] font-bold uppercase tracking-wider border ${
             visit.status === 'completed' ? 'bg-emerald-100/50 text-emerald-700 border-emerald-200' : 
             visit.status === 'blocked' ? 'bg-red-100/50 text-red-700 border-red-200' :
             visit.status === 'paused' ? 'bg-amber-100/50 text-amber-700 border-amber-200' :
@@ -207,21 +208,21 @@ const VisitCard: React.FC<{
             'bg-blue-100/50 text-blue-700 border-blue-200'
           }`}>
             {visit.status === 'completed' ? 'Concluído' : 
-             visit.status === 'blocked' ? ((visit.arrival_time || visitData?.checkinLocation?.timestamp) ? 'Impedido Após Atendimento' : 'Impedido Antes do Início') : 
+             visit.status === 'blocked' ? ((visit.arrival_time || visitData?.checkinLocation?.timestamp) ? 'Impedido Após Atendimento' : 'Impedido') : 
              visit.status === 'paused' ? 'Pausado' : 
              visit.status === 'pending' ? 'Agendada' :
              'Em Andamento'}
           </div>
           <div className="text-slate-400 group-hover:text-[#1c2d4f] transition-all">
-            {isOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+            {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
           </div>
         </div>
       </button>
 
       {isOpen && (
-        <div className="p-6 sm:p-8 space-y-6 animate-in zoom-in-95 duration-200">
+        <div className="p-3.5 sm:p-8 space-y-4 sm:space-y-6 animate-in zoom-in-95 duration-200">
           {/* Dados do técnico e horários */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4">
             {(() => {
               const effArrival = visit.arrival_time || visitData?.checkinLocation?.timestamp || (idx === 0 ? order.startDate : null);
               const effDeparture = visit.departure_time || visitData?.checkoutLocation?.timestamp || (idx === 0 ? order.endDate : null);
@@ -357,30 +358,33 @@ const VisitCard: React.FC<{
 
                 {/* Responsável e Assinatura do Impedimento */}
                 {(visitData.impediment_responsible || visitData.impediment_signature) && (
-                  <div className="pt-3 border-t border-red-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    {visitData.impediment_responsible && (
-                      <div>
-                        <p className="text-[10px] text-red-600 font-semibold uppercase tracking-widest mb-1">
-                          Responsável por Acompanhar
-                        </p>
-                        <p className="text-sm text-slate-800 font-bold uppercase">{visitData.impediment_responsible}</p>
-                      </div>
-                    )}
+                  <div className="pt-3 border-t border-red-200/60 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+                    <div className="text-left hidden sm:block">
+                      <p className="text-[10px] text-red-600 font-semibold uppercase tracking-widest mb-0.5">
+                        Acompanhamento do Impedimento
+                      </p>
+                    </div>
                     {visitData.impediment_signature && (
-                      <div>
-                        <p className="text-[10px] text-red-600 font-semibold uppercase tracking-widest mb-1">
+                      <div className="flex flex-col items-center text-center self-end sm:self-auto ml-auto w-36 sm:w-44">
+                        <p className="text-[9px] sm:text-[10px] text-red-600 font-semibold uppercase tracking-wider mb-1 w-full text-center">
                           Assinatura do Responsável
                         </p>
                         <div
-                          className="w-full sm:w-56 h-24 bg-white rounded-xl border border-red-200 flex items-center justify-center p-2 cursor-zoom-in hover:border-red-400/50 transition-colors shadow-sm"
+                          className="w-full h-14 sm:h-16 bg-white rounded-lg border border-red-200 flex items-center justify-center p-1.5 cursor-zoom-in hover:border-red-400/50 transition-colors shadow-sm"
                           onClick={() => onImageClick(visitData.impediment_signature)}
+                          title="Clique para ampliar a assinatura"
                         >
                           <img
                             src={visitData.impediment_signature}
-                            className="max-h-full max-w-full object-contain mix-blend-multiply"
+                            className="max-h-full max-w-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform"
                             alt="Assinatura do responsável pelo impedimento"
                           />
                         </div>
+                        {visitData.impediment_responsible && (
+                          <p className="text-xs text-slate-800 font-bold uppercase mt-1 w-full text-center truncate">
+                            {visitData.impediment_responsible}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -439,7 +443,7 @@ const VisitCard: React.FC<{
                             className="w-[80px] h-[80px] sm:w-[100px] sm:h-[100px] shrink-0 rounded-xl overflow-hidden border border-red-200 bg-black cursor-zoom-in group hover:shadow-md transition-all active:scale-95 relative"
                             onClick={() => onImageClick(vUrl, impedimentVideos)}
                           >
-                            <video src={`${vUrl}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                            <video src={`${vUrl}#t=0.1`} preload="metadata" muted playsInline className="w-full h-full object-cover opacity-60" />
                             <div className="absolute inset-0 flex items-center justify-center">
                               <Play size={16} className="text-white fill-white group-hover:scale-110 transition-transform" />
                             </div>
@@ -504,7 +508,7 @@ const VisitCard: React.FC<{
                             className="w-[80px] h-[80px] sm:w-[100px] sm:h-[100px] shrink-0 rounded-xl overflow-hidden border border-slate-200 bg-black cursor-zoom-in group hover:shadow-md transition-all active:scale-95 relative"
                             onClick={() => onImageClick(vUrl, allMedia)}
                           >
-                            <video src={`${vUrl}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                            <video src={`${vUrl}#t=0.1`} preload="metadata" muted playsInline className="w-full h-full object-cover opacity-60" />
                             <div className="absolute inset-0 flex items-center justify-center">
                               <Play size={16} className="text-white fill-white group-hover:scale-110 transition-transform" />
                             </div>
@@ -518,7 +522,7 @@ const VisitCard: React.FC<{
                           >
                             {isVideoUrl(url) ? (
                               <div className="w-full h-full bg-black relative flex items-center justify-center">
-                                <video src={`${url}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                                <video src={`${url}#t=0.1`} preload="metadata" muted playsInline className="w-full h-full object-cover opacity-60" />
                                 <div className="absolute inset-0 flex items-center justify-center">
                                   <Play size={16} className="text-white fill-white group-hover:scale-110 transition-transform" />
                                 </div>
@@ -560,22 +564,39 @@ const VisitCard: React.FC<{
             if (!sigUrl) return null;
 
             return (
-              <div className="pt-4 border-t border-slate-100 mt-4">
-                <p className="text-[10px] text-slate-400 uppercase tracking-[0.2em] mb-3">Auditoria Digital da Visita</p>
-                <div className="flex flex-col items-center gap-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
-                  <div className="text-center w-full">
-                    <p className="text-xs text-slate-400 uppercase tracking-widest mb-1">Responsável pela Validação</p>
-                    <p className="text-sm text-slate-900 uppercase">{sigName || 'NOME NÃO INFORMADO'}</p>
-                    {sigDoc && <p className="text-[10px] text-slate-400 mt-1">DOC: {sigDoc}</p>}
-                  </div>
+              <div className="pt-3 border-t border-slate-100 mt-4 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+                <div className="text-left hidden sm:block">
+                  <span className="text-[10px] text-slate-400 uppercase tracking-[0.15em] block">Auditoria da Visita #{idx + 1}</span>
+                  <span className="text-[9px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full inline-block uppercase tracking-wider font-semibold border border-emerald-100 mt-1">
+                    ✓ Autenticado Digitalmente
+                  </span>
+                </div>
+
+                {/* Assinatura no canto direito, compacta, com nome do responsável centralizado com ela */}
+                <div className="flex flex-col items-center text-center self-end sm:self-auto ml-auto w-36 sm:w-44">
+                  <p className="text-[9px] sm:text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-1 w-full text-center">
+                    Assinatura do Cliente
+                  </p>
                   <div 
-                    className="w-full sm:w-64 h-28 bg-white rounded-xl border border-slate-200 flex items-center justify-center p-2 cursor-zoom-in group mt-1"
+                    className="w-full h-14 sm:h-16 bg-white rounded-lg border border-slate-200/90 shadow-sm flex items-center justify-center p-1.5 cursor-zoom-in group hover:border-[#3e5b99]/40 transition-all"
                     onClick={() => onImageClick(sigUrl)}
+                    title="Clique para ampliar a assinatura"
                   >
-                    <img src={sigUrl} className="max-h-full max-w-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform" alt="Assinatura da Visita" />
+                    <img 
+                      src={sigUrl} 
+                      className="max-h-full max-w-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform" 
+                      alt="Assinatura da Visita" 
+                    />
                   </div>
-                  <div className="mt-1 text-[9px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md inline-block uppercase tracking-wider">
-                    Autenticado via Duno Mobile
+                  <div className="mt-1 space-y-0.5 text-center w-full">
+                    <p className="text-xs font-bold text-slate-900 uppercase tracking-tight truncate">
+                      {sigName || 'Cliente / Responsável'}
+                    </p>
+                    {sigDoc && (
+                      <p className="text-[10px] text-slate-400 font-mono">
+                        DOC: {sigDoc}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -757,28 +778,28 @@ const CollapsibleFormSection: React.FC<{
   const textCount = formItems.filter(i => i.text !== null).length;
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 overflow-hidden">
+    <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-md overflow-hidden">
       {/* Collapsible Toggle */}
       <button
         onClick={() => setIsOpen(v => !v)}
-        className="w-full flex items-center justify-between px-4 sm:px-8 py-4 sm:py-5 hover:bg-slate-50 transition-all group"
+        className="w-full flex items-center justify-between px-3.5 sm:px-8 py-3.5 sm:py-5 hover:bg-slate-50 transition-all group"
       >
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
             {icon || <ClipboardList size={16} />}
           </div>
-          <div className="text-left">
+          <div className="text-left min-w-0">
             <div className="flex items-center gap-1">
-              <p className="text-sm text-slate-900 uppercase tracking-wide">{title}</p>
+              <p className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wide truncate">{title}</p>
               {titleBadge}
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 truncate">
               {subtitle || `${textCount} ${textCount === 1 ? 'resposta' : 'respostas'}${photoCount > 0 ? ` · ${photoCount} foto${photoCount > 1 ? 's' : ''}` : ''}`}
               {parts && parts.length > 0 && showPrices && ` · R$ ${parts.reduce((acc, it) => acc + (it.total || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-xs text-[#1c2d4f] uppercase tracking-widest group-hover:gap-3 transition-all">
+        <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-[#1c2d4f] font-bold uppercase tracking-wider group-hover:gap-2.5 transition-all shrink-0">
           <span>{isOpen ? 'Fechar' : 'Ver mais'}</span>
           {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </div>
@@ -786,7 +807,7 @@ const CollapsibleFormSection: React.FC<{
 
       {/* Expanded content — cada item do formulário com texto + fotos juntos */}
       {isOpen && (
-        <div className="border-t border-slate-200 px-3 sm:px-8 py-5 sm:py-6 space-y-6 sm:space-y-8 animate-fade-in">
+        <div className="border-t border-slate-200 px-3 sm:px-8 py-4 sm:py-6 space-y-4 sm:space-y-8 animate-fade-in">
           {(() => {
             const groupedItems = formItems.reduce((acc, item) => {
               const match = item.key.match(/^\[(.*?)\]\s*(?:-|$)/);
@@ -839,34 +860,34 @@ const CollapsibleFormSection: React.FC<{
                           <h4 className="text-xs uppercase tracking-widest text-[#1c2d4f]">{group}</h4>
                         </div>
                       )}
-                      <div className="columns-1 md:columns-2 gap-3 sm:gap-4 [column-fill:_balance]">
+                      <div className="columns-1 md:columns-2 gap-2.5 sm:gap-4 [column-fill:_balance]">
                         {items.map(({ key, cleanKey, text, photos }) => (
-                          <div key={key} className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm hover:shadow-md transition-all break-inside-avoid mb-3 sm:mb-4">
+                          <div key={key} className="bg-white rounded-xl sm:rounded-2xl border border-slate-200/80 p-3 sm:p-4 shadow-sm hover:shadow-md transition-all break-inside-avoid mb-2.5 sm:mb-4">
                             <div>
-                              <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-1.5">
+                              <p className="text-[10px] sm:text-xs text-slate-500 uppercase tracking-wide font-medium mb-1 sm:mb-1.5">
                                 {resolvePublicLabel(key)}
                               </p>
                               {text !== null && (
-                                <p className={`text-sm leading-relaxed font-semibold flex items-center gap-1.5 ${
+                                <p className={`text-xs sm:text-sm leading-relaxed font-semibold flex items-center gap-1.5 ${
                                   text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok'
                                     ? 'text-emerald-600'
                                     : 'text-slate-800'
                                 }`}>
-                                  {(text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok') && <CheckCircle2 size={15} className="shrink-0" />}
+                                  {(text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok') && <CheckCircle2 size={14} className="shrink-0" />}
                                   {formatPublicValue(text)}
                                 </p>
                               )}
                               {text === null && photos.length > 0 && (
-                                <p className="text-xs text-slate-400 italic">Evidência fotográfica anexada</p>
+                                <p className="text-[10px] sm:text-xs text-slate-400 italic">Evidência fotográfica anexada</p>
                               )}
                             </div>
 
                             {photos.length > 0 && (
-                              <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-slate-100">
+                              <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-2.5 sm:mt-3 pt-2.5 sm:pt-3 border-t border-slate-100">
                                 {photos.map((url, i) => (
                                   <div
                                     key={i}
-                                    className="w-[70px] h-[70px] sm:w-[85px] sm:h-[85px] rounded-xl overflow-hidden bg-slate-100 border border-slate-200 cursor-zoom-in group hover:shadow-md transition-all shrink-0"
+                                    className="w-[64px] h-[64px] sm:w-[85px] sm:h-[85px] rounded-lg sm:rounded-xl overflow-hidden bg-slate-100 border border-slate-200 cursor-zoom-in group hover:shadow-md transition-all shrink-0"
                                     onClick={() => onImageClick(url, photos)}
                                   >
                                     {(() => {
@@ -896,7 +917,7 @@ const CollapsibleFormSection: React.FC<{
                                         }
                                         return (
                                           <div className="w-full h-full relative flex items-center justify-center bg-black">
-                                            <video src={url} className="w-full h-full object-cover opacity-60" />
+                                            <video src={`${url}#t=0.1`} preload="metadata" muted playsInline className="w-full h-full object-cover opacity-60" />
                                             <div className="absolute inset-0 flex items-center justify-center shadow-inner">
                                               <div className="w-6 h-6 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 group-hover:bg-white/30 transition-all">
                                                 <Play size={10} className="text-white fill-white ml-0.5" />
@@ -934,11 +955,28 @@ const CollapsibleFormSection: React.FC<{
 
                       {eqParts.length > 0 && (
                         <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                          <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex items-center gap-2">
+                          <div className="bg-slate-50 px-3 sm:px-4 py-2 sm:py-2.5 border-b border-slate-200 flex items-center gap-2">
                             <Package size={14} className="text-slate-500" />
-                            <span className="text-[10px] uppercase tracking-widest text-slate-600">Peças Utilizadas neste Equipamento</span>
+                            <span className="text-[10px] uppercase tracking-widest text-slate-600 font-semibold">Peças Utilizadas neste Equipamento</span>
                           </div>
-                          <table className="w-full text-left text-xs">
+                          {/* 📱 Mobile View */}
+                          <div className="sm:hidden divide-y divide-slate-100 p-2 space-y-1.5">
+                            {eqParts.map((pIt, pIdx) => (
+                              <div key={pIdx} className="bg-slate-50/60 rounded-lg p-2.5 flex items-center justify-between text-xs gap-2">
+                                <div className="min-w-0">
+                                  <span className="text-blue-600 font-bold mr-1">{pIt.quantity || 1}x</span>
+                                  <span className="text-slate-800 font-semibold uppercase">{pIt.description}</span>
+                                </div>
+                                {showPrices && (
+                                  <span className="font-bold text-slate-900 shrink-0">
+                                    R$ {(pIt.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          {/* 💻 Desktop Table */}
+                          <table className="hidden sm:table w-full text-left text-xs">
                             <tbody className="divide-y divide-slate-100">
                               {eqParts.map((pIt, pIdx) => (
                                 <tr key={pIdx} className="hover:bg-slate-50/50">
@@ -959,16 +997,41 @@ const CollapsibleFormSection: React.FC<{
 
                 {/* ── PEÇAS VINCULADAS AO EQUIPAMENTO (GERAL / NÃO VINCULADAS) ── */}
                 {unlinkedParts.length > 0 && (
-                  <div className="mt-8 pt-6 border-t border-slate-200 animate-in fade-in slide-in-from-top-4 duration-700">
-                    <div className="flex items-center gap-2 mb-4">
-                      <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-                        <Package size={16} />
+                  <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-slate-200 animate-in fade-in slide-in-from-top-4 duration-700">
+                    <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                        <Package size={15} />
                       </div>
-                      <h4 className="text-xs uppercase tracking-widest text-slate-700">Outras Peças & Insumos Utilizados</h4>
+                      <h4 className="text-[10px] sm:text-xs uppercase tracking-widest text-slate-700 font-semibold">Outras Peças & Insumos Utilizados</h4>
                     </div>
                     
-                    <div className="overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/30">
-                      <table className="w-full text-left text-xs">
+                    <div className="overflow-hidden rounded-xl sm:rounded-2xl border border-slate-200/90 bg-white shadow-sm">
+                      {/* 📱 Mobile View */}
+                      <div className="sm:hidden p-2.5 space-y-2">
+                        {unlinkedParts.map((it, idx) => (
+                          <div key={it.id || idx} className="bg-slate-50/80 rounded-lg p-2.5 flex items-center justify-between text-xs gap-2">
+                            <div className="min-w-0">
+                              <span className="text-blue-600 font-bold mr-1">{it.quantity || 1}x</span>
+                              <span className="text-slate-800 font-semibold uppercase">{it.description}</span>
+                            </div>
+                            {showPrices && (
+                              <span className="font-bold text-slate-900 shrink-0">
+                                R$ {(it.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                        {showPrices && (
+                          <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs px-1">
+                            <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Subtotal Peças Diversas</span>
+                            <span className="font-bold text-[#1c2d4f]">
+                              R$ {unlinkedParts.reduce((acc, it) => acc + (it.total || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      {/* 💻 Desktop Table */}
+                      <table className="hidden sm:table w-full text-left text-xs">
                         <thead>
                           <tr className="bg-slate-100/50 text-slate-500 uppercase tracking-tighter">
                             <th className="px-4 py-3">Descrição do Item</th>
@@ -3015,38 +3078,38 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
         {/* ── STICKY HEADER ── */}
         <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm print:hidden">
-          <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between gap-4">
+          <div className="max-w-[1400px] mx-auto px-3 sm:px-8 py-2.5 sm:py-4 flex items-center justify-between gap-3 sm:gap-4">
             {/* Company identity */}
-            <div className="flex items-center gap-4 min-w-0">
+            <div className="flex items-center gap-2.5 sm:gap-4 min-w-0 flex-1">
               {companyLogo
-                ? <img src={companyLogo} alt={companyName} className="h-10 sm:h-12 w-auto object-contain shrink-0" />
+                ? <img src={companyLogo} alt={companyName} className="h-8 sm:h-12 w-auto max-w-[110px] sm:max-w-[180px] object-contain shrink-0" />
                 : (
-                  <div className="w-10 h-10 bg-[#1c2d4f] rounded-xl flex items-center justify-center shrink-0">
-                    <Hexagon size={20} className="text-white fill-white/10" />
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[#1c2d4f] rounded-lg sm:rounded-xl flex items-center justify-center shrink-0">
+                    <Hexagon size={18} className="text-white fill-white/10" />
                   </div>
                 )
               }
-              <div className="flex-1 min-w-0">
-                <h1 className="text-sm sm:text-base text-slate-900 uppercase tracking-tight sm:truncate leading-none mb-1">{companyName}</h1>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-xs sm:text-base font-bold text-slate-900 uppercase tracking-tight truncate leading-tight mb-0.5 sm:mb-1">{companyName}</h1>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
                   {companyDoc && (
-                    <span className="text-xs text-slate-500 uppercase tracking-widest whitespace-nowrap flex items-center gap-1">
+                    <span className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                       CNPJ: {companyDoc}
                     </span>
                   )}
                   {companyPhone && (
-                    <span className="flex items-center gap-1 text-xs text-slate-500 uppercase tracking-widest whitespace-nowrap text-opacity-80">
+                    <span className="flex items-center gap-1 text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap text-opacity-80">
                       <Phone size={9} className="text-[#3e5b99]" /> {companyPhone}
                     </span>
                   )}
                   {companyWebsite && (
-                    <span className="flex items-center gap-1 text-xs text-slate-500 uppercase tracking-widest whitespace-nowrap text-opacity-80">
+                    <span className="hidden sm:flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap text-opacity-80">
                       <Globe size={9} className="text-[#3e5b99]" /> {companyWebsite.replace(/^https?:\/\//, '')}
                     </span>
                   )}
                   {companyAddress && (
-                    <span className="flex items-center gap-1 text-[10px] sm:text-xs text-slate-500 uppercase tracking-widest leading-tight">
-                      <MapPin size={10} className="text-[#3e5b99] shrink-0" /> <span className="flex-1">{companyAddress}</span>
+                    <span className="hidden md:flex items-center gap-1 text-xs text-slate-500 uppercase tracking-widest leading-tight">
+                      <MapPin size={10} className="text-[#3e5b99] shrink-0" /> <span className="flex-1 truncate max-w-xs">{companyAddress}</span>
                     </span>
                   )}
                 </div>
@@ -3057,34 +3120,38 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             <button
               onClick={() => triggerSmartPrint(false)}
               title="Imprimir Ordem de Serviço"
-              className="flex items-center justify-center h-10 w-10 sm:w-auto sm:px-4 sm:py-2.5 bg-[#1c2d4f] text-white rounded-xl text-xs uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0 cursor-pointer"
+              className="inline-flex items-center justify-center h-8 sm:h-10 px-2.5 sm:px-4 py-1 sm:py-2.5 bg-[#1c2d4f] text-white rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:bg-[#2a457a] transition-all shadow-sm active:scale-95 shrink-0 gap-1.5 whitespace-nowrap cursor-pointer"
             >
-              <Printer size={16} />
-              <span className="hidden sm:inline ml-2">Imprimir</span>
+              <Printer size={15} className="text-white shrink-0" />
+              <span className="hidden xs:inline sm:inline">Imprimir</span>
             </button>
           </div>
         </header>
 
         {/* ── OS HERO BANNER ── */}
         <div className="bg-[#1c2d4f] print:hidden">
-          <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-5 sm:py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+          <div className="max-w-[1400px] mx-auto px-3 sm:px-8 py-3.5 sm:py-6 flex flex-row justify-between items-center gap-3">
             {/* OS identity */}
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center border border-white/10 shrink-0">
-                <Wrench size={22} className="text-white" />
+            <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
+              <div className="w-9 h-9 sm:w-12 sm:h-12 bg-white/10 rounded-lg sm:rounded-xl flex items-center justify-center border border-white/10 shrink-0">
+                <Wrench size={20} className="text-white shrink-0" />
               </div>
-              <div>
-                <p className="text-xs text-white/40 uppercase tracking-[0.3em] leading-none mb-1">Ordem de Serviço</p>
-                <h2 className="text-xl sm:text-2xl text-white uppercase tracking-tighter leading-none">
+              <div className="min-w-0">
+                <p className="text-[9px] sm:text-xs font-bold text-white/50 uppercase tracking-[0.2em] leading-none mb-1">Ordem de Serviço</p>
+                <h2 className="text-base sm:text-2xl font-black text-white uppercase tracking-tight leading-none truncate">
                   #{order.displayId || order.id.slice(0, 8).toUpperCase()}
                 </h2>
-                <p className="text-xs text-white/50 uppercase tracking-wide mt-1">{order.title}</p>
+                {order.title && (
+                  <p className="text-[10px] sm:text-xs font-semibold text-white/70 uppercase tracking-wide mt-1 truncate max-w-[160px] sm:max-w-md">
+                    {order.title}
+                  </p>
+                )}
               </div>
             </div>
 
             {/* Status + priority */}
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <div className={`px-2.5 py-1 rounded-full text-xs uppercase tracking-widest border flex items-center gap-1.5 ${{
+            <div className="shrink-0 flex items-center gap-1.5 sm:gap-2.5">
+              <div className={`px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider border flex items-center gap-1.5 ${{
                 'PENDENTE': 'bg-slate-500/20 text-slate-300 border-slate-500/30',
                 'ATRIBUÍDO': 'bg-sky-500/20 text-sky-300 border-sky-500/30',
                 'EM DESLOCAMENTO': 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30',
@@ -3094,7 +3161,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 'IMPEDIDO': 'bg-red-500/20 text-red-300 border-red-500/30'
               }[order.status] || 'bg-white/10 text-white/70 border-white/10'
                 }`}>
-                <span className={`w-1 h-1 rounded-full animate-pulse-subtle ${{
+                <span className={`w-1.5 h-1.5 rounded-full animate-pulse-subtle ${{
                   'PENDENTE': 'bg-slate-400',
                   'ATRIBUÍDO': 'bg-sky-400',
                   'EM DESLOCAMENTO': 'bg-fuchsia-400',
@@ -3104,12 +3171,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   'IMPEDIDO': 'bg-red-400'
                 }[order.status] || 'bg-white/50'
                   }`} />
-                {order.status}
+                <span>{order.status}</span>
               </div>
-              <div className="px-2.5 py-1 bg-white/10 rounded-full text-xs text-white/70 uppercase tracking-widest border border-white/10">
-                {order.priority}
-              </div>
-              <div className="px-2.5 py-1 bg-white/10 rounded-full text-xs text-white/70 uppercase tracking-widest border border-white/10 flex items-center gap-1.5">
+              {order.priority && (
+                <div className="hidden sm:inline-flex px-2.5 py-1 bg-white/10 rounded-full text-xs text-white/70 uppercase tracking-widest border border-white/10">
+                  {order.priority}
+                </div>
+              )}
+              <div className="hidden md:flex px-2.5 py-1 bg-white/10 rounded-full text-xs text-white/70 uppercase tracking-widest border border-white/10 items-center gap-1.5">
                 <Calendar size={10} /> {fmt(order.createdAt)}
               </div>
             </div>
@@ -3117,100 +3186,128 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         </div>
 
         {/* ── MAIN CONTENT ── */}
-        <main className="max-w-[1400px] mx-auto px-4 sm:px-8 py-6 sm:py-12 flex flex-col gap-6 sm:gap-10 print:hidden">
+        <main className="max-w-[1400px] mx-auto px-3 sm:px-8 py-4 sm:py-10 flex flex-col gap-4 sm:gap-8 print:hidden w-full overflow-x-hidden">
 
           {/* ── ROW 1: Cliente + Localização ── */}
-          <div className="flex flex-col gap-4 lg:gap-6">
-            <div className="bg-slate-200/50 rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/30 p-4 sm:p-5">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-[#3e5b99]/10 rounded-xl flex items-center justify-center shrink-0">
+          <div className="flex flex-col gap-3 sm:gap-6">
+            <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-md shadow-slate-100 p-3.5 sm:p-5">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 bg-[#3e5b99]/10 rounded-xl flex items-center justify-center shrink-0">
                     <UserIcon size={18} className="text-[#3e5b99]" />
                   </div>
-                  <div>
-                    <p className="text-xl text-slate-900 uppercase tracking-tight leading-none">{order.customerName}</p>
+                  <div className="min-w-0">
+                    <p className="text-base sm:text-xl font-bold text-slate-900 uppercase tracking-tight leading-tight truncate">{order.customerName}</p>
                     {order.operationType && (
-                      <span className="text-[10px] text-[#3e5b99] uppercase tracking-widest bg-[#3e5b99]/10 px-2 py-0.5 rounded-full mt-1.5 inline-block">{order.operationType}</span>
+                      <span className="text-[9px] sm:text-[10px] text-[#3e5b99] uppercase tracking-widest bg-[#3e5b99]/10 px-2 py-0.5 rounded-full mt-1 inline-block font-semibold">{order.operationType}</span>
                     )}
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-6 pt-2.5 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                   {(freshCustomerPhone || freshCustomerEmail) && (
-                    <div className="flex flex-col gap-1.5">
+                    <div className="flex flex-wrap sm:flex-col gap-2 sm:gap-1">
                       {freshCustomerPhone && (
-                        <div className="flex items-center gap-2.5">
-                          <Phone size={14} className="text-[#3e5b99] shrink-0" />
-                          <p className="text-xs text-slate-700 uppercase tracking-wide">{freshCustomerPhone}</p>
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 uppercase">
+                          <Phone size={12} className="text-[#3e5b99] shrink-0" />
+                          <span>{freshCustomerPhone}</span>
                         </div>
                       )}
                       {freshCustomerEmail && (
-                        <div className="flex items-center gap-2.5">
-                          <Mail size={14} className="text-[#3e5b99] shrink-0" />
-                          <p className="text-xs text-slate-600 truncate max-w-[200px]">{freshCustomerEmail}</p>
+                        <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 truncate max-w-[260px]">
+                          <Mail size={12} className="text-[#3e5b99] shrink-0" />
+                          <span className="truncate">{freshCustomerEmail}</span>
                         </div>
                       )}
                     </div>
                   )}
 
                   {displayAddress && (
-                    <div className="flex items-start gap-2.5 max-w-[300px]">
-                      <MapPin size={14} className="text-slate-400 mt-0.5 shrink-0" />
-                      <p className="text-xs text-slate-500 leading-snug uppercase whitespace-pre-line">{displayAddress}</p>
+                    <div className="flex items-start gap-1.5 text-xs text-slate-500 font-medium uppercase leading-snug">
+                      <MapPin size={12} className="text-slate-400 mt-0.5 shrink-0" />
+                      <span className="line-clamp-2 max-w-[280px]">{displayAddress}</span>
                     </div>
                   )}
 
-                  <div className="flex gap-6 border-l border-slate-300/50 pl-6">
+                  <div className="flex items-center justify-between sm:flex-col sm:items-end border-t sm:border-t-0 sm:border-l border-slate-200 pt-2 sm:pt-0 sm:pl-4 gap-4 sm:gap-1">
                     <div className="flex flex-col">
-                      <span className="text-[9px] text-slate-400 uppercase tracking-[0.1em] mb-0.5">Abertura</span>
-                      <span className="text-xs text-slate-800">{fmt(order.createdAt)}</span>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Abertura</span>
+                      <span className="text-xs font-bold text-slate-800">{fmt(order.createdAt)}</span>
                     </div>
-                    <div className="flex flex-col">
-                      <span className="text-[9px] text-slate-400 uppercase tracking-[0.1em] mb-0.5">Agendado</span>
-                      <span className="text-xs text-slate-800">{order.scheduledDate ? fmt(order.scheduledDate) : '—'}</span>
+                    <div className="flex flex-col items-end sm:items-end">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Agendado</span>
+                      <span className="text-xs font-bold text-slate-800">{order.scheduledDate ? fmt(order.scheduledDate) : '—'}</span>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/30 p-3.5 sm:p-4">
+            <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-md shadow-slate-100 p-3.5 sm:p-5">
               <SectionHeader icon={<Box size={15} />} title={`Equipamento${linkedEquipments.length > 1 ? 's' : ''} Vinculado${linkedEquipments.length > 1 ? 's' : ''}`} />
               {linkedEquipments.length > 0 ? (
-                <div className="rounded-xl border border-slate-100 overflow-hidden">
-                  <div className="overflow-x-auto w-full"><table className="w-full text-left">
-                    <thead>
-                      <tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-widest border-b border-slate-200">
-                        <th className="px-4 py-2.5">Equipamento</th>
-                        <th className="px-4 py-2.5">Modelo</th>
-                        <th className="px-4 py-2.5">Nº Série</th>
-                        <th className="px-4 py-2.5">Família</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {linkedEquipments.map((eq: any, i: number) => (
-                        <tr key={eq.id || i} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-4 py-2.5 text-xs text-slate-900 uppercase">{eq.equipment_name || eq.equipmentName || '—'}</td>
-                          <td className="px-4 py-2.5 text-xs text-slate-600 uppercase">{eq.equipment_model || eq.equipmentModel || '—'}</td>
-                          <td className="px-4 py-2.5 text-xs text-slate-500 ">{eq.equipment_serial || eq.equipmentSerial || '—'}</td>
-                          <td className="px-4 py-2.5">
-                            {(eq.equipment_family || eq.equipmentFamily) ? (
-                              <span className="text-xs text-[#3e5b99] uppercase bg-[#3e5b99]/10 px-2 py-0.5 rounded-full">{eq.equipment_family || eq.equipmentFamily}</span>
-                            ) : <span className="text-xs text-slate-300">—</span>}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table></div>
-                </div>
-              ) : (order.equipmentName || order.equipmentModel || order.equipmentSerial) ? (
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 shrink-0">
-                    <Box size={18} className="text-slate-300" />
+                <>
+                  {/* 📱 Mobile Card View (100% full width, zero scrollbar) */}
+                  <div className="sm:hidden space-y-2.5">
+                    {linkedEquipments.map((eq: any, i: number) => (
+                      <div key={eq.id || i} className="bg-slate-50/80 rounded-xl p-3 border border-slate-200/70 space-y-1.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-xs font-bold text-slate-900 uppercase leading-snug">
+                            {eq.equipment_name || eq.equipmentName || '—'}
+                          </p>
+                          {(eq.equipment_family || eq.equipmentFamily) && (
+                            <span className="text-[9px] font-semibold text-[#3e5b99] uppercase bg-[#3e5b99]/10 px-2 py-0.5 rounded-full shrink-0">
+                              {eq.equipment_family || eq.equipmentFamily}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 text-[10px] text-slate-500 font-medium uppercase">
+                          <span>Modelo: <strong className="text-slate-700">{eq.equipment_model || eq.equipmentModel || '—'}</strong></span>
+                          <span>·</span>
+                          <span>Série: <strong className="text-slate-700">{eq.equipment_serial || eq.equipmentSerial || '—'}</strong></span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="space-y-0.5">
-                    <p className="text-sm text-slate-900 uppercase leading-snug">{order.equipmentName || '—'}</p>
-                    <p className="text-xs text-slate-500 uppercase">
+
+                  {/* 💻 Desktop Table View (Hidden on mobile) */}
+                  <div className="hidden sm:block rounded-xl border border-slate-100 overflow-hidden">
+                    <div className="overflow-x-auto w-full">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-widest border-b border-slate-200">
+                            <th className="px-4 py-2.5">Equipamento</th>
+                            <th className="px-4 py-2.5">Modelo</th>
+                            <th className="px-4 py-2.5">Nº Série</th>
+                            <th className="px-4 py-2.5">Família</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {linkedEquipments.map((eq: any, i: number) => (
+                            <tr key={eq.id || i} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="px-4 py-2.5 text-xs text-slate-900 uppercase font-semibold">{eq.equipment_name || eq.equipmentName || '—'}</td>
+                              <td className="px-4 py-2.5 text-xs text-slate-600 uppercase">{eq.equipment_model || eq.equipmentModel || '—'}</td>
+                              <td className="px-4 py-2.5 text-xs text-slate-500 font-mono">{eq.equipment_serial || eq.equipmentSerial || '—'}</td>
+                              <td className="px-4 py-2.5">
+                                {(eq.equipment_family || eq.equipmentFamily) ? (
+                                  <span className="text-xs text-[#3e5b99] uppercase bg-[#3e5b99]/10 px-2 py-0.5 rounded-full font-semibold">{eq.equipment_family || eq.equipmentFamily}</span>
+                                ) : <span className="text-xs text-slate-300">—</span>}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              ) : (order.equipmentName || order.equipmentModel || order.equipmentSerial) ? (
+                <div className="flex items-center gap-3 bg-slate-50/70 p-3 rounded-xl border border-slate-100">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 bg-white rounded-lg flex items-center justify-center border border-slate-200 shrink-0">
+                    <Box size={18} className="text-[#3e5b99]" />
+                  </div>
+                  <div className="space-y-0.5 min-w-0">
+                    <p className="text-xs sm:text-sm font-bold text-slate-900 uppercase leading-snug truncate">{order.equipmentName || '—'}</p>
+                    <p className="text-[10px] sm:text-xs text-slate-500 uppercase">
                       {[order.equipmentModel && `Modelo: ${order.equipmentModel}`, order.equipmentSerial && `Série: ${order.equipmentSerial}`].filter(Boolean).join(' · ')}
                     </p>
                   </div>
@@ -3222,12 +3319,12 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
 
           {/* ── ROW 2: Relatório Técnico ── */}
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 p-8 sm:p-10">
+          <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-md p-3.5 sm:p-10">
             <SectionHeader icon={<FileText size={15} />} title="Relatório Técnico de Execução" />
 
             {/* Timeline bar */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4 mb-4 sm:mb-6">
+              <div className="p-3 sm:p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3">
                 <div className="w-8 h-8 bg-[#1c2d4f]/10 rounded-xl flex items-center justify-center shrink-0 overflow-hidden">
                   {tech?.avatar ? (
                     <img 
@@ -3239,36 +3336,36 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     <UserIcon size={14} className="text-[#1c2d4f]" />
                   )}
                 </div>
-                <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-widest">Técnico</p>
-                  <p className="text-xs text-slate-800 uppercase">{tech?.name || 'Não Atribuído'}</p>
+                <div className="min-w-0">
+                  <p className="text-[9px] sm:text-xs text-slate-400 uppercase tracking-widest font-semibold">Técnico</p>
+                  <p className="text-xs sm:text-sm text-slate-800 uppercase font-bold truncate">{tech?.name || 'Não Atribuído'}</p>
                 </div>
               </div>
-              <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-3">
+              <div className="p-3 sm:p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-3">
                 <div className="w-8 h-8 bg-emerald-100 rounded-xl flex items-center justify-center shrink-0">
                   <Clock size={14} className="text-emerald-600" />
                 </div>
-                <div>
-                  <p className="text-xs text-emerald-400 uppercase tracking-widest">Check-In</p>
-                  <p className="text-xs text-emerald-800">{fmtDT(orderVisits.find((v: any) => v.arrival_time)?.arrival_time || order.startDate)}</p>
+                <div className="min-w-0">
+                  <p className="text-[9px] sm:text-xs text-emerald-600 uppercase tracking-widest font-semibold">Check-In</p>
+                  <p className="text-xs sm:text-sm text-emerald-900 font-bold">{fmtDT(orderVisits.find((v: any) => v.arrival_time)?.arrival_time || order.startDate)}</p>
                 </div>
               </div>
-              <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-3">
+              <div className="p-3 sm:p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-3">
                 <div className="w-8 h-8 bg-emerald-100 rounded-xl flex items-center justify-center shrink-0">
                   <CheckCircle2 size={14} className="text-emerald-600" />
                 </div>
-                <div>
-                  <p className="text-xs text-emerald-400 uppercase tracking-widest">Concluído</p>
-                  <p className="text-xs text-emerald-800">{fmtDT(order.endDate || [...orderVisits].reverse().find((v: any) => v.departure_time)?.departure_time)}</p>
+                <div className="min-w-0">
+                  <p className="text-[9px] sm:text-xs text-emerald-600 uppercase tracking-widest font-semibold">Concluído</p>
+                  <p className="text-xs sm:text-sm text-emerald-900 font-bold">{fmtDT(order.endDate || [...orderVisits].reverse().find((v: any) => v.departure_time)?.departure_time)}</p>
                 </div>
               </div>
             </div>
 
             {/* Service description */}
             {order.description && (
-              <div className="p-5 bg-[#1c2d4f]/5 rounded-xl border border-[#1c2d4f]/10">
-                <p className="text-xs text-[#1c2d4f] uppercase tracking-widest mb-2">Descrição do problema</p>
-                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{order.description}</p>
+              <div className="p-3.5 sm:p-5 bg-[#1c2d4f]/5 rounded-xl border border-[#1c2d4f]/10">
+                <p className="text-[10px] sm:text-xs font-bold text-[#1c2d4f] uppercase tracking-widest mb-1.5">Descrição do problema</p>
+                <p className="text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{order.description}</p>
               </div>
             )}
           </div>
@@ -3452,10 +3549,53 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
           {/* ── PEÇAS E MATERIAIS (sempre visível quando há itens) ── */}
           {enrichedItems.length > 0 && (
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 overflow-hidden">
-              <div className="p-6 sm:p-8">
+            <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-md overflow-hidden">
+              <div className="p-3.5 sm:p-8">
                 <SectionHeader icon={<Package size={15} />} title="Peças e Materiais Aplicados" />
-                <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+
+                {/* 📱 Mobile Card View (100% full width, zero scrollbar) */}
+                <div className="sm:hidden space-y-2.5">
+                  {enrichedItems.map((item, i) => (
+                    <div key={item.id || i} className="bg-slate-50/80 rounded-xl p-3 border border-slate-200/70 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-5 h-5 inline-flex items-center justify-center bg-white border border-slate-200 rounded text-[9px] font-bold text-slate-400 shrink-0">
+                            {String(i + 1).padStart(2, '0')}
+                          </span>
+                          <div className="min-w-0">
+                            <span className="text-xs font-bold text-slate-800 uppercase leading-snug line-clamp-2">
+                              {item.description || item.title}
+                            </span>
+                            {item.equipmentName && (
+                              <div className="flex items-center gap-1 text-[9px] text-slate-400 uppercase mt-0.5">
+                                <Box size={9} className="text-slate-300" /> {item.equipmentName}
+                              </div>
+                            )}
+                            {item.fromStock && <span className="text-[9px] text-emerald-600 uppercase mt-0.5 block font-bold">✦ Estoque Técnico</span>}
+                          </div>
+                        </div>
+                        {(item.stockCode || item.stock_code) && (
+                          <span className="text-[9px] font-mono font-bold text-[#3e5b99] bg-[#3e5b99]/10 px-1.5 py-0.5 rounded shrink-0">
+                            {item.stockCode || item.stock_code}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-xs">
+                        <span className="text-slate-500 font-medium">
+                          {item.quantity} un {showPrices && `× R$ ${(item.unitPrice || item.unit_price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                        </span>
+                        {showPrices && (
+                          <span className="text-sm font-black text-[#1c2d4f] tracking-tight">
+                            R$ {(item.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 💻 Desktop Table View (Hidden on mobile) */}
+                <div className="hidden sm:block rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                   <div className="overflow-x-auto w-full custom-scrollbar"><table className="w-full text-left table-auto">
                     <thead className="bg-slate-100/80 border-b border-slate-200">
                       <tr className="text-[10px] sm:text-xs font-bold text-slate-500 tracking-widest uppercase">
@@ -3498,12 +3638,12 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
                 {/* Total bar — somente se valores estiverem habilitados */}
                 {showPrices && (
-                  <div className="mt-4 flex items-center justify-between bg-[#1c2d4f] text-white px-6 py-4 rounded-xl">
-                    <div className="flex items-center gap-3">
+                  <div className="mt-3 sm:mt-4 flex items-center justify-between bg-[#1c2d4f] text-white px-4 sm:px-6 py-3 sm:py-4 rounded-xl">
+                    <div className="flex items-center gap-2 sm:gap-3">
                       <DollarSign size={18} className="opacity-60" />
-                      <span className="text-xs uppercase tracking-widest opacity-70">Total do Atendimento</span>
+                      <span className="text-[10px] sm:text-xs uppercase tracking-widest opacity-80 font-semibold">Total do Atendimento</span>
                     </div>
-                    <span className="text-xl tracking-tighter">
+                    <span className="text-base sm:text-xl font-bold tracking-tight">
                       R$ {totalItems.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
@@ -3528,21 +3668,21 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             const clientDoc = signatureInfo.doc;
 
             return (
-              <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 p-8 sm:p-10">
+              <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-md p-3.5 sm:p-10">
                 <SectionHeader icon={<CheckCircle2 size={15} />} title="Validação e Assinaturas" />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-6">
 
                   {/* Técnico */}
-                  <div className="flex flex-col items-center text-center p-6 bg-slate-50 rounded-xl border border-slate-100 gap-4">
+                  <div className="flex flex-col items-center text-center p-3.5 sm:p-6 bg-slate-50 rounded-xl border border-slate-100 gap-2.5 sm:gap-4">
                     <div>
-                      <p className="text-xs text-slate-400 uppercase tracking-widest mb-1">Técnico Responsável</p>
-                      <p className="text-sm text-slate-900 uppercase">{tech?.name || 'Não Atribuído'}</p>
-                      {tech?.email && <p className="text-xs text-slate-400 mt-0.5">{tech.email}</p>}
+                      <p className="text-[10px] sm:text-xs text-slate-400 uppercase tracking-widest mb-0.5 sm:mb-1 font-semibold">Técnico Responsável</p>
+                      <p className="text-xs sm:text-sm font-bold text-slate-900 uppercase">{tech?.name || 'Não Atribuído'}</p>
+                      {tech?.email && <p className="text-[10px] sm:text-xs text-slate-400 mt-0.5">{tech.email}</p>}
                     </div>
 
                     {tech?.avatar ? (
                       <div
-                        className="w-full h-28 flex items-center justify-center bg-white rounded-xl border border-slate-200 cursor-zoom-in hover:border-[#3e5b99]/30 transition-colors overflow-hidden p-2"
+                        className="w-full h-24 sm:h-28 flex items-center justify-center bg-white rounded-xl border border-slate-200 cursor-zoom-in hover:border-[#3e5b99]/30 transition-colors overflow-hidden p-2"
                         onClick={() => openLightbox(tech.avatar!)}
                       >
                         <img
@@ -3552,51 +3692,51 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                         />
                       </div>
                     ) : (
-                      <div className="w-full h-28 flex flex-col items-center justify-center bg-white rounded-xl border-2 border-dashed border-slate-200 gap-2">
-                        <UserIcon size={32} className="text-slate-300" />
-                        <p className="text-[10px] text-slate-300 uppercase tracking-widest text-center px-2">Validação Eletrônica<br/>no Sistema</p>
+                      <div className="w-full h-24 sm:h-28 flex flex-col items-center justify-center bg-white rounded-xl border-2 border-dashed border-slate-200 gap-1.5 sm:gap-2">
+                        <UserIcon size={26} className="text-slate-300" />
+                        <p className="text-[9px] sm:text-[10px] text-slate-300 uppercase tracking-widest text-center px-2">Validação Eletrônica<br/>no Sistema</p>
                       </div>
                     )}
 
-                    <div className="w-full border-t-2 border-dashed border-slate-200 pt-3">
-                      <p className="text-xs text-slate-300 uppercase tracking-widest">Assinatura do Prestador</p>
+                    <div className="w-full border-t-2 border-dashed border-slate-200 pt-2.5 sm:pt-3">
+                      <p className="text-[10px] sm:text-xs text-slate-400 uppercase tracking-widest font-semibold">Assinatura do Prestador</p>
                     </div>
                   </div>
 
                   {/* Cliente / Responsável que assinou */}
-                  <div className="flex flex-col items-center text-center p-6 bg-slate-50 rounded-xl border border-slate-100 gap-4">
+                  <div className="flex flex-col items-center text-center p-3.5 sm:p-6 bg-slate-50 rounded-xl border border-slate-100 gap-2.5 sm:gap-4">
                     {/* Nome de quem assinou (digitado no app) */}
                     <div>
-                      <p className="text-xs text-slate-400 uppercase tracking-widest mb-1">Responsável pela Assinatura</p>
+                      <p className="text-[10px] sm:text-xs text-slate-400 uppercase tracking-widest mb-0.5 sm:mb-1 font-semibold">Responsável pela Assinatura</p>
                       {clientName ? (
-                        <p className="text-sm text-slate-900 uppercase">{clientName}</p>
+                        <p className="text-xs sm:text-sm font-bold text-slate-900 uppercase">{clientName}</p>
                       ) : (
                         <p className="text-xs text-slate-300 uppercase italic">Nome não informado</p>
                       )}
-                      {clientDoc && <p className="text-xs text-slate-400  mt-0.5">Doc: {clientDoc}</p>}
+                      {clientDoc && <p className="text-[10px] sm:text-xs text-slate-400 mt-0.5">Doc: {clientDoc}</p>}
                     </div>
 
                     {/* Assinatura digital */}
                     {clientSig ? (
                       <div
-                        className="w-full h-28 flex items-center justify-center bg-white rounded-xl border border-slate-200 cursor-zoom-in hover:border-[#3e5b99]/30 transition-colors"
+                        className="w-full h-24 sm:h-28 flex items-center justify-center bg-white rounded-xl border border-slate-200 cursor-zoom-in hover:border-[#3e5b99]/30 transition-colors p-2"
                         onClick={() => openLightbox(clientSig)}
                       >
                         <img
                           src={clientSig}
-                          className="max-h-24 max-w-full object-contain mix-blend-multiply"
+                          className="max-h-20 sm:max-h-24 max-w-full object-contain mix-blend-multiply"
                           alt="Assinatura"
                         />
                       </div>
                     ) : (
-                      <div className="w-full h-28 flex flex-col items-center justify-center bg-white rounded-xl border-2 border-dashed border-slate-200 gap-2">
-                        <div className="w-8 h-8 rounded-full bg-slate-100" />
-                        <p className="text-xs text-slate-300 uppercase tracking-widest">Sem assinatura registrada</p>
+                      <div className="w-full h-24 sm:h-28 flex flex-col items-center justify-center bg-white rounded-xl border-2 border-dashed border-slate-200 gap-1.5 sm:gap-2">
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-100" />
+                        <p className="text-[10px] sm:text-xs text-slate-300 uppercase tracking-widest">Sem assinatura registrada</p>
                       </div>
                     )}
 
-                    <div className="w-full border-t-2 border-dashed border-slate-200 pt-3">
-                      <p className="text-xs text-slate-300 uppercase tracking-widest">Assinatura do Cliente</p>
+                    <div className="w-full border-t-2 border-dashed border-slate-200 pt-2.5 sm:pt-3">
+                      <p className="text-[10px] sm:text-xs text-slate-400 uppercase tracking-widest font-semibold">Assinatura do Cliente</p>
                     </div>
                   </div>
 
@@ -3608,14 +3748,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         </main>
 
         {/* ── FOOTER NEXUS ── */}
-        <footer className="mt-8 sm:mt-12 lg:mt-auto border-t border-slate-200 bg-white print:hidden">
-          <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <footer className="mt-6 sm:mt-12 lg:mt-auto border-t border-slate-200 bg-white print:hidden">
+          <div className="max-w-[1400px] mx-auto px-3 sm:px-8 py-3.5 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
             <div className="flex items-center gap-3">
               <NexusBranding size="lg" className="opacity-80 transform scale-[0.55] sm:scale-[0.7] origin-left" />
             </div>
             <div className="text-center sm:text-right space-y-0.5">
-              <p className="text-xs text-slate-400 uppercase tracking-[0.2em]">Uma solução DUNO</p>
-              <p className="text-xs text-slate-300 uppercase tracking-widest">
+              <p className="text-[10px] sm:text-xs text-slate-400 uppercase tracking-[0.2em]">Uma solução DUNO</p>
+              <p className="text-[9px] sm:text-xs text-slate-300 uppercase tracking-widest">
                 Documento emitido eletronicamente · Autenticidade garantida pela plataforma
               </p>
             </div>
@@ -3629,20 +3769,25 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           >
             <div className="absolute inset-0 cursor-zoom-out" onClick={() => setLightboxState(null)} />
             
-            <div className="relative z-10 w-full h-full flex items-center justify-center pointer-events-none">
+            <div className="relative z-10 w-full h-full flex items-center justify-center p-2 sm:p-6" onClick={(e) => e.stopPropagation()}>
               {isVideoUrl(lightboxState.images[lightboxState.currentIndex]) ? (
-                <video
-                  key={lightboxState.images[lightboxState.currentIndex]}
-                  src={lightboxState.images[lightboxState.currentIndex]}
-                  controls
-                  autoPlay
-                  className="max-w-full max-h-full rounded-3xl shadow-2xl pointer-events-auto"
-                />
+                <div className="max-w-full max-h-full flex items-center justify-center rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden bg-black">
+                  <video
+                    key={lightboxState.images[lightboxState.currentIndex]}
+                    controls
+                    playsInline
+                    preload="auto"
+                    className="max-w-full max-h-[85vh] rounded-2xl sm:rounded-3xl bg-black"
+                  >
+                    <source src={lightboxState.images[lightboxState.currentIndex]} type="video/mp4" />
+                    Seu navegador não suporta a reprodução deste vídeo.
+                  </video>
+                </div>
               ) : (
                 <img
                   key={lightboxState.images[lightboxState.currentIndex]}
                   src={lightboxState.images[lightboxState.currentIndex]}
-                  className="max-w-full max-h-full object-contain rounded-3xl shadow-2xl pointer-events-auto"
+                  className="max-w-full max-h-full object-contain rounded-2xl sm:rounded-3xl shadow-2xl"
                   alt="Visualização"
                 />
               )}
@@ -3674,12 +3819,27 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               </>
             )}
 
-            <button
-              className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors shadow-sm z-20"
-              onClick={() => setLightboxState(null)}
-            >
-              <XIcon size={22} />
-            </button>
+            <div className="absolute top-4 sm:top-6 right-4 sm:right-6 flex items-center gap-2 z-20">
+              {isVideoUrl(lightboxState.images[lightboxState.currentIndex]) && (
+                <a
+                  href={lightboxState.images[lightboxState.currentIndex]}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 sm:p-3 bg-white/10 hover:bg-white/20 active:scale-95 rounded-full text-white transition-all shadow-sm flex items-center gap-1.5 text-xs font-semibold backdrop-blur-md"
+                  title="Abrir vídeo em tela cheia / nova aba"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <ExternalLink size={18} />
+                  <span className="hidden sm:inline">Abrir original</span>
+                </a>
+              )}
+              <button
+                className="p-2.5 sm:p-3 bg-white/10 hover:bg-white/20 active:scale-95 rounded-full text-white transition-colors shadow-sm"
+                onClick={() => setLightboxState(null)}
+              >
+                <XIcon size={22} />
+              </button>
+            </div>
           </div>
         )}
       </div>

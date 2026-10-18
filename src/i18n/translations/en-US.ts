@@ -9,10 +9,11 @@ export const enUS: TranslationKeys = {
   // ── Sidebar / Navigation ──
   nav: {
     dashboard: 'Dashboard',
-    orders: 'Activity',
+    orders: 'Service Orders',
     calendar: 'Calendar',
     map: 'Field View',
     financial: 'Financial',
+    sales_orders: 'Sales Orders',
     quotes: 'Quotes',
     stock: 'Inventory',
     contracts: 'Contracts',
@@ -165,6 +166,8 @@ export const enUS: TranslationKeys = {
       impedimentDescription: 'If enabled, the technician can register impediments on the WO (start or end). If disabled, this option will be removed from the app.',
       visitHistory: 'Visit History',
       visitHistoryDescription: 'If enabled, the technician can see the complete history of all previous visits on the WO. If disabled, only the final visit they completed will be shown.',
+      requireClientSignature: 'Mandatory Client Signature',
+      requireClientSignatureDescription: 'When disabled, the app will not require the client signature to complete or block the WO, requiring only the name.',
     },
     dashboard: {
       title: 'Analytics Parameters',

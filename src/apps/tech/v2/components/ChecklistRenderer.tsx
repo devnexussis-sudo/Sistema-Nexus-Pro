@@ -9,9 +9,10 @@ interface ChecklistRendererProps {
     answers: Record<string, any>;
     onAnswerChange: (fieldId: string, value: any) => void;
     readOnly?: boolean;
+    orderId?: string;
 }
 
-export const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ fields, answers, onAnswerChange, readOnly = false }) => {
+export const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ fields, answers, onAnswerChange, readOnly = false, orderId }) => {
     const [uploading, setUploading] = useState<Record<string, boolean>>({});
 
     const handlePhotoUpload = async (fieldId: string, file: File) => {
@@ -19,7 +20,8 @@ export const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ fields, an
         try {
             // Compressão e Upload usando o Motor V5 do DataService
             const blob = await DataService.processAndCompress(file);
-            const url = await DataService.uploadBlob(blob, `checklist_photos/${Date.now()}_${fieldId}`);
+            const targetFolder = orderId ? `orders/${orderId}/checklist` : `checklist_photos/${Date.now()}_${fieldId}`;
+            const url = await DataService.uploadBlob(blob, targetFolder);
             onAnswerChange(fieldId, url);
         } catch (e) {
             console.error("Erro upload foto checklist:", e);
@@ -32,7 +34,8 @@ export const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ fields, an
     const handleVideoUpload = async (fieldId: string, file: File) => {
         setUploading(prev => ({ ...prev, [fieldId]: true }));
         try {
-            const url = await DataService.uploadBlob(file, `checklist_videos/${Date.now()}_${fieldId}`);
+            const targetFolder = orderId ? `orders/${orderId}/videos` : `checklist_videos/${Date.now()}_${fieldId}`;
+            const url = await DataService.uploadBlob(file, targetFolder);
             onAnswerChange(fieldId, url);
         } catch (e) {
             console.error("Erro upload video checklist:", e);

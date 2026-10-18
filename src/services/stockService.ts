@@ -478,6 +478,21 @@ export const StockService = {
                         });
                     }
                 }
+
+                // Filtra os IDs que ainda não achamos pra buscar em Pedidos de Venda
+                const remainingAfterQuotes = idsArray.filter(id => !referenceMap[id]);
+                if (remainingAfterQuotes.length > 0) {
+                    const { data: salesData } = await supabase
+                        .from('sales_orders')
+                        .select('id, display_id')
+                        .in('id', remainingAfterQuotes);
+
+                    if (salesData) {
+                        salesData.forEach((s: any) => {
+                            if (s.display_id) referenceMap[s.id] = s.display_id;
+                        });
+                    }
+                }
             }
 
             // Mapear de volta para o formato esperado pelo painel
@@ -489,5 +504,88 @@ export const StockService = {
             }));
         }
         return [];
+    },
+
+    /**
+     * 📦 Baixa Atômica de Estoque por Itens (Pedidos de Venda, Orçamentos, etc.)
+     */
+    deductStockForItems: async (
+        items: Array<{ stockItemId?: string; stockCode?: string; quantity: number; description?: string }>,
+        referenceId: string,
+        referenceDisplayId?: string,
+        sourceDoc: 'SALE' | 'QUOTE' | 'OUT' = 'SALE'
+    ): Promise<void> => {
+        const tenantId = getCurrentTenantId();
+        if (!isCloudEnabled || !tenantId || !items || items.length === 0) return;
+
+        try {
+            const user = await AuthService.getCurrentUser();
+            const userId = user?.id || null;
+
+            for (const item of items) {
+                const qty = Number(item.quantity) || 0;
+                if (qty <= 0) continue;
+
+                let targetStockItem: any = null;
+
+                // 1. Tenta localizar por stockItemId
+                if (item.stockItemId) {
+                    const { data } = await supabase
+                        .from('stock_items')
+                        .select('id, quantity, description, code')
+                        .eq('id', item.stockItemId)
+                        .eq('tenant_id', tenantId)
+                        .maybeSingle();
+                    targetStockItem = data;
+                }
+
+                // 2. Se não achou, tenta pelo stockCode
+                if (!targetStockItem && item.stockCode) {
+                    const { data } = await supabase
+                        .from('stock_items')
+                        .select('id, quantity, description, code')
+                        .eq('code', item.stockCode)
+                        .eq('tenant_id', tenantId)
+                        .maybeSingle();
+                    targetStockItem = data;
+                }
+
+                // 3. Se achou o item no estoque geral, deduz e cria a movimentação
+                if (targetStockItem) {
+                    const currentQty = Number(targetStockItem.quantity) || 0;
+                    const newQty = Math.max(0, currentQty - qty);
+
+                    // Atualiza o saldo do item no estoque
+                    await supabase
+                        .from('stock_items')
+                        .update({ 
+                            quantity: newQty,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', targetStockItem.id)
+                        .eq('tenant_id', tenantId);
+
+                    // Registra movimentação de auditoria
+                    await supabase
+                        .from('stock_movements')
+                        .insert([{
+                            tenant_id: tenantId,
+                            stock_item_id: targetStockItem.id,
+                            type: 'OUT',
+                            quantity: qty,
+                            source: 'GENERAL',
+                            destination: 'CLIENTE',
+                            reference_id: referenceDisplayId || referenceId,
+                            created_by: userId
+                        }]);
+                }
+            }
+
+            // Invalida cache de estoque
+            CacheManager.invalidate(`stock_${tenantId}`);
+            CacheManager.invalidate(`stock_items_${tenantId}`);
+        } catch (err) {
+            console.error('❌ [StockService] Erro ao dar baixa de estoque por itens:', err);
+        }
     }
 };

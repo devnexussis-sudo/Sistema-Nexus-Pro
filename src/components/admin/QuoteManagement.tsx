@@ -43,6 +43,7 @@ import { NexusBranding } from '../ui/NexusBranding';
 import { Pagination } from '../ui/Pagination';
 import { supabase } from '../../lib/supabase';
 import { QuoteService } from '../../services/quoteService';
+import { StockService } from '../../services/stockService';
 
 export const getQuoteCommercialStatus = (quote?: {
     status?: string | null;
@@ -476,6 +477,9 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
                 await onCreateOrder(orderPayload);
                 await onEditQuote({ ...quote, status: 'CONVERTIDO' });
+                if (quote.items && quote.items.length > 0) {
+                    await StockService.deductStockForItems(quote.items, quote.id, quote.displayId, 'QUOTE');
+                }
                 showAlert('Conversão realizada com sucesso!', 'success');
             } catch (e) {
                 console.error(e);
@@ -949,14 +953,14 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         onChange={toggleSelectAll}
                                     />
                                 </th>
-                                <th className="px-4 py-3 text-center">Orçamento ID</th>
+                                <th className="px-4 py-3 text-left">Orçamento ID</th>
                                 <th className="px-4 py-3 text-left">Título</th>
-                                <th className="px-4 py-3 text-center">Cliente</th>
-                                <th className="px-4 py-3 text-center">Criado em</th>
-                                <th className="px-4 py-3 text-center">Validade</th>
-                                <th className="px-4 py-3 text-center">Valor Total</th>
-                                <th className="px-4 py-3 text-center">Vínculo O.S.</th>
-                                <th className="px-4 py-3 text-center">{t.common.status}</th>
+                                <th className="px-4 py-3 text-left">Cliente</th>
+                                <th className="px-4 py-3 text-left">Criado em</th>
+                                <th className="px-4 py-3 text-left">Validade</th>
+                                <th className="px-4 py-3 text-left">Valor Total</th>
+                                <th className="px-4 py-3 text-left">Vínculo O.S.</th>
+                                <th className="px-4 py-3 text-left">{t.common.status}</th>
                                 <th className="px-4 py-3 text-center">{t.common.actions}</th>
                             </tr>
                         </thead>
@@ -984,36 +988,34 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                             readOnly
                                         />
                                     </td>
-                                    <td className="px-4 py-1.5">
-                                        <div className="flex flex-col items-center truncate max-w-[140px]">
-                                            <span className="text-[13px] font-medium text-primary-600 tracking-tighter truncate" title={quote.id}>
-                                                {getQuoteDisplayId(quote)}
-                                            </span>
-                                        </div>
+                                    <td className="px-4 py-1.5 text-left">
+                                        <span className="text-[13px] font-medium text-primary-600 tracking-tighter truncate block max-w-[140px]" title={quote.id}>
+                                            {getQuoteDisplayId(quote)}
+                                        </span>
                                     </td>
-                                    <td className="px-4 py-1.5">
+                                    <td className="px-4 py-1.5 text-left">
                                         <span className="text-[12px] text-slate-700 truncate block max-w-[150px]" title={quote.title}>{quote.title}</span>
                                     </td>
-                                    <td className="px-4 py-1.5 text-[12px] text-center text-slate-700 truncate max-w-[150px]">{quote.customerName}</td>
-                                    <td className="px-4 py-1.5">
-                                        <div className="flex justify-center items-center gap-1.5 whitespace-nowrap">
+                                    <td className="px-4 py-1.5 text-[12px] text-left text-slate-700 truncate max-w-[150px]">{quote.customerName}</td>
+                                    <td className="px-4 py-1.5 text-left">
+                                        <div className="flex items-center gap-1.5 whitespace-nowrap">
                                             <Clock size={12} className="text-slate-400" />
                                             <span className="text-[12px] text-slate-600">{new Date(quote.createdAt).toLocaleDateString()}</span>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-1.5">
-                                        <div className="flex justify-center items-center gap-1.5 whitespace-nowrap">
+                                    <td className="px-4 py-1.5 text-left">
+                                        <div className="flex items-center gap-1.5 whitespace-nowrap">
                                             <Calendar size={12} className="text-slate-400" />
                                             <span className="text-[12px] text-slate-600">{quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : 'N/D'}</span>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-1.5 text-[13px] text-center font-medium text-emerald-600 whitespace-nowrap">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                    <td className="px-4 py-1.5 text-[12px] text-center text-slate-600 whitespace-nowrap">
+                                    <td className="px-4 py-1.5 text-[13px] text-left font-medium text-emerald-600 whitespace-nowrap">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                    <td className="px-4 py-1.5 text-[12px] text-left text-slate-600 whitespace-nowrap">
                                         {quote.linkedOrderId ? (() => {
                                             const linkedOrder = orders.find(o => o.id === quote.linkedOrderId || o.displayId === quote.linkedOrderId);
                                             const label = linkedOrder?.displayId || linkedOrder?.id?.slice(0, 10) || quote.linkedOrderId.slice(0, 10);
                                             return (
-                                                <div className="flex justify-center">
+                                                <div className="flex justify-start">
                                                     <span className="px-1.5 py-0.5 bg-slate-50 text-[#1c2d4f] rounded-lg border border-slate-200 flex items-center gap-1 w-fit" title={quote.linkedOrderId}>
                                                         <Link2 size={10} /> {label}
                                                     </span>
@@ -1023,7 +1025,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                             <span className="text-slate-300">Sem Vínculo</span>
                                         )}
                                     </td>
-                                    <td className="px-4 py-1.5 text-center whitespace-nowrap">
+                                    <td className="px-4 py-1.5 text-left whitespace-nowrap">
                                         {(() => {
                                             const displayStatus = getQuoteCommercialStatus(quote);
                                             const style = getQuoteStatusStyle(displayStatus);
@@ -1623,7 +1625,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                                                     <button
                                                                                         key={s.id}
                                                                                         onMouseDown={() => {
-                                                                                            updateItem(index, { description: s.description, unitPrice: s.sellPrice, stockCode: s.code });
+                                                                                            updateItem(index, { description: s.description, unitPrice: s.sellPrice, stockCode: s.code, stockItemId: s.id });
                                                                                             setIsStockListOpen(prev => ({ ...prev, [index]: false }));
                                                                                         }}
                                                                                         className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors group/item"
@@ -1710,7 +1712,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                                             <button
                                                                                 key={s.id}
                                                                                 onMouseDown={() => {
-                                                                                    updateItem(index, { description: s.description, unitPrice: s.sellPrice, stockCode: s.code });
+                                                                                    updateItem(index, { description: s.description, unitPrice: s.sellPrice, stockCode: s.code, stockItemId: s.id });
                                                                                     setIsStockListOpen(prev => ({ ...prev, [index]: false }));
                                                                                 }}
                                                                                 className="w-full text-left px-3 py-2.5 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors"

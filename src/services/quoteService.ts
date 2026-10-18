@@ -243,12 +243,12 @@ export const QuoteService = {
                 .eq('id', quote.id)
                 .eq('tenant_id', tid)
                 .select()
-                .single();
+                .maybeSingle();
 
             if (error) throw error;
 
             CacheManager.invalidate(`quotes_${tid}`);
-            return QuoteService._mapQuoteFromDB(data);
+            return data ? QuoteService._mapQuoteFromDB(data) : quote;
         }
         return quote;
     },

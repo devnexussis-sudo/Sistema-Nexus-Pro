@@ -2,7 +2,7 @@
 import { CacheManager } from '../lib/cache';
 import { adminAuthProxy, supabase, publicSupabase, ensureValidSession } from '../lib/supabase';
 import { getCurrentTenantId } from '../lib/tenantContext';
-import { User, UserGroup, UserRole, AppScope, ADMIN_PERMISSIONS, DEFAULT_PERMISSIONS } from '../types';
+import { User, UserGroup, UserRole, AppScope, ADMIN_PERMISSIONS, DEFAULT_PERMISSIONS, normalizeUserPermissions } from '../types';
 import type { DbTenant, DbTenantInsert, DbTenantStats, DbUser, DbUserGroup } from '../types/database';
 import { StorageService } from './storageService';
 import { generateUniqueUnifiedCode, formatUserCode, formatTechCode } from './technicianService';
@@ -31,6 +31,15 @@ export const TenantService = {
                             .order('name');
                         if (!error && data && data.length > 0) {
                             console.log('[TenantService] ✅ Loaded tenants via view (auth):', data.length);
+                            data.forEach((t: any) => {
+                                StorageService.registerTenantMetadata(t.id, {
+                                    companyName: t.company_name,
+                                    tradeName: t.trading_name || t.trade_name,
+                                    name: t.name,
+                                    cnpj: t.cnpj,
+                                    document: t.document
+                                });
+                            });
                             CacheManager.set(cacheKey, data, CacheManager.TTL.SHORT);
                             return data as DbTenantStats[];
                         }
@@ -47,6 +56,15 @@ export const TenantService = {
                             .order('name');
                         if (!error && data && data.length > 0) {
                             console.log('[TenantService] ✅ Loaded tenants via table (auth):', data.length);
+                            data.forEach((t: any) => {
+                                StorageService.registerTenantMetadata(t.id, {
+                                    companyName: t.company_name,
+                                    tradeName: t.trading_name || t.trade_name,
+                                    name: t.name,
+                                    cnpj: t.cnpj,
+                                    document: t.document
+                                });
+                            });
                             CacheManager.set(cacheKey, data, CacheManager.TTL.SHORT);
                             return data as DbTenantStats[];
                         }
@@ -107,6 +125,13 @@ export const TenantService = {
 
                 if (!error && data) {
                     console.log('[TenantService] ✅ Tenant carregado (auth):', data?.name || data?.company_name);
+                    StorageService.registerTenantMetadata(data.id, {
+                        companyName: data.company_name,
+                        tradeName: data.trading_name || data.trade_name,
+                        name: data.name,
+                        cnpj: data.cnpj,
+                        document: data.document
+                    });
                     return data;
                 }
 
@@ -121,6 +146,13 @@ export const TenantService = {
 
                 if (publicData) {
                     console.log('[TenantService] ✅ Tenant carregado (public):', publicData?.name || publicData?.company_name);
+                    StorageService.registerTenantMetadata(tid, {
+                        companyName: publicData.company_name,
+                        tradeName: publicData.trading_name || publicData.trade_name,
+                        name: publicData.name,
+                        cnpj: publicData.cnpj,
+                        document: publicData.document
+                    });
                 }
                 return publicData;
             } catch (e) {
@@ -176,6 +208,13 @@ export const TenantService = {
 
             const tenantId = data.id;
 
+            // 🛡️ Inicializa no Cloudflare R2 a estrutura mestre e pastas de módulos oficiais da nova empresa
+            try {
+                await StorageService.initializeTenantMasterFolder(data);
+            } catch (r2Err) {
+                console.warn('[TenantService] Aviso ao provisionar pastas R2 para a empresa:', r2Err);
+            }
+
             // 2. Criar grupos padrão e admin
             await TenantService._provisionGroups(tenantId, processedTenant, initialPass);
 
@@ -213,6 +252,7 @@ export const TenantService = {
                     equipments: { create: true, read: true, update: true, delete: false },
                     technicians: { create: false, read: true, update: false, delete: false },
                     quotes: { create: true, read: true, update: true, delete: false },
+                    sales_orders: { create: true, read: true, update: true, delete: false },
                     contracts: { create: true, read: true, update: true, delete: false },
                     stock: { create: true, read: true, update: true, delete: false },
                     forms: { create: true, read: true, update: true, delete: false },
@@ -228,6 +268,7 @@ export const TenantService = {
                         map: true,
                         financial: false,
                         quotes: true,
+                        sales_orders: true,
                         stock: true,
                         contracts: true,
                         customers: true,
@@ -428,7 +469,7 @@ export const TenantService = {
         if (isCloudEnabled) {
             let query = supabase
                 .from('users')
-                .select('id, name, email, role, avatar, tenant_id, active, created_at, phone, group_id, permissions')
+                .select('id, name, email, role, avatar, tenant_id, active, created_at, phone, group_id, group_ids, permissions, app_scope, user_code')
                 .eq('tenant_id', tenantId)
                 .order('created_at', { ascending: false })
                 .limit(100);
@@ -562,7 +603,7 @@ export const TenantService = {
                 id: g.id,
                 name: g.name || 'Sem Nome',
                 description: g.description || '',
-                permissions: (g.name && g.name.toLowerCase() === 'administradores') ? ADMIN_PERMISSIONS : (g.permissions || DEFAULT_PERMISSIONS),
+                permissions: (g.name && g.name.toLowerCase() === 'administradores') ? ADMIN_PERMISSIONS : normalizeUserPermissions(g.permissions),
                 isSystem: !!g.is_system,
                 active: true
             }));
@@ -572,10 +613,12 @@ export const TenantService = {
 
     createUserGroup: async (groupData: Omit<UserGroup, 'id'>): Promise<UserGroup> => {
         if (isCloudEnabled) {
+            const isMaster = groupData.name?.toLowerCase() === 'administradores';
+            const finalPerms = isMaster ? ADMIN_PERMISSIONS : normalizeUserPermissions(groupData.permissions);
             const dbGroup: any = {
                 name: groupData.name,
                 description: groupData.description,
-                permissions: groupData.permissions,
+                permissions: finalPerms,
                 is_system: groupData.isSystem ?? false,
                 tenant_id: groupData.tenantId ?? ''
             };
@@ -591,7 +634,7 @@ export const TenantService = {
                 id: data.id,
                 name: data.name,
                 description: data.description,
-                permissions: data.name.toLowerCase() === 'administradores' ? ADMIN_PERMISSIONS : data.permissions,
+                permissions: isMaster ? ADMIN_PERMISSIONS : normalizeUserPermissions(data.permissions),
                 isSystem: data.is_system,
                 active: true
             };
@@ -600,15 +643,14 @@ export const TenantService = {
     },
 
     updateUserGroup: async (groupData: Pick<UserGroup, 'id' | 'name' | 'description' | 'permissions'>): Promise<UserGroup> => {
-        if (groupData.name.toLowerCase() === 'administradores') {
-            groupData.permissions = ADMIN_PERMISSIONS; // Força permissão máxima
-        }
+        const isMaster = groupData.name?.toLowerCase() === 'administradores';
+        const finalPerms = isMaster ? ADMIN_PERMISSIONS : normalizeUserPermissions(groupData.permissions);
 
         if (isCloudEnabled) {
             const dbGroup: any = {
                 name: groupData.name,
                 description: groupData.description,
-                permissions: groupData.permissions
+                permissions: finalPerms
             };
 
             const { data, error } = await supabase
@@ -623,7 +665,7 @@ export const TenantService = {
                 id: data.id,
                 name: data.name,
                 description: data.description,
-                permissions: data.name.toLowerCase() === 'administradores' ? ADMIN_PERMISSIONS : data.permissions,
+                permissions: isMaster ? ADMIN_PERMISSIONS : normalizeUserPermissions(data.permissions),
                 isSystem: data.is_system,
                 active: true
             };
@@ -678,7 +720,11 @@ export const TenantService = {
             const targetEmail = userData.email.toLowerCase().trim();
 
             // 🔑 Gera código único de 6 dígitos para o usuário (compartilhado com técnico se tiver acesso ao app)
-            const userCode = await generateUniqueUnifiedCode(userData.tenantId);
+            const userCode = (userData.userCode && userData.userCode.length <= 10 && userData.userCode !== '— gerado ao salvar —' && userData.userCode !== '---')
+                ? userData.userCode
+                : (userData.user_code && userData.user_code.length <= 10 && userData.user_code !== '— gerado ao salvar —' && userData.user_code !== '---')
+                    ? userData.user_code
+                    : await generateUniqueUnifiedCode(userData.tenantId);
 
             // 1. Tenta criar no Auth via adminAuthProxy
             const { data: authUser, error: authError } = await adminAuthProxy.admin.createUser({
@@ -691,7 +737,10 @@ export const TenantService = {
                     tenantId: userData.tenantId,
                     avatar: userData.avatar,
                     appScope: userData.appScope || AppScope.WEB,
-                    userCode: userCode
+                    userCode: userCode,
+                    user_code: userCode,
+                    techCode: isTechUser ? userCode : undefined,
+                    tech_code: isTechUser ? userCode : undefined
                 }
             });
 
@@ -713,7 +762,10 @@ export const TenantService = {
                                 role: userData.role,
                                 tenantId: userData.tenantId,
                                 appScope: userData.appScope || AppScope.WEB,
-                                userCode: userCode
+                                userCode: userCode,
+                                user_code: userCode,
+                                techCode: isTechUser ? userCode : undefined,
+                                tech_code: isTechUser ? userCode : undefined
                             }
                         }).catch(() => {});
                     } else if (authError) {
@@ -896,7 +948,21 @@ export const TenantService = {
      * Garante que usuários com acesso ao App mantenham o MESMO código em ambas as tabelas (users e technicians).
      */
     backfillMissingUserCodes: async (tenantIdOverride?: string): Promise<number> => {
-        const tid = tenantIdOverride || getCurrentTenantId();
+        let tid = tenantIdOverride || getCurrentTenantId();
+        if (!tid || tid === 'default' || tid === 'null') {
+            tid = SessionStorage.get('current_tenant') || localStorage.getItem('nexus_current_tenant') || localStorage.getItem('nexus_tenant_id') || localStorage.getItem('tenant_id') || '';
+        }
+        if (!tid || tid === 'default' || tid === 'null') {
+            try {
+                const sessionRes = await supabase.auth.getSession();
+                const session = sessionRes?.data?.session;
+                tid = session?.user?.user_metadata?.tenantId || session?.user?.user_metadata?.tenant_id || '';
+                if (!tid && session?.user?.id) {
+                    const { data: dbUser } = await supabase.from('users').select('tenant_id').eq('id', session.user.id).maybeSingle();
+                    if (dbUser?.tenant_id) tid = dbUser.tenant_id;
+                }
+            } catch (e) {}
+        }
         if (!isCloudEnabled || !tid || tid === 'default' || tid === 'null') return 0;
 
         try {
@@ -926,22 +992,29 @@ export const TenantService = {
 
             for (const u of usersList) {
                 let code = userCodeMap.get(u.id) || techCodeMap.get(u.id);
-                if (!code) {
+                if (!code || code === '---' || code.length > 10) {
                     code = await generateUniqueUnifiedCode(tid);
                 }
 
                 // Sincroniza user_code na tabela users
-                if (u.user_code !== code) {
+                if (!u.user_code || u.user_code === '---' || u.user_code.length > 10 || u.user_code !== code) {
                     await supabase.from('users').update({ user_code: code }).eq('id', u.id).eq('tenant_id', tid);
                     userCodeMap.set(u.id, code);
                     updatedCount++;
+
+                    // Sincroniza Auth user_metadata
+                    try {
+                        await adminAuthProxy.admin.updateUserById(u.id, {
+                            user_metadata: { userCode: code, user_code: code }
+                        });
+                    } catch (e) {}
                 }
 
                 // Se o usuário tiver acesso ao App móvel, sincroniza com o MESMO código na tabela technicians
                 const isTech = (u.app_scope === 'HYBRID' || u.app_scope === 'MOBILE' || u.role === 'TECHNICIAN' || u.role === 'TECNICO');
                 const currentTechCode = techCodeMap.get(u.id);
 
-                if (isTech && currentTechCode !== code) {
+                if (isTech && (!currentTechCode || currentTechCode === '---' || currentTechCode.length > 10 || currentTechCode !== code)) {
                     try {
                         await supabase.from('technicians').upsert([{
                             id: u.id,
@@ -950,7 +1023,7 @@ export const TenantService = {
                             active: true,
                             tech_code: code,
                             tenant_id: tid
-                        }]);
+                        }], { onConflict: 'id' });
                         techCodeMap.set(u.id, code);
                         updatedCount++;
                     } catch (e) {
@@ -962,10 +1035,16 @@ export const TenantService = {
             // Sincroniza qualquer técnico da tabela technicians que não possua código válido
             for (const t of techsList) {
                 if (!t.tech_code || t.tech_code.length > 10 || t.tech_code === '---') {
-                    const code = userCodeMap.get(t.id) || await generateUniqueUnifiedCode(tid);
+                    let code = userCodeMap.get(t.id);
+                    if (!code || code === '---' || code.length > 10) {
+                        code = await generateUniqueUnifiedCode(tid);
+                    }
                     try {
                         await supabase.from('technicians').update({ tech_code: code }).eq('id', t.id).eq('tenant_id', tid);
                         techCodeMap.set(t.id, code);
+                        // Também atualiza na tabela users se existir registro
+                        await supabase.from('users').update({ user_code: code }).eq('id', t.id).eq('tenant_id', tid);
+                        userCodeMap.set(t.id, code);
                         updatedCount++;
                     } catch (e) {}
                 }
@@ -973,6 +1052,7 @@ export const TenantService = {
 
             if (updatedCount > 0) {
                 CacheManager.invalidate(`techs_${tid}`);
+                CacheManager.invalidate(`users_${tid}`);
                 console.log(`✅ [TenantService] Backfill: ${updatedCount} usuários/técnicos sincronizados com código único de 6 dígitos.`);
             }
             return updatedCount;

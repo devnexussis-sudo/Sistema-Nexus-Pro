@@ -683,6 +683,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                                             answers={answers}
                                             onAnswerChange={handleAnswerChange}
                                             readOnly={order.status === OrderStatus.COMPLETED || isOsLocked}
+                                            orderId={order.id}
                                         />
                                     </div>
                                     <div className="h-12"></div>

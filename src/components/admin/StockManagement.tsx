@@ -131,7 +131,7 @@ export const StockManagement: React.FC = () => {
     const [techStockSearch, setTechStockSearch] = useState('');
     const [transferItemSearch, setTransferItemSearch] = useState('');
     const [transferTechSearch, setTransferTechSearch] = useState('');
-    const [modalTab, setModalTab] = useState<'dados' | 'financial' | 'logs'>('dados');
+    const [modalTab, setModalTab] = useState<'dados' | 'logs'>('dados');
 
     // --- Balance State ---
     const [stagedBalances, setStagedBalances] = useState<Record<string, { newQty: number, item: StockItem }>>({});
@@ -149,7 +149,7 @@ export const StockManagement: React.FC = () => {
     const [reportSearchCode, setReportSearchCode] = useState('');
     const [reportCurrentPage, setReportCurrentPage] = useState(1);
     const [printModalOpen, setPrintModalOpen] = useState(false);
-    const [printConfig, setPrintConfig] = useState({ quantity: 1, type: 'a4_maxprint_33', companyName: 'NEXUS PRO' });
+    const [printConfig, setPrintConfig] = useState({ quantity: 1, type: 'a4_maxprint_33', companyName: '' });
 
     const handleBatchBalanceSave = () => {
         const keys = Object.keys(stagedBalances);
@@ -707,6 +707,11 @@ export const StockManagement: React.FC = () => {
 
             setFormData({
                 ...item,
+                quantity: item.quantity !== undefined && item.quantity !== null ? (item.quantity === 0 ? '' : String(item.quantity)) : '',
+                minQuantity: item.minQuantity !== undefined && item.minQuantity !== null ? (item.minQuantity === 0 ? '' : String(item.minQuantity)) : '',
+                costPrice: item.costPrice !== undefined && item.costPrice !== null ? (item.costPrice === 0 ? '' : String(item.costPrice)) : '',
+                sellPrice: item.sellPrice !== undefined && item.sellPrice !== null ? (item.sellPrice === 0 ? '' : String(item.sellPrice)) : '',
+                freightCost: item.freightCost !== undefined && item.freightCost !== null ? (item.freightCost === 0 ? '' : String(item.freightCost)) : '',
                 taxPercent: percent > 0 ? percent.toFixed(2) : ''
             });
         } else {
@@ -779,6 +784,12 @@ export const StockManagement: React.FC = () => {
 
     const handlePrintQR = () => {
         if (!formData.code) return;
+        const itemName = (formData.description || '').trim();
+        const defaultFooter = itemName ? `${itemName} / DUNO` : 'DUNO';
+        setPrintConfig(prev => ({
+            ...prev,
+            companyName: defaultFooter
+        }));
         setPrintModalOpen(true);
     };
 
@@ -787,9 +798,9 @@ export const StockManagement: React.FC = () => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
         
-        const itemName = (formData.description || 'Produto Nexus').replace(/['"]/g, '');
+        const itemName = (formData.description || 'Produto').replace(/['"]/g, '');
         const qty = printConfig.quantity || 1;
-        const companyName = printConfig.companyName || 'NEXUS PRO';
+        const footerText = (printConfig.companyName || (itemName ? `${itemName} / DUNO` : 'DUNO')).replace(/['"]/g, '');
         const qrImageSrc = qrCodeUrl || `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(formData.code)}`;
 
         let htmlContent = '';
@@ -807,7 +818,7 @@ export const StockManagement: React.FC = () => {
                         .label { box-sizing: border-box; width: 66.7mm; height: 25.4mm; padding: 2mm 3mm; display: flex; align-items: center; justify-content: flex-start; border: 1px dashed transparent; }
                         .qr { width: 21mm; height: 21mm; margin-right: 3mm; object-fit: contain; }
                         .info { display: flex; flex-direction: column; justify-content: center; overflow: hidden; flex: 1; }
-                        .company { font-size: 7px; font-weight: bold; text-transform: uppercase; color: #555; margin-top: 2px; }
+                        .company { font-size: 7px; font-weight: bold; text-transform: uppercase; color: #555; margin-top: 2px; line-height: 1.2; word-break: break-word; }
                         .sku { font-size: 11px; font-weight: 900; margin: 1px 0; color: #000; }
                         .desc { font-size: 8px; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: #333; }
                     </style>
@@ -819,8 +830,8 @@ export const StockManagement: React.FC = () => {
                             <img src="${qrImageSrc}" class="qr" />
                             <div class="info">
                                 <span class="sku">${formData.code}</span>
-                                <span class="desc">${itemName}</span>
-                                <span class="company">${companyName}</span>
+                                ${footerText.toUpperCase().includes(itemName.toUpperCase()) ? '' : `<span class="desc">${itemName}</span>`}
+                                <span class="company">${footerText}</span>
                             </div>
                         </div>
                         `).join('')}
@@ -838,9 +849,9 @@ export const StockManagement: React.FC = () => {
                         @page { margin: 0; size: 40mm 40mm; }
                         body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 0; padding: 0; background: #fff; width: 40mm; }
                         .label { width: 40mm; height: 40mm; box-sizing: border-box; padding: 2mm; display: flex; flex-direction: column; align-items: center; justify-content: center; page-break-after: always; text-align: center; }
-                        .qr { width: 24mm; height: 24mm; margin-bottom: 1.5mm; }
+                        .qr { width: 23mm; height: 23mm; margin-bottom: 1.5mm; }
                         .sku { font-size: 11px; font-weight: 900; line-height: 1; margin-bottom: 2px; }
-                        .company { font-size: 7px; font-weight: bold; text-transform: uppercase; color: #555; }
+                        .company { font-size: 7.5px; font-weight: bold; text-transform: uppercase; color: #333; line-height: 1.15; max-width: 36mm; word-break: break-word; }
                     </style>
                 </head>
                 <body>
@@ -848,7 +859,7 @@ export const StockManagement: React.FC = () => {
                     <div class="label">
                         <span class="sku">${formData.code}</span>
                         <img src="${qrImageSrc}" class="qr" />
-                        <span class="company">${companyName}</span>
+                        <span class="company">${footerText}</span>
                     </div>
                     `).join('')}
                     <script>window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 500); }</script>
@@ -863,26 +874,43 @@ export const StockManagement: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
+            if (!formData.description?.trim()) {
+                alert('⚠️ Descrição Obrigatória!\n\nPor favor, informe a descrição do item.');
+                setModalTab('dados');
+                return;
+            }
+
+            // Validação de quantidade (não pode ser vazia, zero ou negativa)
+            const qtyStr = String(formData.quantity ?? '').trim().replace(',', '.');
+            const qtyNum = Number(qtyStr);
+            if (qtyStr === '' || isNaN(qtyNum) || qtyNum <= 0) {
+                alert('⚠️ Quantidade Inválida!\n\nA quantidade do item não pode ser igual a zero nem ficar em branco. Por favor, informe uma quantidade válida maior que zero.');
+                setModalTab('dados');
+                return;
+            }
+
+            // Validação de valor/preço de venda (não pode ser vazio, zero ou negativo)
+            const sellStr = String(formData.sellPrice ?? '').trim().replace(',', '.');
+            const sellNum = Number(sellStr);
+            if (sellStr === '' || isNaN(sellNum) || sellNum <= 0) {
+                alert('⚠️ Preço de Venda Inválido!\n\nO valor do item não pode ser igual a zero nem ficar em branco. Por favor, informe um valor de venda maior que zero.');
+                setModalTab('dados');
+                return;
+            }
+
+            const minQtyNum = Number(String(formData.minQuantity ?? '').trim().replace(',', '.')) || 0;
+            const costPriceNum = Number(String(formData.costPrice ?? '').trim().replace(',', '.')) || 0;
+            const freightCostNum = Number(String(formData.freightCost ?? '').trim().replace(',', '.')) || 0;
+            const taxPercentNum = Number(String(formData.taxPercent ?? '').trim().replace(',', '.')) || 0;
+
             const payload: StockItem = {
                 ...formData,
-                quantity: Number(formData.quantity) || 0,
-                minQuantity: Number(formData.minQuantity) || 0,
-                costPrice: Number(formData.costPrice) || 0,
-                sellPrice: Number(formData.sellPrice) || 0,
-                freightCost: Number(formData.freightCost) || 0,
-                // Calculate actual tax cost for saving to DB (or keep percentage if DB supports it.
-                // Based on StockItem type, it expects taxCost (number).
-                // So we should calculate the absolute value here for persistence?
-                // OR we should store the percentage?
-                // StockItem has taxCost?: number.
-                // If I change the UI to use %, I should probably calculate the cost before save,
-                // OR ideally add taxPercent to the schema.
-                // Given constraints, I will calculate the cost value on save,
-                // BUT for UI state I need to persist the percentage to restore it properly on edit?
-                // If I save only taxCost, when I edit, I have to reverse calculate %: (Tax / Cost) * 100.
-                // That works.
-                // Tax burden calculated on the COST PRICE (Purchase Price) as requested
-                taxCost: (Number(formData.costPrice) || 0) * ((Number(formData.taxPercent) || 0) / 100)
+                quantity: qtyNum,
+                minQuantity: minQtyNum,
+                costPrice: costPriceNum,
+                sellPrice: sellNum,
+                freightCost: freightCostNum,
+                taxCost: costPriceNum * (taxPercentNum / 100)
             } as StockItem;
 
             if (editingItem) {
@@ -2327,11 +2355,11 @@ export const StockManagement: React.FC = () => {
             {/* ITEM MODAL */}
             {isModalOpen && createPortal(
                 <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in">
-                    <div className="bg-white rounded-none sm:rounded-2xl w-full max-w-5xl h-full sm:h-auto sm:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 sm:border border-slate-200">
+                    <div className="bg-white rounded-none sm:rounded-2xl w-full max-w-6xl xl:max-w-7xl h-full sm:h-auto sm:max-h-[94vh] shadow-2xl flex flex-col overflow-hidden border-0 sm:border border-slate-200">
                         {/* HEADER */}
-                        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 gap-3">
+                        <div className="px-4 sm:px-6 py-3.5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 gap-3">
                             <div className="flex items-center gap-3 min-w-0">
-                                <div className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center text-slate-500 shrink-0">
+                                <div className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center text-[#1c2d4f] shrink-0">
                                     <Package size={20} />
                                 </div>
                                 <div className="min-w-0">
@@ -2355,7 +2383,7 @@ export const StockManagement: React.FC = () => {
                                 <button
                                     onClick={handleSubmit}
                                     form="stock-item-form"
-                                    className="hidden sm:flex h-9 px-4 bg-[#1c2d4f] hover:bg-[#253a66] text-white text-xs font-bold rounded-xl shadow-md transition-all items-center gap-1.5"
+                                    className="hidden sm:flex h-9 px-4 bg-[#1c2d4f] hover:bg-[#253a66] text-white text-xs font-bold rounded-xl shadow-sm transition-all items-center gap-1.5"
                                 >
                                     <Save size={14} /> Salvar
                                 </button>
@@ -2372,277 +2400,312 @@ export const StockManagement: React.FC = () => {
                         <div className="flex flex-col md:flex-row flex-1 overflow-hidden bg-white">
                             
                             {/* SIDEBAR TABS (desktop) */}
-                            <div className="hidden md:flex flex-col w-56 border-r border-slate-200 bg-slate-50/80 p-4 gap-1 overflow-y-auto custom-scrollbar shrink-0">
-                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-2">Navegação</div>
-                                {[
-                                    { id: 'dados', label: 'Dados Gerais', icon: LayoutDashboard },
-                                    { id: 'financial', label: 'Financeiro', icon: DollarSign },
-                                    { id: 'logs', label: 'Movimentações', icon: History }
-                                ].map(tab => (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setModalTab(tab.id as any)}
-                                        className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all w-full text-left font-poppins
-                                            ${modalTab === tab.id
-                                                ? 'bg-[#1c2d4f] text-white shadow-md ring-1 ring-[#1c2d4f]'
-                                                : 'text-slate-500 hover:bg-white hover:text-[#1c2d4f] hover:shadow-sm'}`}
-                                    >
-                                        <tab.icon size={15} className={modalTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} />
-                                        <span className="flex-1 truncate">{tab.label}</span>
-                                    </button>
-                                ))}
-                            </div>
+                            {editingItem && (
+                                <div className="hidden md:flex flex-col w-48 sm:w-52 border-r border-slate-200 bg-slate-50/70 p-3 gap-1 overflow-y-auto custom-scrollbar shrink-0">
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">Navegação</div>
+                                    {[
+                                        { id: 'dados', label: 'Dados Gerais', icon: LayoutDashboard },
+                                        { id: 'logs', label: 'Movimentações', icon: History }
+                                    ].map(tab => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setModalTab(tab.id as any)}
+                                            className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all w-full text-left font-poppins
+                                                ${modalTab === tab.id
+                                                    ? 'bg-[#1c2d4f] text-white shadow-sm ring-1 ring-[#1c2d4f]'
+                                                    : 'text-slate-600 hover:bg-white hover:text-slate-900'}`}
+                                        >
+                                            <tab.icon size={15} className={modalTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} />
+                                            <span className="flex-1 truncate">{tab.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
 
                             {/* MOBILE TABS */}
-                            <div className="md:hidden border-b border-slate-200 bg-white px-3 py-2 flex gap-2 overflow-x-auto custom-scrollbar shrink-0">
-                                {[
-                                    { id: 'dados', label: 'Dados Gerais', icon: LayoutDashboard },
-                                    { id: 'financial', label: 'Financeiro', icon: DollarSign },
-                                    { id: 'logs', label: 'Movimentações', icon: History }
-                                ].map(tab => (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setModalTab(tab.id as any)}
-                                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap font-poppins
-                                            ${modalTab === tab.id
-                                                ? 'bg-[#1c2d4f] text-white shadow-md'
-                                                : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
-                                    >
-                                        <tab.icon size={13} className={modalTab === tab.id ? 'text-white' : 'text-slate-400'} />
-                                        {tab.label}
-                                    </button>
-                                ))}
-                            </div>
+                            {editingItem && (
+                                <div className="md:hidden border-b border-slate-200 bg-white px-3 py-2 flex gap-2 overflow-x-auto custom-scrollbar shrink-0">
+                                    {[
+                                        { id: 'dados', label: 'Dados Gerais', icon: LayoutDashboard },
+                                        { id: 'logs', label: 'Movimentações', icon: History }
+                                    ].map(tab => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setModalTab(tab.id as any)}
+                                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap font-poppins
+                                                ${modalTab === tab.id
+                                                    ? 'bg-[#1c2d4f] text-white shadow-sm'
+                                                    : 'bg-slate-50 text-slate-600 border border-slate-200'}`}
+                                        >
+                                            <tab.icon size={13} className={modalTab === tab.id ? 'text-white' : 'text-slate-400'} />
+                                            {tab.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
 
                             {/* MAIN CONTENT */}
-                            <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50 custom-scrollbar relative">
+                            <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-slate-50/50 custom-scrollbar relative">
                             <form onSubmit={handleSubmit} id="stock-item-form">
                                 {modalTab === 'dados' && (
-                                    <div className="max-w-3xl mx-auto space-y-6 pb-20">
-                                            {/* Photo Upload Card at the Top */}
-                                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-6 cursor-pointer hover:border-slate-300 transition-all group" onClick={() => fileInputRef.current?.click()}>
-                                                <input type="file" ref={fileInputRef} className="hidden" accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif" onChange={handleImageUpload} />
-                                                <div className="flex items-center gap-6">
-                                                    <div className="w-24 h-24 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden group-hover:border-primary-300 transition-colors shrink-0 relative">
-                                                        {imageUploading ? (
-                                                            <Loader2 size={24} className="text-primary-500 animate-spin" />
-                                                        ) : formData.imageUrl ? (
-                                                            <img src={formData.imageUrl} className="w-full h-full object-contain p-1 rounded-xl bg-white" alt="Produto" />
-                                                        ) : (
-                                                            <Camera size={28} className="text-slate-300 group-hover:text-primary-400 transition-colors" />
-                                                        )}
-                                                    </div>
-                                                    <div>
-                                                        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-tight flex items-center gap-2">
-                                                            Foto Representativa do Produto
-                                                        </h3>
-                                                        <p className="text-xs text-slate-500 mt-1 max-w-sm">
-                                                            {formData.imageUrl ? 'Clique para substituir a imagem atual. O painel cuidará do upload.' : 'Nenhuma imagem configurada. Clique aqui para buscar.'}
-                                                        </p>
-                                                        {formData.imageUrl && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={(e) => { e.stopPropagation(); setFormData({...formData, imageUrl: ''}); }}
-                                                                className="text-[10px] font-bold text-rose-500 mt-2 hover:text-rose-600 uppercase tracking-widest flex items-center gap-1"
-                                                            >
-                                                                <Trash2 size={12} /> Remover Foto
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm space-y-6">
-                                                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                                                    <Info size={18} className="text-slate-400" /> Identificação e Localização
-                                                </h3>
-                                                
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-bold text-slate-700 block px-1">Código SKU / Interno</label>
-                                                        <div className="relative group">
+                                    <div className="w-full space-y-4 animate-fade-in pb-2">
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                            {/* COLUNA 1: IDENTIFICAÇÃO E MÍDIA */}
+                                            <div className="space-y-4">
+                                                {/* Card Identificação */}
+                                                <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-sm space-y-3.5">
+                                                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                                                        <Info size={15} className="text-slate-400" /> Identificação do Produto
+                                                    </h3>
+                                                    
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                        <div className="space-y-1">
+                                                            <label className="text-[11px] font-bold text-slate-700 block">Código SKU / Interno</label>
+                                                            <div className="relative group">
+                                                                <Input
+                                                                    value={formData.code}
+                                                                    onChange={e => setFormData({ ...formData, code: e.target.value })}
+                                                                    className="rounded-xl border border-slate-300 font-bold bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 h-10 text-xs shadow-sm pr-9"
+                                                                    required
+                                                                />
+                                                                <button type="button" onClick={generateCode} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[#1c2d4f] p-1.5 hover:bg-slate-100 rounded-lg transition-colors" title="Gerar Código"><Wand2 size={14} /></button>
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-[11px] font-bold text-slate-700 block">Cód. Barras / Fabricante</label>
                                                             <Input
-                                                                value={formData.code}
-                                                                onChange={e => setFormData({ ...formData, code: e.target.value })}
-                                                                className="rounded-xl border border-slate-300 font-bold bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 h-11 text-sm shadow-sm"
-                                                                required
+                                                                value={formData.externalCode}
+                                                                onChange={e => setFormData({ ...formData, externalCode: e.target.value })}
+                                                                className="rounded-xl border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 h-10 text-xs shadow-sm"
+                                                                icon={<Barcode size={15} className="text-slate-400" />}
+                                                                placeholder="Opcional"
                                                             />
-                                                            <button type="button" onClick={generateCode} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#1c2d4f] p-2 hover:bg-slate-100 rounded-lg transition-colors" title="Gerar Código"><Wand2 size={16} /></button>
                                                         </div>
                                                     </div>
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-bold text-slate-700 block px-1">Cod de barra ou Cod do fabricante</label>
+
+                                                    <div className="space-y-1">
+                                                        <label className="text-[11px] font-bold text-slate-700 block">Nome / Descrição do Produto</label>
                                                         <Input
-                                                            value={formData.externalCode}
-                                                            onChange={e => setFormData({ ...formData, externalCode: e.target.value })}
-                                                            className="rounded-xl border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 h-11 text-sm shadow-sm"
-                                                            icon={<Barcode size={16} className="text-slate-400" />}
+                                                            value={formData.description}
+                                                            onChange={e => setFormData({ ...formData, description: e.target.value })}
+                                                            className="rounded-xl border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 font-semibold h-10 text-xs shadow-sm"
+                                                            placeholder="Ex: Filtro de Ar Condicionado Split 12000 BTUs"
+                                                            required
                                                         />
                                                     </div>
+
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                        <div className="space-y-1">
+                                                            <label className="text-[11px] font-bold text-slate-700 block">Categoria</label>
+                                                            <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full bg-white border border-slate-300 rounded-xl h-10 px-3 text-xs font-semibold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 transition-all uppercase cursor-pointer shadow-sm">
+                                                                <option value="">Sem Categoria</option>
+                                                                {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                                            </select>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-[11px] font-bold text-slate-700 block">Unidade de Medida</label>
+                                                            <select value={formData.unit} onChange={e => setFormData({ ...formData, unit: e.target.value as any })} className="w-full bg-white border border-slate-300 rounded-xl h-10 px-3 text-xs font-semibold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 transition-all uppercase cursor-pointer shadow-sm">
+                                                                <option value="UN">Unidade (UN)</option>
+                                                                <option value="CX">Caixa (CX)</option>
+                                                                <option value="M">Metros (M)</option>
+                                                                <option value="KG">Quilos (KG)</option>
+                                                                <option value="PAR">Par (PAR)</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
                                                 </div>
 
-                                                <div className="space-y-1.5">
-                                                    <label className="text-[11px] font-bold text-slate-700 block px-1">Nome / Descrição Curta</label>
-                                                    <Input
-                                                        value={formData.description}
-                                                        onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                                        className="rounded-xl border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 font-semibold h-11 text-sm shadow-sm"
-                                                        required
-                                                    />
-                                                </div>
-
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-bold text-slate-700 block px-1">Categoria</label>
-                                                        <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full bg-white border border-slate-300 rounded-xl h-11 px-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 transition-all uppercase cursor-pointer shadow-sm">
-                                                            <option value="">Sem Categoria</option>
-                                                            {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                                                        </select>
-                                                    </div>
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-bold text-slate-700 block px-1">Unidade</label>
-                                                        <select value={formData.unit} onChange={e => setFormData({ ...formData, unit: e.target.value as any })} className="w-full bg-white border border-slate-300 rounded-xl h-11 px-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 transition-all uppercase cursor-pointer shadow-sm">
-                                                            <option value="UN">Unidade (UN)</option>
-                                                            <option value="CX">Caixa (CX)</option>
-                                                            <option value="M">Metros (M)</option>
-                                                            <option value="KG">Quilos (KG)</option>
-                                                            <option value="PAR">Par (PAR)</option>
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            {/* Controle Fisico */}
-                                            <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
-                                                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2"><Box size={16} className="text-slate-400" /> Controle Físico</h3>
-                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-bold text-slate-700 block px-1">Posição / Local</label>
-                                                        <Input value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} className="rounded-xl border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 h-11 text-sm font-semibold shadow-sm" placeholder="Ex: Prateleira A" />
-                                                    </div>
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-bold text-emerald-700 block px-1">Quantidade Atual</label>
-                                                        <Input type="number" value={formData.quantity} onChange={e => setFormData({...formData, quantity: e.target.value})} className="rounded-xl border border-emerald-400 h-11 text-sm font-bold bg-emerald-50/60 focus:bg-white text-emerald-900 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/10 shadow-sm" />
-                                                    </div>
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-bold text-rose-700 block px-1">Mínimo (Alerta)</label>
-                                                        <Input type="number" value={formData.minQuantity} onChange={e => setFormData({...formData, minQuantity: e.target.value})} className="rounded-xl border border-rose-400 h-11 text-sm font-bold bg-rose-50/60 focus:bg-white text-rose-900 focus:border-rose-600 focus:ring-2 focus:ring-rose-500/10 shadow-sm" />
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center gap-6">
-                                                <div className="flex-1 flex flex-col sm:flex-row items-center gap-6">
-                                                    {formData.code ? (
-                                                        <>
-                                                            <div className="bg-white p-2 border-2 border-dashed border-slate-200 rounded-xl shrink-0 flex items-center justify-center">
-                                                                {qrCodeUrl ? (
-                                                                    <img 
-                                                                        src={qrCodeUrl} 
-                                                                        alt="QR Code"
-                                                                        className="w-[80px] h-[80px] object-contain"
-                                                                    />
-                                                                ) : (
-                                                                    <div className="w-[80px] h-[80px] flex items-center justify-center bg-slate-50 rounded-lg">
-                                                                        <Loader2 size={24} className="animate-spin text-slate-400" />
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                            <div className="flex-1 text-center sm:text-left space-y-2">
-                                                                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight flex items-center justify-center sm:justify-start gap-2">
-                                                                    <QrCode size={16} className="text-slate-400" /> Etiqueta QR Code
-                                                                </h3>
-                                                                <p className="text-xs font-mono font-bold text-slate-500">{formData.code}</p>
-                                                                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                                                                    <Button
-                                                                        type="button"
-                                                                        onClick={handlePrintQR}
-                                                                        className="w-full sm:w-auto h-9 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-lg text-xs font-bold font-poppins flex items-center justify-center gap-2 transition-all shadow-sm"
-                                                                    >
-                                                                        <Printer size={14} /> Imprimir Etiqueta
-                                                                    </Button>
+                                                {/* Card Foto e QR Code Lado a Lado */}
+                                                <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                                    {/* Foto */}
+                                                    <div className="flex items-center gap-3 p-2 rounded-lg bg-slate-50/70 border border-slate-200/80">
+                                                        <input type="file" ref={fileInputRef} className="hidden" accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif" onChange={handleImageUpload} />
+                                                        <div 
+                                                            onClick={() => fileInputRef.current?.click()}
+                                                            className="w-16 h-16 rounded-xl bg-white border border-dashed border-slate-300 hover:border-primary-400 flex items-center justify-center overflow-hidden shrink-0 cursor-pointer transition-colors relative"
+                                                        >
+                                                            {imageUploading ? (
+                                                                <Loader2 size={18} className="text-primary-500 animate-spin" />
+                                                            ) : formData.imageUrl ? (
+                                                                <img src={formData.imageUrl} className="w-full h-full object-contain p-1" alt="Produto" />
+                                                            ) : (
+                                                                <Camera size={20} className="text-slate-400" />
+                                                            )}
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-xs font-bold text-slate-800 truncate">Foto do Item</p>
+                                                            <p className="text-[10px] text-slate-400 truncate mt-0.5">{formData.imageUrl ? 'Imagem anexada' : 'Nenhuma imagem'}</p>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => fileInputRef.current?.click()}
+                                                                    className="text-[10px] font-bold text-primary-600 hover:underline uppercase"
+                                                                >
+                                                                    {formData.imageUrl ? 'Alterar' : 'Buscar'}
+                                                                </button>
+                                                                {formData.imageUrl && (
                                                                     <button
                                                                         type="button"
-                                                                        onClick={generateCode}
-                                                                        className="h-9 px-3 border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all"
-                                                                        title="Gerar outro código SKU"
+                                                                        onClick={() => setFormData({...formData, imageUrl: ''})}
+                                                                        className="text-[10px] font-bold text-rose-500 hover:underline uppercase"
                                                                     >
-                                                                        <Wand2 size={13} /> Novo Código
+                                                                        Remover
                                                                     </button>
-                                                                </div>
+                                                                )}
                                                             </div>
-                                                        </>
-                                                    ) : (
-                                                        <div className="w-full p-6 flex flex-col items-center text-center">
-                                                            <QrCode size={32} className="mb-2 text-slate-300" />
-                                                            <p className="text-xs font-bold text-slate-600 mb-2">Nenhum código SKU informado.</p>
-                                                            <button
-                                                                type="button"
-                                                                onClick={generateCode}
-                                                                className="px-4 py-2 bg-[#1c2d4f] hover:bg-[#253a66] text-white text-xs font-bold rounded-lg flex items-center gap-2 transition-all shadow-sm"
-                                                            >
-                                                                <Wand2 size={14} /> Gerar Código SKU Automaticamente
-                                                            </button>
                                                         </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                )}
+                                                    </div>
 
-                                {modalTab === 'financial' && (
-                                    <div className="max-w-3xl mx-auto space-y-8">
-                                        <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-12">
-                                            <div className="space-y-6">
-                                                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                                                    <DollarSign size={18} className="text-slate-400" /> Custos de Aquisição
-                                                </h3>
-                                                <div className="space-y-4">
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-bold text-slate-700 block px-1">Preço de Compra (Líquido)</label>
-                                                        <div className="relative">
-                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-bold">R$</span>
-                                                            <input type="number" step="0.01" value={formData.costPrice} onChange={e => setFormData({...formData, costPrice: e.target.value})} className="w-full pl-9 pr-4 h-11 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all" />
+                                                    {/* QR Code */}
+                                                    <div className="flex items-center gap-3 p-2 rounded-lg bg-slate-50/70 border border-slate-200/80">
+                                                        <div className="w-16 h-16 rounded-xl bg-white border border-slate-200 p-1 flex items-center justify-center shrink-0">
+                                                            {formData.code && qrCodeUrl ? (
+                                                                <img src={qrCodeUrl} alt="QR Code" className="w-full h-full object-contain" />
+                                                            ) : (
+                                                                <QrCode size={20} className="text-slate-300" />
+                                                            )}
                                                         </div>
-                                                    </div>
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-bold text-slate-700 block px-1">Frete / Entregas</label>
-                                                        <div className="relative">
-                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-bold">R$</span>
-                                                            <input type="number" step="0.01" value={formData.freightCost} onChange={e => setFormData({...formData, freightCost: e.target.value})} className="w-full pl-9 pr-4 h-11 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all" />
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-xs font-bold text-slate-800 truncate">Etiqueta QR Code</p>
+                                                            <p className="text-[10px] font-mono text-slate-500 truncate mt-0.5">{formData.code || 'S/ SKU'}</p>
+                                                            {formData.code && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={handlePrintQR}
+                                                                    className="mt-1 h-6 px-2 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-md text-[10px] font-bold flex items-center gap-1 transition-colors shadow-xs"
+                                                                >
+                                                                    <Printer size={11} /> Imprimir
+                                                                </button>
+                                                            )}
                                                         </div>
-                                                    </div>
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-bold text-slate-700 block px-1">Carga Tributária (%)</label>
-                                                        <div className="relative">
-                                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-bold">%</span>
-                                                            <input type="number" step="0.1" value={formData.taxPercent} onChange={e => setFormData({...formData, taxPercent: e.target.value})} className="w-full pl-4 pr-9 h-11 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all" />
-                                                        </div>
-                                                    </div>
-                                                    <div className="p-4 bg-[#1c2d4f] text-white rounded-lg shadow-inner">
-                                                        <p className="text-[10px] font-bold uppercase opacity-60">Custo Final Estimado</p>
-                                                        <p className="text-lg font-bold">R$ {calculateTotalCost(formData).toFixed(2)}</p>
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            <div className="space-y-6">
-                                                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                                                    <TrendingUp size={18} className="text-emerald-500" /> Estratégia de Venda
-                                                </h3>
-                                                <div className="space-y-4">
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-bold text-emerald-800 block px-1">Preço Sugerido ao Público</label>
-                                                        <div className="relative">
-                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 text-sm font-bold">R$</span>
-                                                            <input type="number" step="0.01" value={formData.sellPrice} onChange={e => setFormData({...formData, sellPrice: e.target.value})} className="w-full pl-9 pr-4 h-11 bg-emerald-50/70 border border-emerald-400 rounded-xl text-sm font-bold text-emerald-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/10 shadow-sm transition-all" />
+                                            {/* COLUNA 2: CONTROLE FÍSICO & PRECIFICAÇÃO */}
+                                            <div className="space-y-4">
+                                                {/* Controle Físico */}
+                                                <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-sm space-y-3.5">
+                                                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                                                        <Box size={15} className="text-slate-400" /> Controle Físico de Estoque
+                                                    </h3>
+                                                    
+                                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                        <div className="space-y-1">
+                                                            <label className="text-[11px] font-bold text-slate-700 block">Posição / Local</label>
+                                                            <Input 
+                                                                value={formData.location} 
+                                                                onChange={e => setFormData({...formData, location: e.target.value})} 
+                                                                className="rounded-xl border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 h-10 text-xs font-semibold shadow-sm" 
+                                                                placeholder="Ex: Prateleira A" 
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-[11px] font-bold text-emerald-700 block">Quantidade Atual</label>
+                                                            <Input 
+                                                                type="number" 
+                                                                step="any" 
+                                                                placeholder="0" 
+                                                                value={formData.quantity ?? ''} 
+                                                                onChange={e => setFormData({...formData, quantity: e.target.value})} 
+                                                                onFocus={e => e.target.select()} 
+                                                                className="rounded-xl border border-emerald-400 h-10 text-xs font-bold bg-emerald-50/60 focus:bg-white text-emerald-900 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/10 shadow-sm" 
+                                                                required
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-[11px] font-bold text-rose-700 block">Mínimo (Alerta)</label>
+                                                            <Input 
+                                                                type="number" 
+                                                                step="any" 
+                                                                placeholder="0" 
+                                                                value={formData.minQuantity ?? ''} 
+                                                                onChange={e => setFormData({...formData, minQuantity: e.target.value})} 
+                                                                onFocus={e => e.target.select()} 
+                                                                className="rounded-xl border border-rose-400 h-10 text-xs font-bold bg-rose-50/60 focus:bg-white text-rose-900 focus:border-rose-600 focus:ring-2 focus:ring-rose-500/10 shadow-sm" 
+                                                            />
                                                         </div>
                                                     </div>
-                                                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg relative overflow-hidden">
-                                                        <div className="relative z-10 flex items-center justify-between">
-                                                            <p className="text-[10px] font-bold uppercase text-slate-500">Margem Comercial</p>
-                                                            <p className={`text-lg font-bold ${calculateMargin(formData) > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                </div>
+
+                                                {/* Precificação Comercial */}
+                                                <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-sm space-y-3.5">
+                                                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                                                        <DollarSign size={15} className="text-emerald-500" /> Valores & Precificação Comercial
+                                                    </h3>
+                                                    
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                        <div className="space-y-1">
+                                                            <label className="text-[11px] font-bold text-slate-700 block">Preço de Compra (Custo)</label>
+                                                            <div className="relative">
+                                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">R$</span>
+                                                                <input 
+                                                                    type="number" 
+                                                                    step="0.01" 
+                                                                    placeholder="0,00" 
+                                                                    value={formData.costPrice ?? ''} 
+                                                                    onChange={e => setFormData({...formData, costPrice: e.target.value})} 
+                                                                    onFocus={e => e.target.select()} 
+                                                                    className="w-full pl-9 pr-3 h-10 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all" 
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-[11px] font-bold text-emerald-800 block">Preço de Venda Sugerido</label>
+                                                            <div className="relative">
+                                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 text-xs font-bold">R$</span>
+                                                                <input 
+                                                                    type="number" 
+                                                                    step="0.01" 
+                                                                    placeholder="0,00" 
+                                                                    value={formData.sellPrice ?? ''} 
+                                                                    onChange={e => setFormData({...formData, sellPrice: e.target.value})} 
+                                                                    onFocus={e => e.target.select()} 
+                                                                    className="w-full pl-9 pr-3 h-10 bg-emerald-50/70 border border-emerald-400 rounded-xl text-xs font-bold text-emerald-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/10 shadow-sm transition-all" 
+                                                                    required
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] font-bold text-slate-500 block">Frete / Entregas (R$)</label>
+                                                            <input 
+                                                                type="number" 
+                                                                step="0.01" 
+                                                                placeholder="0,00" 
+                                                                value={formData.freightCost ?? ''} 
+                                                                onChange={e => setFormData({...formData, freightCost: e.target.value})} 
+                                                                onFocus={e => e.target.select()} 
+                                                                className="w-full px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:border-slate-400 shadow-xs" 
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] font-bold text-slate-500 block">Carga Tributária (%)</label>
+                                                            <input 
+                                                                type="number" 
+                                                                step="0.1" 
+                                                                placeholder="0" 
+                                                                value={formData.taxPercent ?? ''} 
+                                                                onChange={e => setFormData({...formData, taxPercent: e.target.value})} 
+                                                                onFocus={e => e.target.select()} 
+                                                                className="w-full px-3 h-9 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:border-slate-400 shadow-xs" 
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* KPI Margem e Custo Final */}
+                                                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-4">
+                                                        <div>
+                                                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Custo Estimado</span>
+                                                            <span className="text-xs font-bold text-slate-800">R$ {calculateTotalCost(formData).toFixed(2)}</span>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Margem Comercial</span>
+                                                            <span className={`text-xs font-bold ${calculateMargin(formData) > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                                                 {calculateMargin(formData).toFixed(1)}%
-                                                            </p>
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -2650,6 +2713,7 @@ export const StockManagement: React.FC = () => {
                                         </div>
                                     </div>
                                 )}
+
 
                                 {modalTab === 'logs' && (
                                     <div className="max-w-3xl mx-auto space-y-6">
@@ -2778,11 +2842,12 @@ export const StockManagement: React.FC = () => {
                                 />
                             </div>
                             <div className="space-y-1.5">
-                                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block px-1">Nome da Empresa (Rodapé)</label>
+                                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block px-1">Nome do Item / Nome da Empresa (Rodapé)</label>
                                 <input 
                                     type="text" 
                                     value={printConfig.companyName} 
                                     onChange={e => setPrintConfig({...printConfig, companyName: e.target.value})}
+                                    placeholder="Ex: NOME DO ITEM / DUNO"
                                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-primary-100"
                                 />
                             </div>
@@ -3220,7 +3285,7 @@ export const StockManagement: React.FC = () => {
                         <Scale size={20} />
                     </button>
                     <button
-                        onClick={handleOpenModal}
+                        onClick={() => handleOpenModal()}
                         className="w-14 h-14 bg-gradient-to-tr from-[#10b981] to-[#059669] text-white rounded-full shadow-[0_8px_30px_rgba(16,185,129,0.4)] flex items-center justify-center active:scale-90 transition-transform"
                     >
                         <Plus size={24} />

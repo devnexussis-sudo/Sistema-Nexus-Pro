@@ -11,7 +11,7 @@ export enum AppScope {
 }
 
 export interface UserPermissions {
-  // Atividades (O.S.)
+  // Ordens de Serviço (O.S.)
   orders: { create: boolean; read: boolean; update: boolean; delete: boolean };
   // Clientes
   customers: { create: boolean; read: boolean; update: boolean; delete: boolean };
@@ -21,6 +21,8 @@ export interface UserPermissions {
   technicians: { create: boolean; read: boolean; update: boolean; delete: boolean };
   // Orçamentos
   quotes: { create: boolean; read: boolean; update: boolean; delete: boolean };
+  // Pedidos de Venda
+  sales_orders?: { create: boolean; read: boolean; update: boolean; delete: boolean };
   // Contratos / Manutenção Planejada
   contracts: { create: boolean; read: boolean; update: boolean; delete: boolean };
   // Estoque e Peças
@@ -58,6 +60,7 @@ export interface UserPermissions {
     map: boolean;
     financial: boolean;
     quotes: boolean;
+    sales_orders?: boolean;
     stock: boolean;
     contracts: boolean;
     customers: boolean;
@@ -79,6 +82,7 @@ export const DEFAULT_PERMISSIONS: UserPermissions = {
   equipments: { create: true, read: true, update: true, delete: false },
   technicians: { create: true, read: true, update: true, delete: false },
   quotes: { create: true, read: true, update: true, delete: false },
+  sales_orders: { create: true, read: true, update: true, delete: false },
   contracts: { create: true, read: true, update: true, delete: false },
   stock: { create: true, read: true, update: true, delete: false },
   forms: { create: true, read: true, update: true, delete: false },
@@ -104,6 +108,7 @@ export const DEFAULT_PERMISSIONS: UserPermissions = {
     map: true,
     financial: false,
     quotes: true,
+    sales_orders: true,
     stock: true,
     contracts: true,
     customers: true,
@@ -125,6 +130,7 @@ export const ADMIN_PERMISSIONS: UserPermissions = {
   equipments: { create: true, read: true, update: true, delete: true },
   technicians: { create: true, read: true, update: true, delete: true },
   quotes: { create: true, read: true, update: true, delete: true },
+  sales_orders: { create: true, read: true, update: true, delete: true },
   contracts: { create: true, read: true, update: true, delete: true },
   stock: { create: true, read: true, update: true, delete: true },
   forms: { create: true, read: true, update: true, delete: true },
@@ -150,6 +156,7 @@ export const ADMIN_PERMISSIONS: UserPermissions = {
     map: true,
     financial: true,
     quotes: true,
+    sales_orders: true,
     stock: true,
     contracts: true,
     customers: true,
@@ -163,6 +170,38 @@ export const ADMIN_PERMISSIONS: UserPermissions = {
     regions: true,
     integrations: true,
   }
+};
+
+export const normalizeUserPermissions = (perms?: Partial<UserPermissions> | null): UserPermissions => {
+  if (!perms) return { ...DEFAULT_PERMISSIONS };
+  return {
+    ...DEFAULT_PERMISSIONS,
+    ...perms,
+    orders: { ...DEFAULT_PERMISSIONS.orders, ...(perms.orders || {}) },
+    customers: { ...DEFAULT_PERMISSIONS.customers, ...(perms.customers || {}) },
+    equipments: { ...DEFAULT_PERMISSIONS.equipments, ...(perms.equipments || {}) },
+    technicians: { ...DEFAULT_PERMISSIONS.technicians, ...(perms.technicians || {}) },
+    quotes: { ...DEFAULT_PERMISSIONS.quotes, ...(perms.quotes || {}) },
+    sales_orders: {
+      create: perms.sales_orders?.create ?? DEFAULT_PERMISSIONS.sales_orders?.create ?? true,
+      read: perms.sales_orders?.read ?? DEFAULT_PERMISSIONS.sales_orders?.read ?? true,
+      update: perms.sales_orders?.update ?? DEFAULT_PERMISSIONS.sales_orders?.update ?? true,
+      delete: perms.sales_orders?.delete ?? DEFAULT_PERMISSIONS.sales_orders?.delete ?? false,
+    },
+    contracts: { ...DEFAULT_PERMISSIONS.contracts, ...(perms.contracts || {}) },
+    stock: { ...DEFAULT_PERMISSIONS.stock, ...(perms.stock || {}) },
+    forms: { ...DEFAULT_PERMISSIONS.forms, ...(perms.forms || {}) },
+    whatsapp: { ...(DEFAULT_PERMISSIONS.whatsapp || { create: false, read: false, update: false, delete: false }), ...(perms.whatsapp || {}) },
+    solicitacoes: { ...(DEFAULT_PERMISSIONS.solicitacoes || { create: false, read: false, update: false, delete: false }), ...(perms.solicitacoes || {}) },
+    regions: { ...(DEFAULT_PERMISSIONS.regions || { create: true, read: true, update: true, delete: false }), ...(perms.regions || {}) },
+    integrations: { ...(DEFAULT_PERMISSIONS.integrations || { create: false, read: false, update: false, delete: false }), ...(perms.integrations || {}) },
+    financial: { ...DEFAULT_PERMISSIONS.financial, ...(perms.financial || {}) },
+    menuAccess: {
+      ...DEFAULT_PERMISSIONS.menuAccess,
+      ...(perms.menuAccess || {}),
+      sales_orders: perms.menuAccess?.sales_orders ?? DEFAULT_PERMISSIONS.menuAccess?.sales_orders ?? true,
+    }
+  };
 };
 
 export interface UserGroup { [key: string]: any;
@@ -353,6 +392,8 @@ export interface OrderItem {
   equipmentId?: string;
   equipmentName?: string;
   equipmentSerial?: string;
+  visitId?: string;
+  visitNumber?: number;
 }
 
 export interface ServiceOrder { [key: string]: any;
@@ -706,6 +747,62 @@ export interface Quote { [key: string]: any;
   receiptUrl?: string;
   discount?: number;
   discountType?: 'fixed' | 'percent';
+
+  // Gateway de Pagamento
+  gatewayProvider?: 'asaas' | string;
+  gatewayPaymentId?: string;
+  gatewayPixCode?: string;
+  gatewayQrCodeUrl?: string;
+  gatewayTicketUrl?: string;
+  gatewayStatus?: string;
+}
+
+export interface SalesOrderItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  stockCode?: string;     // Código do item no estoque
+  stockItemId?: string;   // ID do item no estoque
+}
+
+export type SalesOrderStatus = 'PENDENTE' | 'CONCLUIDO' | 'FATURADO' | 'CANCELADO' | 'RASCUNHO';
+
+export interface SalesOrder { [key: string]: any;
+  id: string;          // UUID interno gerado pelo Postgres (PK)
+  displayId?: string;  // Identificador Soberano Nexus (ex: PED-292610001)
+  publicToken?: string;
+  tenantId?: string;   // Multi-tenancy
+  customerId?: string;
+  createdBy?: string;
+  createdByName?: string;
+  customerName: string;
+  customerAddress?: string;
+  customerDocument?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  title: string;
+  description?: string;
+  items: SalesOrderItem[];
+  subtotal?: number;
+  shipping?: number;
+  discount?: number;
+  discountType?: 'fixed' | 'percent';
+  totalValue: number;
+  status: SalesOrderStatus;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+  completedAt?: string;
+
+  // Financeiro
+  billingStatus?: 'PENDING' | 'BILLED' | 'PAID' | 'OVERDUE' | 'CANCELED';
+  paymentMethod?: string;
+  installments?: number;
+  paymentNotes?: string;
+  paidAt?: string;
+  billingNotes?: string;
 
   // Gateway de Pagamento
   gatewayProvider?: 'asaas' | string;

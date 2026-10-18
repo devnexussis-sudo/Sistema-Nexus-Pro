@@ -2,7 +2,7 @@ export interface KnowledgeEntry { keywords: string[]; response: string; }
 
 // ══════════════════════════════════════════════════════════════
 // NOMES CORRETOS DOS MENUS (pt-BR):
-//   Dashboard | Atividade | Agenda | Visão de campo | Financeiro
+//   Dashboard | Ordens de Serviço | Agenda | Visão de campo | Financeiro
 //   Orçamentos | Estoque | Contratos | Cliente | Ativos
 //   Formulários | Técnicos | Usuários | Configurações
 // ══════════════════════════════════════════════════════════════
@@ -12,22 +12,22 @@ export const KNOWLEDGE_BASE: KnowledgeEntry[] = [
   { keywords: ['dashboard','painel','visão geral','overview','resumo','indicadores','kpi','tela inicial'],
     response: `O **Dashboard** é a tela inicial do sistema.\n\n**O que você encontra:**\n• Contadores de OS por status (Abertas, Em Andamento, Concluídas, Canceladas).\n• Gráficos de desempenho por período.\n• Filtros por **data inicial** e **data final** no topo da tela.\n• Resumo de técnicos ativos e clientes cadastrados.\n• Cards de acesso rápido aos módulos mais usados.\n\nPara acessar, clique em **"Dashboard"** na barra lateral.` },
 
-  // ── ATIVIDADES (OS) ──
-  { keywords: ['ordem de serviço','os','abrir os','criar os','nova os','chamado','abrir chamado','atividade','atividades'],
-    response: `Para criar uma nova **OS**, acesse o menu **"Atividade"** na barra lateral e clique em **"+ Nova OS"**.\n\n**Assistente de criação em 5 etapas:**\n1. **Cliente** — Selecione o cliente (busca por nome).\n2. **Tipo de Serviço** — Corretiva, Preventiva, Instalação, etc.\n3. **Detalhes** — Título, Descrição e Prioridade (Normal, Urgente, Crítica).\n4. **Técnico** — Atribua o responsável e a data agendada.\n5. **Revisão** — Confira e confirme a criação.\n\n**Após criada:**\n• A OS aparece na listagem com status "Aberta".\n• O técnico recebe no App Mobile.\n• Um **link público** é gerado para o cliente acompanhar.` },
+  // ── ORDENS DE SERVIÇO (OS) ──
+  { keywords: ['ordem de serviço','ordens de serviço','os','abrir os','criar os','nova os','chamado','abrir chamado','atividade','atividades'],
+    response: `Para criar uma nova **OS**, acesse o menu **"Ordens de Serviço"** na barra lateral e clique em **"+ Nova OS"**.\n\n**Assistente de criação em 5 etapas:**\n1. **Cliente** — Selecione o cliente (busca por nome).\n2. **Tipo de Serviço** — Corretiva, Preventiva, Instalação, etc.\n3. **Detalhes** — Título, Descrição e Prioridade (Normal, Urgente, Crítica).\n4. **Técnico** — Atribua o responsável e a data agendada.\n5. **Revisão** — Confira e confirme a criação.\n\n**Após criada:**\n• A OS aparece na listagem com status "Aberta".\n• O técnico recebe no App Mobile.\n• Um **link público** é gerado para o cliente acompanhar.` },
 
   { keywords: ['editar os','alterar os','modificar os','atualizar os'],
-    response: `Para **editar uma OS**, acesse **"Atividade"**, clique na OS desejada e depois em **"Editar OS"**.\n\n**O que pode ser editado:**\n• Título, descrição e prioridade.\n• Técnico atribuído e data agendada.\n• Adicionar/remover ativos vinculados.\n• Observações internas.\n\n**Botões do cabeçalho da OS:**\n• **Editar OS** — Modo de edição.\n• **Visualizar** — Link público do cliente.\n• **WhatsApp** — Conversa direta com o cliente.\n• **Gerar PDF** — Exporta relatório.\n• **Cancelar OS** — Cancela a ordem.` },
+    response: `Para **editar uma OS**, acesse **"Ordens de Serviço"**, clique na OS desejada e depois em **"Editar OS"**.\n\n**O que pode ser editado:**\n• Título, descrição e prioridade.\n• Técnico atribuído e data agendada.\n• Adicionar/remover ativos vinculados.\n• Observações internas.\n\n**Botões do cabeçalho da OS:**\n• **Editar OS** — Modo de edição.\n• **Visualizar** — Link público do cliente.\n• **WhatsApp** — Conversa direta com o cliente.\n• **Gerar PDF** — Exporta relatório.\n• **Cancelar OS** — Cancela a ordem.` },
 
   { keywords: ['status','andamento','fluxo','workflow','etapa','ciclo de vida'],
     response: `O **ciclo de vida** de uma OS:\n\n• **Pendente** — Recém-criada, aguardando início.\n• **Agendada** — Data de atendimento definida.\n• **Em Deslocamento** — Técnico a caminho.\n• **Em Andamento** — Técnico iniciou o atendimento.\n• **Impedida** — Bloqueio registrado (falta de peça, acesso negado).\n• **Concluída** — Serviço finalizado.\n• **Cancelada** — Cancelada pelo administrador.\n\nCada mudança gera registro na **Timeline** da OS.` },
 
   { keywords: ['filtrar os','buscar os','pesquisar os','search','procurar'],
-    response: `Na tela de **Atividade** você tem filtros poderosos:\n\n• **Barra de busca** — Pesquisa por número, título ou cliente.\n• **Filtro por Status** — Pendente, Agendada, Em Andamento, Impedida, Concluída, Cancelada.\n• **Filtro por Técnico** — Selecione um técnico.\n• **Filtro por Período** — Data inicial e final.\n• **Ordenação** — Por data, prioridade ou status.\n\nOs filtros podem ser combinados.` },
+    response: `Na tela de **Ordens de Serviço** você tem filtros poderosos:\n\n• **Barra de busca** — Pesquisa por número, título ou cliente.\n• **Filtro por Status** — Pendente, Agendada, Em Andamento, Impedida, Concluída, Cancelada.\n• **Filtro por Técnico** — Selecione um técnico.\n• **Filtro por Período** — Data inicial e final.\n• **Ordenação** — Por data, prioridade ou status.\n\nOs filtros podem ser combinados.` },
 
   // ── ABAS DA OS ──
   { keywords: ['aba','tab','navegação os','detalhes os','dentro da os'],
-    response: `Ao abrir uma OS em **"Atividade"**, as abas de navegação ficam na lateral esquerda:\n\n• **Visão Geral** — Dados principais, cliente, tipo, prioridade e técnico.\n• **Ativos** — Equipamentos vinculados com status de garantia.\n• **Visitas** — Histórico de visitas técnicas.\n• **Formulários** — Checklists preenchidos pelo técnico.\n• **Deslocamento** — Dados de km e tempo.\n• **Fotos e Vídeos** — Mídias capturadas.\n• **Timeline** — Histórico completo de eventos.\n• **Observações** — Notas internas.` },
+    response: `Ao abrir uma OS em **"Ordens de Serviço"**, as abas de navegação ficam na lateral esquerda:\n\n• **Visão Geral** — Dados principais, cliente, tipo, prioridade e técnico.\n• **Ativos** — Equipamentos vinculados com status de garantia.\n• **Visitas** — Histórico de visitas técnicas.\n• **Formulários** — Checklists preenchidos pelo técnico.\n• **Deslocamento** — Dados de km e tempo.\n• **Fotos e Vídeos** — Mídias capturadas.\n• **Timeline** — Histórico completo de eventos.\n• **Observações** — Notas internas.` },
 
   // ── CONTRATOS / PMOC ──
   { keywords: ['pmoc','contrato','preventiva','manutenção planejada','recorrente','programada','criar contrato','cadastrar contrato','editar contrato','excluir contrato','deletar contrato'],
@@ -56,6 +56,10 @@ export const KNOWLEDGE_BASE: KnowledgeEntry[] = [
   // ── ORÇAMENTOS ──
   { keywords: ['orçamento','proposta','quote','cotação','criar orçamento','cadastrar orçamento','editar orçamento','excluir orçamento','deletar orçamento'],
     response: `O módulo **"Orçamentos"** gerencia a criação e envio de propostas comerciais.\n\n• **Como Criar:** Acesse **"Orçamentos"** > clique em **"+ Novo Orçamento"** no topo direito. Escolha o cliente, adicione as peças do estoque ou serviços manuais, configure as condições de pagamento e salve.\n• **Como Editar:** Clique no orçamento pendente na lista para abrir a edição e ajustar valores ou itens.\n• **Como Excluir:** Abra o orçamento desejado e selecione **"Excluir Orçamento"** ou mude seu status para **"Recusado"**.\n• **Aprovação do Cliente:** Cada proposta gera um **Link Público**. O cliente pode visualizar e clicar em "Aprovar" ou "Recusar" sem precisar logar.` },
+
+  // ── PEDIDOS DE VENDA (PVD) ──
+  { keywords: ['pedido de venda','pvd','pedido','venda balcão','balcão','criar pedido','editar pedido','finalizar pedido','faturar pedido','imprimir pedido','pvd-'],
+    response: `O módulo **"Pedido de Venda" (PVD)** gerencia vendas diretas de produtos, peças e serviços balcão.\n\n• **Numeração Sequencial:** Cada pedido recebe um código único sequencial iniciando com o prefixo **PVD-001000**.\n• **Como Criar:** Acesse **"Pedido de Venda"** no menu lateral > clique em **"+ Novo Pedido"**. No topo selecione o cliente e seus dados; no meio adicione peças do estoque (com busca por código de barras, SKU ou nome) ou itens manuais; no rodapé configure frete, desconto, informações adicionais e confira o valor total liquidado.\n• **Ciclo e Status:** O pedido nasce com status **"Pendente"**, permitindo livre edição. Ao clicar em **"Finalizar Pedido"**, ele se torna **"Concluído"** (bloqueado para edição) e é encaminhado automaticamente para o **Financeiro / Faturamento**.\n• **Impressão e PDF:** Cada pedido conta com botão de impressão rápida e exportação de PDF no mesmo padrão profissional do sistema.\n• **Permissões:** O acesso ao módulo é controlado no menu **"Usuários" > "Grupos de Usuários"**.` },
 
   // ── FINANCEIRO ──
   { keywords: ['financeiro','faturamento','financial','relatório financeiro','faturar'],
@@ -95,11 +99,11 @@ export const KNOWLEDGE_BASE: KnowledgeEntry[] = [
 
   // ── VISITAS ──
   { keywords: ['visita','atendimento','histórico visita','deslocamento'],
-    response: `Cada OS pode ter múltiplas **Visitas Técnicas** (aba "Visitas" dentro da OS em **"Atividade"**).\n\n**Registrado em cada visita:**\n• Data/hora de início e fim.\n• Técnico responsável.\n• Fotos e vídeos, formulários preenchidos.\n• Peças utilizadas (do estoque).\n• Observações e dados de deslocamento (km, tempo).` },
+    response: `Cada OS pode ter múltiplas **Visitas Técnicas** (aba "Visitas" dentro da OS em **"Ordens de Serviço"**).\n\n**Registrado em cada visita:**\n• Data/hora de início e fim.\n• Técnico responsável.\n• Fotos e vídeos, formulários preenchidos.\n• Peças utilizadas (do estoque).\n• Observações e dados de deslocamento (km, tempo).` },
 
   // ── PDF / IMPRESSÃO ──
   { keywords: ['imprimir','pdf','relatório','impressão','exportar','print'],
-    response: `O sistema gera **PDF** em vários módulos:\n\n• **Atividade** — Botão "Gerar PDF" no cabeçalho da OS.\n• **Orçamentos** — PDF profissional com composição de proposta.\n• **Financeiro** — Relatório de faturamento A4.\n• **Estoque** — Etiquetas QR Code (A4 ou Térmica).\n\nTodos com layout padronizado, logo e dados da empresa.` },
+    response: `O sistema gera **PDF** em vários módulos:\n\n• **Ordens de Serviço** — Botão "Gerar PDF" no cabeçalho da OS.\n• **Orçamentos** — PDF profissional com composição de proposta.\n• **Financeiro** — Relatório de faturamento A4.\n• **Estoque** — Etiquetas QR Code (A4 ou Térmica).\n\nTodos com layout padronizado, logo e dados da empresa.` },
 
   // ── NOTIFICAÇÕES ──
   { keywords: ['notificação','alerta','aviso','inbox','sino'],
@@ -107,7 +111,7 @@ export const KNOWLEDGE_BASE: KnowledgeEntry[] = [
 
   // ── WHATSAPP ──
   { keywords: ['whatsapp','zap','mensagem','contato cliente'],
-    response: `O botão **WhatsApp** na OS (menu **"Atividade"**) abre conversa direta com o cliente.\n\n• O campo "WhatsApp" deve estar preenchido no cadastro do cliente (menu **"Cliente"**).\n• Se não cadastrado, aparece alerta: "WhatsApp do cliente não cadastrado no sistema."` },
+    response: `O botão **WhatsApp** na OS (menu **"Ordens de Serviço"**) abre conversa direta com o cliente.\n\n• O campo "WhatsApp" deve estar preenchido no cadastro do cliente (menu **"Cliente"**).\n• Se não cadastrado, aparece alerta: "WhatsApp do cliente não cadastrado no sistema."` },
 
   // ── SUPORTE ──
   { keywords: ['suporte','ajuda','help','bug'],
@@ -115,11 +119,11 @@ export const KNOWLEDGE_BASE: KnowledgeEntry[] = [
 
   // ── MENUS DO SISTEMA ──
   { keywords: ['menu','barra lateral','sidebar','navegação','módulos','onde fica'],
-    response: `Os módulos do sistema ficam na **barra lateral esquerda**:\n\n1. **Dashboard** — Tela inicial com resumo.\n2. **Duno IA** — Assistente inteligente (você está aqui!).\n3. **Atividade** — Ordens de Serviço.\n4. **Agenda** — Calendário de OS.\n5. **Visão de Campo** — Mapa com técnicos e clientes.\n6. **Financeiro** — Dashboard financeiro.\n7. **Orçamentos** — Propostas comerciais.\n8. **Estoque** — Peças e materiais.\n9. **Contratos** — PMOC e manutenção preventiva.\n10. **Cliente** — Cadastro de clientes.\n11. **Ativos** — Equipamentos e garantias.\n12. **Formulários** — Checklists personalizados.\n13. **Técnicos** — Equipe de campo.\n14. **Gestão de Regiões** — Cercas virtuais geográficas.\n15. **Usuários** — Permissões e grupos.\n16. **Configurações** — Personalização do sistema.` },
+    response: `Os módulos do sistema ficam na **barra lateral esquerda**:\n\n1. **Dashboard** — Tela inicial com resumo.\n2. **Duno IA** — Assistente inteligente (você está aqui!).\n3. **Ordens de Serviço** — Ordens de Serviço.\n4. **Agenda** — Calendário de OS.\n5. **Visão de Campo** — Mapa com técnicos e clientes.\n6. **Financeiro** — Dashboard financeiro e Contas a Pagar.\n7. **Orçamentos** — Propostas comerciais.\n8. **Pedido de Venda (PVD)** — Vendas balcão, peças e faturamento direto.\n9. **Estoque** — Peças e materiais.\n10. **Contratos** — PMOC e manutenção preventiva.\n11. **Cliente** — Cadastro de clientes.\n12. **Ativos** — Equipamentos e garantias.\n13. **Formulários** — Checklists personalizados.\n14. **Técnicos** — Equipe de campo.\n15. **Gestão de Regiões** — Cercas virtuais geográficas.\n16. **Usuários** — Permissões e grupos.\n17. **Configurações** — Personalização do sistema.` },
 
   // ── SAUDAÇÕES ──
   { keywords: ['olá','oi','hey','bom dia','boa tarde','boa noite','tudo bem','hello','e aí'],
-    response: `Olá! 👋 Estou aqui para te ajudar com qualquer dúvida sobre o sistema Duno.\n\nPosso explicar sobre:\n• **Atividade** — Criar, editar e filtrar OS\n• **Contratos** — PMOC e manutenção preventiva\n• **Ativos** — Equipamentos e garantias\n• **Estoque** — Peças e QR Code\n• **Orçamentos** — Propostas comerciais\n• **App Mobile** — Funcionalidades do técnico\n• **Usuários** — Permissões e grupos\n• **Agenda / Visão de Campo / Financeiro**\n• **Formulários** e muito mais!\\n\\nÉ só perguntar!` },
+    response: `Olá! 👋 Estou aqui para te ajudar com qualquer dúvida sobre o sistema Duno.\n\nPosso explicar sobre:\n• **Ordens de Serviço** — Criar, editar e filtrar OS\n• **Contratos** — PMOC e manutenção preventiva\n• **Ativos** — Equipamentos e garantias\n• **Estoque** — Peças e QR Code\n• **Orçamentos** — Propostas comerciais\n• **App Mobile** — Funcionalidades do técnico\n• **Usuários** — Permissões e grupos\n• **Agenda / Visão de Campo / Financeiro**\n• **Formulários** e muito mais!\\n\\nÉ só perguntar!` },
 
   { keywords: ['obrigado','valeu','thanks','agradeço','tmj'], response: `De nada! 😊 Fico feliz em ajudar. Se surgir mais alguma dúvida, é só perguntar!` },
 
@@ -135,10 +139,10 @@ export const KNOWLEDGE_BASE: KnowledgeEntry[] = [
     response: ` O **Módulo Financeiro — Contas a Pagar** permite cadastrar, controlar e dar baixa em todas as despesas da empresa!\n\n**Passo a Passo para Cadastrar uma Conta a Pagar:**\n1. Acesse o menu **"Financeiro"** na barra lateral esquerda.\n2. No topo da tela do Financeiro, selecione a aba **"Contas a Pagar"**.\n3. Clique no botão **"+ Nova Conta"** (no canto superior direito).\n4. Preencha os campos do formulário:\n   • **Descrição:** Título ou motivo da despesa (ex: Conta de Luz, Boleto Fornecedor X).\n   • **Fornecedor:** Selecione o fornecedor cadastrado (ou insira o nome).\n   • **Valor e Vencimento:** Insira o valor total (R$) e a data de vencimento.\n   • **Categoria:** Selecione a categoria da despesa (ex: Operacional, Peças, Aluguel).\n   • **Anexo:** Faça o upload do boleto (PDF) ou comprovante.\n5. Clique em **"Salvar Conta"**.\n\n**Recursos Importantes:**\n• **Baixa e Pagamento Parcial:** Ao dar baixa, você pode registrar o valor pago parcial. O sistema manterá o saldo restante como pendente.\n• **Juros e Multas:** Em pagamentos com atraso, adicione o valor dos acréscimos ao quitar.\n• **Gerenciar Categorias:** Clique em **"Categorias"** para criar novas seções de despesas.` },
 
   { keywords: ['whatsapp bot','bot do whatsapp','atendimento automático','robô do zap','chatbot','respostas automáticas'],
-    response: `A **Duno IA agora atende no WhatsApp!** 🤖📱\n\nVocê pode conectar o seu número corporativo na aba **"Configurações > WhatsApp Bot"**.\n\n**O que a IA faz:**\n• Recebe os clientes 24/7 e tira dúvidas básicas.\n• Entende se o cliente é novo ou recorrente.\n• Transforma relatos de problemas em **Solicitações de Atendimento** estruturadas direto no seu painel (Módulo Atividade).\n• Coleta dados de clientes não cadastrados automaticamente.` },
+    response: `A **Duno IA agora atende no WhatsApp!** 🤖📱\n\nVocê pode conectar o seu número corporativo na aba **"Configurações > WhatsApp Bot"**.\n\n**O que a IA faz:**\n• Recebe os clientes 24/7 e tira dúvidas básicas.\n• Entende se o cliente é novo ou recorrente.\n• Transforma relatos de problemas em **Solicitações de Atendimento** estruturadas direto no seu painel (Módulo Ordens de Serviço).\n• Coleta dados de clientes não cadastrados automaticamente.` },
 
   { keywords: ['solicitação de atendimento','triagem','aprovar solicitação','rejeitar solicitação','inbox de os'],
-    response: `As **Solicitações de Atendimento** são a nova caixa de entrada de serviços!\n\n• Quando um cliente relata um problema via WhatsApp Bot ou Link Público, o pedido cai na aba **"Solicitações de Atendimento"** (na tela de Atividades).\n• **Triagem Inteligente:** O painel avisa se o cliente já existe no sistema ou se é necessário cadastrá-lo.\n• **Aceitar:** Com 1 clique, você aprova a solicitação, e ela se transforma em uma Ordem de Serviço real atribuída a um técnico.\n• **Rejeitar:** Pode negar o chamado informando o motivo.` },
+    response: `As **Solicitações de Atendimento** são a nova caixa de entrada de serviços!\n\n• Quando um cliente relata um problema via WhatsApp Bot ou Link Público, o pedido cai na aba **"Solicitações de Atendimento"** (na tela de Ordens de Serviço).\n• **Triagem Inteligente:** O painel avisa se o cliente já existe no sistema ou se é necessário cadastrá-lo.\n• **Aceitar:** Com 1 clique, você aprova a solicitação, e ela se transforma em uma Ordem de Serviço real atribuída a um técnico.\n• **Rejeitar:** Pode negar o chamado informando o motivo.` },
 
   { keywords: ['check-in automático','checkin automatico','raio de atendimento','chegada automática'],
     response: `Nova funcionalidade no APP do Técnico: **Check-in Automático**! 📍\n\n• Habilite em **"Configurações > APP do Técnico"**.\n• O app usa GPS para identificar automaticamente quando o técnico entra em um raio de 50 metros do endereço do cliente.\n• Após 10 minutos no local, a OS inicia sozinha, registrando o status "Cheguei no Cliente" sem intervenção manual.` },

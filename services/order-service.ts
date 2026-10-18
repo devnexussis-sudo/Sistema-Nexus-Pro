@@ -121,7 +121,70 @@ export class OrderService {
             console.log(`[OrderService] 🏢 Tenant detectado para upload: ${tenantId || 'N/A'}`);
 
             const cleanFolder = folder.replace(/^\/+/, '').replace(/\/+$/, '');
-            const finalFolder = tenantId ? `${tenantId}/${cleanFolder}` : cleanFolder;
+
+            // 🛡️ Resolve Nome da Empresa + CNPJ para Pasta Mestre no Storage / R2
+            let tenantFolder = tenantId ? `EMPRESA_${tenantId.replace(/-/g, '').substring(0, 8).toUpperCase()}` : 'EMPRESA_GLOBAL';
+            if (tenantId) {
+                try {
+                    const { data: tData } = await supabase
+                        .from('tenants')
+                        .select('company_name, trading_name, name, cnpj')
+                        .eq('id', tenantId)
+                        .maybeSingle();
+
+                    if (tData) {
+                        const rawName = tData.company_name || tData.trading_name || tData.name || 'EMPRESA';
+                        const cleanName = rawName
+                            .normalize('NFD')
+                            .replace(/[\u0300-\u036f]/g, '')
+                            .replace(/[^a-zA-Z0-9]/g, '_')
+                            .replace(/_+/g, '_')
+                            .replace(/^_|_$/g, '')
+                            .toUpperCase()
+                            .slice(0, 50) || 'EMPRESA';
+
+                        const digits = (tData.cnpj || '').replace(/\D/g, '');
+                        const cleanDoc = digits.length >= 11
+                            ? digits
+                            : tenantId.replace(/-/g, '').substring(0, 8).toUpperCase();
+
+                        tenantFolder = `${cleanName}_${cleanDoc}`;
+                    }
+                } catch (_) {}
+            }
+
+            // 🛡️ Mapeamento canônico do módulo Ordem de Serviço
+            let moduleFolder = cleanFolder;
+            if (cleanFolder.startsWith('orders/')) {
+                const parts = cleanFolder.split('/');
+                const orderId = parts[1];
+                const rawSub = parts[2] || 'Evidencias';
+
+                let orderCode = orderId;
+                try {
+                    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
+                    const { data: oData } = await supabase
+                        .from('orders')
+                        .select('display_id')
+                        .eq(isUuid ? 'id' : 'display_id', orderId)
+                        .maybeSingle();
+                    if (oData?.display_id) orderCode = oData.display_id;
+                } catch (_) {}
+
+                let subHuman = 'Evidencias';
+                if (rawSub === 'photos' || rawSub === 'extra_photos' || rawSub === 'evidence') subHuman = 'Evidencias';
+                else if (rawSub === 'signatures' || rawSub === 'signature') subHuman = 'Assinaturas';
+                else if (rawSub === 'form_photos' || rawSub === 'checklist') subHuman = 'Checklist';
+                else if (rawSub === 'videos') subHuman = 'Videos';
+                else if (rawSub === 'block') subHuman = 'Impedimentos';
+                else if (rawSub === 'internal_notes') subHuman = 'Observacoes';
+
+                const cleanCode = (orderCode || 'Geral').toString().replace(/[^a-zA-Z0-9_-]/g, '_');
+                const orderFolder = cleanCode.startsWith('OS_') ? cleanCode : `OS_${cleanCode.replace(/^OS[-_]/i, '')}`;
+                moduleFolder = `Ordem_de_Servico/${orderFolder}/${subHuman}`;
+            }
+
+            const finalFolder = `${tenantFolder}/${moduleFolder}`.replace(/\/+/g, '/');
 
             // Determinar extensão pelo contentType
             let ext = 'webp';
@@ -733,17 +796,75 @@ export class OrderService {
     }
 
 
-    static async startDisplacement(id: string): Promise<void> {
+    static async startDisplacement(id: string, lat?: number, lon?: number): Promise<void> {
         try {
+            const nowIso = new Date().toISOString();
+
+            // 1. Atualiza a timeline da OS
+            let updatedTimeline: any = { travelStartAt: nowIso };
+            try {
+                const { data: currentOrder } = await supabase
+                    .from('orders')
+                    .select('timeline')
+                    .eq('id', id)
+                    .maybeSingle();
+
+                if (currentOrder?.timeline && typeof currentOrder.timeline === 'object') {
+                    updatedTimeline = { ...currentOrder.timeline, travelStartAt: nowIso };
+                }
+            } catch (tErr) {
+                console.warn('[OrderService] timeline read warn:', tErr);
+            }
+
             const { error } = await supabase
                 .from('orders')
                 .update({
                     status: 'EM DESLOCAMENTO',
-                    updated_at: new Date().toISOString()
+                    timeline: updatedTimeline,
+                    updated_at: nowIso
                 })
                 .eq('id', id);
 
             if (error) throw error;
+
+            // 2. Atualiza a visita ativa com os dados de deslocamento
+            try {
+                const { data: userData } = await supabase.auth.getUser();
+                let visitQuery = supabase.from('service_visits')
+                    .select('id, form_data')
+                    .eq('order_id', id);
+
+                if (userData?.user?.id) {
+                    visitQuery = visitQuery.eq('technician_id', userData.user.id);
+                }
+
+                const { data: visitList } = await visitQuery
+                    .in('status', ['pending', 'paused', 'ongoing'])
+                    .order('visit_number', { ascending: false })
+                    .limit(1);
+
+                const visitData = visitList && visitList.length > 0 ? visitList[0] : null;
+
+                if (visitData) {
+                    const currentFormData = visitData.form_data || {};
+                    const existingDisplacement = currentFormData.displacement || {};
+                    const displacement = {
+                        ...existingDisplacement,
+                        start_time: nowIso,
+                        start_lat: lat,
+                        start_lon: lon
+                    };
+                    await supabase.from('service_visits')
+                        .update({
+                            form_data: { ...currentFormData, displacement },
+                            updated_at: nowIso
+                        })
+                        .eq('id', visitData.id);
+                }
+            } catch (vErr) {
+                logger.log(`Warning: Failed to update service_visits displacement: ${vErr}`, 'warn');
+            }
+
             logger.log(`Order ${id} displacement started`, 'info');
         } catch (error) {
             logger.log(`Error starting displacement: ${error}`, 'error');
@@ -751,26 +872,84 @@ export class OrderService {
         }
     }
 
-    static async startExecution(id: string): Promise<void> {
+    static async startExecution(id: string, lat?: number, lon?: number): Promise<void> {
         try {
+            const nowIso = new Date().toISOString();
+
+            // 1. Atualiza a timeline da OS com horário de chegada/início de execução
+            let updatedTimeline: any = { arrivedAt: nowIso, serviceStartAt: nowIso };
+            try {
+                const { data: currentOrder } = await supabase
+                    .from('orders')
+                    .select('timeline')
+                    .eq('id', id)
+                    .maybeSingle();
+
+                if (currentOrder?.timeline && typeof currentOrder.timeline === 'object') {
+                    updatedTimeline = {
+                        ...currentOrder.timeline,
+                        arrivedAt: currentOrder.timeline.arrivedAt || nowIso,
+                        serviceStartAt: currentOrder.timeline.serviceStartAt || nowIso
+                    };
+                }
+            } catch (tErr) {
+                console.warn('[OrderService] timeline read warn:', tErr);
+            }
+
             const { error } = await supabase
                 .from('orders')
                 .update({
                     status: 'EM ANDAMENTO',
-                    start_date: new Date().toISOString()
+                    start_date: nowIso,
+                    timeline: updatedTimeline,
+                    updated_at: nowIso
                 })
                 .eq('id', id);
 
             if (error) throw error;
 
+            // 2. Atualiza a visita ativa com chegada e cálculo de deslocamento
             try {
                 const { data: userData } = await supabase.auth.getUser();
+                let visitQuery = supabase.from('service_visits')
+                    .select('id, form_data')
+                    .eq('order_id', id);
+
                 if (userData?.user?.id) {
+                    visitQuery = visitQuery.eq('technician_id', userData.user.id);
+                }
+
+                const { data: visitList } = await visitQuery
+                    .in('status', ['pending', 'paused', 'ongoing'])
+                    .order('visit_number', { ascending: false })
+                    .limit(1);
+
+                const visitData = visitList && visitList.length > 0 ? visitList[0] : null;
+
+                if (visitData) {
+                    const currentFormData = visitData.form_data || {};
+                    const existingDisplacement = currentFormData.displacement || {};
+                    const updatedDisplacement = {
+                        ...existingDisplacement,
+                        arrival_time: nowIso,
+                        arrival_lat: lat,
+                        arrival_lon: lon
+                    };
+
                     await supabase.from('service_visits')
                         .update({
                             status: 'ongoing',
-                            arrival_time: new Date().toISOString(),
-                            updated_at: new Date().toISOString()
+                            arrival_time: nowIso,
+                            updated_at: nowIso,
+                            form_data: { ...currentFormData, displacement: updatedDisplacement }
+                        })
+                        .eq('id', visitData.id);
+                } else if (userData?.user?.id) {
+                    await supabase.from('service_visits')
+                        .update({
+                            status: 'ongoing',
+                            arrival_time: nowIso,
+                            updated_at: nowIso
                         })
                         .eq('order_id', id)
                         .eq('technician_id', userData.user.id)

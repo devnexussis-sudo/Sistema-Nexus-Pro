@@ -43,7 +43,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
   equipments, customers, onUpdateEquipments, initialParams
 }) => {
   const { t } = useI18n();
-  const { canCreate, canEdit } = usePermissions();
+  const { canCreate, canEdit, canDelete } = usePermissions();
   const { showAlert } = useDialog();
 
   const [activeTab, setActiveTab] = useState<'list' | 'families'>('list');
@@ -269,7 +269,41 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
     }
   };
 
+  const handleDeleteEquipment = async (equipment: Equipment, evt: React.MouseEvent) => {
+    evt.stopPropagation();
+    if (!canDelete('equipments')) {
+      showAlert('Acesso Negado: Você não tem permissão para excluir ativos.');
+      return;
+    }
+    if (!confirm(`Deseja realmente excluir permanentemente o ativo "${equipment.model}" (Série: ${equipment.serialNumber})? Esta ação não pode ser desfeita.`)) return;
 
+    try {
+      await EquipmentService.deleteEquipment(equipment.id);
+      onUpdateEquipments(equipments.filter(e => e.id !== equipment.id));
+      showAlert('Ativo excluído com sucesso!');
+    } catch (err: any) {
+      console.error('Erro ao excluir ativo:', err);
+      showAlert(`Falha ao excluir ativo: ${err.message || 'Erro desconhecido'}`);
+    }
+  };
+
+  const handleDeleteFamily = async (family: EquipmentFamily, evt: React.MouseEvent) => {
+    evt.stopPropagation();
+    if (!canDelete('equipments')) {
+      showAlert('Acesso Negado: Você não tem permissão para excluir categorias.');
+      return;
+    }
+    if (!confirm(`Deseja realmente excluir permanentemente a categoria/família "${family.name}"? Esta ação não pode ser desfeita.`)) return;
+
+    try {
+      await EquipmentService.deleteEquipmentFamily(family.id);
+      setFamilies(prev => prev.filter(f => f.id !== family.id));
+      showAlert('Categoria excluída com sucesso!');
+    } catch (err: any) {
+      console.error('Erro ao excluir categoria:', err);
+      showAlert(`Falha ao excluir categoria: ${err.message || 'Erro desconhecido'}`);
+    }
+  };
 
   const handleSaveFamily = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -400,84 +434,104 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
+      <div className="relative bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col overflow-hidden flex-1 ring-1 ring-slate-200/80">
 
         {/* 💻 DESKTOP TABLE VIEW */}
-        <div className="hidden md:block flex-1 overflow-auto p-0 custom-scrollbar">
+        <div className="hidden md:block flex-1 overflow-auto custom-scrollbar os-table-container">
           {activeTab === 'list' ? (
-            <table className="w-full border-separate border-spacing-y-1">
-              <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
-                <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center font-poppins">
-                  <th className="px-3 py-1 text-center hidden md:table-cell w-28">código</th>
-                  <th className="px-3 py-1 text-center">equipamento / modelo</th>
-                  <th className="px-3 py-1 text-center whitespace-nowrap hidden md:table-cell">nº de série</th>
-                  <th className="px-3 py-1 text-center hidden md:table-cell">proprietário</th>
-                  <th className="px-3 py-1 text-center hidden lg:table-cell">garantia</th>
-                  <th className="px-3 py-1 text-right pr-6">{t.common.actions}</th>
+            <table className="w-full text-left border-collapse table-auto">
+              <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-md border-b border-slate-200 z-10 shadow-xs font-poppins">
+                <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">
+                  <th className="px-4 py-3 text-left w-28">Código</th>
+                  <th className="px-4 py-3 text-left">Ativo / Modelo</th>
+                  <th className="px-4 py-3 text-left hidden md:table-cell">Família Técnica</th>
+                  <th className="px-4 py-3 text-left whitespace-nowrap hidden md:table-cell">Nº de Série</th>
+                  <th className="px-4 py-3 text-left hidden md:table-cell">Proprietário</th>
+                  <th className="px-4 py-3 text-center hidden lg:table-cell">Garantia</th>
+                  <th className="px-4 py-3 text-right pr-6">{t.common.actions}</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100 bg-white">
                 {paginatedItems.map((e: any) => (
-                  <tr key={e.id} onClick={(evt) => handleViewEquipment(e, evt)} className="bg-white hover:bg-primary-50/40 transition-all group shadow-sm hover:shadow-md cursor-pointer">
-                    <td className="px-3 py-1 rounded-l-[1.5rem] border border-slate-100 border-r-0 text-center hidden md:table-cell">
-                      <span className="font-mono text-[11px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2.5 py-1 rounded-lg tracking-widest border border-[#1c2d4f]/15">
+                  <tr key={e.id} onClick={(evt) => handleViewEquipment(e, evt)} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md cursor-pointer">
+                    <td className="px-4 py-2 text-left">
+                      <span className="font-mono text-[11px] font-medium text-[#1c2d4f] bg-[#1c2d4f]/8 px-2.5 py-1 rounded-lg tracking-wider border border-[#1c2d4f]/15">
                         {formatAssetCode(e.assetCode)}
                       </span>
                     </td>
-                    <td className="px-3 py-1 md:rounded-none rounded-l-[1.5rem] border border-slate-100 border-r-0 md:border-y md:border-x-0 font-bold text-xs max-w-[200px]">
-                      <div className="flex items-center justify-center md:justify-start gap-3">
-                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-primary-400 shadow-inner group-hover:bg-primary-600 group-hover:text-white transition-all shrink-0">
-                          <Box size={18} />
+                    <td className="px-4 py-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 text-primary-500 flex items-center justify-center shrink-0 group-hover:bg-primary-600 group-hover:text-white transition-all">
+                          <Box size={16} />
                         </div>
                         <div className="truncate text-left">
-                          <p className="text-slate-900 tracking-tight truncate text-[13px] font-medium">{e.model}</p>
-                          <p className="text-[11px] text-primary-400 mt-1 truncate">{e.familyName}</p>
-                          <div className="md:hidden mt-1 flex flex-col gap-0.5">
-                            <span className="text-[10px] text-slate-500 font-mono">SN: {e.serialNumber}</span>
-                            <span className="text-[10px] text-slate-600 truncate">{customers.find(c => c.id === e.customerId)?.name || e.customerName || 'Não vinculado'}</span>
-                          </div>
+                          <p className="text-slate-900 tracking-tight truncate text-[13px] font-medium">{e.model || e.name}</p>
+                          {e.name && e.model && e.name !== e.model && (
+                            <p className="text-[11px] text-slate-400 truncate">{e.name}</p>
+                          )}
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-1 border-y border-slate-100 text-center font-mono text-[12px] text-slate-500 tracking-tighter whitespace-nowrap hidden md:table-cell">#{e.serialNumber}</td>
-                    <td className="px-3 py-1 border-y border-slate-100 text-center text-[12px] text-slate-600 tracking-tight truncate max-w-[150px] hidden md:table-cell">
+                    <td className="px-4 py-2 hidden md:table-cell text-[12px] text-slate-600">
+                      <span className="truncate">{e.familyName || 'Sem categoria'}</span>
+                    </td>
+                    <td className="px-4 py-2 font-mono text-[12px] text-slate-600 whitespace-nowrap hidden md:table-cell">
+                      #{e.serialNumber}
+                    </td>
+                    <td className="px-4 py-2 text-[12px] text-slate-600 truncate max-w-[160px] hidden md:table-cell">
                       {customers.find(c => c.id === e.customerId)?.name || e.customerName || 'Não vinculado'}
                     </td>
 
-                    <td className="px-3 py-1 border-y border-slate-100 text-center hidden lg:table-cell">
+                    <td className="px-4 py-2 text-center hidden lg:table-cell whitespace-nowrap">
                       {e.manufactureDate && e.warrantyMonths ? (
-                        <div className={`text-[9px] font-bold px-2.5 py-1 rounded-full w-max mx-auto border ${checkWarrantyStatus(e.manufactureDate, e.warrantyMonths) ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-rose-50 text-rose-600 border-rose-200'}`}>
+                        <div className={`inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full border ${checkWarrantyStatus(e.manufactureDate, e.warrantyMonths) ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${checkWarrantyStatus(e.manufactureDate, e.warrantyMonths) ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                           {checkWarrantyStatus(e.manufactureDate, e.warrantyMonths) ? 'Em Garantia' : 'Fora de Garantia'}
                         </div>
                       ) : (
-                        <div className="text-[9px] font-bold px-2.5 py-1 rounded-full w-max mx-auto border bg-slate-50 text-slate-400 border-slate-200">
-                          Sem Info.
-                        </div>
+                        <span className="text-[10px] font-medium px-2.5 py-1 rounded-full border bg-slate-50 text-slate-400 border-slate-200">
+                          Sem Info
+                        </span>
                       )}
                     </td>
 
-                    <td className="px-3 py-1 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
-                      <div className="flex items-center justify-end gap-1.5">
-                          <>
-                            <button onClick={(evt) => {
-                              if (!canEdit('equipments')) { evt.preventDefault(); evt.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
-                              evt.stopPropagation(); toggleEquipmentStatus(e);
-                            }} className={`p-2.5 rounded-lg shadow-sm border border-transparent transition-all active:scale-95 ${e.active ? 'bg-slate-50 text-amber-500 hover:bg-white hover:border-amber-100 hover:text-amber-600' : 'bg-slate-50 text-emerald-500 hover:bg-white hover:border-emerald-100 hover:text-emerald-600'} ${!canEdit('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`}>
-                              {e.active ? <PowerOff size={16} /> : <Power size={16} />}
-                            </button>
-                            <button onClick={(evt) => {
-                              if (!canEdit('equipments')) { evt.preventDefault(); evt.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
-                              evt.stopPropagation();
-                              setIsReadOnly(false);
-                              setEqFormData(e);
-                              setEditingId(e.id);
-                              const cName = customers.find(c => c.id === e.customerId)?.name || '';
-                              setClientSearch(cName);
-                              const fName = families.find(f => f.id === e.familyId)?.name || '';
-                              setFamilySearch(fName);
-                              setIsModalOpen(true);
-                            }} className={`p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95 ${!canEdit('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar"><Edit2 size={16} /></button>
-                          </>
+                    <td className="px-4 py-2 text-right pr-4" onClick={evt => evt.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={(evt) => {
+                            if (!canEdit('equipments')) { evt.preventDefault(); evt.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                            evt.stopPropagation(); toggleEquipmentStatus(e);
+                          }}
+                          className={`p-1.5 bg-slate-50 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg border border-slate-200/60 transition-all ${!canEdit('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                          title={e.active ? "Desativar Ativo" : "Ativar Ativo"}
+                        >
+                          {e.active ? <PowerOff size={15} /> : <Power size={15} />}
+                        </button>
+                        <button
+                          onClick={(evt) => {
+                            if (!canEdit('equipments')) { evt.preventDefault(); evt.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                            evt.stopPropagation();
+                            setIsReadOnly(false);
+                            setEqFormData(e);
+                            setEditingId(e.id);
+                            const cName = customers.find(c => c.id === e.customerId)?.name || '';
+                            setClientSearch(cName);
+                            const fName = families.find(f => f.id === e.familyId)?.name || '';
+                            setFamilySearch(fName);
+                            setIsModalOpen(true);
+                          }}
+                          className={`p-1.5 bg-primary-50/50 text-primary-500 hover:text-primary-700 hover:bg-primary-100 rounded-lg border border-primary-200/60 transition-all ${!canEdit('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                          title="Editar Ativo"
+                        >
+                          <Edit2 size={15} />
+                        </button>
+                        <button
+                          onClick={(evt) => handleDeleteEquipment(e, evt)}
+                          className={`p-1.5 bg-slate-50 text-slate-400 hover:text-rose-600 hover:bg-rose-100 rounded-lg border border-slate-200/60 transition-all ${!canDelete('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                          title="Excluir Ativo"
+                        >
+                          <Trash2 size={15} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -485,50 +539,66 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
               </tbody>
             </table>
           ) : (
-            <table className="w-full border-separate border-spacing-y-1">
-              <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
-                <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center font-poppins">
-                  <th className="px-3 py-1">nome da família</th>
-                  <th className="px-3 py-1 hidden md:table-cell">descrição técnica de escopo</th>
-                  <th className="px-3 py-1 text-center">status</th>
-                  <th className="px-3 py-1 text-right pr-6">ações</th>
+            <table className="w-full text-left border-collapse table-auto">
+              <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-md border-b border-slate-200 z-10 shadow-xs font-poppins">
+                <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">
+                  <th className="px-4 py-3 text-left">Categoria / Nome da Família</th>
+                  <th className="px-4 py-3 text-left hidden md:table-cell">Escopo Técnico</th>
+                  <th className="px-4 py-3 text-center">Status</th>
+                  <th className="px-4 py-3 text-right pr-6">{t.common.actions}</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100 bg-white">
                 {paginatedItems.map((f: any) => (
-                  <tr key={f.id} onClick={(evt) => handleViewFamily(f, evt)} className="bg-white hover:bg-primary-50/30 transition-all group shadow-sm cursor-pointer">
-                    <td className="px-3 py-1 rounded-l-[1.5rem] border border-slate-100 border-r-0 font-bold text-xs max-w-[200px]">
+                  <tr key={f.id} onClick={(evt) => handleViewFamily(f, evt)} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md cursor-pointer">
+                    <td className="px-4 py-2">
                       <div className="flex items-center gap-3">
-                        <div className="p-2.5 rounded-xl bg-primary-50 text-primary-600 shadow-inner group-hover:bg-primary-600 group-hover:text-white transition-all shrink-0">
-                          <Layers size={18} />
+                        <div className="w-9 h-9 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center shrink-0 border border-primary-100">
+                          <Layers size={16} />
                         </div>
                         <p className="text-slate-900 tracking-tight truncate text-[13px] font-medium">{f.name}</p>
                       </div>
                     </td>
-                    <td className="px-3 py-1 border-y border-slate-100 text-[11px] text-slate-500 max-w-sm truncate hidden md:table-cell">{f.description}</td>
-                    <td className="px-3 py-1 border-y border-slate-100 text-center">
-                      <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold   border ${f.active ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                    <td className="px-4 py-2 text-[12px] text-slate-600 max-w-sm truncate hidden md:table-cell">{f.description || '—'}</td>
+                    <td className="px-4 py-2 text-center whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-medium border ${f.active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${f.active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                         {f.active ? 'Ativo' : 'Inativo'}
                       </span>
                     </td>
-                    <td className="px-3 py-1 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
-                      <div className="flex items-center justify-end gap-1.5">
-                          <>
-                            <button onClick={async (evt) => {
-                              if (!canEdit('equipments')) { evt.preventDefault(); evt.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
-                              const updatedFam = { ...f, active: !f.active };
-                              await EquipmentService.saveEquipmentFamily(updatedFam);
-                              setFamilies(families.map(item => item.id === f.id ? updatedFam : item));
-                            }} className={`p-2.5 rounded-lg shadow-sm border border-transparent transition-all active:scale-95 ${f.active ? 'bg-slate-50 text-amber-500 hover:bg-amber-50' : 'bg-slate-50 text-emerald-500 hover:bg-emerald-50'} ${!canEdit('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`}>
-                              {f.active ? <PowerOff size={16} /> : <Power size={16} />}
-                            </button>
-                            <button onClick={(evt) => {
-                              if (!canEdit('equipments')) { evt.preventDefault(); evt.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
-                              evt.stopPropagation();
-                              setIsReadOnly(false);
-                              setFamilyFormData(f); setEditingId(f.id); setIsModalOpen(true);
-                            }} className={`p-2.5 bg-slate-50 text-slate-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95 ${!canEdit('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`}><Edit2 size={16} /></button>
-                          </>
+                    <td className="px-4 py-2 text-right pr-4" onClick={evt => evt.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={async (evt) => {
+                            if (!canEdit('equipments')) { evt.preventDefault(); evt.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                            const updatedFam = { ...f, active: !f.active };
+                            await EquipmentService.saveEquipmentFamily(updatedFam);
+                            setFamilies(families.map(item => item.id === f.id ? updatedFam : item));
+                          }}
+                          className={`p-1.5 bg-slate-50 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg border border-slate-200/60 transition-all ${!canEdit('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                          title={f.active ? "Desativar Categoria" : "Ativar Categoria"}
+                        >
+                          {f.active ? <PowerOff size={15} /> : <Power size={15} />}
+                        </button>
+                        <button
+                          onClick={(evt) => {
+                            if (!canEdit('equipments')) { evt.preventDefault(); evt.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                            evt.stopPropagation();
+                            setIsReadOnly(false);
+                            setFamilyFormData(f); setEditingId(f.id); setIsModalOpen(true);
+                          }}
+                          className={`p-1.5 bg-primary-50/50 text-primary-500 hover:text-primary-700 hover:bg-primary-100 rounded-lg border border-primary-200/60 transition-all ${!canEdit('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                          title="Editar Categoria"
+                        >
+                          <Edit2 size={15} />
+                        </button>
+                        <button
+                          onClick={(evt) => handleDeleteFamily(f, evt)}
+                          className={`p-1.5 bg-slate-50 text-slate-400 hover:text-rose-600 hover:bg-rose-100 rounded-lg border border-slate-200/60 transition-all ${!canDelete('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                          title="Excluir Categoria"
+                        >
+                          <Trash2 size={15} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -573,6 +643,44 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                         </span>
                       </div>
                     </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={(evt) => {
+                          if (!canEdit('equipments')) { evt.preventDefault(); evt.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                          evt.stopPropagation(); toggleEquipmentStatus(item);
+                        }}
+                        className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${item.active ? 'text-amber-700 bg-amber-50 hover:bg-amber-100' : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'}`}
+                      >
+                        {item.active ? <PowerOff size={13} /> : <Power size={13} />}
+                        <span>{item.active ? 'Inativar' : 'Ativar'}</span>
+                      </button>
+                      <button
+                        onClick={(evt) => {
+                          if (!canEdit('equipments')) { evt.preventDefault(); evt.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                          evt.stopPropagation();
+                          setIsReadOnly(false);
+                          setEqFormData(item);
+                          setEditingId(item.id);
+                          const cName = customers.find(c => c.id === item.customerId)?.name || '';
+                          setClientSearch(cName);
+                          const fName = families.find(f => f.id === item.familyId)?.name || '';
+                          setFamilySearch(fName);
+                          setIsModalOpen(true);
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-all"
+                      >
+                        <Edit2 size={13} />
+                        <span>Editar</span>
+                      </button>
+                      <button
+                        onClick={(evt) => handleDeleteEquipment(item, evt)}
+                        className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-all ${!canDelete('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                      >
+                        <Trash2 size={13} />
+                        <span>Excluir</span>
+                      </button>
+                    </div>
                   </div>
                 );
               } else {
@@ -592,6 +700,40 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                             <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{item.description}</p>
                           </div>
                         </div>
+                     </div>
+                     <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100" onClick={e => e.stopPropagation()}>
+                       <button
+                         onClick={async (evt) => {
+                           if (!canEdit('equipments')) { evt.preventDefault(); evt.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                           evt.stopPropagation();
+                           const updatedFam = { ...item, active: !item.active };
+                           await EquipmentService.saveEquipmentFamily(updatedFam);
+                           setFamilies(families.map(f => f.id === item.id ? updatedFam : f));
+                         }}
+                         className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${item.active ? 'text-amber-700 bg-amber-50 hover:bg-amber-100' : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'}`}
+                       >
+                         {item.active ? <PowerOff size={13} /> : <Power size={13} />}
+                         <span>{item.active ? 'Inativar' : 'Ativar'}</span>
+                       </button>
+                       <button
+                         onClick={(evt) => {
+                           if (!canEdit('equipments')) { evt.preventDefault(); evt.stopPropagation(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                           evt.stopPropagation();
+                           setIsReadOnly(false);
+                           setFamilyFormData(item); setEditingId(item.id); setIsModalOpen(true);
+                         }}
+                         className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-all"
+                       >
+                         <Edit2 size={13} />
+                         <span>Editar</span>
+                       </button>
+                       <button
+                         onClick={(evt) => handleDeleteFamily(item, evt)}
+                         className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-all ${!canDelete('equipments') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                       >
+                         <Trash2 size={13} />
+                         <span>Excluir</span>
+                       </button>
                      </div>
                   </div>
                 );
@@ -625,23 +767,23 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
 
       {
         isModalOpen && safeCreatePortal(
-          <div className="fixed inset-0 z-[1000] flex items-end md:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 md:p-8 animate-in fade-in duration-300">
-            <div className="bg-white md:rounded-2xl w-full max-w-6xl h-full md:h-[92vh] shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-300">
+          <div className="fixed inset-0 z-[1000] flex items-end md:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 md:p-3 lg:p-5 animate-in fade-in duration-300">
+            <div className="bg-white md:rounded-2xl w-full max-w-[1420px] h-full md:h-[95vh] shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-300">
 
               {/* HEADER — padrão OS */}
-              <div className="px-8 py-5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center text-[#1c2d4f] border border-slate-200">
+              <div className="px-6 py-3.5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-slate-50 rounded-lg flex items-center justify-center text-[#1c2d4f] border border-slate-200">
                     {activeTab === 'list' ? <Box size={18} /> : <Layers size={18} />}
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+                    <h2 className="text-base font-semibold text-slate-900 tracking-tight">
                       {isReadOnly ? (activeTab === 'list' ? 'Detalhes do Ativo' : 'Detalhes da Categoria') : (activeTab === 'list' ? (editingId ? 'Editar Ativo' : 'Novo Ativo') : (editingId ? 'Editar Categoria' : 'Nova Categoria'))}
                     </h2>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <p className="text-[10px] font-bold text-slate-400">Nexus Inventário • controle técnico</p>
+                      <p className="text-[11px] font-normal text-slate-400">Nexus Inventário • controle técnico</p>
                       {editingId && eqFormData.assetCode && (
-                        <span className="font-mono text-[10px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2 py-0.5 rounded border border-[#1c2d4f]/15 tracking-widest">
+                        <span className="font-mono text-[10px] font-medium text-[#1c2d4f] bg-[#1c2d4f]/8 px-2 py-0.5 rounded border border-[#1c2d4f]/15 tracking-wider">
                           {formatAssetCode(eqFormData.assetCode)}
                         </span>
                       )}
@@ -656,21 +798,21 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
               {/* BODY WITH SIDEBAR */}
               <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
                 {activeTab === 'list' && (
-                  <div className="w-full md:w-64 bg-slate-50/50 border-b md:border-b-0 md:border-r border-slate-200 p-4 md:p-6 flex flex-row md:flex-col gap-2 shrink-0 overflow-x-auto">
+                  <div className="w-full md:w-52 bg-slate-50/60 border-b md:border-b-0 md:border-r border-slate-200 p-3 md:p-4 flex flex-row md:flex-col gap-1.5 shrink-0 overflow-x-auto">
                     <button type="button" onClick={() => setModalTab('dados')}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
-                        modalTab === 'dados' ? 'bg-white text-[#1c2d4f] shadow-sm border border-slate-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                      className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs transition-all ${
+                        modalTab === 'dados' ? 'bg-white text-[#1c2d4f] shadow-sm border border-slate-200 font-semibold' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium'
                       }`}>
-                      <Box size={16} /> Dados do Ativo
+                      <Box size={15} /> Dados do Ativo
                     </button>
                     {editingId && (
                       <button type="button" onClick={() => setModalTab('historico')}
-                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
-                          modalTab === 'historico' ? 'bg-white text-[#1c2d4f] shadow-sm border border-slate-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                        className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs transition-all ${
+                          modalTab === 'historico' ? 'bg-white text-[#1c2d4f] shadow-sm border border-slate-200 font-semibold' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium'
                         }`}>
-                        <Calendar size={16} /> Histórico de OS
+                        <Calendar size={15} /> Histórico de OS
                         {equipmentOrders.length > 0 && (
-                          <span className="ml-auto bg-[#1c2d4f] text-white text-[9px] px-1.5 py-0.5 rounded-full leading-none">{equipmentOrders.length}</span>
+                          <span className="ml-auto bg-[#1c2d4f] text-white text-[9px] px-1.5 py-0.5 rounded-full leading-none font-medium">{equipmentOrders.length}</span>
                         )}
                       </button>
                     )}
@@ -680,99 +822,118 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                 {/* CONTENT AREA */}
                 <form
                   onSubmit={activeTab === 'list' && modalTab === 'dados' ? handleSaveEquipment : handleSaveFamily}
-                  className="flex-1 overflow-y-auto custom-scrollbar bg-white"
+                  className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50/30"
                 >
-                  <div className="p-8 space-y-6">
+                  <div className="p-4 md:p-6 space-y-4">
 
                   {/* ── ABA: DADOS ── */}
                   {(activeTab === 'list' && (modalTab === 'dados' || !editingId)) && (
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-8 space-y-6">
-                      <h3 className="text-sm font-bold text-slate-900 border-l-4 border-[#1c2d4f] pl-3">identificação do ativo</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div className="md:col-span-2">
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4">
+                      <h3 className="text-xs font-semibold text-slate-800 border-l-3 border-[#1c2d4f] pl-2.5">Identificação do Ativo</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-3.5">
+                        <div className="md:col-span-2 lg:col-span-5">
                           <Input
                             label="Nome do Ativo e Local de Instalação"
                             required
                             disabled={isReadOnly}
                             placeholder="Ex: Gerador Principal - Bloco A, 2º Andar"
-                            icon={<Tag size={16} />}
-                            className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50"
+                            icon={<Tag size={15} />}
+                            className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50"
                             value={eqFormData.name || ''}
                             onChange={e => setEqFormData({ ...eqFormData, name: e.target.value })}
                           />
                         </div>
-                        <Input label="Modelo" disabled={isReadOnly} required icon={<Laptop size={16} />} className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={eqFormData.model || ''} onChange={e => setEqFormData({ ...eqFormData, model: e.target.value })} />
-                        
-                        <div className="w-full relative">
-                          <label className="text-[11px] font-bold text-slate-700 mb-1.5 flex items-center justify-between ml-1">
-                            <span>Número de Série (Serial) <span className="text-rose-500 font-bold">*</span></span>
-                            {!eqFormData.serialNumber?.trim() && (
-                              <span className="text-[9px] font-bold text-rose-500 uppercase bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">Obrigatório</span>
-                            )}
-                          </label>
-                          <div className="flex items-center gap-2">
-                            <div className="relative flex-1">
-                              <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                              <input
-                                type="text"
-                                required
-                                disabled={isReadOnly}
-                                placeholder="Ex: 849204"
-                                value={eqFormData.serialNumber || ''}
-                                onChange={e => setEqFormData({ ...eqFormData, serialNumber: e.target.value })}
-                                className={`w-full h-11 pl-10 pr-4 bg-white border rounded-xl text-xs font-bold font-mono text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all disabled:bg-slate-50 ${!eqFormData.serialNumber?.trim() ? 'border-amber-400' : 'border-slate-300'}`}
-                              />
-                            </div>
-                            {!isReadOnly && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const generated = generateRandomSerial();
-                                  setEqFormData({ ...eqFormData, serialNumber: generated });
-                                }}
-                                className="h-11 px-3.5 bg-primary-50/70 hover:bg-primary-100/80 border border-primary-200/80 text-primary-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-sm active:scale-95 shrink-0"
-                                title="Gerar número de série automático"
-                              >
-                                <Sparkles size={15} className="text-primary-600" />
-                                <span className="hidden sm:inline">Gerar Serial</span>
-                              </button>
-                            )}
-                          </div>
+                        <div className="lg:col-span-4">
+                          <Input label="Modelo" disabled={isReadOnly} required icon={<Laptop size={15} />} className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50" value={eqFormData.model || ''} onChange={e => setEqFormData({ ...eqFormData, model: e.target.value })} placeholder="Ex: Dell PowerEdge R740" />
                         </div>
                         
-                        <Input type="date" disabled={isReadOnly} label="Data de Fabricação" icon={<Calendar size={16} />} className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={eqFormData.manufactureDate || ''} onChange={e => setEqFormData({ ...eqFormData, manufactureDate: e.target.value })} />
-                        <Input type="number" disabled={isReadOnly} label="Garantia (Meses)" icon={<Calendar size={16} />} className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={eqFormData.warrantyMonths || ''} onChange={e => setEqFormData({ ...eqFormData, warrantyMonths: e.target.value ? parseInt(e.target.value) : undefined })} />
-
-                        {eqFormData.manufactureDate && eqFormData.warrantyMonths ? (
-                          <div className="md:col-span-2">
-                             <div className={`p-3 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold shadow-sm ${checkWarrantyStatus(eqFormData.manufactureDate, eqFormData.warrantyMonths) ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
-                               <Info size={16} />
-                               {checkWarrantyStatus(eqFormData.manufactureDate, eqFormData.warrantyMonths) ? 'Equipamento em Garantia' : 'Equipamento Fora de Garantia'}
-                             </div>
-                          </div>
-                        ) : null}
-
                         {/* Código do Ativo — somente leitura */}
-                        <div className="w-full">
-                          <label className="text-[11px] font-bold text-slate-700 mb-1.5 block ml-1">Código do Ativo</label>
-                          <div className="flex items-center gap-3 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5">
-                            <Hash size={15} className="text-slate-400 shrink-0" />
-                            <span className="font-mono text-sm font-bold text-[#1c2d4f] tracking-[0.2em] flex-1">
-                              {eqFormData.assetCode ?? '— gerado ao salvar —'}
+                        <div className="lg:col-span-3">
+                          <label className="text-[11px] font-medium text-slate-600 mb-1 block ml-0.5">Código do Ativo</label>
+                          <div className="flex items-center gap-2 bg-slate-50 border border-slate-300 rounded-xl px-3 h-10">
+                            <Hash size={14} className="text-slate-400 shrink-0" />
+                            <span className="font-mono text-xs font-medium text-[#1c2d4f] tracking-wider flex-1 truncate">
+                              {eqFormData.assetCode ? formatAssetCode(eqFormData.assetCode) : '— gerado ao salvar —'}
                             </span>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest shrink-0">somente leitura</span>
+                            <span className="text-[9px] font-medium text-slate-400 uppercase tracking-wider shrink-0">Automático</span>
                           </div>
                         </div>
 
-                        <div className="w-full relative">
-                          <label className="text-[11px] font-bold text-slate-700 mb-1.5 flex items-center justify-between ml-1">
-                            <span>Família Técnica <span className="text-rose-500 font-bold">*</span></span>
-                            {!eqFormData.familyId && (
-                              <span className="text-[9px] font-bold text-rose-500 uppercase bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">Obrigatório</span>
+                        {/* Cliente Proprietário */}
+                        <div className="w-full relative lg:col-span-4">
+                          <label className="text-[11px] font-medium text-slate-600 mb-1 flex items-center justify-between ml-0.5">
+                            <span>Cliente Proprietário <span className="text-rose-500 font-bold">*</span></span>
+                            {!eqFormData.customerId && (
+                              <span className="text-[9px] font-medium text-rose-500 uppercase bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">Obrigatório</span>
                             )}
                           </label>
                           <div className="relative">
-                            <Layers className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                            <input
+                              type="text"
+                              required={!eqFormData.customerId}
+                              disabled={isReadOnly}
+                              placeholder="Buscar por nome, CPF ou CNPJ..."
+                              value={clientSearch}
+                              onChange={(e) => {
+                                setClientSearch(e.target.value);
+                                setEqFormData({ ...eqFormData, customerId: undefined });
+                                setIsClientListOpen(true);
+                              }}
+                              onFocus={() => { if (!isReadOnly) setIsClientListOpen(true); }}
+                              onBlur={() => setTimeout(() => setIsClientListOpen(false), 200)}
+                              className={`w-full h-10 pl-9 pr-8 bg-white border rounded-xl text-xs font-normal text-slate-800 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs transition-all disabled:bg-slate-50 ${!eqFormData.customerId ? 'border-amber-400' : 'border-slate-300'}`}
+                            />
+                            {eqFormData.customerId && !isReadOnly && (
+                              <button 
+                                type="button" 
+                                onClick={() => { setClientSearch(''); setEqFormData({ ...eqFormData, customerId: undefined }); setIsClientListOpen(true); }}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 transition-colors"
+                              >
+                                <X size={14} />
+                              </button>
+                            )}
+                          </div>
+
+                          {isClientListOpen && clientSearch && (
+                            <div className="absolute z-[170] top-full mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2">
+                              {filteredClients.length > 0 ? filteredClients.map(c => (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setEqFormData({ ...eqFormData, customerId: c.id });
+                                    setClientSearch(c.name);
+                                    setIsClientListOpen(false);
+                                  }}
+                                  className="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex justify-between items-center border-b border-slate-100 last:border-0 transition-colors group"
+                                >
+                                  <div>
+                                    <p className="text-xs font-medium text-slate-800 group-hover:text-[#1c2d4f] transition-colors">{c.name}</p>
+                                    <p className="text-[10px] text-slate-400 font-normal truncate max-w-sm mt-0.5">
+                                      {((c as any).document || (c as any).cpf || (c as any).cnpj) && <span className="font-mono mr-2">{((c as any).document || (c as any).cpf || (c as any).cnpj)}</span>}
+                                      {c.address}
+                                    </p>
+                                  </div>
+                                  <ChevronRight size={14} className="text-slate-300 group-hover:text-[#1c2d4f] group-hover:translate-x-1 transition-all" />
+                                </button>
+                              )) : (
+                                <div className="p-3 text-center text-slate-400 text-xs font-normal">Nenhum cliente localizado</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Família Técnica */}
+                        <div className="w-full relative lg:col-span-4">
+                          <label className="text-[11px] font-medium text-slate-600 mb-1 flex items-center justify-between ml-0.5">
+                            <span>Família Técnica <span className="text-rose-500 font-bold">*</span></span>
+                            {!eqFormData.familyId && (
+                              <span className="text-[9px] font-medium text-rose-500 uppercase bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">Obrigatório</span>
+                            )}
+                          </label>
+                          <div className="relative">
+                            <Layers className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                             <input
                               type="text"
                               required={!eqFormData.familyId}
@@ -786,13 +947,13 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                               }}
                               onFocus={() => { if (!isReadOnly) setIsFamilyListOpen(true); }}
                               onBlur={() => setTimeout(() => setIsFamilyListOpen(false), 200)}
-                              className={`w-full h-11 pl-10 pr-4 bg-white border rounded-xl text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all disabled:bg-slate-50 ${!eqFormData.familyId ? 'border-amber-400' : 'border-slate-300'}`}
+                              className={`w-full h-10 pl-9 pr-8 bg-white border rounded-xl text-xs font-normal text-slate-800 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs transition-all disabled:bg-slate-50 ${!eqFormData.familyId ? 'border-amber-400' : 'border-slate-300'}`}
                             />
                             {eqFormData.familyId && !isReadOnly && (
                               <button 
                                 type="button" 
                                 onClick={() => { setFamilySearch(''); setEqFormData({ ...eqFormData, familyId: undefined }); setIsFamilyListOpen(true); }}
-                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 transition-colors"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 transition-colors"
                               >
                                 <X size={14} />
                               </button>
@@ -800,7 +961,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                           </div>
 
                           {isFamilyListOpen && (
-                            <div className="absolute z-[170] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2">
+                            <div className="absolute z-[170] top-full mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2">
                               {filteredFamilies.length > 0 ? filteredFamilies.map(f => (
                                 <button
                                   key={f.id}
@@ -810,95 +971,97 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                                     setFamilySearch(f.name);
                                     setIsFamilyListOpen(false);
                                   }}
-                                  className="w-full text-left px-5 py-3 hover:bg-slate-50 flex justify-between items-center border-b border-slate-100 last:border-0 transition-colors group"
+                                  className="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex justify-between items-center border-b border-slate-100 last:border-0 transition-colors group"
                                 >
                                   <div>
-                                    <p className="text-xs font-bold text-slate-800 group-hover:text-[#1c2d4f] transition-colors">{f.name}</p>
-                                    <p className="text-[10px] text-slate-400 font-medium truncate max-w-sm mt-0.5">{f.description}</p>
+                                    <p className="text-xs font-medium text-slate-800 group-hover:text-[#1c2d4f] transition-colors">{f.name}</p>
+                                    <p className="text-[10px] text-slate-400 font-normal truncate max-w-sm mt-0.5">{f.description}</p>
                                   </div>
-                                  <ChevronRight size={16} className="text-slate-300 group-hover:text-[#1c2d4f] group-hover:translate-x-1 transition-all" />
+                                  <ChevronRight size={14} className="text-slate-300 group-hover:text-[#1c2d4f] group-hover:translate-x-1 transition-all" />
                                 </button>
                               )) : (
-                                <div className="p-4 text-center text-slate-400 text-xs font-medium">Nenhuma família localizada</div>
+                                <div className="p-3 text-center text-slate-400 text-xs font-normal">Nenhuma família localizada</div>
                               )}
                             </div>
                           )}
                         </div>
-                        <div className="w-full relative">
-                          <label className="text-[11px] font-bold text-slate-700 mb-1.5 flex items-center justify-between ml-1">
-                            <span>Cliente Proprietário <span className="text-rose-500 font-bold">*</span></span>
-                            {!eqFormData.customerId && (
-                              <span className="text-[9px] font-bold text-rose-500 uppercase bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">Obrigatório</span>
+
+                        {/* Número de Série (Serial) */}
+                        <div className="w-full relative lg:col-span-4">
+                          <label className="text-[11px] font-medium text-slate-600 mb-1 flex items-center justify-between ml-0.5">
+                            <span>Número de Série (Serial) <span className="text-rose-500 font-bold">*</span></span>
+                            {!eqFormData.serialNumber?.trim() && (
+                              <span className="text-[9px] font-medium text-rose-500 uppercase bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">Obrigatório</span>
                             )}
                           </label>
-                          <div className="relative">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                            <input
-                              type="text"
-                              required={!eqFormData.customerId}
-                              disabled={isReadOnly}
-                              placeholder="Buscar cliente por nome, CPF ou CNPJ..."
-                              value={clientSearch}
-                              onChange={(e) => {
-                                setClientSearch(e.target.value);
-                                setEqFormData({ ...eqFormData, customerId: undefined });
-                                setIsClientListOpen(true);
-                              }}
-                              onFocus={() => { if (!isReadOnly) setIsClientListOpen(true); }}
-                              onBlur={() => setTimeout(() => setIsClientListOpen(false), 200)}
-                              className={`w-full h-11 pl-10 pr-4 bg-white border rounded-xl text-xs font-bold text-slate-900 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm transition-all disabled:bg-slate-50 ${!eqFormData.customerId ? 'border-amber-400' : 'border-slate-300'}`}
-                            />
-                            {eqFormData.customerId && !isReadOnly && (
-                              <button 
-                                type="button" 
-                                onClick={() => { setClientSearch(''); setEqFormData({ ...eqFormData, customerId: undefined }); setIsClientListOpen(true); }}
-                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 transition-colors"
+                          <div className="flex items-center gap-2">
+                            <div className="relative flex-1">
+                              <Hash className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                              <input
+                                type="text"
+                                required
+                                disabled={isReadOnly}
+                                placeholder="Ex: 849204"
+                                value={eqFormData.serialNumber || ''}
+                                onChange={e => setEqFormData({ ...eqFormData, serialNumber: e.target.value })}
+                                className={`w-full h-10 pl-9 pr-3 bg-white border rounded-xl text-xs font-normal font-mono text-slate-800 outline-none focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs transition-all disabled:bg-slate-50 ${!eqFormData.serialNumber?.trim() ? 'border-amber-400' : 'border-slate-300'}`}
+                              />
+                            </div>
+                            {!isReadOnly && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const generated = generateRandomSerial();
+                                  setEqFormData({ ...eqFormData, serialNumber: generated });
+                                }}
+                                className="h-10 px-3 bg-primary-50/70 hover:bg-primary-100/80 border border-primary-200/80 text-primary-700 text-xs font-medium rounded-xl flex items-center gap-1.5 transition-all shadow-xs active:scale-95 shrink-0"
+                                title="Gerar número de série automático"
                               >
-                                <X size={14} />
+                                <Sparkles size={14} className="text-primary-600" />
+                                <span className="hidden sm:inline">Gerar Serial</span>
                               </button>
                             )}
                           </div>
+                        </div>
+                        
+                        <div className="lg:col-span-3">
+                          <Input type="date" disabled={isReadOnly} label="Data de Fabricação" icon={<Calendar size={15} />} className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50" value={eqFormData.manufactureDate || ''} onChange={e => setEqFormData({ ...eqFormData, manufactureDate: e.target.value })} />
+                        </div>
+                        <div className="lg:col-span-3">
+                          <Input type="number" disabled={isReadOnly} label="Garantia (Meses)" icon={<Calendar size={15} />} className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50" value={eqFormData.warrantyMonths || ''} onChange={e => setEqFormData({ ...eqFormData, warrantyMonths: e.target.value ? parseInt(e.target.value) : undefined })} placeholder="Ex: 12" />
+                        </div>
 
-                          {isClientListOpen && clientSearch && (
-                            <div className="absolute z-[170] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2">
-                              {filteredClients.length > 0 ? filteredClients.map(c => (
-                                <button
-                                  key={c.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setEqFormData({ ...eqFormData, customerId: c.id });
-                                    setClientSearch(c.name);
-                                    setIsClientListOpen(false);
-                                  }}
-                                  className="w-full text-left px-5 py-3 hover:bg-slate-50 flex justify-between items-center border-b border-slate-100 last:border-0 transition-colors group"
-                                >
-                                  <div>
-                                    <p className="text-xs font-bold text-slate-800 group-hover:text-[#1c2d4f] transition-colors">{c.name}</p>
-                                    <p className="text-[10px] text-slate-400 font-medium truncate max-w-sm mt-0.5">
-                                      {((c as any).document || (c as any).cpf || (c as any).cnpj) && <span className="font-mono mr-2">{((c as any).document || (c as any).cpf || (c as any).cnpj)}</span>}
-                                      {c.address}
-                                    </p>
-                                  </div>
-                                  <ChevronRight size={16} className="text-slate-300 group-hover:text-[#1c2d4f] group-hover:translate-x-1 transition-all" />
-                                </button>
-                              )) : (
-                                <div className="p-4 text-center text-slate-400 text-xs font-medium">Nenhum cliente localizado</div>
-                              )}
+                        {/* Status da Garantia */}
+                        <div className="lg:col-span-6 flex flex-col justify-end">
+                          <label className="text-[11px] font-medium text-slate-600 mb-1 block ml-0.5">Status da Garantia</label>
+                          {eqFormData.manufactureDate && eqFormData.warrantyMonths ? (
+                            <div className={`h-10 px-4 rounded-xl border flex items-center gap-2 text-xs font-medium shadow-xs ${checkWarrantyStatus(eqFormData.manufactureDate, eqFormData.warrantyMonths) ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
+                              <Info size={15} />
+                              {checkWarrantyStatus(eqFormData.manufactureDate, eqFormData.warrantyMonths) ? 'Equipamento em Garantia' : 'Equipamento Fora de Garantia'}
+                            </div>
+                          ) : (
+                            <div className="h-10 px-4 rounded-xl border border-slate-200 bg-slate-50 flex items-center gap-2 text-xs text-slate-400 font-normal">
+                              <Info size={15} />
+                              Informe fabricação e meses de garantia para calcular
                             </div>
                           )}
                         </div>
+
+                        {/* Ficha Técnica */}
+                        <div className="col-span-full">
+                          <TextArea label="Ficha Técnica / Memorial Descritivo" disabled={isReadOnly} rows={2} className="rounded-xl p-2.5 border-slate-300 bg-white text-slate-800 font-normal focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50" value={eqFormData.description || ''} onChange={e => setEqFormData({ ...eqFormData, description: e.target.value })} placeholder="Detalhes técnicos, especificações e observações do ativo..." />
+                        </div>
                       </div>
-                      <TextArea label="Ficha Técnica / Memorial Descritivo" disabled={isReadOnly} rows={3} className="rounded-xl p-3 border border-slate-300 bg-white text-slate-900 font-bold focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={eqFormData.description || ''} onChange={e => setEqFormData({ ...eqFormData, description: e.target.value })} />
                     </div>
                   )}
 
                   {/* ── ABA: HISTÓRICO ── */}
                   {activeTab === 'list' && editingId && modalTab === 'historico' && (
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 overflow-hidden">
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
                       <div className="px-6 py-3.5 border-b border-slate-100 flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ordens de Serviço Vinculadas</span>
+                        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Ordens de Serviço Vinculadas</span>
                         {equipmentOrders.length > 0 && (
-                          <span className="text-[10px] font-bold text-slate-400">{equipmentOrders.length} registros</span>
+                          <span className="text-[10px] font-medium text-slate-400">{equipmentOrders.length} registros</span>
                         )}
                       </div>
 
@@ -917,10 +1080,10 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                         <table className="w-full text-left">
                           <thead>
                             <tr className="bg-slate-50 border-b border-slate-100">
-                              <th className="px-6 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Protocolo</th>
-                              <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Título</th>
-                              <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest text-center">{t.common.status}</th>
-                              <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Data</th>
+                              <th className="px-6 py-2.5 text-[9px] font-semibold text-slate-500 uppercase tracking-wider">Protocolo</th>
+                              <th className="px-4 py-2.5 text-[9px] font-semibold text-slate-500 uppercase tracking-wider">Título</th>
+                              <th className="px-4 py-2.5 text-[9px] font-semibold text-slate-500 uppercase tracking-wider text-center">{t.common.status}</th>
+                              <th className="px-4 py-2.5 text-[9px] font-semibold text-slate-500 uppercase tracking-wider">Data</th>
                               <th className="px-4 py-2.5"></th>
                             </tr>
                           </thead>
@@ -935,21 +1098,21 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                                   className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
                               >
                                 <td className="px-6 py-3">
-                                  <span className="font-mono text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">#{order.display_id}</span>
+                                  <span className="font-mono text-[11px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded">#{order.display_id}</span>
                                 </td>
                                 <td className="px-4 py-3 max-w-[220px]">
-                                  <p className="text-xs font-semibold text-slate-800 truncate">{order.title}</p>
+                                  <p className="text-xs font-medium text-slate-800 truncate">{order.title}</p>
                                 </td>
                                 <td className="px-4 py-3 text-center">
                                   <StatusBadge status={order.status} />
                                 </td>
                                 <td className="px-4 py-3">
-                                  <p className="text-[11px] text-slate-500">{new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
+                                  <p className="text-[11px] text-slate-500 font-normal">{new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                   <button
                                     type="button"
-                                    className="w-8 h-8 flex items-center justify-center bg-slate-50 text-slate-400 rounded-lg group-hover:bg-[#1c2d4f] group-hover:text-white transition-colors shadow-sm ml-auto"
+                                    className="w-8 h-8 flex items-center justify-center bg-slate-50 text-slate-400 rounded-lg group-hover:bg-[#1c2d4f] group-hover:text-white transition-colors shadow-xs ml-auto"
                                     title="Abrir Link Público da OS"
                                   >
                                     <ChevronLeft size={14} className="rotate-180" />
@@ -965,10 +1128,10 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
 
                   {/* ── FAMÍLIAS ── */}
                   {activeTab === 'families' && (
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-8 space-y-5">
-                      <h3 className="text-sm font-bold text-slate-900 border-l-4 border-[#1c2d4f] pl-3">categoria técnica</h3>
-                      <Input label="Nome da Categoria (Família)" disabled={isReadOnly} required placeholder="Ex: Equipamentos de Redes" icon={<Layers size={16} />} className="rounded-xl py-2.5 text-xs font-bold border border-slate-300 bg-white text-slate-900 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={familyFormData.name || ''} onChange={e => setFamilyFormData({ ...familyFormData, name: e.target.value })} />
-                      <TextArea label="Escopo Técnico da Família" disabled={isReadOnly} placeholder="Quais ativos pertencem a este grupo de processos?" rows={4} className="rounded-xl p-3 border border-slate-300 bg-white text-slate-900 font-bold focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-sm disabled:bg-slate-50" value={familyFormData.description || ''} onChange={e => setFamilyFormData({ ...familyFormData, description: e.target.value })} />
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4">
+                      <h3 className="text-xs font-semibold text-slate-800 border-l-3 border-[#1c2d4f] pl-2.5">Categoria Técnica</h3>
+                      <Input label="Nome da Categoria (Família)" disabled={isReadOnly} required placeholder="Ex: Equipamentos de Redes" icon={<Layers size={15} />} className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50" value={familyFormData.name || ''} onChange={e => setFamilyFormData({ ...familyFormData, name: e.target.value })} />
+                      <TextArea label="Escopo Técnico da Família" disabled={isReadOnly} placeholder="Quais ativos pertencem a este grupo de processos?" rows={3} className="rounded-xl p-3 border-slate-300 bg-white text-slate-800 font-normal focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50" value={familyFormData.description || ''} onChange={e => setFamilyFormData({ ...familyFormData, description: e.target.value })} />
                     </div>
                   )}
 
@@ -977,14 +1140,14 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
               </div>
 
               {/* FOOTER */}
-              <div className="px-8 py-5 border-t border-slate-200 bg-white flex justify-end gap-3 shrink-0">
-                <button type="button" onClick={closeModal} className="h-9 px-5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
+              <div className="px-6 py-3.5 border-t border-slate-200 bg-white flex justify-end gap-3 shrink-0">
+                <button type="button" onClick={closeModal} className="h-9 px-5 rounded-xl text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
                   {isReadOnly ? 'Fechar' : 'Cancelar'}
                 </button>
                 {(activeTab !== 'list' || modalTab === 'dados') && !isReadOnly && (
                   <Button
                     onClick={activeTab === 'list' ? handleSaveEquipment : handleSaveFamily}
-                    className="h-9 px-6 rounded-xl text-xs font-bold bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white"
+                    className="h-9 px-6 rounded-xl text-xs font-medium bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white"
                   >
                     <Save size={14} className="mr-2" />
                     {activeTab === 'list' ? 'Salvar Ativo' : 'Salvar Categoria'}

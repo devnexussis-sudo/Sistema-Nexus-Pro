@@ -317,5 +317,25 @@ export const EquipmentService = {
         }
 
         return family;
+    },
+
+    deleteEquipmentFamily: async (id: string): Promise<void> => {
+        const tid = getCurrentTenantId();
+        const localKey = `nexus_equipment_families_${tid || 'default'}`;
+
+        let localList = await EquipmentService.getEquipmentFamilies();
+        localList = localList.filter(f => f.id !== id);
+        localStorage.setItem(localKey, JSON.stringify(localList));
+
+        if (isCloudEnabled && tid) {
+            try {
+                await supabase.from('equipment_families')
+                    .delete()
+                    .eq('id', id)
+                    .eq('tenant_id', tid);
+            } catch (e) {
+                console.warn('[EquipmentService] Erro ao excluir família no Supabase (excluído localmente):', e);
+            }
+        }
     }
 };

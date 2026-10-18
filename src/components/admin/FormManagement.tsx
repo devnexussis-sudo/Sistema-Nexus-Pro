@@ -316,6 +316,24 @@ export const FormManagement: React.FC = () => {
     }
   };
 
+  const handleDeleteType = async (type: ServiceType, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!canDelete('forms')) {
+      showAlert('Acesso Negado: Você não tem permissão para excluir tipos de atendimento.');
+      return;
+    }
+    if (!confirm(`Deseja realmente excluir permanentemente o tipo de atendimento "${type.name}"? Esta ação não pode ser desfeita.`)) return;
+
+    try {
+      await DataService.deleteServiceType(type.id);
+      await refetchTypes();
+      showAlert('Tipo de atendimento excluído com sucesso!');
+    } catch (err: any) {
+      console.error("Erro ao excluir tipo de atendimento:", err);
+      showAlert(`Falha ao excluir tipo: ${err.message || 'Erro desconhecido'}`);
+    }
+  };
+
   // Handlers para Formulários (Cloud)
   const handleSaveForm = async () => {
     if (!editingForm?.title) return;
@@ -337,11 +355,11 @@ export const FormManagement: React.FC = () => {
       console.log('[FormManagement] Tentando deletar formulário:', id);
       await DataService.deleteFormTemplate(id);
       console.log('[FormManagement] ✅ Formulário deletado com sucesso');
-      await refetchForms();
-      alert('Formulário excluído com sucesso!');
+      await Promise.all([refetchForms(), refetchRules()]);
+      showAlert('Formulário excluído com sucesso!', 'success');
     } catch (e: any) {
       console.error('[FormManagement] ❌ Erro ao deletar formulário:', e);
-      alert(`Erro ao deletar: ${e.message || 'Erro desconhecido'}`);
+      showAlert(`Erro ao deletar: ${e.message || 'Erro desconhecido'}`, 'error');
     }
   };
 
@@ -701,8 +719,8 @@ export const FormManagement: React.FC = () => {
         )}
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
-        <div className="overflow-auto flex-1 p-6 custom-scrollbar">
+      <div className="relative bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col overflow-hidden flex-1 ring-1 ring-slate-200/80">
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
           {/* Se houver erro de rede/sessão e não houver dados em memória */}
           {isError && forms.length === 0 && serviceTypes.length === 0 && rules.length === 0 ? (
             <div className="py-20 flex flex-col items-center justify-center gap-4 text-center px-4">
@@ -734,51 +752,55 @@ export const FormManagement: React.FC = () => {
             <>
               {/* ABA 1: TIPOS DE SERVIÇO */}
               {activeTab === 'types' && (
-                <div className="flex-1 overflow-auto custom-scrollbar">
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
                   {/* Desktop Table View */}
-                  <div className="hidden md:block">
-                    <table className="w-full border-collapse">
-                      <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
-                        <tr className="text-[11px] font-bold text-slate-500">
-                          <th className="px-4 py-3 text-left">tipo de atendimento</th>
-                          <th className="px-4 py-3 text-center">status</th>
-                          <th className="px-4 py-3 text-right">ações</th>
+                  <div className="hidden md:block flex-1 overflow-auto custom-scrollbar os-table-container">
+                    <table className="w-full text-left border-collapse table-auto">
+                      <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-md border-b border-slate-200 z-10 shadow-xs font-poppins">
+                        <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">
+                          <th className="px-4 py-2">Tipo de Atendimento</th>
+                          <th className="px-4 py-2 text-left">Status</th>
+                          <th className="px-4 py-2 text-right pr-6">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 bg-white">
                         {paginatedTypes.map(type => (
-                          <tr key={type.id} onClick={(e) => handleViewType(type, e)} className="hover:bg-slate-50 transition-colors group cursor-pointer">
-                            <td className="px-4 py-3">
+                          <tr key={type.id} onClick={(e) => handleViewType(type, e)} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md cursor-pointer">
+                            <td className="px-4 py-2">
                               <div className="flex items-center gap-3">
-                                <Tag size={16} className={type.active === false ? "text-slate-300" : "text-primary-600"} />
-                                <span className={`text-[13px] font-medium ${type.active === false ? "text-slate-400 line-through" : "text-slate-700"}`}>{type.name}</span>
+                                <Tag size={16} className={type.active === false ? "text-slate-300" : "text-[#1c2d4f]"} />
+                                <span className={`text-[13px] font-medium ${type.active === false ? "text-slate-400 line-through" : "text-slate-900"}`}>{type.name}</span>
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-center">
-                              <span className={`inline-flex items-center text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${type.active === false ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                            <td className="px-4 py-2 text-left whitespace-nowrap">
+                              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-medium border ${type.active === false ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${type.active === false ? 'bg-rose-500' : 'bg-emerald-500'}`} />
                                 {type.active === false ? 'Inativo' : 'Ativo'}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="flex justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                            <td className="px-4 py-2 text-right pr-4">
+                              <div className="flex justify-end items-center gap-1">
                                 <button onClick={(e) => {
                                   if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
                                   e.stopPropagation();
                                   setIsReadOnly(false);
                                   setEditingType(type); setIsTypeModalOpen(true);
-                                }} className={`p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar"><Edit2 size={16} /></button>
+                                }} className={`p-1.5 bg-slate-50 text-slate-400 hover:text-primary-700 hover:bg-primary-100 rounded-lg border border-slate-200/60 transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar"><Edit2 size={15} /></button>
                                 <button onClick={(e) => {
                                   if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para inativar.'); return; }
                                   handleToggleTypeStatus(type, e);
-                                }} className={`p-2 rounded-lg transition-all ${type.active === false ? 'text-emerald-600 hover:bg-emerald-50' : 'text-amber-600 hover:bg-amber-50'} ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title={type.active === false ? 'Ativar Tipo' : 'Inativar Tipo'}>
-                                  {type.active === false ? <Power size={16} /> : <PowerOff size={16} />}
+                                }} className={`p-1.5 bg-slate-50 rounded-lg border border-slate-200/60 transition-all ${type.active === false ? 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-100' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-100'} ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title={type.active === false ? 'Ativar Tipo' : 'Inativar Tipo'}>
+                                  {type.active === false ? <Power size={15} /> : <PowerOff size={15} />}
+                                </button>
+                                <button onClick={(e) => handleDeleteType(type, e)} className={`p-1.5 bg-slate-50 text-slate-400 hover:text-rose-600 hover:bg-rose-100 rounded-lg border border-slate-200/60 transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Excluir Tipo">
+                                  <Trash2 size={15} />
                                 </button>
                               </div>
                             </td>
                           </tr>
                         ))}
                         {paginatedTypes.length === 0 && (
-                          <tr><td colSpan={3} className="py-10 text-center text-slate-400 text-xs font-bold">Nenhum tipo encontrado.</td></tr>
+                          <tr><td colSpan={3} className="py-12 text-center text-slate-400 text-xs font-bold">Nenhum tipo encontrado.</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -828,6 +850,13 @@ export const FormManagement: React.FC = () => {
                             {type.active === false ? <Power size={13} /> : <PowerOff size={13} />}
                             <span>{type.active === false ? 'Ativar' : 'Inativar'}</span>
                           </button>
+                          <button
+                            onClick={(e) => handleDeleteType(type, e)}
+                            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                          >
+                            <Trash2 size={13} />
+                            <span>Excluir</span>
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -840,51 +869,52 @@ export const FormManagement: React.FC = () => {
 
               {/* ABA 2: MODELOS DE CHECKLIST */}
               {activeTab === 'templates' && (
-                <div className="flex-1 overflow-auto custom-scrollbar">
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
                   {/* Desktop Table View */}
-                  <div className="hidden md:block">
-                    <table className="w-full border-collapse">
-                      <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
-                        <tr className="text-[11px] font-bold text-slate-500 text-center">
-                          <th className="px-4 py-3">nome do modelo</th>
-                          <th className="px-4 py-3">tipo</th>
-                          <th className="px-4 py-3">qtd. questões</th>
-                          <th className="px-4 py-3 text-right">ações</th>
+                  <div className="hidden md:block flex-1 overflow-auto custom-scrollbar os-table-container">
+                    <table className="w-full text-left border-collapse table-auto">
+                      <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-md border-b border-slate-200 z-10 shadow-xs font-poppins">
+                        <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">
+                          <th className="px-4 py-2">Nome do Modelo</th>
+                          <th className="px-4 py-2 text-left">Tipo</th>
+                          <th className="px-4 py-2 text-left">Qtd. Questões</th>
+                          <th className="px-4 py-2 text-right pr-6">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 bg-white">
                         {paginatedForms.map(form => (
-                          <tr key={form.id} onClick={(e) => handleViewForm(form, e)} className="hover:bg-slate-50 transition-colors group cursor-pointer">
-                            <td className="px-4 py-3">
+                          <tr key={form.id} onClick={(e) => handleViewForm(form, e)} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md cursor-pointer">
+                            <td className="px-4 py-2">
                               <div className="flex items-center gap-3">
-                                <FileText size={16} className="text-primary-600" />
-                                <span className="text-slate-700 text-[13px] font-medium">{form.title}</span>
+                                <FileText size={16} className="text-[#1c2d4f]" />
+                                <span className="text-slate-900 text-[13px] font-medium">{form.title}</span>
                               </div>
                             </td>
-                            <td className="px-4 py-3">
-                              <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wide ${form.category === 'FINANCIAL' ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-indigo-50 text-indigo-600 border border-indigo-200'}`}>
+                            <td className="px-4 py-2 text-left whitespace-nowrap">
+                              <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-medium border ${form.category === 'FINANCIAL' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200'}`}>
                                 {form.category === 'FINANCIAL' ? 'Financeiro' : 'Técnico'}
                               </span>
                             </td>
-                            <td className="px-4 py-3">
-                              <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md">{form.fields.length} Questões</span>
+                            <td className="px-4 py-2 text-left whitespace-nowrap">
+                              <span className="font-mono text-[11px] font-medium text-[#1c2d4f] bg-[#1c2d4f]/8 px-2.5 py-1 rounded-lg border border-[#1c2d4f]/15">{form.fields.length} Questões</span>
                             </td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="flex justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                            <td className="px-4 py-2 text-right pr-4">
+                              <div className="flex justify-end items-center gap-1">
                                 <button onClick={(e) => {
                                   if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
+                                  e.stopPropagation();
                                   setEditingForm(form); setIsModalOpen(true);
-                                }} className={`p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar"><Edit2 size={16} /></button>
+                                }} className={`p-1.5 bg-slate-50 text-slate-400 hover:text-primary-700 hover:bg-primary-100 rounded-lg border border-slate-200/60 transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar"><Edit2 size={15} /></button>
                                 <button onClick={(e) => {
                                   if (!canDelete('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
                                   handleDeleteForm(form.id, e);
-                                }} className={`p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Excluir"><Trash2 size={16} /></button>
+                                }} className={`p-1.5 bg-slate-50 text-slate-400 hover:text-rose-600 hover:bg-rose-100 rounded-lg border border-slate-200/60 transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Excluir"><Trash2 size={15} /></button>
                               </div>
                             </td>
                           </tr>
                         ))}
                         {paginatedForms.length === 0 && (
-                          <tr><td colSpan={3} className="py-10 text-center text-slate-400 text-xs font-bold">Nenhum modelo encontrado.</td></tr>
+                          <tr><td colSpan={4} className="py-12 text-center text-slate-400 text-xs font-bold">Nenhum modelo encontrado.</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -947,66 +977,62 @@ export const FormManagement: React.FC = () => {
 
               {/* ABA 3: REGRAS DE VINCULAÇÃO */}
               {activeTab === 'rules' && (
-                <div className="flex-1 overflow-auto custom-scrollbar flex flex-col">
-                  <div className="flex justify-between items-center mb-4 px-1">
-                    <h2 className="text-[10px] font-bold text-slate-400 tracking-[0.3em] lowercase">matriz de ativação automática</h2>
-                  </div>
-
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
                   {/* Desktop Table View */}
-                  <div className="hidden md:block">
-                    <table className="w-full border-collapse">
-                      <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
-                        <tr className="text-[11px] font-bold text-slate-500 text-center">
-                          <th className="px-4 py-3">tipo de atendimento</th>
-                          <th className="px-4 py-3">família equipamento</th>
-                          <th className="px-4 py-3"><Workflow size={14} className="inline mr-1" /> técnico</th>
-                          <th className="px-4 py-3"><Workflow size={14} className="inline mr-1" /> financeiro</th>
-                          <th className="px-4 py-3 text-right">ação</th>
+                  <div className="hidden md:block flex-1 overflow-auto custom-scrollbar os-table-container">
+                    <table className="w-full text-left border-collapse table-auto">
+                      <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-md border-b border-slate-200 z-10 shadow-xs font-poppins">
+                        <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">
+                          <th className="px-4 py-2">Tipo de Atendimento</th>
+                          <th className="px-4 py-2 text-left">Família Equipamento</th>
+                          <th className="px-4 py-2 text-left"><Workflow size={13} className="inline mr-1" /> Técnico</th>
+                          <th className="px-4 py-2 text-left"><Workflow size={13} className="inline mr-1" /> Financeiro</th>
+                          <th className="px-4 py-2 text-right pr-6">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 bg-white">
                         {paginatedRules.map(rule => (
-                          <tr key={rule.id} onClick={(e) => handleViewRule(rule, e)} className="hover:bg-slate-50 transition-colors group cursor-pointer">
-                            <td className="px-4 py-3 text-[11px] font-bold text-slate-700">
+                          <tr key={rule.id} onClick={(e) => handleViewRule(rule, e)} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md cursor-pointer">
+                            <td className="px-4 py-2">
                                <div className="flex items-center gap-2">
                                  <Tag size={14} className="text-slate-400" />
-                                 <span className="text-slate-700 text-[12px] font-medium">{serviceTypes.find(t => t.id === rule.serviceTypeId || t.id === (rule as any).service_type_id)?.name || 'Desconhecido'}</span>
+                                 <span className="text-slate-900 text-[13px] font-medium">{serviceTypes.find(t => t.id === rule.serviceTypeId || t.id === (rule as any).service_type_id)?.name || 'Desconhecido'}</span>
                                </div>
                             </td>
-                            <td className="px-4 py-3 text-[11px] font-bold text-slate-700">
+                            <td className="px-4 py-2">
                                <div className="flex items-center gap-2">
                                  <Cpu size={14} className="text-slate-400" />
                                  <span className="text-slate-700 text-[12px] font-medium">{rule.equipmentFamily}</span>
                                </div>
                             </td>
-                            <td className="px-4 py-3 text-[11px] font-bold text-primary-700">
-                               <span className="bg-primary-50 py-1 px-3 border border-primary-100 rounded-md text-[12px] font-medium block text-center truncate max-w-[150px]" title={forms.find(f => f.id === rule.formId || f.id === (rule as any).form_id)?.title || 'Não vinculado'}>
+                            <td className="px-4 py-2 text-left">
+                               <span className="bg-primary-50 py-1 px-3 border border-primary-100 rounded-md text-[12px] font-medium inline-block text-left truncate max-w-[150px]" title={forms.find(f => f.id === rule.formId || f.id === (rule as any).form_id)?.title || 'Não vinculado'}>
                                  {forms.find(f => f.id === rule.formId || f.id === (rule as any).form_id)?.title || 'Não vinculado'}
                                </span>
                             </td>
-                            <td className="px-4 py-3 text-[11px] font-bold text-amber-700">
-                               <span className="bg-amber-50 py-1 px-3 border border-amber-100 rounded-md text-[12px] font-medium block text-center truncate max-w-[150px]" title={forms.find(f => f.id === (rule as any).financialFormId)?.title || 'Não vinculado'}>
+                            <td className="px-4 py-2 text-left">
+                               <span className="bg-amber-50 py-1 px-3 border border-amber-100 rounded-md text-[12px] font-medium inline-block text-left truncate max-w-[150px]" title={forms.find(f => f.id === (rule as any).financialFormId)?.title || 'Não vinculado'}>
                                  {forms.find(f => f.id === (rule as any).financialFormId)?.title || 'Não vinculado'}
                                </span>
                             </td>
-                            <td className="px-4 py-3 text-right">
-                               <div className="flex justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                            <td className="px-4 py-2 text-right pr-4">
+                               <div className="flex justify-end items-center gap-1">
                                  <button onClick={(e) => {
                                    if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
                                    e.stopPropagation();
                                    setIsReadOnly(false);
                                    setEditingRule({ id: rule.id, serviceTypeId: rule.serviceTypeId, equipmentFamily: rule.equipmentFamily, formId: rule.formId, financialFormId: (rule as any).financialFormId }); setIsRuleModalOpen(true);
-                                 }} className={`p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar Regra"><Edit2 size={16} /></button>
+                                 }} className={`p-1.5 bg-slate-50 text-slate-400 hover:text-primary-700 hover:bg-primary-100 rounded-lg border border-slate-200/60 transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Editar Regra"><Edit2 size={15} /></button>
                                  <button onClick={(e) => {
                                    if (!canDelete('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
                                    handleDeleteRule(rule.id, e);
-                                 }} className={`p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Excluir"><Trash2 size={16} /></button>
+                                 }} className={`p-1.5 bg-slate-50 text-slate-400 hover:text-rose-600 hover:bg-rose-100 rounded-lg border border-slate-200/60 transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} title="Excluir"><Trash2 size={15} /></button>
                                </div>
                             </td>
                           </tr>
                         ))}
                         {paginatedRules.length === 0 && (
-                          <tr><td colSpan={4} className="py-10 text-center text-slate-400 text-xs font-bold">Nenhuma regra encontrada.</td></tr>
+                          <tr><td colSpan={5} className="py-12 text-center text-slate-400 text-xs font-bold">Nenhuma regra encontrada.</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -1081,17 +1107,17 @@ export const FormManagement: React.FC = () => {
 
               {/* ABA 4: TIPOS DE DEFEITOS */}
               {activeTab === 'defects' && (
-                <div className="flex-1 overflow-auto custom-scrollbar flex flex-col">
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
                   {/* Desktop Table View */}
-                  <div className="hidden md:block">
-                    <table className="w-full border-collapse">
-                      <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
-                        <tr className="text-[11px] font-bold text-slate-500">
-                          <th className="px-4 py-3 text-left w-28">código</th>
-                          <th className="px-4 py-3 text-left">tipo de defeito</th>
-                          <th className="px-4 py-3 text-left">descrição</th>
-                          <th className="px-4 py-3 text-center w-28">status</th>
-                          <th className="px-4 py-3 text-right w-28">ações</th>
+                  <div className="hidden md:block flex-1 overflow-auto custom-scrollbar os-table-container">
+                    <table className="w-full text-left border-collapse table-auto">
+                      <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-md border-b border-slate-200 z-10 shadow-xs font-poppins">
+                        <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">
+                          <th className="px-4 py-2 text-left w-28">Código</th>
+                          <th className="px-4 py-2 text-left">Tipo de Defeito</th>
+                          <th className="px-4 py-2 text-left">Descrição</th>
+                          <th className="px-4 py-2 text-left w-28">Status</th>
+                          <th className="px-4 py-2 text-right pr-6 w-28">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 bg-white">
@@ -1099,34 +1125,35 @@ export const FormManagement: React.FC = () => {
                           <tr 
                             key={defect.id || defect.code} 
                             onClick={(e) => handleViewDefect(defect, e)} 
-                            className="hover:bg-slate-50 transition-colors group cursor-pointer"
+                            className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md cursor-pointer"
                           >
-                            <td className="px-4 py-3">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200 font-mono text-xs font-bold text-slate-800 tracking-wider">
-                                <Hash size={12} className="text-slate-400" />
+                            <td className="px-4 py-2">
+                              <span className="font-mono text-[11px] font-medium text-[#1c2d4f] bg-[#1c2d4f]/8 px-2.5 py-1 rounded-lg border border-[#1c2d4f]/15 inline-flex items-center gap-1">
+                                <Hash size={11} className="text-[#1c2d4f]/60" />
                                 {defect.code}
                               </span>
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-4 py-2">
                               <div className="flex items-center gap-2.5">
                                 <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
                                   <AlertTriangle size={14} />
                                 </div>
-                                <span className={`text-[13px] font-semibold ${defect.active === false ? "text-slate-400 line-through" : "text-slate-800"}`}>
+                                <span className={`text-[13px] font-medium ${defect.active === false ? "text-slate-400 line-through" : "text-slate-900"}`}>
                                   {defect.name}
                                 </span>
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-xs text-slate-500 max-w-xs truncate">
+                            <td className="px-4 py-2 text-[12px] text-slate-600 max-w-xs truncate">
                               {defect.description || <span className="text-slate-300 italic text-[11px]">Sem descrição</span>}
                             </td>
-                            <td className="px-4 py-3 text-center">
-                              <span className={`inline-flex items-center text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${defect.active === false ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                            <td className="px-4 py-2 text-left">
+                              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-medium border ${defect.active === false ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${defect.active === false ? 'bg-rose-500' : 'bg-emerald-500'}`} />
                                 {defect.active === false ? 'Inativo' : 'Ativo'}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="flex justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
+                            <td className="px-4 py-2 text-right pr-4">
+                              <div className="flex justify-end items-center gap-1">
                                 <button 
                                   onClick={(e) => {
                                     if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
@@ -1135,20 +1162,20 @@ export const FormManagement: React.FC = () => {
                                     setEditingDefect({ ...defect });
                                     setIsDefectModalOpen(true);
                                   }} 
-                                  className={`p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
+                                  className={`p-1.5 bg-slate-50 text-slate-400 hover:text-primary-700 hover:bg-primary-100 rounded-lg border border-slate-200/60 transition-all ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
                                   title="Editar"
                                 >
-                                  <Edit2 size={16} />
+                                  <Edit2 size={15} />
                                 </button>
                                 <button 
                                   onClick={(e) => {
                                     if (!canEdit('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para inativar.'); return; }
                                     handleToggleDefectStatus(defect, e);
                                   }} 
-                                  className={`p-2 rounded-lg transition-all ${defect.active === false ? 'text-emerald-600 hover:bg-emerald-50' : 'text-amber-600 hover:bg-amber-50'} ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
+                                  className={`p-1.5 bg-slate-50 rounded-lg border border-slate-200/60 transition-all ${defect.active === false ? 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-100' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-100'} ${!canEdit('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
                                   title={defect.active === false ? 'Ativar Defeito' : 'Inativar Defeito'}
                                 >
-                                  {defect.active === false ? <Power size={16} /> : <PowerOff size={16} />}
+                                  {defect.active === false ? <Power size={15} /> : <PowerOff size={15} />}
                                 </button>
                                 {defect.id && (
                                   <button 
@@ -1156,10 +1183,10 @@ export const FormManagement: React.FC = () => {
                                       if (!canDelete('forms')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para excluir.'); return; }
                                       handleDeleteDefect(defect.id!, e);
                                     }} 
-                                    className={`p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
+                                    className={`p-1.5 bg-slate-50 text-slate-400 hover:text-rose-600 hover:bg-rose-100 rounded-lg border border-slate-200/60 transition-all ${!canDelete('forms') ? 'opacity-50 !cursor-not-allowed' : ''}`} 
                                     title="Excluir"
                                   >
-                                    <Trash2 size={16} />
+                                    <Trash2 size={15} />
                                   </button>
                                 )}
                               </div>

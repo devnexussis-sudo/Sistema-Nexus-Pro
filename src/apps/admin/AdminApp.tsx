@@ -18,6 +18,7 @@ import { RegionManagement } from '../../components/admin/RegionManagement';
 import { OrderCalendar } from '../../components/admin/OrderCalendar';
 import { PlannedMaintenance } from '../../components/admin/PlannedMaintenance';
 import { QuoteManagement } from '../../components/admin/QuoteManagement';
+import { SalesOrderManagement } from '../../components/admin/SalesOrderManagement';
 import { AIAgent } from '../../components/admin/AIAgent';
 import { DocsPage } from '../../components/admin/DocsPage';
 import { IntegrationsPage } from '../../components/admin/IntegrationsPage';
@@ -154,6 +155,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     const isStock = location.pathname.includes('/stock');
     const isForms = location.pathname.includes('/forms');
     const isUsers = location.pathname.includes('/users');
+    const isSalesOrders = location.pathname.includes('/sales-orders');
 
     // 📡 Realtime Sincronização (Big Tech Standard)
     React.useEffect(() => {
@@ -369,9 +371,9 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     const needsContracts = isContracts || dashFallback;
     const needsQuotes = isFinancial; // Orçamentos (/quotes) usa usePagedQuotes internamente
     const needsTechs = isTechs || isOrdersView || isMap || isCalendar || isFinancial || isContracts || dashFallback;
-    const needsCustomers = isCustomers || isOrdersView || isQuotes || isContracts || isEquipments || isCalendar || dashFallback;
+    const needsCustomers = isCustomers || isOrdersView || isQuotes || isSalesOrders || isContracts || isEquipments || isCalendar || dashFallback;
     const needsEquipments = isEquipments || isContracts || isCustomers;
-    const needsStock = isStock || isQuotes;
+    const needsStock = isStock || isQuotes || isSalesOrders;
     const needsUsers = isUsers;
     const needsForms = isForms;
 
@@ -464,6 +466,18 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                     <PermissionGuard requiredMenu="quotes">
                         <RouteGuard isLoading={false}>
                             <QuoteManagement quotes={quotes} customers={customers} orders={fullOrders} stockItems={stockItems} tenant={tenantData} onUpdateQuotes={fetchGlobalData} onEditQuote={async (q) => { await DataService.updateQuote(q); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onCreateQuote={async (q) => { await DataService.createQuote(q); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onDeleteQuote={async (id) => { await DataService.deleteQuote(id); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onCreateOrder={async (o) => { await DataService.createOrder(o as any); await NexusQueryClient.invalidateOrders(); await oRefetch(); }} />
+                        </RouteGuard>
+                    </PermissionGuard>
+                } />
+                <Route path="/sales-orders" element={
+                    <PermissionGuard requiredMenu="sales_orders">
+                        <RouteGuard isLoading={false}>
+                            <SalesOrderManagement
+                                customers={customers}
+                                stockItems={stockItems}
+                                tenant={tenantData}
+                                onRefresh={fetchGlobalData}
+                            />
                         </RouteGuard>
                     </PermissionGuard>
                 } />

@@ -7,6 +7,7 @@ import { StockService } from '../services/stockService';
 import { FinancialService } from '../services/financialService';
 import { ContractService } from '../services/contractService';
 import { QuoteService } from '../services/quoteService';
+import { SalesOrderService } from '../services/salesOrderService';
 import { EquipmentService } from '../services/equipmentService';
 import { FormService } from '../services/formService';
 import { TenantService } from '../services/tenantService';
@@ -14,8 +15,8 @@ import { DataService } from '../services/dataService';
 import { CacheManager } from '../lib/cache';
 import { OrderStatus } from '../types';
 import {
-    getOrdersPage, getQuotesPage, getContractsPage,
-    type OrderFilters, type QuoteFilters, type ContractFilters
+    getOrdersPage, getQuotesPage, getContractsPage, getSalesOrdersPage,
+    type OrderFilters, type QuoteFilters, type ContractFilters, type SalesOrderFilters
 } from '../services/paginationService';
 
 // ------------------------------------------------------------------
@@ -93,6 +94,20 @@ export const usePagedContracts = (page: number, filters: ContractFilters = {}, e
     return useQuery(
         key,
         (signal) => getContractsPage(page, filters, signal),
+        { enabled: enabled && !!DataService.getCurrentTenantId(), staleTime: 1000 * 60 * 2, keepPreviousData: true }
+    );
+};
+
+/**
+ * Hook de Pedidos de Venda paginados — busca 20 itens por página direto do Supabase.
+ */
+export const usePagedSalesOrders = (page: number, filters: SalesOrderFilters = {}, enabled = true) => {
+    const tid = DataService.getCurrentTenantId() || 'default';
+    const filtersKey = JSON.stringify(filters);
+    const key = ['sales_orders_paged', tid, page.toString(), filtersKey];
+    return useQuery(
+        key,
+        (signal) => getSalesOrdersPage(page, filters, signal),
         { enabled: enabled && !!DataService.getCurrentTenantId(), staleTime: 1000 * 60 * 2, keepPreviousData: true }
     );
 };
@@ -237,6 +252,15 @@ export const useQuotes = (enabled = true) => {
     return useQuery('quotes', (signal) => QuoteService.getQuotes(signal), {
         enabled,
         staleTime: 1000 * 60 * 5, // 5 minutos
+        keepPreviousData: true
+    });
+};
+
+export const useSalesOrders = (enabled = true) => {
+    const tid = DataService.getCurrentTenantId() || 'default';
+    return useQuery(['sales_orders', tid], (signal) => SalesOrderService.getSalesOrders(signal), {
+        enabled: enabled && !!DataService.getCurrentTenantId(),
+        staleTime: 1000 * 60 * 5,
         keepPreviousData: true
     });
 };
@@ -470,6 +494,11 @@ export const NexusQueryClient = {
         queryClient.invalidateQueries('quotes_paged');
         CacheManager.invalidate('quotes');
     },
+    invalidateSalesOrders: () => {
+        queryClient.invalidateQueries('sales_orders');
+        queryClient.invalidateQueries('sales_orders_paged');
+        CacheManager.invalidate('sales_orders');
+    },
     invalidateEquipments: () => {
         queryClient.invalidateQueries('equipments');
         CacheManager.invalidate('equipments');
@@ -480,6 +509,34 @@ export const NexusQueryClient = {
     },
     invalidateTenant: () => {
         queryClient.invalidateQueries('current_tenant');
+    },
+    invalidate: (queryKeyOrPattern?: any) => {
+        if (!queryKeyOrPattern) {
+            NexusQueryClient.invalidateAll();
+            return;
+        }
+        if (Array.isArray(queryKeyOrPattern)) {
+            const key = String(queryKeyOrPattern[0] || '');
+            if (key === 'sales_orders') {
+                NexusQueryClient.invalidateSalesOrders();
+            } else if (key === 'orders') {
+                NexusQueryClient.invalidateOrders();
+            } else if (key === 'quotes') {
+                NexusQueryClient.invalidateQuotes();
+            } else if (key.includes('financial') || key.includes('cash_flow')) {
+                NexusQueryClient.invalidateFinancials();
+            } else if (key === 'stock') {
+                NexusQueryClient.invalidateStock();
+            } else if (key === 'customers') {
+                NexusQueryClient.invalidateCustomers();
+            } else {
+                queryClient.invalidateQueries(key);
+                CacheManager.invalidate(key);
+            }
+        } else if (typeof queryKeyOrPattern === 'string') {
+            queryClient.invalidateQueries(queryKeyOrPattern);
+            CacheManager.invalidate(queryKeyOrPattern);
+        }
     },
     invalidateAll: () => {
         queryClient.clear();

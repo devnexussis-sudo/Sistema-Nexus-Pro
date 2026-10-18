@@ -9,8 +9,8 @@ import {
 } from 'lucide-react';
 
 const HalfMoonGauge = ({ percentage, target, colorClass, gradientId, label, subLabel }: any) => {
-  const radius = 60;
-  const strokeWidth = 12;
+  const radius = 50;
+  const strokeWidth = 10;
   const cx = radius + strokeWidth;
   const cy = radius + strokeWidth;
   const r = radius;
@@ -21,12 +21,12 @@ const HalfMoonGauge = ({ percentage, target, colorClass, gradientId, label, subL
   const targetRad = Math.PI - (target / 100) * Math.PI;
   const targetX1 = cx + r * Math.cos(targetRad);
   const targetY1 = cy - r * Math.sin(targetRad);
-  const targetX2 = cx + (r + 8) * Math.cos(targetRad);
-  const targetY2 = cy - (r + 8) * Math.sin(targetRad);
+  const targetX2 = cx + (r + 7) * Math.cos(targetRad);
+  const targetY2 = cy - (r + 7) * Math.sin(targetRad);
 
   return (
-    <div className="relative flex flex-col items-center justify-center mb-1">
-      <svg width={(radius + strokeWidth) * 2} height={radius + strokeWidth + 5} viewBox={`0 0 ${(radius + strokeWidth) * 2} ${radius + strokeWidth + 5}`} className="drop-shadow-lg overflow-visible">
+    <div className="relative flex flex-col items-center justify-center mb-0.5">
+      <svg width={(radius + strokeWidth) * 2} height={radius + strokeWidth + 4} viewBox={`0 0 ${(radius + strokeWidth) * 2} ${radius + strokeWidth + 4}`} className="drop-shadow-lg overflow-visible">
         <defs>
           <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="currentColor" className="opacity-40" />
@@ -64,17 +64,17 @@ const HalfMoonGauge = ({ percentage, target, colorClass, gradientId, label, subL
         />
         {/* Target Text */}
         <text
-          x={cx + (r + 16) * Math.cos(targetRad)}
-          y={cy - (r + 16) * Math.sin(targetRad)}
-          fill="#fff" fontSize="8" fontWeight="bold" textAnchor="middle" alignmentBaseline="middle"
+          x={cx + (r + 14) * Math.cos(targetRad)}
+          y={cy - (r + 14) * Math.sin(targetRad)}
+          fill="#fff" fontSize="7.5" fontWeight="bold" textAnchor="middle" alignmentBaseline="middle"
           className="drop-shadow-md opacity-80"
         >
           {target}%
         </text>
       </svg>
       <div className="absolute bottom-[0px] flex flex-col items-center">
-        <span className="text-[32px] font-black tracking-tighter drop-shadow-md leading-none text-white">{percentage}%</span>
-        <span className="text-[9px] font-bold text-white/80 uppercase tracking-widest mt-1">{label}</span>
+        <span className="text-[26px] font-black tracking-tighter drop-shadow-md leading-none text-white">{percentage}%</span>
+        <span className="text-[8.5px] font-bold text-white/80 uppercase tracking-widest mt-0.5">{label}</span>
       </div>
     </div>
   );
@@ -142,7 +142,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [techFilter, setTechFilter] = useState<string>('ALL');
   const [customerFilter, setCustomerFilter] = useState<string>('ALL');
-  const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created' | 'completed'>('scheduled');
+  const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created' | 'completed'>('completed');
   const [showFilters, setShowFilters] = useState(false);
   const { data: tenantData } = useTenant();
   const slaTarget = tenantData?.metadata?.slaTargetPercentage ?? 85;
@@ -454,7 +454,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
 
               <button
                 onClick={() => {
-                  setSearchTerm(''); setStatusFilter('ALL'); setTechFilter('ALL'); setCustomerFilter('ALL'); setDateTypeFilter('scheduled');
+                  setSearchTerm(''); setStatusFilter('ALL'); setTechFilter('ALL'); setCustomerFilter('ALL'); setDateTypeFilter('completed');
                   const end = new Date();
                   const start = new Date();
                   start.setDate(start.getDate() - 30);
@@ -478,11 +478,11 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
                 <select
                   value={dateTypeFilter}
                   onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed')}
-                  className="bg-slate-50 text-[10px] font-bold text-[#1c2d4f] px-2 py-1 rounded border border-[#1c2d4f]/10 outline-none cursor-pointer w-full sm:w-24 shrink-0"
+                  className="bg-slate-50 text-[10px] font-bold text-[#1c2d4f] px-2 py-1 rounded border border-[#1c2d4f]/10 outline-none cursor-pointer w-full sm:w-auto shrink-0"
                 >
-                  <option value="scheduled">Agenda</option>
+                  <option value="completed">OS Concluídas (Conclusão)</option>
                   <option value="created">Abertura</option>
-                  <option value="completed">Conclusão</option>
+                  <option value="scheduled">Agenda</option>
                 </select>
                 <div className="hidden sm:block w-px h-4 bg-[#1c2d4f]/10 mx-1" />
                 <div className="flex items-center gap-1 px-1 flex-1 min-w-0 justify-between">
@@ -521,10 +521,10 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
       {/* KPI GRID - DESEMPENHO SLA */}
       <div className="mb-4">
          <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">Desempenho de SLA</h3>
-         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5">
+         <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 lg:gap-4">
 
         {/* KPI: SLA 24H (Vibrant Gradient) */}
-        <div className="bg-gradient-to-br from-indigo-600 via-[#2e3e6b] to-[#1c2d4f] rounded-3xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-indigo-400/20 flex flex-col justify-between text-white relative overflow-hidden group">
+        <div className="bg-gradient-to-br from-indigo-600 via-[#2e3e6b] to-[#1c2d4f] rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-indigo-400/20 flex flex-col justify-between text-white relative overflow-hidden group">
           <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl transition-all duration-700 group-hover:bg-white/20" />
           <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-indigo-400/20 rounded-full blur-3xl" />
           
@@ -535,10 +535,10 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
                 <span className="text-[10px] font-bold text-indigo-200/80 bg-black/20 px-2 py-0.5 rounded-full backdrop-blur-md border border-white/10">{closureKPIs.within24} OS Fechadas</span>
               </div>
             </div>
-            <div className="p-2 bg-white/10 rounded-2xl text-indigo-100 backdrop-blur-md border border-white/20 shadow-inner group-hover:scale-110 group-hover:rotate-12 transition-transform"><Gauge size={18} /></div>
+            <div className="p-1.5 bg-white/10 rounded-xl text-indigo-100 backdrop-blur-md border border-white/20 shadow-inner group-hover:scale-110 group-hover:rotate-12 transition-transform"><Gauge size={16} /></div>
           </div>
 
-          <div className="mt-3 relative z-10 flex justify-center py-1">
+          <div className="mt-2 relative z-10 flex justify-center py-0.5">
             <HalfMoonGauge 
               percentage={closureKPIs.slaEfficiency24} 
               target={slaTarget} 
@@ -548,14 +548,14 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
             />
           </div>
 
-          <div className="mt-1 relative z-10 bg-black/10 rounded-xl p-2.5 backdrop-blur-sm border border-white/5 flex justify-between items-center">
+          <div className="mt-1 relative z-10 bg-black/10 rounded-xl p-2 backdrop-blur-sm border border-white/5 flex justify-between items-center">
              <span className="text-[9px] font-bold text-indigo-200 uppercase flex items-center gap-1"><Target size={10}/> Meta Acordada</span>
              <span className="text-[10px] font-black text-white">{slaTarget}%</span>
           </div>
         </div>
 
         {/* KPI: SLA 48H (Emerald Gradient) */}
-        <div className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-800 rounded-3xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-emerald-400/20 flex flex-col justify-between text-white relative overflow-hidden group">
+        <div className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-800 rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-emerald-400/20 flex flex-col justify-between text-white relative overflow-hidden group">
           <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl transition-all duration-700 group-hover:bg-white/20" />
           <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-emerald-400/20 rounded-full blur-3xl" />
           
@@ -566,10 +566,10 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
                 <span className="text-[10px] font-bold text-emerald-200/80 bg-black/20 px-2 py-0.5 rounded-full backdrop-blur-md border border-white/10">{closureKPIs.within48} OS Fechadas</span>
               </div>
             </div>
-            <div className="p-2 bg-white/10 rounded-2xl text-emerald-100 backdrop-blur-md border border-white/20 shadow-inner group-hover:scale-110 group-hover:rotate-12 transition-transform"><CheckCircle size={18} /></div>
+            <div className="p-1.5 bg-white/10 rounded-xl text-emerald-100 backdrop-blur-md border border-white/20 shadow-inner group-hover:scale-110 group-hover:rotate-12 transition-transform"><CheckCircle size={16} /></div>
           </div>
 
-          <div className="mt-3 relative z-10 flex justify-center py-1">
+          <div className="mt-2 relative z-10 flex justify-center py-0.5">
             <HalfMoonGauge 
               percentage={closureKPIs.slaEfficiency48} 
               target={sla48Target} 
@@ -579,14 +579,14 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
             />
           </div>
 
-          <div className="mt-1 relative z-10 bg-black/10 rounded-xl p-2.5 backdrop-blur-sm border border-white/5 flex justify-between items-center">
+          <div className="mt-1 relative z-10 bg-black/10 rounded-xl p-2 backdrop-blur-sm border border-white/5 flex justify-between items-center">
              <span className="text-[9px] font-bold text-emerald-200 uppercase flex items-center gap-1"><Target size={10}/> Meta Global</span>
              <span className="text-[10px] font-black text-white">{sla48Target}%</span>
           </div>
         </div>
 
         {/* KPI: FORA DO PRAZO (Atrasos) */}
-        <div className="bg-gradient-to-br from-red-600 via-rose-700 to-rose-900 rounded-3xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-red-400/20 flex flex-col justify-between text-white relative overflow-hidden group">
+        <div className="bg-gradient-to-br from-red-600 via-rose-700 to-rose-900 rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-red-400/20 flex flex-col justify-between text-white relative overflow-hidden group">
           <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white/10 rounded-full blur-3xl transition-all duration-700 group-hover:bg-white/20" />
           <div className="absolute -top-10 -right-10 w-32 h-32 bg-red-400/20 rounded-full blur-3xl" />
           
@@ -597,26 +597,26 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
                 <span className="text-[10px] font-bold text-red-200/80 bg-black/20 px-2 py-0.5 rounded-full backdrop-blur-md border border-white/10">Atenção Imediata</span>
               </div>
             </div>
-            <div className="p-2 bg-white/10 rounded-2xl text-red-100 backdrop-blur-md border border-white/20 shadow-inner group-hover:scale-110 group-hover:-rotate-12 transition-transform"><AlertCircle size={18} /></div>
+            <div className="p-1.5 bg-white/10 rounded-xl text-red-100 backdrop-blur-md border border-white/20 shadow-inner group-hover:scale-110 group-hover:-rotate-12 transition-transform"><AlertCircle size={16} /></div>
           </div>
 
-          <div className="mt-3 relative z-10 flex flex-col items-center py-2">
-            <h2 className="text-[52px] font-black tracking-tighter drop-shadow-xl leading-none text-white">{closureKPIs.over24}</h2>
-            <span className="text-[11px] font-bold text-red-200 mt-1 tracking-widest uppercase">OS Vencidas</span>
+          <div className="mt-2 relative z-10 flex flex-col items-center py-1">
+            <h2 className="text-[40px] font-black tracking-tighter drop-shadow-xl leading-none text-white">{closureKPIs.over24}</h2>
+            <span className="text-[10px] font-bold text-red-200 mt-0.5 tracking-widest uppercase">OS Vencidas</span>
           </div>
 
           <div className="mt-auto relative z-10 grid grid-cols-2 gap-2">
-            <div className="bg-black/20 backdrop-blur-md rounded-xl p-2.5 border border-white/10 flex flex-col items-center justify-center">
-              <span className="text-[9px] font-bold text-red-200 mb-1 uppercase tracking-wider">&gt; 24h</span>
+            <div className="bg-black/20 backdrop-blur-md rounded-xl p-2 border border-white/10 flex flex-col items-center justify-center">
+              <span className="text-[9px] font-bold text-red-200 mb-0.5 uppercase tracking-wider">&gt; 24h</span>
               <div className="flex items-baseline gap-1">
-                <span className="text-lg font-black text-white">{closureKPIs.over24}</span>
+                <span className="text-base font-black text-white">{closureKPIs.over24}</span>
                 <span className="text-[9px] text-red-300 font-bold">({closureKPIs.over24Percentage}%)</span>
               </div>
             </div>
-            <div className="bg-black/30 backdrop-blur-md rounded-xl p-2.5 border border-red-500/30 flex flex-col items-center justify-center">
-              <span className="text-[9px] font-bold text-rose-300 mb-1 uppercase tracking-wider">&gt; 48h (Crítico)</span>
+            <div className="bg-black/30 backdrop-blur-md rounded-xl p-2 border border-red-500/30 flex flex-col items-center justify-center">
+              <span className="text-[9px] font-bold text-rose-300 mb-0.5 uppercase tracking-wider">&gt; 48h (Crítico)</span>
               <div className="flex items-baseline gap-1">
-                <span className="text-lg font-black text-rose-100">{closureKPIs.over48}</span>
+                <span className="text-base font-black text-rose-100">{closureKPIs.over48}</span>
                 <span className="text-[9px] text-rose-300 font-bold">({closureKPIs.over48Percentage}%)</span>
               </div>
             </div>

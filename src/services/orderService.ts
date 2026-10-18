@@ -53,6 +53,9 @@ export const OrderService = {
             end_date: order.endDate,
             notes: order.notes,
             items: order.items as DbOrderItem[],
+            total_value: (order.items && Array.isArray(order.items) && order.items.length > 0)
+                ? order.items.reduce((acc, i) => acc + (Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0), 0)
+                : (order.totalValue ?? (order as any).total_value ?? ((order.formData as any)?.totalValue || 0)),
             show_value_to_client: order.showValueToClient,
             billing_status: order.billingStatus,
             payment_method: order.paymentMethod,
@@ -522,10 +525,10 @@ export const OrderService = {
                         .eq('id', updatedOrder.id)
                         .eq('tenant_id', tid)
                         .select()
-                        .single();
+                        .maybeSingle();
 
                     if (error) throw error;
-                    return OrderService._mapOrderFromDB(data);
+                    return data ? OrderService._mapOrderFromDB(data) : updatedOrder;
                 })();
 
                 return await Promise.race([updatePromise, timeoutPromise]) as ServiceOrder;
@@ -593,10 +596,10 @@ export const OrderService = {
         if (data && typeof data === 'object') {
             processedData = { ...data };
 
-            const safeUpload = async (base64: string): Promise<string> => {
+            const safeUpload = async (base64: string, subfolder = 'evidence'): Promise<string> => {
                 const timeout = new Promise<string>((_, reject) => setTimeout(() => reject(new Error("Timeout")), 20000));
                 try {
-                    const result = await Promise.race([StorageService.uploadFile(base64, `orders/${id}/evidence`), timeout]);
+                    const result = await Promise.race([StorageService.uploadFile(base64, `orders/${id}/${subfolder}`), timeout]);
                     return result as string;
                 } catch (err) {
                     console.error("Upload falhou ou timeout:", err);
@@ -605,12 +608,18 @@ export const OrderService = {
             };
 
             for (const [key, value] of Object.entries(processedData)) {
+                const lowerKey = key.toLowerCase();
+                let sub = 'evidence';
+                if (lowerKey.includes('signature') || lowerKey.includes('assinatura')) sub = 'signatures';
+                else if (lowerKey.includes('block') || lowerKey.includes('impediment') || lowerKey.includes('impedimento')) sub = 'block';
+                else if (lowerKey.includes('note') || lowerKey.includes('observacao')) sub = 'internal_notes';
+
                 if (typeof value === 'string' && value.startsWith('data:image')) {
-                    processedData[key] = await safeUpload(value);
+                    processedData[key] = await safeUpload(value, sub);
                 } else if (Array.isArray(value)) {
                     const newArray = [];
                     for (const item of value) {
-                        newArray.push((typeof item === 'string' && item.startsWith('data:image')) ? await safeUpload(item) : item);
+                        newArray.push((typeof item === 'string' && item.startsWith('data:image')) ? await safeUpload(item, sub) : item);
                     }
                     processedData[key] = newArray;
                 }
@@ -625,11 +634,12 @@ export const OrderService = {
 
         if (notes !== undefined) updatePayload.notes = notes;
 
+        const tid = getCurrentTenantId();
+
         // 🛡️ NEXUS BULLETPROOF: SEMPRE buscar os dados existentes da OS no banco
         // para garantir que items e form_data NUNCA sejam apagados acidentalmente.
         let existingOrderData: any = null;
         try {
-            const tid = getCurrentTenantId();
             if (tid) {
                 const { data: dbOrder } = await supabase
                     .from('orders')
@@ -655,9 +665,66 @@ export const OrderService = {
             return Array.isArray(fdItems) ? fdItems : [];
         })();
 
-        // 🛡️ DECISÃO DE ITEMS: Usar items recebidos SOMENTE se forem não-vazios.
-        // Se forem vazios/undefined mas o banco tem items, PRESERVAR os do banco.
-        const finalItems: any[] = (items && items.length > 0) ? items : (dbItems.length > 0 ? dbItems : (items || []));
+        // 🛡️ INTEGRIDADE CIRÚRGICA: Garantir que custos de TODAS as visitas se somem de forma cumulativa
+        // Nunca permitir que uma visita anule ou sobrescreva os itens de outra visita.
+        const mergedItemsMap = new Map<string, any>();
+
+        // 1. Itens já existentes na OS (banco)
+        for (const item of dbItems) {
+            if (item && (item.id || item.description)) {
+                const key = item.id || `${item.description}-${item.unitPrice}`;
+                mergedItemsMap.set(key, { ...item, visitNumber: item.visitNumber || 1 });
+            }
+        }
+
+        // 2. Itens das visitas registradas em service_visits
+        try {
+            const { data: orderVisits } = await supabase
+                .from('service_visits')
+                .select('id, visit_number, form_data')
+                .eq('order_id', id)
+                .eq('tenant_id', tid);
+
+            if (orderVisits && Array.isArray(orderVisits)) {
+                for (const v of orderVisits) {
+                    const vItems = (v.form_data as any)?.items;
+                    if (Array.isArray(vItems)) {
+                        for (const vi of vItems) {
+                            if (vi && (vi.id || vi.description)) {
+                                const key = vi.id || `${vi.description}-${vi.unitPrice}`;
+                                const existing = mergedItemsMap.get(key);
+                                mergedItemsMap.set(key, {
+                                    ...(existing || {}),
+                                    ...vi,
+                                    visitNumber: vi.visitNumber || v.visit_number || existing?.visitNumber || 1,
+                                    visitId: vi.visitId || v.id || existing?.visitId
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (vErr) {
+            console.warn('⚠️ [OrderService] Falha ao ler itens das visitas:', vErr);
+        }
+
+        // 3. Itens recebidos nesta chamada (se houver atualização pontual)
+        if (items && Array.isArray(items) && items.length > 0) {
+            for (const item of items) {
+                if (item && (item.id || item.description)) {
+                    const key = item.id || `${item.description}-${item.unitPrice}`;
+                    const existing = mergedItemsMap.get(key);
+                    mergedItemsMap.set(key, {
+                        ...(existing || {}),
+                        ...item,
+                        visitNumber: item.visitNumber || existing?.visitNumber || 1,
+                        visitId: item.visitId || existing?.visitId
+                    });
+                }
+            }
+        }
+
+        const finalItems: any[] = Array.from(mergedItemsMap.values());
 
         // SEMPRE gravar os items no payload para garantir persistência
         updatePayload.items = finalItems as DbOrderItem[];
@@ -692,6 +759,8 @@ export const OrderService = {
         } else if (status === OrderStatus.COMPLETED || status === OrderStatus.BLOCKED) {
             updatePayload.end_date = new Date().toISOString();
 
+            let orderValue = 0;
+
             // 💰 BILLING AUTO-QUEUE
             if (status === OrderStatus.COMPLETED) {
                 const techId = existingOrderData?.assigned_to || null;
@@ -716,7 +785,9 @@ export const OrderService = {
 
                 const existingFD = (updatePayload.form_data || existingOrderData?.form_data || {}) as Record<string, any>;
                 const formTotal = Number(existingFD?.totalValue || existingFD?.price || (processedData as any)?.totalValue || (processedData as any)?.price || 0);
-                const orderValue = itemsValue + formTotal;
+                orderValue = itemsValue > 0 ? itemsValue : formTotal;
+
+                (updatePayload as any).total_value = orderValue;
 
                 if (orderValue > 0) {
                     updatePayload.billing_status = 'PENDING';
@@ -735,7 +806,7 @@ export const OrderService = {
                     displayId: existingOrderData?.display_id || '',
                     status: status,
                     operationType: existingOrderData?.operation_type || (updatePayload.form_data as any)?.operationType || '',
-                    totalValue: (updatePayload.form_data as any)?.totalValue || (updatePayload.form_data as any)?.price || 0,
+                    totalValue: orderValue,
                     assignedTo: existingOrderData?.assigned_to
                 };
                 // Fire and forget
@@ -776,7 +847,6 @@ export const OrderService = {
         }
 
         // 🚀 L7 PATTERN: Interceptação para Service Visits (Encapsulamento)
-        const tid = getCurrentTenantId();
         const { data: userSession } = await supabase.auth.getSession();
         const role = userSession.session?.user?.user_metadata?.role;
         const uid = userSession.session?.user?.id;
@@ -936,7 +1006,7 @@ export const OrderService = {
             tenantId: data.tenant_id,
             orderId: data.order_id,
             technicianId: data.technician_id,
-            status: data.status as VisitStatus,
+            status: data.status as unknown as VisitStatusEnum,
             pauseReason: data.pause_reason,
             scheduledDate: data.scheduled_date,
             scheduledTime: data.scheduled_time,

@@ -2,20 +2,21 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useI18n } from '../../i18n';
 import { useDialog } from '../../contexts/DialogContext';
 import { flushSync, createPortal } from 'react-dom';
-import { ServiceOrder, OrderStatus, User, Quote, Customer } from '../../types';
+import { ServiceOrder, OrderStatus, User, Quote, Customer, SalesOrder } from '../../types';
 import type { DbTenant } from '../../types/database';
 import {
     Search, X, XCircle, Trash2, DollarSign, Calendar, Users, Tag,
     CreditCard, ArrowRight, CheckCircle2, FileText, Printer, ShieldCheck, MapPin,
     Layout as Layer, Info, UserCheck, Wallet, Smartphone, Layers, Wrench, Check, ArrowUpRight,
-    TrendingUp, Clock, FileSpreadsheet, ChevronRight, ChevronDown, Plus, Slash, ArrowUp, ArrowDown, ArrowUpDown, Filter, Loader2, Share2, Copy, Hexagon, Paperclip, Image as ImageIcon, RefreshCw, Eye, Receipt, AlertTriangle, Calculator, Download, Edit2, Mail, ExternalLink
+    TrendingUp, Clock, FileSpreadsheet, ChevronRight, ChevronDown, Plus, Slash, ArrowUp, ArrowDown, ArrowUpDown, Filter, Loader2, Share2, Copy, Hexagon, Paperclip, Image as ImageIcon, RefreshCw, Eye, Receipt, AlertTriangle, Calculator, Download, Edit2, Mail, ExternalLink, ShoppingBag
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { NexusBranding } from '../ui/NexusBranding';
 import { DataService } from '../../services/dataService';
 import { StorageService } from '../../services/storageService';
+import { SalesOrderService } from '../../services/salesOrderService';
 import XLSX from 'xlsx-js-style';
-import { NexusQueryClient } from '../../hooks/nexusHooks';
+import { NexusQueryClient, useSalesOrders } from '../../hooks/nexusHooks';
 import { CacheManager } from '../../lib/cache';
 import { usePermissions } from '../../hooks/usePermissions';
 import { PaymentAuditModal } from './PaymentAuditModal';
@@ -75,6 +76,7 @@ const formatAsaasDateTime = (dateVal: any): string => {
 interface FinancialDashboardProps {
     orders: ServiceOrder[];
     quotes: Quote[];
+    salesOrders?: SalesOrder[];
     techs: User[];
     customers?: Customer[];
     tenant?: DbTenant | null;
@@ -82,10 +84,13 @@ interface FinancialDashboardProps {
     onRefresh: () => Promise<void>;
 }
 
-export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, quotes, techs, customers = [], tenant, currentUser, onRefresh }) => {
+export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, quotes, salesOrders: salesOrdersProp, techs, customers = [], tenant, currentUser, onRefresh }) => {
   const { t } = useI18n();
   const { showAlert } = useDialog();
   const { can } = usePermissions();
+
+  const { data: fetchedSalesOrders = [] } = useSalesOrders(!salesOrdersProp);
+  const actualSalesOrders = useMemo(() => salesOrdersProp || fetchedSalesOrders || [], [salesOrdersProp, fetchedSalesOrders]);
 
     const printRef = useRef<HTMLDivElement>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -454,6 +459,13 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     const qTech = techs.find(t => t.id === (q as any).createdBy || t.id === (q as any).authorId) || allUsers.find(u => u.id === (q as any).createdBy);
                     if (qTech?.name) return qTech.name;
                 }
+            } else if (item.reference_type === 'SALES_ORDER') {
+                const so = actualSalesOrders.find(s => s.id === item.reference_id);
+                if (so) {
+                    const soUser = allUsers.find(u => u.id === so.createdBy);
+                    if (soUser?.name) return soUser.name;
+                    if (so.createdByName) return so.createdByName;
+                }
             }
         }
 
@@ -527,6 +539,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_flow', filter: `tenant_id=eq.${tenantIdStr}` }, handlePaymentUpdate)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `tenant_id=eq.${tenantIdStr}` }, handlePaymentUpdate)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'quotes', filter: `tenant_id=eq.${tenantIdStr}` }, handlePaymentUpdate)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_orders', filter: `tenant_id=eq.${tenantIdStr}` }, handlePaymentUpdate)
             .on('broadcast', { event: 'PAYMENT_APPROVED' }, handlePaymentUpdate)
             .on('broadcast', { event: 'INVOICE_UPDATED' }, handlePaymentUpdate)
             .subscribe((status) => {
@@ -576,6 +589,11 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 } else if (item.reference_type === 'QUOTE') {
                     const q = quotes.find(q => q.id === item.reference_id);
                     if (q) await DataService.updateQuote({ ...q, billingStatus: 'PENDING' });
+                } else if (item.reference_type === 'SALES_ORDER') {
+                    await SalesOrderService.updateSalesOrderBilling(item.reference_id, {
+                        status: 'CONCLUIDO',
+                        billingStatus: 'PENDING'
+                    });
                 }
             }
             
@@ -587,6 +605,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             if (currentTenantId) {
                 await fetchOrders(currentTenantId);
                 await fetchQuotes(currentTenantId);
+                NexusQueryClient.invalidateSalesOrders();
+                NexusQueryClient.invalidateFinancials();
                 await loadInvoices();
             }
         } catch (err: any) {
@@ -1142,10 +1162,87 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             })
             .filter(item => item.value > 0);
 
-        return [...approvedQuotes, ...completedOrders].sort((a, b) =>
+        const completedSalesOrders = actualSalesOrders
+            .filter(so => {
+                const bSt = (so.billingStatus || '').toUpperCase();
+                const st = (so.status || '').toUpperCase();
+                // Exibe incondicionalmente se já foi liquidado
+                if (bSt === 'PAID' || st === 'PAID') return true;
+                // No Pedido de Venda, assim que concluído/emitido vai para o financeiro
+                return st === 'CONCLUIDO' || st === 'CONCLUÍDO' || st === 'FATURADO' || st === 'EMITIDO';
+            })
+            .map(so => {
+                const itemsGross = so.items?.reduce((acc: number, i: any) => acc + (Number(i.total) || 0), 0) || 0;
+                const storedVal = Number(so.totalValue) || 0;
+                const discVal = Number(so.discount || 0);
+                const discType = so.discountType || 'fixed';
+
+                let grossValue = itemsGross > 0 ? itemsGross : storedVal;
+                let discountAmount = 0;
+                if (discVal > 0) {
+                    if (String(discType).toLowerCase() === 'percent') {
+                        discountAmount = grossValue * (discVal / 100);
+                    } else {
+                        discountAmount = discVal;
+                    }
+                }
+
+                let netValue = storedVal > 0 ? storedVal : Math.max(0, grossValue - discountAmount);
+                grossValue = Math.round(grossValue * 100) / 100;
+                discountAmount = Math.round(discountAmount * 100) / 100;
+                netValue = Math.round(netValue * 100) / 100;
+
+                const linkedInv = invoices.find(inv => invoiceItems.some(invItem => invItem.reference_id === so.id && invItem.invoice_id === inv.id)) || null;
+                const isLinkedInvPaid = linkedInv && (linkedInv.status === 'PAID' || linkedInv.status === 'RECEIVED' || linkedInv.status === 'CONFIRMED' || linkedInv.gateway_status === 'approved');
+                const isPaid = (so.billingStatus || '').toUpperCase() === 'PAID' || isLinkedInvPaid;
+
+                let itemStatus = isPaid ? 'PAID' : (so.billingStatus || 'PENDING').toUpperCase();
+                if (!isPaid && linkedInv) {
+                    if (linkedInv.status === 'OVERDUE') itemStatus = 'OVERDUE';
+                    else if (linkedInv.status === 'CANCELED') itemStatus = 'CANCELED';
+                    else if (linkedInv.status === 'BILLED' || linkedInv.status === 'FATURADO' || linkedInv.status === 'PENDING') itemStatus = 'BILLED';
+                }
+
+                const fullCustSO = customers.find(c => c.id === so.customerId || c.name?.toLowerCase().trim() === so.customerName?.toLowerCase().trim());
+                const actualCustomerNameSO = fullCustSO?.name || so.customerName;
+
+                return {
+                    type: 'SALES_ORDER' as const,
+                    id: so.id,
+                    displayId: so.displayId || null,
+                    customerName: actualCustomerNameSO,
+                    customerAddress: so.customerAddress,
+                    title: so.title,
+                    description: so.description,
+                    date: optimisticDates[so.id] || so.updatedAt || so.createdAt,
+                    dueDate: optimisticDates[so.id] || so.updatedAt || so.createdAt,
+                    createdAt: so.createdAt,
+                    updatedAt: so.updatedAt || so.createdAt,
+                    paidAt: so.paidAt || linkedInv?.paid_at || null,
+                    value: netValue,
+                    grossValue,
+                    discountAmount,
+                    netValue,
+                    status: itemStatus,
+                    original: so,
+                    billingDiscount: discVal,
+                    billingDiscountType: discType,
+                    paymentMethod: so.paymentMethod || linkedInv?.payment_method || null,
+                    installments: so.installments || 1,
+                    gatewayProvider: so.gatewayProvider || linkedInv?.gateway_provider || 'Mercado Pago Connect OAuth 2.0',
+                    gatewayPaymentId: so.gatewayPaymentId || linkedInv?.gateway_payment_id || null,
+                    gatewayStatus: so.gatewayStatus || linkedInv?.gateway_status || 'pending',
+                    gatewayPixCode: so.gatewayPixCode || linkedInv?.gateway_pix_code || null,
+                    gatewayTicketUrl: so.gatewayTicketUrl || linkedInv?.gateway_ticket_url || null,
+                    technician: resolveUserOrTechName(so.createdBy, allUsers.find(u => u.id === so.createdBy)?.name || so.createdByName || 'Sistema')
+                };
+            })
+            .filter(item => item.value > 0);
+
+        return [...approvedQuotes, ...completedOrders, ...completedSalesOrders].sort((a, b) =>
             new Date(b.date).getTime() - new Date(a.date).getTime()
         );
-    }, [orders, quotes, techs, invoices, invoiceItems, allUsers]);
+    }, [orders, quotes, actualSalesOrders, techs, invoices, invoiceItems, allUsers]);
 
     // 2. Aplicar Filtros
     const filteredItems = useMemo(() => {
@@ -1527,16 +1624,16 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 };
 
                 let updatedInv = null;
-                let { data: resData, error: updError } = await supabase.from('invoices').update(updatePayload).eq('id', targetInvoice.id).select('*').single();
+                let { data: resData, error: updError } = await supabase.from('invoices').update(updatePayload).eq('id', targetInvoice.id).select('*').maybeSingle();
                 
-                if (updError) {
+                if (updError || !resData) {
                     delete updatePayload.billed_by;
                     delete updatePayload.billed_by_name;
                     delete updatePayload.created_by;
                     delete updatePayload.form_data;
-                    const retryRes = await supabase.from('invoices').update(updatePayload).eq('id', targetInvoice.id).select('*').single();
+                    const retryRes = await supabase.from('invoices').update(updatePayload).eq('id', targetInvoice.id).select('*').maybeSingle();
                     if (retryRes.error) throw retryRes.error;
-                    updatedInv = retryRes.data;
+                    updatedInv = retryRes.data || { ...targetInvoice, ...updatePayload };
                 } else {
                     updatedInv = resData;
                 }
@@ -1580,16 +1677,16 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 };
 
                 let newInv = null;
-                let { data: resData, error: invoiceError } = await supabase.from('invoices').insert([insertPayload]).select('*').single();
+                let { data: resData, error: invoiceError } = await supabase.from('invoices').insert([insertPayload]).select('*').maybeSingle();
                 
                 if (invoiceError || !resData) {
                     delete insertPayload.billed_by;
                     delete insertPayload.billed_by_name;
                     delete insertPayload.created_by;
                     delete insertPayload.form_data;
-                    const retryRes = await supabase.from('invoices').insert([insertPayload]).select('*').single();
-                    if (retryRes.error || !retryRes.data) throw retryRes.error || new Error('Failed to create invoice');
-                    newInv = retryRes.data;
+                    const retryRes = await supabase.from('invoices').insert([insertPayload]).select('*').maybeSingle();
+                    if (retryRes.error) throw retryRes.error;
+                    newInv = retryRes.data || { id: crypto.randomUUID(), ...insertPayload };
                 } else {
                     newInv = resData;
                 }
@@ -1683,6 +1780,12 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     if (rawItem.type === 'ORDER') {
                         await DataService.updateOrder({
                             ...(rawItem.original as ServiceOrder),
+                            billingStatus: 'BILLED',
+                            paymentMethod: finalMethod
+                        });
+                    } else if (rawItem.type === 'SALES_ORDER') {
+                        await SalesOrderService.updateSalesOrderBilling(rawItem.id, {
+                            status: 'FATURADO',
                             billingStatus: 'BILLED',
                             paymentMethod: finalMethod
                         });
@@ -1784,6 +1887,17 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 });
                             }
                         }
+                    } else if (rawItem.type === 'SALES_ORDER') {
+                        await SalesOrderService.updateSalesOrderBilling(rawItem.id, {
+                            status: 'FATURADO',
+                            billingStatus: 'PAID',
+                            paymentMethod: finalMethod,
+                            billingNotes: billingNotes,
+                            receiptUrl: uploadedReceiptUrl || rawItem.original?.receiptUrl,
+                            discount: effectiveDiscount,
+                            discountType: effectiveDiscountType,
+                            paidAt
+                        });
                     } else {
                         await DataService.updateQuote({
                             ...rawItem.original,
@@ -1809,16 +1923,18 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     }
 
                     try {
+                        const itemTypeLabel = rawItem.type === 'ORDER' ? 'O.S.' : (rawItem.type === 'SALES_ORDER' ? 'Pedido de Venda' : 'Orçamento');
+                        const itemCatLabel = rawItem.type === 'ORDER' ? 'Serviço (O.S.)' : (rawItem.type === 'SALES_ORDER' ? 'Venda (Pedido de Venda)' : 'Venda (Orçamento)');
                         await DataService.registerCashFlow({
                             type: 'INCOME',
-                            category: rawItem.type === 'ORDER' ? 'Serviço (O.S.)' : 'Venda (Orçamento)',
+                            category: itemCatLabel,
                             amount: itemNetValue,
-                            description: `Faturamento (Manual) de ${rawItem.type === 'ORDER' ? 'O.S.' : 'Orçamento'} ${rawItem.displayId || '#' + rawItem.id.slice(0, 8)} — Cliente: ${rawItem.customerName}`,
+                            description: `Faturamento (Manual) de ${itemTypeLabel} ${rawItem.displayId || '#' + rawItem.id.slice(0, 8)} — Cliente: ${rawItem.customerName}`,
                             referenceId: rawItem.id,
                             referenceType: rawItem.type,
                             paymentMethod: finalMethod,
                             entryDate: paidAt,
-                            customerId: rawItem.original?.customerId || undefined,
+                            customerId: rawItem.original?.customerId || (rawItem.original as any)?.customer_id || undefined,
                             technicianId: rawItem.type === 'ORDER' ? rawItem.original?.assignedTo : (rawItem.original?.createdBy || undefined)
                         });
                     } catch (e) { console.warn('Cash flow error:', e); }
@@ -1840,8 +1956,13 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 setSelectedIds([]);
                 await onRefresh();
                 await loadInvoices();
+                if (currentTenantId) {
+                    NexusQueryClient.invalidateSalesOrders();
+                    NexusQueryClient.invalidateFinancials();
+                }
                 window.dispatchEvent(new Event('refresh_financial'));
                 window.dispatchEvent(new Event('refresh_invoices'));
+                window.dispatchEvent(new Event('refresh_sales_orders'));
             }
             
 
@@ -1990,10 +2111,11 @@ ${container.innerHTML}
 
         const rows = itemsToExport.map(item => {
             const isOrder = item.type === 'ORDER';
+            const isSalesOrder = item.type === 'SALES_ORDER';
             const orig: any = item.original || {};
             return [
                 item.displayId || item.id.slice(0, 8).toUpperCase(),
-                isOrder ? 'O.S.' : 'Orçamento',
+                isOrder ? 'O.S.' : (isSalesOrder ? 'Pedido de Venda' : 'Orçamento'),
                 formatDate(orig.scheduledDate),
                 orig.scheduledTime || 'N/A',
                 item.customerName || 'N/A',
@@ -2063,11 +2185,12 @@ ${container.innerHTML}
 
         const rows = itemsToPrint.map(item => {
             const isOrder = item.type === 'ORDER';
+            const isSalesOrder = item.type === 'SALES_ORDER';
             const orig: any = item.original || {};
             const scheduledDate = orig.scheduledDate ? new Date(orig.scheduledDate + (orig.scheduledDate.length === 10 ? 'T12:00:00' : '')).toLocaleDateString('pt-BR') : '—';
             return [
                 item.displayId || item.id.slice(0, 8).toUpperCase(),
-                isOrder ? 'O.S.' : 'Orçamento',
+                isOrder ? 'O.S.' : (isSalesOrder ? 'Pedido de Venda' : 'Orçamento'),
                 scheduledDate,
                 item.customerName || 'N/A',
                 item.title || item.description || 'N/A',
@@ -2241,6 +2364,7 @@ ${container.innerHTML}
     };
 
     const getDocLabel = (item: any) => {
+        if (item.type === 'SALES_ORDER') return item.displayId || `PVD-${item.id.slice(0, 8).toUpperCase()}`;
         if (item.type === 'QUOTE') return item.displayId || `ORC-${item.id.slice(0, 8).toUpperCase()}`;
         return item.displayId || `OS-${item.id.slice(0, 8).toUpperCase()}`;
     };
@@ -2895,7 +3019,13 @@ ${container.innerHTML}
                                         <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-300 text-[#1c2d4f] cursor-pointer" checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} />
                                     </td>
                                     <td className="px-2 py-2 whitespace-nowrap">
-                                        <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border w-fit block ${item.type === 'QUOTE' ? 'bg-[#1c2d4f]/10 text-[#1c2d4f] border-[#1c2d4f]/20' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                                        <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border w-fit block ${
+                                            item.type === 'SALES_ORDER' 
+                                                ? 'bg-amber-500/10 text-amber-800 border-amber-300' 
+                                                : item.type === 'QUOTE' 
+                                                    ? 'bg-[#1c2d4f]/10 text-[#1c2d4f] border-[#1c2d4f]/20' 
+                                                    : 'bg-slate-100 text-slate-700 border-slate-200'
+                                        }`}>
                                             {getDocLabel(item)}
                                         </span>
                                     </td>
@@ -3027,6 +3157,14 @@ ${container.innerHTML}
                                                         } else if (item.type === 'QUOTE') {
                                                             await supabase
                                                                 .from('quotes')
+                                                                .update({ 
+                                                                    billing_status: newBillingStatus,
+                                                                    paid_at: paidAtVal
+                                                                })
+                                                                .eq('id', item.id);
+                                                        } else if (item.type === 'SALES_ORDER') {
+                                                            await supabase
+                                                                .from('sales_orders')
                                                                 .update({ 
                                                                     billing_status: newBillingStatus,
                                                                     paid_at: paidAtVal
@@ -3705,12 +3843,12 @@ ${container.innerHTML}
                         <div className="px-3 sm:px-6 py-3 sm:py-5 border-b border-slate-100 flex justify-between items-start sm:items-center shrink-0 bg-white">
                             <div className="flex items-start sm:items-center gap-2 sm:gap-4 min-w-0 flex-1">
                                 <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center border bg-slate-50 border-slate-200 text-slate-400 shrink-0">
-                                    {selectedItem.type === 'QUOTE' ? <FileText size={18} /> : <Wrench size={18} />}
+                                    {selectedItem.type === 'SALES_ORDER' ? <ShoppingBag size={18} /> : selectedItem.type === 'QUOTE' ? <FileText size={18} /> : <Wrench size={18} />}
                                 </div>
                                 <div className="min-w-0">
                                     <div className="flex flex-wrap items-center gap-1.5 sm:gap-3">
                                         <h2 className="text-sm sm:text-base font-semibold text-slate-900 font-poppins truncate">
-                                            {selectedItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'} #{getDocLabel(selectedItem)}
+                                            {selectedItem.type === 'SALES_ORDER' ? 'Pedido de Venda' : selectedItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'} #{getDocLabel(selectedItem)}
                                         </h2>
                                         {(() => {
                                             const style = getStatusStyle(selectedItem.status, (selectedItem.original as any)?.gateway_status);
@@ -3722,7 +3860,7 @@ ${container.innerHTML}
                                         })()}
                                     </div>
                                     <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-0.5 truncate">
-                                        {selectedItem.customerName} • {selectedItem.title || (selectedItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço')}
+                                        {selectedItem.customerName} • {selectedItem.title || (selectedItem.type === 'SALES_ORDER' ? 'Pedido de Venda' : selectedItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço')}
                                     </p>
                                 </div>
                             </div>
@@ -3730,7 +3868,7 @@ ${container.innerHTML}
                             <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                                 <button
                                     onClick={() => {
-                                        const route = selectedItem.type === 'QUOTE' ? 'view-quote' : 'order/view';
+                                        const route = selectedItem.type === 'SALES_ORDER' ? 'sales-orders' : selectedItem.type === 'QUOTE' ? 'view-quote' : 'order/view';
                                         const token = selectedItem.original?.publicToken || selectedItem.id;
                                         window.open(`${window.location.origin}/#/${route}/${token}`, '_blank');
                                     }}
@@ -4235,7 +4373,12 @@ ${container.innerHTML}
                                                                             const newDateISO = new Date(editingDueDate + 'T12:00:00').toISOString();
                                                                             setIsProcessing(true);
                                                                             try {
-                                                                                if (selectedItem.type === 'QUOTE') {
+                                                                                if (selectedItem.type === 'SALES_ORDER') {
+                                                                                    await DataService.updateSalesOrder({
+                                                                                        ...selectedItem.original,
+                                                                                        updatedAt: newDateISO,
+                                                                                    });
+                                                                                } else if (selectedItem.type === 'QUOTE') {
                                                                                     await DataService.updateQuote({
                                                                                         ...selectedItem.original,
                                                                                         validUntil: newDateISO,
@@ -4250,10 +4393,12 @@ ${container.innerHTML}
                                                                                 setSelectedItem((prev: any) => prev ? ({
                                                                                     ...prev,
                                                                                     dueDate: newDateISO,
-                                                                                    date: selectedItem.type === 'QUOTE' ? newDateISO : prev.date,
+                                                                                    date: selectedItem.type === 'ORDER' ? prev.date : newDateISO,
                                                                                     original: {
                                                                                         ...prev.original,
-                                                                                        ...(selectedItem.type === 'QUOTE'
+                                                                                        ...(selectedItem.type === 'SALES_ORDER'
+                                                                                            ? { updatedAt: newDateISO }
+                                                                                            : selectedItem.type === 'QUOTE'
                                                                                             ? { validUntil: newDateISO, approvedAt: newDateISO }
                                                                                             : { scheduledDate: editingDueDate }
                                                                                         ),
@@ -4928,7 +5073,7 @@ ${container.innerHTML}
                                     <InvoiceReceiptTemplate 
                                         invoice={printItem} 
                                         invoiceItems={invoiceItems} 
-                                        rawItems={[...orders, ...quotes]} 
+                                        rawItems={[...orders, ...quotes, ...actualSalesOrders]} 
                                         customers={customers}
                                         installments={invoiceInstallmentsList}
                                         tenantInfo={{
@@ -4982,7 +5127,7 @@ ${container.innerHTML}
                                             <div className="text-[8px] font-semibold text-[#1c2d4f] uppercase tracking-wider mb-0.5 leading-tight">
                                                 Comprovante de Faturamento
                                                 <div className="text-[7px] font-medium text-slate-500 tracking-widest mt-0.5">
-                                                    Referente a {printItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'}
+                                                    Referente a {printItem.type === 'SALES_ORDER' ? 'Pedido de Venda' : printItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'}
                                                 </div>
                                             </div>
                                             <div className="text-base font-semibold text-slate-900 tracking-tight whitespace-nowrap mt-1">{getDocLabel(printItem)}</div>
@@ -5034,7 +5179,7 @@ ${container.innerHTML}
                                                 })()}
                                             </div>
                                             <div className="col-span-5 p-2.5 grid grid-cols-2 gap-3 bg-slate-50/30">
-                                                <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Origem Ref.</label><div className="font-medium uppercase">{printItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'}</div></div>
+                                                <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Origem Ref.</label><div className="font-medium uppercase">{printItem.type === 'SALES_ORDER' ? 'Pedido de Venda' : printItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'}</div></div>
                                                 <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Vencimento</label><div className="font-medium uppercase">{new Date(printItem.date).toLocaleDateString('pt-BR')}</div></div>
                                                 <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Status do Pgto</label><div className={`font-medium text-[9px] border px-1.5 py-0.5 rounded inline-block uppercase ${printItem.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{printItem.status === 'PAID' ? 'LIQUIDADO' : 'PENDENTE'}</div></div>
                                                 {printItem.original?.paidAt && (
@@ -5670,7 +5815,7 @@ ${container.innerHTML}
                                                         <tr key={idx} className="hover:bg-slate-50">
                                                             <td className="py-3 px-4 font-mono text-xs font-bold text-slate-700">
                                                                 <span className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                                                                    {raw ? getDocLabel(raw) : (ii.reference_type === 'QUOTE' ? 'ORÇAMENTO' : 'O.S.')}
+                                                                    {raw ? getDocLabel(raw) : (ii.reference_type === 'QUOTE' ? 'ORÇAMENTO' : (ii.reference_type === 'SALES_ORDER' ? 'PEDIDO' : 'O.S.'))}
                                                                 </span>
                                                             </td>
                                                             <td className="py-3 px-4 text-xs text-slate-700 font-medium">

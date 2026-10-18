@@ -3,6 +3,7 @@ import {
   AlertTriangle, ArrowUpDown,
   Ban,
   Box,
+  Calendar,
   CalendarPlus,
   Camera,
   CheckCircle2,
@@ -20,6 +21,7 @@ import {
   Loader2,
   MapPin,
   MessageCircle,
+  Package,
   PackageSearch,
   Play,
   Plus,
@@ -199,6 +201,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [visitsLoading, setVisitsLoading] = useState(false);
   const [showNewVisitForm, setShowNewVisitForm] = useState(false);
   const [newVisitDraft, setNewVisitDraft] = useState({ technicianId: '', scheduledDate: '', scheduledTime: '', notes: '' });
+  const [newVisitItems, setNewVisitItems] = useState<OrderItem[]>([]);
+  const [newVisitStockSearch, setNewVisitStockSearch] = useState('');
+  const [isNewVisitStockOpen, setIsNewVisitStockOpen] = useState(false);
   const [savingVisit, setSavingVisit] = useState(false);
 
   // ── Aba Equipamentos (do catálogo, vinculados via campos da OS) ────
@@ -218,6 +223,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [visitScheduleDraft, setVisitScheduleDraft] = useState<{
     scheduledDate: string; scheduledTime: string; technicianId: string;
   }>({ scheduledDate: '', scheduledTime: '', technicianId: '' });
+  const [editVisitItems, setEditVisitItems] = useState<OrderItem[]>([]);
+  const [editVisitStockSearch, setEditVisitStockSearch] = useState('');
+  const [isEditVisitStockOpen, setIsEditVisitStockOpen] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
   // Sort: campo e direção — passados para o servidor
   const [sortConfig, setSortConfig] = useState<{ key: string | null, direction: 'asc' | 'desc' }>({ key: 'created_at', direction: 'desc' });
@@ -229,6 +237,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isStockPickerOpen, setIsStockPickerOpen] = useState(false);
   const [stockLoading, setStockLoading] = useState(false);
   const [stockSearch, setStockSearch] = useState('');
+  const [stockPickerTargetVisit, setStockPickerTargetVisit] = useState<number>(1);
 
   // ── Orçamentos Vinculados ────────────────────────────────────────
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -239,7 +248,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [serviceTypes, setServiceTypes] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created' | 'completed'>('scheduled');
+  const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created' | 'completed'>('completed');
   // techFilter armazena o techId (UUID), não o nome — enviado direto para o servidor
   const [techFilter, setTechFilter] = useState<string>('ALL');
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
@@ -770,7 +779,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
   };
 
-  const handleAddItem = () => {
+  const handleAddItem = (targetVisitNumber: number = 1) => {
     setEditDraft(prev => ({
       ...prev,
       items: [...(prev.items || selectedOrder?.items || []), {
@@ -779,7 +788,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         quantity: 1,
         unitPrice: 0,
         total: 0,
-        fromStock: false
+        fromStock: false,
+        visitNumber: targetVisitNumber
       }]
     }));
   };
@@ -804,14 +814,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const handleAddStockItem = (item: any) => {
-    const newItem = {
+    const newItem: OrderItem = {
       id: Math.random().toString(36).substr(2, 9),
       description: item.description,
       quantity: 1,
       unitPrice: item.sellPrice || 0,
       total: item.sellPrice || 0,
       fromStock: true,
-      stockItemId: item.id
+      stockItemId: item.id,
+      visitNumber: stockPickerTargetVisit || 1,
     };
 
     setEditDraft(prev => ({
@@ -830,10 +841,97 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         quantity: 1,
         unitPrice: 0,
         total: 0,
-        fromStock: false
+        fromStock: false,
+        visitNumber: stockPickerTargetVisit || 1,
       }]
     }));
     setIsStockPickerOpen(false);
+  };
+
+  const handleAddVisitStockItem = (item: any) => {
+    const newItem: OrderItem = {
+      id: Math.random().toString(36).substr(2, 9),
+      description: item.description,
+      quantity: 1,
+      unitPrice: item.sellPrice || 0,
+      total: item.sellPrice || 0,
+      fromStock: true,
+      stockItemId: item.id
+    };
+    setNewVisitItems(prev => [...prev, newItem]);
+    setNewVisitStockSearch('');
+    setIsNewVisitStockOpen(false);
+  };
+
+  const handleAddVisitManualItem = () => {
+    setNewVisitItems(prev => [...prev, {
+      id: Math.random().toString(36).substr(2, 9),
+      description: '',
+      quantity: 1,
+      unitPrice: 0,
+      total: 0,
+      fromStock: false
+    }]);
+  };
+
+  const handleUpdateVisitItem = (id: string, field: string, val: any) => {
+    setNewVisitItems(prev => prev.map(item => {
+      if (item.id !== id) return item;
+      const updated = { ...item, [field]: val };
+      const q = typeof updated.quantity === 'number' ? updated.quantity : parseFloat(String(updated.quantity)) || 0;
+      const u = typeof updated.unitPrice === 'number' ? updated.unitPrice : parseFloat(String(updated.unitPrice)) || 0;
+      updated.total = q * u;
+      return updated;
+    }));
+  };
+
+  const handleRemoveVisitItem = (id: string) => {
+    setNewVisitItems(prev => prev.filter(i => i.id !== id));
+  };
+
+  const handleAddEditVisitStockItem = (stockItem: any, targetVisitNumber: number, visitId: string) => {
+    const newItem: OrderItem = {
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substr(2, 9),
+      description: stockItem.description,
+      quantity: 1,
+      unitPrice: stockItem.sellPrice || 0,
+      total: stockItem.sellPrice || 0,
+      fromStock: true,
+      stockItemId: stockItem.id,
+      visitNumber: targetVisitNumber,
+      visitId: visitId,
+    };
+    setEditVisitItems(prev => [...prev, newItem]);
+    setEditVisitStockSearch('');
+    setIsEditVisitStockOpen(false);
+  };
+
+  const handleAddEditVisitManualItem = (targetVisitNumber: number, visitId: string) => {
+    setEditVisitItems(prev => [...prev, {
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substr(2, 9),
+      description: '',
+      quantity: 1,
+      unitPrice: 0,
+      total: 0,
+      fromStock: false,
+      visitNumber: targetVisitNumber,
+      visitId: visitId,
+    }]);
+  };
+
+  const handleUpdateEditVisitItem = (id: string, field: string, val: any) => {
+    setEditVisitItems(prev => prev.map(item => {
+      if (item.id !== id) return item;
+      const updated = { ...item, [field]: val };
+      const q = typeof updated.quantity === 'number' ? updated.quantity : parseFloat(String(updated.quantity)) || 0;
+      const u = typeof updated.unitPrice === 'number' ? updated.unitPrice : parseFloat(String(updated.unitPrice)) || 0;
+      updated.total = q * u;
+      return updated;
+    }));
+  };
+
+  const handleRemoveEditVisitItem = (id: string) => {
+    setEditVisitItems(prev => prev.filter(i => i.id !== id));
   };
 
   // Refresh de visitas quando a aba é aberta
@@ -1007,7 +1105,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (!selectedOrder) return;
     setEditLoading(true);
     try {
-      const updated = { ...selectedOrder, ...editDraft } as ServiceOrder;
+      const draftItems = editDraft.items !== undefined ? editDraft.items : (selectedOrder.items || []);
+      const calculatedTotal = draftItems.reduce((acc, i) => acc + (Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0), 0);
+      const updated = {
+        ...selectedOrder,
+        ...editDraft,
+        items: draftItems,
+        total_value: calculatedTotal,
+        totalValue: calculatedTotal,
+      } as ServiceOrder;
 
       // Se a modalidade (operationType) foi alterada, recalcular os templates dos equipamentos
       if (editDraft.operationType && editDraft.operationType !== selectedOrder.operationType) {
@@ -1063,6 +1169,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       await onEditOrder(updated);
 
+      // Sincroniza os itens editados com o form_data das visitas
+      if (visits.length > 0 && Array.isArray(draftItems)) {
+        for (const v of visits) {
+          const vNum = v.visitNumber || 1;
+          const vItems = draftItems.filter(i => (i.visitId && i.visitId === v.id) || (i.visitNumber ? i.visitNumber === vNum : vNum === 1));
+          const vTotal = vItems.reduce((acc, i) => acc + (Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0), 0);
+          const currentFd = (v.formData || {}) as Record<string, any>;
+          supabase.from('service_visits').update({
+            form_data: { ...currentFd, items: vItems, totalValue: vTotal },
+            updated_at: new Date().toISOString()
+          }).eq('id', v.id).then();
+        }
+      }
+
       // Re-fetch os equipamentos localmente para a UI atualizar as abas
       if (editDraft.operationType && editDraft.operationType !== selectedOrder.operationType) {
         const [soeList, catalog] = await Promise.all([
@@ -1106,6 +1226,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
     setSavingVisit(true);
     try {
+      const nextNum = (visits?.length || 0) + 1;
+
+      // Filtrar apenas itens válidos com valor > 0 (salvo se for zero)
+      const validVisitItems: OrderItem[] = newVisitItems
+        .filter(i => {
+          const tot = Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0;
+          return tot > 0 || Number(i.unitPrice || 0) > 0;
+        })
+        .map(i => {
+          const qty = Number(i.quantity) || 1;
+          const unit = Number(i.unitPrice) || 0;
+          const tot = Number(i.total) || (qty * unit);
+          return {
+            ...i,
+            id: i.id || `visit-item-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            description: i.description?.trim() || `Item / Peça - Visita nº ${nextNum}`,
+            quantity: qty,
+            unitPrice: unit,
+            total: tot,
+            visitNumber: nextNum,
+          };
+        });
+
       await VisitService.createNewVisit({
         orderId: selectedOrder.id,
         orderStatus: selectedOrder.status,
@@ -1113,35 +1256,51 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         scheduledDate: newVisitDraft.scheduledDate,
         scheduledTime: newVisitDraft.scheduledTime,
         notes: newVisitDraft.notes,
+        items: validVisitItems,
       });
       setShowNewVisitForm(false);
       setNewVisitDraft({ technicianId: '', scheduledDate: '', scheduledTime: '', notes: '' });
+      setNewVisitItems([]);
+      setNewVisitStockSearch('');
+      setIsNewVisitStockOpen(false);
 
       // Refresh visitas e OS — createNewVisit já atualizou o DB corretamente.
-      // NÃO chamamos onEditOrder aqui pois isso sobrescreveria form_data no banco
-      // com um objeto vazio, destruindo o impediment_history que foi preservado.
       const updatedVisits = await VisitService.getVisitsByOrderId(selectedOrder.id);
       setVisits(updatedVisits);
       setOrderVisits(updatedVisits);
 
-      // Atualiza o estado local da OS para refletir o estado real do banco
-      // (status=ATRIBUÍDO, mantendo o form_data preservado intacto O Histórico de Impedimentos)
-      const preservedHistory = Array.isArray(selectedOrder.formData?.impediment_history)
-        ? selectedOrder.formData.impediment_history
-        : [];
-      
+      // Atualiza o estado local da OS com items e total somados imediatamente para a aba de custos
+      const existingItems = (Array.isArray(selectedOrder.items) ? selectedOrder.items : []).map(i => ({
+        ...i,
+        visitNumber: i.visitNumber || 1
+      }));
+      const combinedMap = new Map<string, OrderItem>();
+      existingItems.forEach(i => combinedMap.set(i.id || `${i.description}-${i.unitPrice}`, i));
+      validVisitItems.forEach(i => combinedMap.set(i.id || `${i.description}-${i.unitPrice}`, i));
+      const combinedItems = Array.from(combinedMap.values());
+      const combinedTotal = combinedItems.reduce((acc, i) => acc + (Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0), 0);
+
       const freshOrder: ServiceOrder = {
         ...selectedOrder,
         status: OrderStatus.ASSIGNED,
         scheduledDate: newVisitDraft.scheduledDate,
         scheduledTime: newVisitDraft.scheduledTime || selectedOrder.scheduledTime,
         assignedTo: newVisitDraft.technicianId || selectedOrder.assignedTo,
+        items: combinedItems,
+        total_value: combinedTotal,
+        totalValue: combinedTotal,
         signature: undefined,
         signatureName: undefined,
         signatureDoc: undefined,
         videoUrl: undefined,
       };
       setSelectedOrder(freshOrder);
+      if (onUpdateOrders) {
+        onUpdateOrders(prev => prev.map(o => o.id === freshOrder.id ? freshOrder : o));
+      }
+      setNewVisitItems([]);
+      setNewVisitStockSearch('');
+      setIsNewVisitStockOpen(false);
 
       if (isEditing) {
         setIsEditing(false);
@@ -1173,29 +1332,72 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
     setSavingSchedule(true);
     try {
-      // ─── 1. Atualiza a visita via RPC ──────────────────────────────
+      const targetVisitNum = visit.visitNumber || 1;
+      const sanitizedVisitItems: OrderItem[] = editVisitItems
+        .filter(item => (item.description && item.description.trim()) || Number(item.unitPrice || 0) > 0 || Number(item.total || 0) > 0)
+        .map(item => {
+          const qty = Number(item.quantity) || 1;
+          const unit = Number(item.unitPrice) || 0;
+          const tot = Number(item.total) || (qty * unit);
+          return {
+            id: item.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9)),
+            description: item.description?.trim() || 'Item adicional',
+            quantity: qty,
+            unitPrice: unit,
+            total: tot,
+            fromStock: !!item.fromStock,
+            stockItemId: item.stockItemId || undefined,
+            visitNumber: targetVisitNum,
+            visitId: visit.id,
+          };
+        });
+
+      // ─── 1. Atualiza a visita via RPC e salva itens no form_data da visita ──────────
       const updatedVisit = await VisitService.updateVisitSchedule({
         visitId: visit.id,
         orderId: visit.orderId,
         scheduledDate: visitScheduleDraft.scheduledDate,
         scheduledTime: visitScheduleDraft.scheduledTime || undefined,
         technicianId: visitScheduleDraft.technicianId || undefined,
+        items: sanitizedVisitItems,
       });
-      setVisits(prev => prev.map(v => v.id === updatedVisit.id ? updatedVisit : v));
 
-      // ─── 2. Atualiza a OS via onEditOrder (CAMINHO COMPROVADO) ─────
-      // Mesmo fluxo que handleSaveEdit usa para salvar datas na aba Dados Gerais
+      // ─── 2. Consolida os itens de TODAS as visitas na OS (sem sobrescrever outras visitas) ─
+      const otherVisitItems = (selectedOrder.items || []).filter(item => {
+        const isThisVisit = (item.visitId && item.visitId === visit.id) ||
+                            (item.visitNumber && item.visitNumber === targetVisitNum) ||
+                            (targetVisitNum === 1 && !item.visitNumber && !item.visitId);
+        return !isThisVisit;
+      });
+
+      const consolidatedOrderItems = [...otherVisitItems, ...sanitizedVisitItems];
+      const consolidatedOrderTotal = consolidatedOrderItems.reduce(
+        (acc, i) => acc + (Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0),
+        0
+      );
+
+      const isLatestVisit = visits.length === 0 || visits[visits.length - 1]?.id === visit.id;
       const updatedOrder: ServiceOrder = {
         ...selectedOrder,
-        scheduledDate: visitScheduleDraft.scheduledDate,
-        scheduledTime: visitScheduleDraft.scheduledTime || selectedOrder.scheduledTime,
-        assignedTo: visitScheduleDraft.technicianId || selectedOrder.assignedTo,
+        scheduledDate: isLatestVisit ? visitScheduleDraft.scheduledDate : selectedOrder.scheduledDate,
+        scheduledTime: isLatestVisit ? (visitScheduleDraft.scheduledTime || selectedOrder.scheduledTime) : selectedOrder.scheduledTime,
+        assignedTo: isLatestVisit ? (visitScheduleDraft.technicianId || selectedOrder.assignedTo) : selectedOrder.assignedTo,
+        items: consolidatedOrderItems,
+        total_value: consolidatedOrderTotal,
+        totalValue: consolidatedOrderTotal,
       };
+
       await onEditOrder(updatedOrder);
 
       // ─── 3. Atualiza UI local imediatamente ───────────────────────
+      setVisits(prev => prev.map(v => v.id === updatedVisit.id ? updatedVisit : v));
+      setOrderVisits(prev => prev.map(v => v.id === updatedVisit.id ? updatedVisit : v));
       setSelectedOrder(updatedOrder);
+      if (onUpdateOrders) {
+        onUpdateOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+      }
       setEditingVisitId(null);
+      setEditVisitItems([]);
       ordersRefetch();
     } catch (e: any) {
       const msg = (e.message || '').replace(/^[A-Z_]+: /, '');
@@ -1429,9 +1631,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   onChange={(e) => { setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed'); setCurrentPage(1); }}
                   className="bg-transparent text-xs text-slate-700 outline-none cursor-pointer border-b sm:border-b-0 sm:border-r border-slate-200 pb-1 sm:pb-0 pr-2 pl-1 hover:text-primary-600 transition-colors"
                 >
-                  <option value="scheduled">Agendamento</option>
+                  <option value="completed">OS Concluídas (Conclusão)</option>
                   <option value="created">Abertura</option>
-                  <option value="completed">Conclusão</option>
+                  <option value="scheduled">Agendamento</option>
                 </select>
                 <div className="flex items-center gap-1 px-1 flex-1 min-w-0 justify-between">
                   <input type="date" value={startDate} onChange={e => { onDateChange(e.target.value, endDate); setCurrentPage(1); }} className="bg-transparent border-none text-xs text-slate-700 outline-none hover:text-primary-600 focus:text-primary-600 cursor-pointer flex-1 min-w-0 max-w-full w-full [&::-webkit-calendar-picker-indicator]:w-4 [&::-webkit-calendar-picker-indicator]:h-4 [&::-webkit-calendar-picker-indicator]:opacity-50 hover:[&::-webkit-calendar-picker-indicator]:opacity-100 transition-opacity" />
@@ -1551,7 +1753,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   onClick={() => {
                     setSearchTerm(''); setStatusFilter('ALL'); setTechFilter('ALL'); setCustomerFilter('ALL'); 
                     setServiceTypeFilter('ALL'); setCreatorFilter('ALL'); setEquipmentSerialFilter(''); 
-                    setDateTypeFilter('scheduled');
+                    setDateTypeFilter('completed');
                     onDateChange('', '');
                     setSelectedOrderIds([]);
                     setCurrentPage(1);
@@ -1579,55 +1781,55 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )}
         {/* 💻 DESKTOP TABLE VIEW */}
         <div className="hidden md:block flex-1 overflow-auto custom-scrollbar os-table-container">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse table-auto">
             <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-md border-b border-slate-200 z-10 shadow-xs font-poppins">
               <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">
-                <th className="px-2 py-2.5 w-8 text-center">
+                <th className="px-2 py-2 w-8 text-center text-slate-400">
                   <input
                     type="checkbox"
-                    className="w-3.5 h-3.5 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                    className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
                     checked={sortedPageOrders.length > 0 && sortedPageOrders.every(o => selectedOrderIds.includes(o.id))}
                     onChange={toggleSelectAll}
                     title="Selecionar página atual"
                   />
                 </th>
-                <th className="px-2 py-2.5 cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap" onClick={() => requestSort('id')}>
+                <th className="px-2 py-3 cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap text-left w-24" onClick={() => requestSort('id')}>
                   <div className="flex items-center gap-1">Protocolo {getSortIcon('displayId')}</div>
                 </th>
-                <th className="px-2 py-2.5 cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap hidden md:table-cell" onClick={() => requestSort('operationType')}>
+                <th className="px-2.5 py-3 cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap hidden md:table-cell text-left" onClick={() => requestSort('operationType')}>
                   <div className="flex items-center gap-1">Modalidade {getSortIcon('operationType')}</div>
                 </th>
-                <th className="px-2 py-2.5 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('customerName')}>
+                <th className="px-2.5 py-3 cursor-pointer group hover:text-primary-600 transition-colors text-left" onClick={() => requestSort('customerName')}>
                   <div className="flex items-center gap-1">Cliente {getSortIcon('customerName')}</div>
                 </th>
-                <th className="px-2 py-2.5 cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap hidden md:table-cell" onClick={() => requestSort('assignedTo')}>
+                <th className="px-2.5 py-3 cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap hidden md:table-cell text-left" onClick={() => requestSort('assignedTo')}>
                   <div className="flex items-center gap-1">Técnico {getSortIcon('assignedTo')}</div>
                 </th>
-                <th className="px-2 py-2.5 cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap hidden md:table-cell" onClick={() => requestSort('createdAt')}>
+                <th className="px-2.5 py-3 cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap hidden md:table-cell text-left" onClick={() => requestSort('createdAt')}>
                   <div className="flex items-center gap-1">Abertura {getSortIcon('createdAt')}</div>
                 </th>
-                <th className="px-2 py-2.5 cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap hidden lg:table-cell" onClick={() => requestSort('scheduledDate')}>
+                <th className="px-2.5 py-3 cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap hidden lg:table-cell text-left" onClick={() => requestSort('scheduledDate')}>
                   <div className="flex items-center gap-1">Agendamento {getSortIcon('scheduledDate')}</div>
                 </th>
-                <th className="px-2 py-2.5 cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap hidden lg:table-cell" onClick={() => requestSort('endDate')}>
+                <th className="px-2.5 py-3 cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap hidden lg:table-cell text-left" onClick={() => requestSort('endDate')}>
                   <div className="flex items-center gap-1">Conclusão {getSortIcon('endDate')}</div>
                 </th>
-                <th className="px-2 py-2.5 text-center whitespace-nowrap hidden xl:table-cell">
+                <th className="px-1.5 py-3 text-center whitespace-nowrap w-12 hidden xl:table-cell">
                   <div className="flex items-center justify-center gap-1">Visitas</div>
                 </th>
-                <th className="px-2 py-2.5 text-center cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap" onClick={() => requestSort('status')}>
-                  <div className="flex items-center justify-center gap-1">Status {getSortIcon('status')}</div>
+                <th className="px-2.5 py-3 text-left cursor-pointer group hover:text-primary-600 transition-colors whitespace-nowrap" onClick={() => requestSort('status')}>
+                  <div className="flex items-center gap-1">{t.common.status} {getSortIcon('status')}</div>
                 </th>
-                <th className="px-2 py-2.5 text-center whitespace-nowrap">{t.common.actions}</th>
+                <th className="px-2 py-3 text-center whitespace-nowrap w-12">{t.common.actions}</th>
               </tr>
             </thead>
             <tbody key={currentPage} className="divide-y divide-slate-100 bg-white animate-fade-in duration-200">
               {(ordersLoading || ordersFetching) ? (
                 <tr>
-                  <td colSpan={11} className="py-24 text-center">
+                  <td colSpan={11} className="py-16 text-center">
                     <div className="flex flex-col items-center gap-3 text-slate-400">
                       <Loader2 size={28} className="animate-spin text-primary-400" />
-                      <p className="text-sm text-slate-500 uppercase tracking-widest">Carregando ordens...</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-widest">Carregando ordens...</p>
                     </div>
                   </td>
                 </tr>
@@ -1637,57 +1839,65 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 return (
                   <tr
                     key={order.id}
-                    className={`transition-all border-b border-slate-100 hover:border-slate-200 group cursor-pointer ${isSelected ? 'bg-indigo-50/40' : 'bg-white hover:bg-slate-50'}`}
+                    className={`bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md cursor-pointer ${isSelected ? 'bg-indigo-50/40' : ''}`}
                     onClick={() => setSelectedOrder(order)}
                   >
-                    <td className="px-2 py-2 text-center" onClick={(e) => { e.stopPropagation(); setSelectedOrderIds(prev => prev.includes(order.id) ? prev.filter(id => id !== order.id) : [...prev, order.id]); }}>
+                    <td className="px-2 py-1.5 text-center shrink-0 w-8" onClick={(e) => { e.stopPropagation(); setSelectedOrderIds(prev => prev.includes(order.id) ? prev.filter(id => id !== order.id) : [...prev, order.id]); }}>
                       <input
                         type="checkbox"
-                        className="w-3.5 h-3.5 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                        className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
                         checked={isSelected}
                         readOnly
                       />
                     </td>
-                    <td className="px-2 py-2 whitespace-nowrap">
-                      <span className="font-mono text-[10px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 group-hover:bg-white transition-colors">
+                    <td className="px-2 py-1.5 text-left whitespace-nowrap w-24">
+                      <span className="text-[12.5px] font-medium text-primary-600 tracking-tighter truncate block max-w-[100px]" title={order.displayId || order.id}>
                         {order.displayId || order.id}
                       </span>
                     </td>
-                    <td className="px-2 py-2 text-[11px] text-slate-600 whitespace-nowrap hidden md:table-cell">
-                      {order.operationType || '---'}
-                    </td>
-                    <td className="px-2 py-2">
-                      <div className="text-xs text-slate-800 font-bold tracking-tight truncate max-w-[120px] lg:max-w-[150px] 2xl:max-w-[200px]" title={order.customerName}>
-                        {order.customerName}
-                      </div>
-                      <div className="md:hidden mt-1 flex flex-col gap-0.5">
-                        <span className="text-[10px] text-slate-500">{order.operationType || 'Sem Modalidade'}</span>
-                        {assignedTech ? (
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <img src={assignedTech.avatar} className="w-3.5 h-3.5 rounded-full object-cover" />
-                            <span className="text-[10px] text-slate-600 truncate max-w-[80px]">{assignedTech.name.split(' ')[0]}</span>
-                          </div>
-                        ) : <span className="text-[10px] text-slate-400">Sem Técnico</span>}
-                      </div>
-                    </td>
-                    <td className="px-2 py-2 hidden md:table-cell">
-                      <span className="text-[11px] text-slate-600 truncate max-w-[70px] lg:max-w-[100px] block capitalize" title={assignedTech?.name}>
-                        {assignedTech?.name?.split(' ')[0] || '—'}
+                    <td className="px-2.5 py-1.5 text-left hidden md:table-cell">
+                      <span className="text-[12px] text-slate-700 truncate block max-w-[120px]" title={order.operationType || '---'}>
+                        {order.operationType || '---'}
                       </span>
                     </td>
-                    <td className="px-2 py-2 text-[11px] text-slate-500 whitespace-nowrap hidden md:table-cell">
-                      {order.createdAt ? new Date(order.createdAt).toLocaleDateString('pt-BR') : '---'}
+                    <td className="px-2.5 py-1.5 text-[12px] text-left text-slate-700 truncate max-w-[140px] lg:max-w-[180px]" title={order.customerName}>
+                      {order.customerName}
                     </td>
-                    <td className="px-2 py-2 text-[11px] text-slate-700 font-medium whitespace-nowrap hidden lg:table-cell">
-                      {formatDateDisplay(order.scheduledDate)}
+                    <td className="px-2.5 py-1.5 text-[12px] text-left text-slate-700 truncate max-w-[90px] hidden md:table-cell capitalize" title={assignedTech?.name}>
+                      {assignedTech?.name?.split(' ')[0] || '—'}
                     </td>
-                    <td className="px-2 py-2 text-[11px] text-slate-600 whitespace-nowrap hidden lg:table-cell">
-                      {order.endDate ? new Date(order.endDate).toLocaleDateString('pt-BR') : '---'}
+                    <td className="px-2.5 py-1.5 text-left hidden md:table-cell">
+                      <div className="flex items-center gap-1.5 whitespace-nowrap">
+                        <Clock size={12} className="text-slate-400" />
+                        <span className="text-[12px] text-slate-600">
+                          {order.createdAt ? new Date(order.createdAt).toLocaleDateString('pt-BR') : '---'}
+                        </span>
+                      </div>
                     </td>
-                    <td className="px-2 py-2 align-middle text-center hidden xl:table-cell"><VisitCountCell order={order} /></td>
-                    <td className="px-2 py-2 text-center whitespace-nowrap"><StatusBadge status={order.status} /></td>
-                    <td className="px-2 py-2 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-center gap-1">
+                    <td className="px-2.5 py-1.5 text-left hidden lg:table-cell">
+                      <div className="flex items-center gap-1.5 whitespace-nowrap">
+                        <Calendar size={12} className="text-slate-400" />
+                        <span className="text-[12px] text-slate-600">
+                          {formatDateDisplay(order.scheduledDate) || '---'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-2.5 py-1.5 text-left hidden lg:table-cell">
+                      <div className="flex items-center gap-1.5 whitespace-nowrap">
+                        <Calendar size={12} className="text-slate-400" />
+                        <span className="text-[12px] text-slate-600">
+                          {order.endDate ? new Date(order.endDate).toLocaleDateString('pt-BR') : '---'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-1.5 py-1.5 align-middle text-center w-12 hidden xl:table-cell">
+                      <VisitCountCell order={order} />
+                    </td>
+                    <td className="px-2.5 py-1.5 text-left whitespace-nowrap">
+                      <StatusBadge status={order.status} />
+                    </td>
+                    <td className="px-2 py-1.5 text-center whitespace-nowrap w-12" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex justify-center items-center gap-1">
                         <button
                           type="button"
                           onClick={() => setSelectedOrder(order)}
@@ -1706,7 +1916,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-200 shadow-lg shadow-slate-200/50">
                       <Search size={24} className="text-slate-300" />
                     </div>
-                    <p className="text-sm text-slate-500 uppercase tracking-widest">Nenhuma atividade localizada</p>
+                    <p className="text-sm text-slate-500 uppercase tracking-widest">Nenhuma ordem de serviço localizada</p>
                     <p className="text-xs text-slate-400 mt-1">Ajuste os filtros para encontrar o que procura</p>
                   </td>
                 </tr>
@@ -1880,9 +2090,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         onClick={(e) => {
                           if (!canEdit('orders')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
                           setActiveTab('visits');
+                          if (allStockItems.length === 0) fetchStockForPicker();
                           setShowNewVisitForm(true);
                         }}
-                        className={`h-9 px-2 sm:px-4 gap-1.5 bg-indigo-600 hover:bg-indigo-700 shadow-sm ${!canEdit('orders') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                        className={`h-9 px-2 sm:px-4 gap-1.5 !bg-[#1c2d4f] hover:!bg-[#253a66] text-white shadow-sm shadow-[#1c2d4f]/20 ${!canEdit('orders') ? 'opacity-50 !cursor-not-allowed' : ''}`}
                       >
                         <Plus size={14} /> <span className="hidden sm:inline">Nova Visita</span>
                       </Button>
@@ -1981,8 +2192,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
               
               {/* DESKTOP SIDEBAR TABS */}
-              <div className="hidden md:flex flex-col w-48 border-r border-slate-200 bg-slate-50/80 p-3 gap-1 overflow-y-auto custom-scrollbar shrink-0">
-                <div className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest mb-2 px-2">Navegação</div>
+              <div className="hidden md:flex flex-col w-52 border-r border-slate-200 bg-slate-50/80 p-3 gap-1 overflow-y-auto custom-scrollbar shrink-0">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-2.5">Navegação</div>
                 {[
                   { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
                   { id: 'internal_notes', label: 'Obs Internas', icon: FileText },
@@ -2004,12 +2215,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       }
                       setActiveTab(tab.id as any);
                     }}
-                    className={`flex items-center gap-2.5 px-2 py-1.5 rounded-xl text-xs font-medium transition-all w-full text-left font-poppins
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all w-full text-left font-poppins
                       ${activeTab === tab.id 
                         ? 'bg-[#1c2d4f] text-white shadow-md ring-1 ring-[#1c2d4f]' 
-                        : 'text-slate-500 hover:bg-white hover:text-[#1c2d4f] hover:shadow-sm'}`}
+                        : 'text-slate-600 hover:bg-white hover:text-[#1c2d4f] hover:shadow-sm'}`}
                   >
-                    <tab.icon size={15} className={activeTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} /> 
+                    <tab.icon size={17} className={activeTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} /> 
                     <span className="flex-1 truncate">{tab.label}</span>
                   </button>
                 ))}
@@ -2040,11 +2251,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <>
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className="w-8 h-8 rounded-xl bg-[#1c2d4f] text-white flex items-center justify-center shrink-0 shadow-xs">
-                            <CurrentIcon size={15} />
+                            <CurrentIcon size={16} />
                           </div>
                           <div className="min-w-0">
                             <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block leading-none">Aba Ativa</span>
-                            <span className="text-xs font-bold text-slate-800 truncate block mt-0.5">{currentTabObj.label}</span>
+                            <span className="text-sm font-bold text-slate-800 truncate block mt-0.5">{currentTabObj.label}</span>
                           </div>
                         </div>
 
@@ -2087,14 +2298,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           setActiveTab(tab.id as any);
                           setIsMobileDetailTabsExpanded(false);
                         }}
-                        className={`flex items-center gap-2 p-2.5 rounded-xl text-left transition-all ${
+                        className={`flex items-center gap-2.5 p-2.5 rounded-xl text-left transition-all ${
                           activeTab === tab.id 
                             ? 'bg-[#1c2d4f] text-white shadow-sm ring-1 ring-[#1c2d4f]' 
                             : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/60'
                         }`}
                       >
-                        <tab.icon size={14} className={activeTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} />
-                        <span className="text-xs font-medium truncate">{tab.label}</span>
+                        <tab.icon size={16} className={activeTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} />
+                        <span className="text-sm font-semibold truncate">{tab.label}</span>
                       </button>
                     ))}
                   </div>
@@ -3007,16 +3218,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               )}
 
-              {/* TAB: CUSTOS */}
+              {/* TAB: CUSTOS — ESTRATIFICADO POR VISITA */}
               {activeTab === 'costs' && (
                 <div className="max-w-5xl mx-auto space-y-6">
                   <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
                     <div>
-                      <h3 className="text-sm font-medium text-slate-800">Gestão de Peças e Custos</h3>
-                      <p className="text-[11px] text-slate-500 font-medium mt-0.5">Peças sempre aparecem no link público. O botão abaixo controla somente a exibição dos valores (R$).</p>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-slate-800">Gestão de Peças e Custos por Visita</h3>
+                        <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                          Estratificado
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                        Custos separados por visita com soma cumulativa. O total consolidado é enviado ao financeiro na conclusão da OS.
+                      </p>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5">
+                      {!isEditing && canEdit('orders') && (
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setIsEditing(true);
+                            setEditDraft({ ...selectedOrder, items: selectedOrder.items || [] });
+                          }}
+                          className="h-8 px-3 gap-1.5 !bg-[#1c2d4f] hover:!bg-[#253a66] text-white text-xs font-semibold shadow-sm shadow-[#1c2d4f]/20"
+                        >
+                          <Edit3 size={13} /> Editar Custos
+                        </Button>
+                      )}
+
                       {isEditing ? (
                         <button
                           type="button"
@@ -3045,110 +3276,356 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between bg-[#1c2d4f] px-5 py-3.5 rounded-xl shadow border border-[#1c2d4f]">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center border border-white/5">
-                        <DollarSign size={16} className="text-blue-300" />
-                      </div>
-                      <span className="text-[10px] font-semibold uppercase tracking-widest text-white/70">Total Consolidado</span>
-                    </div>
-                    <div className="text-2xl font-medium font-mono text-white">
-                      R$ {(selectedOrder.items?.reduce((acc, i) => acc + i.total, 0) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </div>
-                  </div>
+                  {(() => {
+                    const rawItems: OrderItem[] = isEditing ? (editDraft.items || []) : (selectedOrder.items || []);
 
-                  <div className="bg-white border border-slate-200 rounded-lg shadow-lg shadow-slate-200/50 overflow-hidden">
-                    <table className="w-full text-left">
-                      <thead className="bg-slate-100/80 text-[11px] font-semibold text-slate-600 border-b border-slate-300 font-poppins">
-                        <tr>
-                          <th className="px-6 py-3">Item / Serviço</th>
-                          <th className="px-4 py-3 text-center">Quant.</th>
-                          <th className="px-4 py-3 text-right">Unitário</th>
-                          <th className="px-6 py-3 text-right">Subtotal</th>
-                          {isEditing && <th className="px-4 py-3 text-center w-10"></th>}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50 text-sm">
-                        {(editDraft.items || selectedOrder.items || [])?.map((item, idx) => (
-                          <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="px-6 py-2">
-                              {isEditing ? (
-                                <input
-                                  className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs font-medium text-slate-800"
-                                  value={item.description}
-                                  onChange={e => handleUpdateItem(item.id, 'description', e.target.value)}
-                                  placeholder="Descrição do item..."
-                                />
-                              ) : (
-                                <div>
-                                  <span className="font-semibold text-slate-800">{item.description}</span>
-                                  {item.equipmentName && (
-                                    <div className="flex items-center gap-1 text-[9px] text-slate-400 font-medium uppercase mt-1">
-                                      <Box size={10} /> {item.equipmentName}
+                    // Unifica de forma cumulativa os itens da OS e das visitas para nunca perder nenhum custo
+                    const allItemsMap = new Map<string, OrderItem>();
+                    rawItems.forEach(i => {
+                      if (i && (i.id || i.description)) {
+                        const key = i.id || `${i.description}-${i.unitPrice}`;
+                        allItemsMap.set(key, { ...i, visitNumber: i.visitNumber || 1 });
+                      }
+                    });
+
+                    // Verifica se alguma visita tem itens em seu formData que não estejam em rawItems
+                    visits.forEach(v => {
+                      const vItems = (v.formData as any)?.items;
+                      if (Array.isArray(vItems)) {
+                        vItems.forEach(vi => {
+                          if (vi && (vi.id || vi.description)) {
+                            const key = vi.id || `${vi.description}-${vi.unitPrice}`;
+                            if (!allItemsMap.has(key)) {
+                              allItemsMap.set(key, {
+                                ...vi,
+                                visitNumber: vi.visitNumber || v.visitNumber || 1,
+                                visitId: vi.visitId || v.id
+                              });
+                            }
+                          }
+                        });
+                      }
+                    });
+
+                    const displayItems = Array.from(allItemsMap.values());
+                    const consolidatedTotal = displayItems.reduce((acc, i) => {
+                      const itemTotal = Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0;
+                      return acc + itemTotal;
+                    }, 0);
+
+                    // Coleta todos os números de visitas (no mínimo 1 para a abertura)
+                    const visitNumbersSet = new Set<number>();
+                    visitNumbersSet.add(1);
+                    visits.forEach(v => {
+                      if (v.visitNumber) visitNumbersSet.add(v.visitNumber);
+                    });
+                    displayItems.forEach(i => {
+                      if (i.visitNumber) visitNumbersSet.add(i.visitNumber);
+                    });
+                    const sortedVisitNumbers = Array.from(visitNumbersSet).sort((a, b) => a - b);
+
+                    return (
+                      <>
+                        {/* BANNER TOTAL CONSOLIDADO (SOMA DE TODAS AS VISITAS) */}
+                        <div className="bg-[#1c2d4f] text-white p-5 rounded-2xl shadow-lg border border-[#1c2d4f] space-y-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/10 shadow-inner">
+                                <DollarSign size={20} className="text-emerald-400" />
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-white/70 block">
+                                  Total Consolidado da OS (Soma de Todas as Visitas)
+                                </span>
+                                <p className="text-[11px] text-white/70 font-medium mt-0.5">
+                                  {displayItems.length} {displayItems.length === 1 ? 'item/custo registrado' : 'itens/custos registrados'} em {sortedVisitNumbers.length} {sortedVisitNumbers.length === 1 ? 'visita' : 'visitas'}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-left sm:text-right">
+                              <span className="text-[10px] text-white/60 font-semibold block uppercase tracking-wider">Custo Total Acumulado</span>
+                              <div className="text-2xl sm:text-3xl font-bold font-mono text-emerald-400">
+                                R$ {consolidatedTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Pílulas de estratificação por visita */}
+                          <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-white/10">
+                            <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider mr-1">Estratificação:</span>
+                            {sortedVisitNumbers.map(num => {
+                              const vItems = displayItems.filter(i => (i.visitNumber ? i.visitNumber === num : num === 1));
+                              const subtotal = vItems.reduce((acc, i) => acc + (Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0), 0);
+                              return (
+                                <div key={num} className="bg-white/10 hover:bg-white/15 transition-colors border border-white/15 px-3 py-1 rounded-xl flex items-center gap-2">
+                                  <span className="text-[10px] font-bold text-white/90">
+                                    {num === 1 ? 'Visita 1' : `Visita ${num}`}
+                                  </span>
+                                  <span className="text-[11px] font-mono font-bold text-emerald-300">
+                                    R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                  </span>
+                                  <span className="text-[9px] text-white/60 bg-white/10 px-1.5 py-0.5 rounded-md font-semibold">
+                                    {vItems.length}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* LISTA DE CONTAINERS DE CUSTO ESTRATIFICADOS POR VISITA */}
+                        <div className="space-y-4">
+                          {sortedVisitNumbers.map(vNum => {
+                            const vObj = visits.find(v => (v.visitNumber || 1) === vNum);
+                            const vItems = displayItems.filter(i => (i.visitNumber ? i.visitNumber === vNum : vNum === 1));
+                            const vSubtotal = vItems.reduce((acc, i) => acc + (Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0), 0);
+                            const vTech = techs.find(t => t.id === vObj?.technicianId)?.name || vObj?.technicianName || (vNum === 1 ? (techs.find(t => t.id === selectedOrder.assignedTo)?.name || 'Técnico Inicial') : 'Técnico Designado');
+                            const vDate = vObj?.scheduledDate ? formatDateDisplay(vObj.scheduledDate) : (vNum === 1 ? (formatDateDisplay(selectedOrder.scheduledDate) || '—') : '—');
+                            const vTime = vObj?.scheduledTime ? ` às ${vObj.scheduledTime}` : (vNum === 1 && selectedOrder.scheduledTime ? ` às ${selectedOrder.scheduledTime}` : '');
+
+                            const isLastVisit = vNum === sortedVisitNumbers[sortedVisitNumbers.length - 1];
+                            const effectiveVisitStatus = (() => {
+                              if (vObj) {
+                                const rawStatus = vObj.status;
+                                if (rawStatus === 'completed' || vObj.isLocked) return 'completed';
+                                if (rawStatus === 'blocked') return 'blocked';
+                                if (rawStatus === 'paused') return 'paused';
+                                if (rawStatus === 'ongoing') {
+                                  if (selectedOrder.status === 'CONCLUÍDO') return 'completed';
+                                  if (selectedOrder.status === 'IMPEDIDO') return 'blocked';
+                                  return 'ongoing';
+                                }
+                                if (rawStatus === 'pending') {
+                                  if (selectedOrder.status === 'CONCLUÍDO') return 'completed';
+                                  if (isLastVisit && selectedOrder.status === 'IMPEDIDO') return 'blocked';
+                                  return 'pending';
+                                }
+                                return String(rawStatus).toLowerCase();
+                              }
+                              if (selectedOrder.status === 'CONCLUÍDO') return 'completed';
+                              if (selectedOrder.status === 'IMPEDIDO') return 'blocked';
+                              if (selectedOrder.status === 'PAUSADO') return 'paused';
+                              if (selectedOrder.status === 'EM ANDAMENTO') return 'ongoing';
+                              if (selectedOrder.status === 'CANCELADO') return 'canceled';
+                              return 'pending';
+                            })();
+
+                            const visitStatusLabel: Record<string, string> = {
+                              pending: 'Agendado',
+                              ongoing: 'Em andamento',
+                              paused: 'Pausado',
+                              blocked: 'Impedido',
+                              completed: 'Concluído',
+                              canceled: 'Cancelado',
+                            };
+
+                            const visitStatusColors: Record<string, string> = {
+                              pending: 'bg-slate-100 text-slate-600 border-slate-200',
+                              ongoing: 'bg-blue-50 text-blue-700 border-blue-200',
+                              paused: 'bg-amber-50 text-amber-700 border-amber-200',
+                              blocked: 'bg-rose-50 text-rose-700 border-rose-200',
+                              completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                              canceled: 'bg-slate-100 text-slate-500 border-slate-200',
+                            };
+
+                            return (
+                              <div key={vNum} className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden transition-all hover:border-slate-300">
+                                {/* Cabeçalho da Visita */}
+                                <div className="bg-slate-50/90 px-5 py-3.5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-xl bg-[#1c2d4f] text-white flex items-center justify-center text-xs font-bold shadow-sm shadow-[#1c2d4f]/20">
+                                      {vNum}
                                     </div>
-                                  )}
+                                    <div>
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <h4 className="text-xs font-bold text-slate-800 uppercase tracking-tight">
+                                          {vNum === 1 ? 'Visita nº 1 — Abertura da OS / Atendimento Inicial' : `Visita nº ${vNum} — Reagendamento / Retorno`}
+                                        </h4>
+                                        <span className="text-[10px] text-slate-600 font-semibold bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                                          {vItems.length} {vItems.length === 1 ? 'item' : 'itens'}
+                                        </span>
+                                        {effectiveVisitStatus && (
+                                          <span className={`inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-md border ${visitStatusColors[effectiveVisitStatus] || 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                                            {visitStatusLabel[effectiveVisitStatus] || effectiveVisitStatus}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2 text-[11px] text-slate-500 font-medium mt-0.5">
+                                        <span>Técnico: <strong className="text-slate-700">{vTech}</strong></span>
+                                        <span>•</span>
+                                        <span>Data: <strong className="text-slate-700">{vDate}{vTime}</strong></span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Subtotal da visita */}
+                                  <div className="text-left sm:text-right">
+                                    <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">Subtotal Visita {vNum}</span>
+                                    <span className="text-sm font-mono font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 inline-block shadow-2xs">
+                                      R$ {vSubtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
                                 </div>
-                              )}
-                            </td>
-                            <td className="px-4 py-2 text-center">
-                              {isEditing ? (
-                                <input
-                                  type="number"
-                                  className="w-16 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs font-medium text-center"
-                                  value={item.quantity}
-                                  onChange={e => handleUpdateItem(item.id, 'quantity', Number(e.target.value))}
-                                />
-                              ) : <span className="text-slate-600 font-medium">{item.quantity}</span>}
-                            </td>
-                            <td className="px-4 py-2 text-right">
-                              {isEditing ? (
-                                <div className="flex items-center justify-end gap-1">
-                                  <span className="text-[10px] text-slate-400 font-medium">R$</span>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    className="w-24 bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs font-medium text-right"
-                                    value={item.unitPrice}
-                                    onChange={e => handleUpdateItem(item.id, 'unitPrice', Number(e.target.value))}
-                                  />
+
+                                {/* Observações / Instruções da visita se houver */}
+                                {vObj?.notes && (
+                                  <div className="px-5 py-2 bg-amber-50/50 border-b border-amber-100 text-[11px] text-amber-900 font-medium flex items-center gap-2">
+                                    <FileText size={12} className="text-amber-500 shrink-0" />
+                                    <span className="text-[10px] font-bold uppercase text-amber-700">Instruções:</span>
+                                    <span className="italic">{vObj.notes}</span>
+                                  </div>
+                                )}
+
+                                {/* Tabela de Itens / Custos desta visita */}
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-left">
+                                    <thead className="bg-slate-100/70 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200 font-poppins">
+                                      <tr>
+                                        <th className="px-6 py-2.5">Item / Serviço</th>
+                                        <th className="px-3 py-2.5 text-center w-20">Quant.</th>
+                                        <th className="px-4 py-2.5 text-right w-28">Unitário</th>
+                                        <th className="px-6 py-2.5 text-right w-32">Subtotal</th>
+                                        {isEditing && <th className="px-3 py-2.5 text-center w-12"></th>}
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 text-xs">
+                                      {vItems.length > 0 ? (
+                                        vItems.map(item => (
+                                          <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                                            <td className="px-6 py-2.5">
+                                              {isEditing ? (
+                                                <input
+                                                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-[#1c2d4f]"
+                                                  value={item.description}
+                                                  onChange={e => handleUpdateItem(item.id, 'description', e.target.value)}
+                                                  placeholder="Descrição do item ou custo..."
+                                                />
+                                              ) : (
+                                                <div>
+                                                  <span className="font-semibold text-slate-800">{item.description}</span>
+                                                  {item.fromStock && (
+                                                    <span className="ml-2 text-[9px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/10 px-1.5 py-0.5 rounded border border-[#1c2d4f]/20">
+                                                      Estoque
+                                                    </span>
+                                                  )}
+                                                  {item.equipmentName && (
+                                                    <div className="flex items-center gap-1 text-[9px] text-slate-400 font-medium uppercase mt-0.5">
+                                                      <Box size={10} /> {item.equipmentName}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              )}
+                                            </td>
+                                            <td className="px-3 py-2.5 text-center">
+                                              {isEditing ? (
+                                                <input
+                                                  type="number"
+                                                  step="0.1"
+                                                  className="w-16 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold text-center outline-none focus:border-[#1c2d4f]"
+                                                  value={item.quantity}
+                                                  onChange={e => handleUpdateItem(item.id, 'quantity', Number(e.target.value))}
+                                                />
+                                              ) : (
+                                                <span className="text-slate-600 font-semibold">{item.quantity}</span>
+                                              )}
+                                            </td>
+                                            <td className="px-4 py-2.5 text-right font-mono text-slate-600">
+                                              {isEditing ? (
+                                                <input
+                                                  type="number"
+                                                  step="0.01"
+                                                  className="w-24 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-right outline-none focus:border-[#1c2d4f]"
+                                                  value={item.unitPrice}
+                                                  onChange={e => handleUpdateItem(item.id, 'unitPrice', Number(e.target.value))}
+                                                />
+                                              ) : (
+                                                <span>R$ {(Number(item.unitPrice) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                              )}
+                                            </td>
+                                            <td className="px-6 py-2.5 text-right font-mono font-bold text-slate-900">
+                                              R$ {(Number(item.total) || (Number(item.unitPrice || 0) * Number(item.quantity || 1)) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            </td>
+                                            {isEditing && (
+                                              <td className="px-3 py-2.5 text-center">
+                                                <button
+                                                  onClick={() => handleRemoveItem(item.id)}
+                                                  className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-md transition-colors"
+                                                  title="Remover Item"
+                                                >
+                                                  <Trash2 size={13} />
+                                                </button>
+                                              </td>
+                                            )}
+                                          </tr>
+                                        ))
+                                      ) : (
+                                        <tr>
+                                          <td colSpan={isEditing ? 5 : 4} className="py-6 text-center text-slate-400 font-medium text-xs">
+                                            Nenhum custo ou peça adicional registrado nesta visita.
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </tbody>
+                                  </table>
                                 </div>
-                              ) : <span className="font-mono text-slate-500 text-xs">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
-                            </td>
-                            <td className="px-6 py-2 text-right font-mono font-medium text-slate-900">
-                              R$ {(item.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </td>
-                            {isEditing && (
-                              <td className="px-4 py-2 text-center">
-                                <button
-                                  onClick={() => handleRemoveItem(item.id)}
-                                  className="p-1.5 text-slate-300 hover:text-rose-500 transition-colors"
-                                  title="Remover Item"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              </td>
-                            )}
-                          </tr>
-                        ))}
+
+                                {/* Ações de Adição Desta Visita (quando em edição) */}
+                                {isEditing && (
+                                  <div className="bg-slate-50/50 p-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setStockPickerTargetVisit(vNum);
+                                        if (allStockItems.length === 0) fetchStockForPicker();
+                                        setIsStockPickerOpen(true);
+                                      }}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-[#1c2d4f] hover:text-[#1c2d4f] text-slate-700 rounded-lg text-[11px] font-bold shadow-2xs transition-all"
+                                    >
+                                      <Package size={13} className="text-[#1c2d4f]" /> + Peça do Estoque nesta Visita
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddItem(vNum)}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-[#1c2d4f] hover:text-[#1c2d4f] text-slate-700 rounded-lg text-[11px] font-bold shadow-2xs transition-all"
+                                    >
+                                      <Plus size={13} className="text-[#1c2d4f]" /> + Item Manual nesta Visita
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Botão de salvar no rodapé quando em modo de edição */}
                         {isEditing && (
-                          <tr>
-                            <td colSpan={5} className="px-6 py-4">
-                              <button
-                                type="button"
-                                onClick={() => setIsStockPickerOpen(true)}
-                                className="flex items-center gap-2 text-[10px] font-semibold text-primary-600 hover:text-primary-700 uppercase tracking-widest transition-all"
-                              >
-                                <PlusCircle size={14} /> Adicionar Item / Peça (Estoque)
-                              </button>
-                            </td>
-                          </tr>
+                          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setIsEditing(false);
+                                setEditDraft({});
+                              }}
+                              className="text-slate-500"
+                            >
+                              Cancelar
+                            </Button>
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={handleSaveEdit}
+                              disabled={editLoading}
+                              className="gap-2 !bg-[#1c2d4f] hover:!bg-[#253a66] text-white px-6 shadow-md shadow-[#1c2d4f]/20"
+                            >
+                              {editLoading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                              Salvar Custos e Valores
+                            </Button>
+                          </div>
                         )}
-                        {(!editDraft.items && (!selectedOrder.items || selectedOrder.items.length === 0)) && (
-                          <tr><td colSpan={5} className="py-20 text-center text-slate-300 font-medium uppercase tracking-widest text-xs">Nenhum custo registrado para esta O.S.</td></tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -3376,7 +3853,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         size="sm"
                         onClick={(e) => {
                           if (!canEdit('orders')) { e.preventDefault(); showAlert('Acesso Negado: Você não tem permissão para editar.'); return; }
-                          setShowNewVisitForm(v => !v);
+                          setShowNewVisitForm(v => {
+                            const nextVal = !v;
+                            if (nextVal && allStockItems.length === 0) fetchStockForPicker();
+                            return nextVal;
+                          });
                         }}
                         disabled={!(
                           visits.length === 0 ||
@@ -3388,7 +3869,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           ? 'A OS ou última visita devem estar pausadas ou impedidas.'
                           : 'Agendar nova visita'
                         }
-                        className={`h-9 px-5 gap-2 bg-primary-600 hover:bg-primary-700 shadow-md shadow-primary-500/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none ${!canEdit('orders') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                        className={`h-9 px-5 gap-2 !bg-[#1c2d4f] hover:!bg-[#253a66] text-white shadow-md shadow-[#1c2d4f]/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none ${!canEdit('orders') ? 'opacity-50 !cursor-not-allowed' : ''}`}
                       >
                         <Plus size={15} /> Nova Visita
                       </Button>
@@ -3531,7 +4012,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             onChange={e => setNewVisitDraft(d => ({ ...d, scheduledTime: e.target.value }))}
                           />
                         </div>
-        <div className="space-y-1.5 md:col-span-2">
+                        <div className="space-y-1.5 md:col-span-2">
                           <label className="text-[11px] font-semibold text-slate-500 uppercase flex items-center gap-1">
                             Observações para o técnico
                             <span className="text-rose-500 font-semibold">*</span>
@@ -3545,9 +4026,156 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           />
                           <p className="text-[10px] text-slate-400 font-medium">Esta informação será exibida ao técnico no campo "Descrição Detalhada" da OS.</p>
                         </div>
+
+                        {/* COMPOSIÇÃO DE CUSTOS E PEÇAS DA NOVA VISITA */}
+                        <div className="md:col-span-2 pt-4 border-t border-slate-100 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 bg-primary-50 rounded-lg flex items-center justify-center text-primary-700">
+                                <DollarSign size={13} />
+                              </div>
+                              <div>
+                                <h4 className="text-xs font-bold text-slate-800 tracking-tight">Custos e Peças Desta Visita</h4>
+                                <p className="text-[10px] text-slate-400 font-medium">Itens do estoque ou despesas de retorno que serão somados ao custo total da OS</p>
+                              </div>
+                            </div>
+                            {(() => {
+                              const itemsSubtotal = newVisitItems.reduce((acc, i) => acc + (Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0), 0);
+                              return itemsSubtotal > 0 ? (
+                                <span className="text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                  + R$ {itemsSubtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </span>
+                              ) : null;
+                            })()}
+                          </div>
+
+                          {/* AÇÕES DE ADIÇÃO (ESTOQUE E MANUAL) */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div className="relative">
+                              <Package className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+                              <input
+                                placeholder="Buscar peça no estoque..."
+                                value={newVisitStockSearch}
+                                onChange={e => { setNewVisitStockSearch(e.target.value); setIsNewVisitStockOpen(true); }}
+                                onFocus={() => setIsNewVisitStockOpen(true)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                              />
+                              {(isNewVisitStockOpen && newVisitStockSearch) && (
+                                <div className="absolute z-[180] top-full mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto custom-scrollbar">
+                                  {allStockItems.filter(s => s.description.toLowerCase().includes(newVisitStockSearch.toLowerCase())).length > 0 ? (
+                                    allStockItems.filter(s => s.description.toLowerCase().includes(newVisitStockSearch.toLowerCase())).map(s => (
+                                      <button
+                                        key={s.id}
+                                        type="button"
+                                        onClick={() => handleAddVisitStockItem(s)}
+                                        className="w-full text-left px-3 py-2 hover:bg-slate-50 flex justify-between items-center border-b border-slate-100 last:border-0 group"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <Box size={12} className="text-slate-400 group-hover:text-primary-600" />
+                                          <div>
+                                            <p className="text-[11px] font-bold text-slate-700">{s.description}</p>
+                                            <p className="text-[10px] text-primary-600 font-bold">R$ {(s.sellPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                          </div>
+                                        </div>
+                                        <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">Qtd: {s.quantity}</span>
+                                      </button>
+                                    ))
+                                  ) : (
+                                    <div className="p-3 text-center text-[10px] font-medium text-slate-400">Nenhum item encontrado no estoque</div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleAddVisitManualItem}
+                              className="border border-dashed border-slate-200 text-slate-600 rounded-lg py-2 text-xs font-bold flex items-center justify-center gap-1.5 hover:border-primary-500 hover:text-primary-600 hover:bg-primary-50/20 transition-all"
+                            >
+                              <Plus size={13} /> Adicionar Item Manual
+                            </button>
+                          </div>
+
+                          {/* TABELA DE ITENS DA VISITA */}
+                          {newVisitItems.length > 0 && (
+                            <div className="bg-slate-50/60 rounded-xl border border-slate-200 overflow-hidden">
+                              <table className="w-full text-left">
+                                <thead>
+                                  <tr className="bg-slate-100 text-[9px] font-bold text-slate-400 uppercase border-b border-slate-200">
+                                    <th className="px-3 py-1.5">Item / Descrição</th>
+                                    <th className="px-2 py-1.5 w-16 text-center">Qtd</th>
+                                    <th className="px-2 py-1.5 w-24">Unit. (R$)</th>
+                                    <th className="px-2 py-1.5 w-24 text-right">Subtotal</th>
+                                    <th className="px-2 py-1.5 text-center w-8"></th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 bg-white">
+                                  {newVisitItems.map(item => (
+                                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                                      <td className="px-3 py-1.5">
+                                        <input
+                                          type="text"
+                                          value={item.description}
+                                          onChange={e => handleUpdateVisitItem(item.id, 'description', e.target.value)}
+                                          placeholder="Descreva o custo ou peça..."
+                                          className="bg-transparent border-none text-[11px] font-semibold text-slate-700 outline-none w-full placeholder:text-slate-300"
+                                        />
+                                      </td>
+                                      <td className="px-2 py-1.5">
+                                        <input
+                                          type="number"
+                                          step="0.1"
+                                          value={item.quantity}
+                                          onChange={e => handleUpdateVisitItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                                          className="bg-slate-50 rounded px-1.5 py-0.5 text-[11px] font-bold text-slate-700 outline-none w-14 border border-slate-200 focus:border-primary-500 transition-all text-center"
+                                        />
+                                      </td>
+                                      <td className="px-2 py-1.5">
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          value={item.unitPrice}
+                                          onChange={e => handleUpdateVisitItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
+                                          className="bg-slate-50 rounded px-1.5 py-0.5 text-[11px] font-bold text-slate-700 outline-none w-20 border border-slate-200 focus:border-primary-500 transition-all"
+                                        />
+                                      </td>
+                                      <td className="px-2 py-1.5 text-right font-mono font-bold text-[11px] text-slate-800">
+                                        R$ {(item.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                      </td>
+                                      <td className="px-2 py-1.5 text-center">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveVisitItem(item.id)}
+                                          className="p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded transition-all"
+                                        >
+                                          <Trash2 size={12} />
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                              {/* TOTAL CONSOLIDADO */}
+                              {(() => {
+                                const itemsSubtotal = newVisitItems.reduce((acc, i) => acc + (Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0), 0);
+                                const prevTotal = selectedOrder.items?.reduce((acc, i) => acc + (Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0), 0) || Number(selectedOrder.totalValue || selectedOrder.total_value || 0);
+                                return (
+                                  <div className="bg-slate-100/70 border-t border-slate-200 px-3 py-2 flex items-center justify-between text-xs">
+                                    <span className="text-[10px] font-semibold text-slate-500">
+                                      Total anterior da OS: R$ {prevTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                      {itemsSubtotal > 0 && ` + Visita: R$ ${itemsSubtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                                    </span>
+                                    <span className="text-[11px] font-bold text-slate-900 font-mono">
+                                      Novo Custo Total: R$ {(prevTotal + itemsSubtotal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <div className="flex justify-end gap-3 pt-2">
-                        <Button variant="ghost" size="sm" onClick={() => setShowNewVisitForm(false)} className="text-slate-500">
+                        <Button variant="ghost" size="sm" onClick={() => { setShowNewVisitForm(false); setNewVisitItems([]); setNewVisitDraft({ technicianId: '', scheduledDate: '', scheduledTime: '', notes: '' }); }} className="text-slate-500">
                           Cancelar
                         </Button>
                         <Button
@@ -3555,7 +4183,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           size="sm"
                           onClick={handleCreateVisit}
                           disabled={savingVisit}
-                          className="gap-2 bg-primary-600 hover:bg-primary-700 px-6"
+                          className="gap-2 !bg-[#1c2d4f] hover:!bg-[#253a66] text-white px-6 shadow-md shadow-[#1c2d4f]/20"
                         >
                           {savingVisit ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
                           Confirmar Agendamento
@@ -3598,7 +4226,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           return rawStatus;
                         })();
 
-                        const canEditVisit = canEdit('orders') && effectiveStatus === 'pending' && !visit.isLocked;
+                        const canEditVisit = canEdit('orders') && !visit.isLocked && effectiveStatus !== 'completed';
                         const isEditingThis = editingVisitId === visit.id;
                         const statusColors: Record<string, string> = {
                           pending: 'bg-slate-100 text-slate-600 border-slate-200',
@@ -3639,6 +4267,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   {visit.scheduledDate ? formatDateDisplay(visit.scheduledDate) : '—'}
                                   {visit.scheduledTime ? ` às ${visit.scheduledTime}` : ''}
                                 </p>
+                                {visit.formData?.items && Array.isArray(visit.formData.items) && visit.formData.items.length > 0 && (
+                                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                    <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                                      <Package size={10} className="text-slate-400" />
+                                      {visit.formData.items.length} {visit.formData.items.length === 1 ? 'item/custo' : 'itens/custos'}
+                                    </span>
+                                    <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                      + R$ {(visit.formData.totalValue || visit.formData.items.reduce((acc: number, i: any) => acc + (Number(i.total) || 0), 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
 
                               {!isEditingThis && (
@@ -3651,9 +4290,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                       scheduledTime: visit.scheduledTime || '',
                                       technicianId: visit.technicianId || '',
                                     });
+
+                                    const targetVisitNum = visit.visitNumber || (idx + 1);
+                                    let initialItems: OrderItem[] = [];
+                                    if (Array.isArray(visit.formData?.items) && visit.formData.items.length > 0) {
+                                      initialItems = visit.formData.items.map((i: any) => ({
+                                        ...i,
+                                        visitNumber: i.visitNumber || targetVisitNum,
+                                        visitId: i.visitId || visit.id,
+                                      }));
+                                    } else if (Array.isArray(selectedOrder.items)) {
+                                      initialItems = selectedOrder.items
+                                        .filter((i: any) => (i.visitId && i.visitId === visit.id) || (i.visitNumber ? i.visitNumber === targetVisitNum : targetVisitNum === 1))
+                                        .map((i: any) => ({
+                                          ...i,
+                                          visitNumber: targetVisitNum,
+                                          visitId: visit.id,
+                                        }));
+                                    }
+                                    setEditVisitItems(initialItems);
+                                    setEditVisitStockSearch('');
+                                    setIsEditVisitStockOpen(false);
+                                    if (allStockItems.length === 0) {
+                                      fetchStockForPicker();
+                                    }
                                   }}
                                   className={`p-2 text-amber-500 hover:bg-blue-50 rounded-lg border border-blue-200 transition-all shrink-0 ${!canEditVisit ? 'opacity-50 !cursor-not-allowed' : ''}`}
-                                  title="Editar agendamento"
+                                  title="Editar agendamento e custos da visita"
                                 >
                                   <Edit3 size={14} />
                                 </button>
@@ -3669,10 +4332,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               )}
                             </div>
 
-                            {/* Formulário de edição de agendamento — expandido inline */}
+                            {/* Formulário de edição de agendamento e itens — expandido inline */}
                             {isEditingThis && (
-                              <div className="border-t border-amber-100 bg-blue-50/40 px-5 py-4 space-y-3">
-                                <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-widest">Editar Agendamento</p>
+                              <div className="border-t border-amber-100 bg-blue-50/40 px-5 py-4 space-y-4">
+                                <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-widest">Editar Agendamento e Custos da Visita</p>
                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                   <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-1">
@@ -3799,17 +4462,159 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     </div>
                                   </div>
                                 </div>
-                                <div className="flex justify-end gap-2 pt-1">
-                                  <button onClick={() => setEditingVisitId(null)} className="px-3 py-1.5 text-[11px] font-medium text-slate-500 hover:text-slate-700 transition-colors">
+
+                                {/* Custos e Peças Desta Visita */}
+                                <div className="pt-3 border-t border-blue-200/60 space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-6 h-6 bg-blue-100 rounded-lg flex items-center justify-center text-blue-700">
+                                        <DollarSign size={13} />
+                                      </div>
+                                      <div>
+                                        <h4 className="text-xs font-bold text-slate-800 tracking-tight">Custos e Peças Desta Visita</h4>
+                                        <p className="text-[10px] text-slate-400 font-medium">Itens de estoque ou despesas atribuídos exclusivamente à Visita {visit.visitNumber || idx + 1}</p>
+                                      </div>
+                                    </div>
+                                    {editVisitItems.length > 0 && (
+                                      <span className="text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                        Subtotal: R$ {editVisitItems.reduce((acc, i) => acc + (Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Ações para adicionar estoque e manual */}
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <div className="relative">
+                                      <Package className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+                                      <input
+                                        placeholder="Buscar peça no estoque..."
+                                        value={editVisitStockSearch}
+                                        onChange={e => { setEditVisitStockSearch(e.target.value); setIsEditVisitStockOpen(true); }}
+                                        onFocus={() => setIsEditVisitStockOpen(true)}
+                                        className="w-full bg-white border border-blue-200 rounded-lg pl-8 pr-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all"
+                                      />
+                                      {(isEditVisitStockOpen && editVisitStockSearch) && (
+                                        <div className="absolute z-[180] top-full mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto custom-scrollbar">
+                                          {allStockItems.filter(s => s.description.toLowerCase().includes(editVisitStockSearch.toLowerCase())).length > 0 ? (
+                                            allStockItems.filter(s => s.description.toLowerCase().includes(editVisitStockSearch.toLowerCase())).map(s => (
+                                              <button
+                                                key={s.id}
+                                                type="button"
+                                                onClick={() => handleAddEditVisitStockItem(s, visit.visitNumber || (idx + 1), visit.id)}
+                                                className="w-full text-left px-3 py-2 hover:bg-blue-50 flex justify-between items-center border-b border-slate-100 last:border-0 group"
+                                              >
+                                                <div className="flex items-center gap-2">
+                                                  <Box size={12} className="text-slate-400 group-hover:text-blue-600" />
+                                                  <div>
+                                                    <p className="text-[11px] font-bold text-slate-700">{s.description}</p>
+                                                    <p className="text-[10px] text-blue-600 font-bold">R$ {(s.sellPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                  </div>
+                                                </div>
+                                                <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">Qtd: {s.quantity}</span>
+                                              </button>
+                                            ))
+                                          ) : (
+                                            <div className="p-3 text-center text-[10px] font-medium text-slate-400">Nenhum item encontrado no estoque</div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddEditVisitManualItem(visit.visitNumber || (idx + 1), visit.id)}
+                                      className="border border-dashed border-blue-300 text-blue-700 bg-white rounded-lg py-2 text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-blue-50 hover:border-blue-400 transition-all"
+                                    >
+                                      <Plus size={13} /> Adicionar Item Manual
+                                    </button>
+                                  </div>
+
+                                  {/* Tabela de itens desta visita */}
+                                  {editVisitItems.length > 0 ? (
+                                    <div className="bg-white rounded-xl border border-blue-200 overflow-hidden shadow-sm">
+                                      <table className="w-full text-left">
+                                        <thead>
+                                          <tr className="bg-slate-50 text-[9px] font-bold text-slate-400 uppercase border-b border-slate-200">
+                                            <th className="px-3 py-1.5">Item / Descrição</th>
+                                            <th className="px-2 py-1.5 w-16 text-center">Qtd</th>
+                                            <th className="px-2 py-1.5 w-24">Unit. (R$)</th>
+                                            <th className="px-2 py-1.5 w-24 text-right">Subtotal</th>
+                                            <th className="px-2 py-1.5 text-center w-8"></th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 bg-white">
+                                          {editVisitItems.map(item => (
+                                            <tr key={item.id} className="hover:bg-blue-50/30 transition-colors">
+                                              <td className="px-3 py-1.5">
+                                                <input
+                                                  type="text"
+                                                  value={item.description}
+                                                  onChange={e => handleUpdateEditVisitItem(item.id, 'description', e.target.value)}
+                                                  placeholder="Descreva o custo ou peça..."
+                                                  className="bg-transparent border-none text-[11px] font-semibold text-slate-700 outline-none w-full placeholder:text-slate-300 focus:ring-1 focus:ring-blue-300 rounded px-1"
+                                                />
+                                              </td>
+                                              <td className="px-2 py-1.5">
+                                                <input
+                                                  type="number"
+                                                  step="0.1"
+                                                  value={item.quantity}
+                                                  onChange={e => handleUpdateEditVisitItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                                                  className="bg-slate-50 rounded px-1.5 py-0.5 text-[11px] font-bold text-slate-700 outline-none w-14 border border-slate-200 focus:border-blue-400 transition-all text-center"
+                                                />
+                                              </td>
+                                              <td className="px-2 py-1.5">
+                                                <input
+                                                  type="number"
+                                                  step="0.01"
+                                                  value={item.unitPrice}
+                                                  onChange={e => handleUpdateEditVisitItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
+                                                  className="bg-slate-50 rounded px-1.5 py-0.5 text-[11px] font-bold text-slate-700 outline-none w-20 border border-slate-200 focus:border-blue-400 transition-all"
+                                                />
+                                              </td>
+                                              <td className="px-2 py-1.5 text-right font-mono font-bold text-[11px] text-slate-800">
+                                                R$ {(item.total || (Number(item.unitPrice || 0) * Number(item.quantity || 1)) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                              </td>
+                                              <td className="px-2 py-1.5 text-center">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleRemoveEditVisitItem(item.id)}
+                                                  className="p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded transition-all"
+                                                >
+                                                  <Trash2 size={12} />
+                                                </button>
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                      <div className="bg-slate-50 border-t border-slate-200 px-3 py-2 flex items-center justify-between text-xs">
+                                        <span className="text-[10px] font-semibold text-slate-500">
+                                          Total Desta Visita
+                                        </span>
+                                        <span className="text-[11px] font-bold text-slate-900 font-mono">
+                                          R$ {editVisitItems.reduce((acc, i) => acc + (Number(i.total) || (Number(i.unitPrice || 0) * Number(i.quantity || 1)) || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="bg-white/60 border border-dashed border-blue-200 rounded-lg p-3 text-center">
+                                      <p className="text-[11px] text-slate-400">Nenhum custo ou peça vinculado a esta visita ainda.</p>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="flex justify-end gap-2 pt-2 border-t border-blue-100">
+                                  <button onClick={() => { setEditingVisitId(null); setEditVisitItems([]); }} className="px-3 py-1.5 text-[11px] font-medium text-slate-500 hover:text-slate-700 transition-colors">
                                     Cancelar
                                   </button>
                                   <button
                                     onClick={() => handleSaveVisitSchedule(visit)}
                                     disabled={savingSchedule}
-                                    className="flex items-center gap-1.5 px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-semibold rounded-lg transition-all shadow-md disabled:opacity-50"
+                                    className="flex items-center gap-1.5 px-4 py-1.5 bg-[#1c2d4f] hover:bg-[#253a66] text-white text-[11px] font-semibold rounded-lg transition-all shadow-md disabled:opacity-50"
                                   >
                                     {savingSchedule ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
-                                    Salvar
+                                    Salvar Alterações
                                   </button>
                                 </div>
                               </div>
@@ -3841,7 +4646,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {/* TAB: DESLOCAMENTO */}
               {activeTab === 'displacement' && (
                 <div className="max-w-4xl mx-auto space-y-8">
-                  <DisplacementTab visits={orderVisits} />
+                  <DisplacementTab visits={orderVisits} order={selectedOrder} />
                 </div>
               )}
 
@@ -3937,8 +4742,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <video
                   src={fullscreenImage}
                   controls
-                  autoPlay
-                  className="max-w-full max-h-full rounded-lg shadow-2xl animate-in zoom-in-95"
+                  playsInline
+                  preload="auto"
+                  className="max-w-full max-h-full rounded-lg shadow-2xl animate-in zoom-in-95 bg-black"
                 />
               ) : (
                 <img

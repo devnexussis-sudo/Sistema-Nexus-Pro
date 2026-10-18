@@ -576,7 +576,7 @@ const VisitContainer: React.FC<{
                       className="w-24 h-24 rounded-lg overflow-hidden border border-indigo-100 bg-black cursor-zoom-in hover:shadow-md transition-all relative"
                       onClick={() => onImageClick(url)}
                     >
-                      <video src={url} className="w-full h-full object-cover opacity-60" preload="metadata" />
+                      <video src={`${url}#t=0.1`} className="w-full h-full object-cover opacity-60" preload="metadata" muted playsInline />
                       <div className="absolute inset-0 flex items-center justify-center"><Play size={16} className="text-white fill-white" /></div>
                     </div>
                   ))}
@@ -614,7 +614,7 @@ const FormValueDisplay: React.FC<{ value: any; onImageClick: (url: string) => vo
       <div className="relative group cursor-zoom-in" onClick={() => onImageClick(mediaUrl)}>
         {isVideoUrl(mediaUrl) ? (
           <div className="w-12 h-12 rounded-md bg-black flex items-center justify-center border border-slate-200 overflow-hidden relative">
-            <video src={mediaUrl} className="w-full h-full object-cover opacity-50" />
+            <video src={`${mediaUrl}#t=0.1`} className="w-full h-full object-cover opacity-50" preload="metadata" muted playsInline />
             <Play size={10} className="text-white fill-white absolute" />
             <div className="absolute bottom-0 right-0 bg-black/60 px-0.5 rounded-tl text-[6px] text-white font-medium">MP4</div>
           </div>
@@ -633,7 +633,7 @@ const FormValueDisplay: React.FC<{ value: any; onImageClick: (url: string) => vo
           <div key={i} className="relative group cursor-zoom-in" onClick={() => onImageClick(media)}>
             {isVideoUrl(media) ? (
               <div className="w-12 h-12 rounded-md bg-black flex items-center justify-center border border-slate-200 overflow-hidden relative">
-                <video src={media} className="w-full h-full object-cover opacity-50" />
+                <video src={`${media}#t=0.1`} className="w-full h-full object-cover opacity-50" preload="metadata" muted playsInline />
                 <Play size={10} className="text-white fill-white absolute" />
               </div>
             ) : (

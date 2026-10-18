@@ -14,7 +14,8 @@ import {
   Navigation, Smartphone, Lock, Unlock, ListOrdered,
   ShieldAlert, X, UploadCloud, Languages,
   BellRing, Database, History, HardDrive, Loader2, Loader, Share2, PlayCircle, PieChart, Target, ImagePlus,
-  Monitor, MapPinned, MessageCircle, QrCode, Wifi, WifiOff, Clock, AlertTriangle, RefreshCw, Video, ChevronDown
+  Monitor, MapPinned, MessageCircle, QrCode, Wifi, WifiOff, Clock, AlertTriangle, RefreshCw, Video, ChevronDown,
+  FileSignature
 } from 'lucide-react';
 import { useI18n, TIMEZONE_OPTIONS, type SupportedLocale, type SupportedTimezone } from '../../i18n';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -67,6 +68,7 @@ interface SystemParams {
   enableGeofencing: boolean;
   // Check-in Automático
   autoCheckin: boolean;
+  requireClientSignature: boolean;
 }
 
 export interface WhatsAppConnectionLog {
@@ -334,6 +336,7 @@ export const SettingsPage: React.FC = () => {
     enableGeofencing: false,
     autoCheckin: false,
     requireLocationForExecution: false,
+    requireClientSignature: true,
   });
 
   const [dbInfo, setDbInfo] = useState<{ slug: string, id: string } | null>(null);
@@ -387,6 +390,7 @@ export const SettingsPage: React.FC = () => {
         enableGeofencing: data.metadata?.enableGeofencing ?? false,
         autoCheckin: data.metadata?.autoCheckin ?? false,
         requireLocationForExecution: data.metadata?.requireLocationForExecution ?? false,
+        requireClientSignature: data.metadata?.requireClientSignature ?? true,
       }));
 
       // Sync WhatsApp settings — só sincroniza do banco na primeira carga
@@ -471,7 +475,11 @@ export const SettingsPage: React.FC = () => {
     try {
       setLoading(true);
       const tenantId = data?.id || DataService.getCurrentTenantId() || 'global';
-      const uploadedUrl = await StorageService.uploadTenantLogo(file, tenantId);
+      const uploadedUrl = await StorageService.uploadTenantLogo(file, tenantId, undefined, {
+        companyName: company.companyName,
+        tradeName: company.tradingName,
+        cnpj: company.cnpj
+      });
       if (uploadedUrl && !uploadedUrl.startsWith('data:')) {
         setCompany(prev => ({ ...prev, logoUrl: uploadedUrl }));
       } else {
@@ -507,7 +515,11 @@ export const SettingsPage: React.FC = () => {
         try {
           const res = await fetch(company.logoUrl);
           const blob = await res.blob();
-          const uploadedUrl = await StorageService.uploadTenantLogo(blob, tenantId);
+          const uploadedUrl = await StorageService.uploadTenantLogo(blob, tenantId, undefined, {
+            companyName: company.companyName,
+            tradeName: company.tradingName,
+            cnpj: company.cnpj
+          });
           if (uploadedUrl && !uploadedUrl.startsWith('data:')) {
             company.logoUrl = uploadedUrl;
             setCompany(prev => ({ ...prev, logoUrl: uploadedUrl }));
@@ -570,6 +582,7 @@ export const SettingsPage: React.FC = () => {
           showVisitHistoryInPublicLink: params.showVisitHistoryInPublicLink,
           enableGeofencing: params.enableGeofencing,
           autoCheckin: params.autoCheckin,
+          requireClientSignature: params.requireClientSignature,
         }
       };
 
@@ -582,6 +595,13 @@ export const SettingsPage: React.FC = () => {
       console.log("Save Success - DB Response:", result);
 
       if (result) {
+        // 🛡️ Sincroniza / Garante a estrutura de pastas corporativas no Cloudflare R2
+        try {
+          await StorageService.initializeTenantMasterFolder(result);
+        } catch (r2Err) {
+          console.warn('[Settings] Aviso ao sincronizar pastas R2:', r2Err);
+        }
+
         // Invalida cache global para atualizar logo no AdminLayout
         NexusQueryClient.invalidateTenant();
 
@@ -1464,6 +1484,27 @@ export const SettingsPage: React.FC = () => {
                         </div>
                         <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
                           {t.settings.app.visitHistoryDescription}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
+                      <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.requireClientSignature ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                        <FileSignature size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">{(t.settings.app as any).requireClientSignature || 'Assinatura de cliente obrigatória'}</h4>
+                          <button
+                            type="button"
+                            onClick={() => setParams({ ...params, requireClientSignature: !params.requireClientSignature })}
+                            className={`w-10 h-5 rounded-full relative transition-colors ${params.requireClientSignature ? 'bg-amber-600' : 'bg-gray-300'}`}
+                          >
+                            <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: params.requireClientSignature ? '22px' : '2px' }}></div>
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
+                          {(t.settings.app as any).requireClientSignatureDescription || 'Quando desativado, o app não exigirá a assinatura do cliente para conclusão ou impedimento da OS, exigindo apenas o nome.'}
                         </p>
                       </div>
                     </div>

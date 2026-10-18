@@ -288,21 +288,86 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
         };
     }, [quote, companyName, getPrintDocumentTitle]);
 
+    // 🛡️ Previne que qualquer teclado virtual permaneça aberto na tela ao interagir com a assinatura
+    const dismissActiveKeyboard = useCallback(() => {
+        if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+        }
+    }, []);
+
+    // 🎯 Calibra a resolução do canvas para High-DPI (Retina/Mobile) e evita desvios no traço do dedo
+    const initSignatureCanvasSize = useCallback(() => {
+        if (!sigCanvas.current) return;
+        try {
+            const canvas = sigCanvas.current.getCanvas?.();
+            if (!canvas) return;
+
+            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+            const rect = canvas.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) return;
+
+            const targetW = Math.round(rect.width * ratio);
+            const targetH = Math.round(rect.height * ratio);
+
+            if (canvas.width !== targetW || canvas.height !== targetH) {
+                let data: any = null;
+                try {
+                    data = sigCanvas.current.toData?.() || [];
+                } catch (e) {}
+
+                canvas.width = targetW;
+                canvas.height = targetH;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.scale(ratio, ratio);
+                }
+                sigCanvas.current.clear?.();
+                if (data && data.length > 0) {
+                    try {
+                        sigCanvas.current.fromData?.(data);
+                    } catch (e) {}
+                }
+            }
+        } catch (err) {
+            console.warn('[Nexus Signature] Ajuste de resolução do canvas:', err);
+        }
+    }, []);
+
     useEffect(() => {
         if (isApproveMode) {
+            dismissActiveKeyboard();
             setTimeout(() => {
                 approveFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 150);
+            }, 100);
         }
-    }, [isApproveMode]);
+    }, [isApproveMode, dismissActiveKeyboard]);
 
     useEffect(() => {
         if (isRejectMode) {
+            dismissActiveKeyboard();
             setTimeout(() => {
                 rejectFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 150);
+            }, 100);
         }
-    }, [isRejectMode]);
+    }, [isRejectMode, dismissActiveKeyboard]);
+
+    // Listener para recalibrar o canvas quando a tela gira ou o tamanho muda
+    useEffect(() => {
+        if (isApproveMode || isRejectMode) {
+            const t1 = setTimeout(initSignatureCanvasSize, 50);
+            const t2 = setTimeout(initSignatureCanvasSize, 200);
+            const t3 = setTimeout(initSignatureCanvasSize, 600);
+            window.addEventListener('resize', initSignatureCanvasSize);
+            window.addEventListener('orientationchange', initSignatureCanvasSize);
+            return () => {
+                clearTimeout(t1);
+                clearTimeout(t2);
+                clearTimeout(t3);
+                window.removeEventListener('resize', initSignatureCanvasSize);
+                window.removeEventListener('orientationchange', initSignatureCanvasSize);
+            };
+        }
+    }, [isApproveMode, isRejectMode, initSignatureCanvasSize]);
 
     // Impressão automática inteligente quando acionado com ?print=true (via painel admin ou link direto)
     useEffect(() => {
@@ -356,11 +421,19 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
     }, [loading, quote, getPrintDocumentTitle]);
 
     const enterSignatureMode = async (mode: 'approve' | 'reject') => {
-        if (mode === 'approve') setIsApproveMode(true);
-        if (mode === 'reject') setIsRejectMode(true);
+        dismissActiveKeyboard();
+        if (mode === 'approve') {
+            setIsApproveMode(true);
+            setIsRejectMode(false);
+        }
+        if (mode === 'reject') {
+            setIsRejectMode(true);
+            setIsApproveMode(false);
+        }
     };
 
     const exitSignatureMode = async (mode: 'approve' | 'reject') => {
+        dismissActiveKeyboard();
         if (mode === 'approve') setIsApproveMode(false);
         if (mode === 'reject') setIsRejectMode(false);
     };
@@ -917,38 +990,33 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
 
                 {/* ── STICKY HEADER ── */}
                 <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm print:hidden">
-                    <div className="max-w-6xl mx-auto px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between gap-4">
+                    <div className="max-w-6xl mx-auto px-3 sm:px-8 py-2.5 sm:py-4 flex items-center justify-between gap-3 sm:gap-4">
                         {/* Company identity */}
-                        <div className="flex items-center gap-4 min-w-0">
+                        <div className="flex items-center gap-2.5 sm:gap-4 min-w-0 flex-1">
                             {companyLogo
-                                ? <img src={companyLogo} alt={companyName} className="h-10 sm:h-12 w-auto object-contain shrink-0" />
+                                ? <img src={companyLogo} alt={companyName} className="h-8 sm:h-12 w-auto max-w-[110px] sm:max-w-[180px] object-contain shrink-0" />
                                 : (
-                                    <div className="w-10 h-10 bg-[#1c2d4f] rounded-xl flex items-center justify-center shrink-0">
-                                        <Hexagon size={20} className="text-white fill-white/10" />
+                                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[#1c2d4f] rounded-lg sm:rounded-xl flex items-center justify-center shrink-0">
+                                        <Hexagon size={18} className="text-white fill-white/10" />
                                     </div>
                                 )
                             }
                             <div className="min-w-0 flex-1">
-                                <h1 className="text-sm font-bold text-slate-900 uppercase tracking-tight sm:truncate leading-none mb-1.5">{companyName}</h1>
-                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                                <h1 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-tight truncate leading-tight">{companyName}</h1>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
                                     {companyDoc && (
-                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap flex items-center gap-1">
+                                        <span className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                                             CNPJ: {companyDoc}
                                         </span>
                                     )}
                                     {companyPhone && (
-                                        <span className="flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap text-opacity-80">
+                                        <span className="flex items-center gap-1 text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap text-opacity-80">
                                             <Phone size={9} className="text-[#3e5b99]" /> {companyPhone}
                                         </span>
                                     )}
                                     {companyWebsite && (
-                                        <span className="flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap text-opacity-80">
+                                        <span className="hidden sm:flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap text-opacity-80">
                                             <Globe size={9} className="text-[#3e5b99]" /> {companyWebsite.replace(/^https?:\/\//, '')}
-                                        </span>
-                                    )}
-                                    {companyAddress && (
-                                        <span className="flex items-center gap-1 text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-widest leading-tight">
-                                            <MapPin size={10} className="text-[#3e5b99] shrink-0" /> <span className="flex-1">{companyAddress}</span>
                                         </span>
                                     )}
                                 </div>
@@ -958,113 +1026,109 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                         {/* Print Quote Button */}
                         <button
                             onClick={handlePrintQuote}
-                            className="inline-flex items-center justify-center min-w-max h-9 sm:h-10 px-4 py-2 bg-[#1c2d4f] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0 whitespace-nowrap"
+                            className="inline-flex items-center justify-center h-8 sm:h-10 px-2.5 sm:px-4 py-1 sm:py-2 bg-[#1c2d4f] text-white rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:bg-[#2a457a] transition-all shadow-sm active:scale-95 shrink-0 gap-1.5 whitespace-nowrap cursor-pointer"
                             title="Imprimir Orçamento"
                         >
-                            <Printer size={16} className="text-white shrink-0" />
-                            <span className="leading-none">Imprimir</span>
+                            <Printer size={15} className="text-white shrink-0" />
+                            <span className="hidden xs:inline sm:inline">Imprimir</span>
                         </button>
                     </div>
                 </header>
 
                 {/* ── QUOTE HERO BANNER ── */}
                 <div className={`${quote.status === 'APROVADO' || quote.status === 'CONVERTIDO' ? 'bg-emerald-700' : 'bg-[#1c2d4f]'} transition-colors print:hidden`}>
-                    <div className="max-w-6xl mx-auto px-4 sm:px-8 py-5 sm:py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+                    <div className="max-w-6xl mx-auto px-3 sm:px-8 py-3.5 sm:py-6 flex flex-row justify-between items-center gap-3">
                         {/* Quote identity */}
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center border border-white/10 shrink-0">
-                                <Calculator size={22} className="text-white" />
+                        <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
+                            <div className="w-9 h-9 sm:w-12 sm:h-12 bg-white/10 rounded-lg sm:rounded-xl flex items-center justify-center border border-white/10 shrink-0">
+                                <Calculator size={20} className="text-white shrink-0" />
                             </div>
-                            <div>
-                                <p className="text-xs font-bold text-white/40 uppercase tracking-[0.3em] leading-none mb-1">Proposta Comercial</p>
-                                <h2 className="text-xl sm:text-2xl font-bold text-white uppercase tracking-tighter leading-none">
+                            <div className="min-w-0">
+                                <p className="text-[9px] sm:text-xs font-bold text-white/50 uppercase tracking-[0.2em] leading-none mb-1">Proposta Comercial</p>
+                                <h2 className="text-base sm:text-2xl font-black text-white uppercase tracking-tight leading-none truncate">
                                     #{quote.displayId || `ORC-${quote.id.slice(0, 8).toUpperCase()}`}
                                 </h2>
-                                {quote.title && <p className="text-xs font-semibold text-white/50 uppercase tracking-wide mt-1">{quote.title}</p>}
+                                {quote.title && <p className="text-[10px] sm:text-xs font-semibold text-white/70 uppercase tracking-wide mt-1 truncate max-w-[200px] sm:max-w-md">{quote.title}</p>}
                             </div>
                         </div>
 
                         {/* Status + priority */}
-                        <div className="flex items-center gap-2.5 flex-wrap">
-                            <div className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-widest border flex items-center gap-1.5 ${{
+                        <div className="shrink-0">
+                            <div className={`px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider border flex items-center gap-1.5 ${{
                                 'PENDENTE': 'bg-slate-500/20 text-slate-300 border-slate-500/30',
                                 'ABERTO': 'bg-sky-500/20 text-sky-300 border-sky-500/30',
                                 'APROVADO': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
                                 'CONVERTIDO': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
                                 'REJEITADO': 'bg-rose-500/20 text-rose-300 border-rose-500/30',
                                 'VENCIDO': 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                            }[quote.status] || 'bg-white/10 text-white/70 border-white/10'
-                                }`}>
-                                <span className={`w-1 h-1 rounded-full animate-pulse-subtle ${{
+                            }[quote.status] || 'bg-white/10 text-white/70 border-white/10'}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full animate-pulse-subtle ${{
                                     'PENDENTE': 'bg-slate-400',
                                     'ABERTO': 'bg-sky-400',
                                     'APROVADO': 'bg-emerald-400',
                                     'CONVERTIDO': 'bg-emerald-400',
                                     'REJEITADO': 'bg-rose-400',
                                     'VENCIDO': 'bg-amber-400'
-                                }[quote.status] || 'bg-white/50'
-                                    }`} />
-                                {quote.status}
+                                }[quote.status] || 'bg-white/50'}`} />
+                                <span>{quote.status}</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 {/* ── MAIN CONTENT ── */}
-                <main className="max-w-6xl mx-auto px-4 sm:px-8 py-8 sm:py-12 flex flex-col gap-10 print:hidden">
+                <main className="max-w-6xl mx-auto px-3 sm:px-8 py-4 sm:py-10 flex flex-col gap-4 sm:gap-8 print:hidden w-full overflow-x-hidden">
 
                     {/* ── ROW 1: Cliente + Comercial ── */}
-                    <div className="flex flex-col gap-4 lg:gap-6">
-                        <div className="bg-slate-200/50 rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/30 p-4 sm:p-5">
-                            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 bg-[#1c2d4f]/10 rounded-xl flex items-center justify-center shrink-0">
+                    <div className="flex flex-col gap-3 sm:gap-6">
+                        <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-md shadow-slate-100 p-3.5 sm:p-5">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 sm:w-10 sm:h-10 bg-[#1c2d4f]/10 rounded-xl flex items-center justify-center shrink-0">
                                         <User size={18} className="text-[#1c2d4f]" />
                                     </div>
-                                    <div>
-                                        <p className="text-xl font-bold text-slate-900 uppercase tracking-tight leading-none">{quote.customerName}</p>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1.5">Identificação do Cliente</p>
+                                    <div className="min-w-0">
+                                        <p className="text-base sm:text-xl font-bold text-slate-900 uppercase tracking-tight leading-tight truncate">{quote.customerName}</p>
+                                        <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Identificação do Cliente</p>
                                     </div>
                                 </div>
 
-                                <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                                     {(freshCustomerPhone || freshCustomerEmail) && (
-                                        <div className="flex flex-col gap-1.5">
+                                        <div className="flex flex-wrap sm:flex-col gap-2 sm:gap-1">
                                             {freshCustomerPhone && (
-                                                <div className="flex items-center gap-2.5">
-                                                    <Phone size={14} className="text-[#1c2d4f] shrink-0" />
-                                                    <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">{freshCustomerPhone}</p>
+                                                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 uppercase">
+                                                    <Phone size={12} className="text-[#1c2d4f] shrink-0" />
+                                                    <span>{freshCustomerPhone}</span>
                                                 </div>
                                             )}
                                             {freshCustomerEmail && (
-                                                <div className="flex items-center gap-2.5">
-                                                    <Mail size={14} className="text-[#1c2d4f] shrink-0" />
-                                                    <p className="text-xs font-medium text-slate-600 truncate max-w-[200px]">{freshCustomerEmail}</p>
+                                                <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 truncate max-w-[260px]">
+                                                    <Mail size={12} className="text-[#1c2d4f] shrink-0" />
+                                                    <span className="truncate">{freshCustomerEmail}</span>
                                                 </div>
                                             )}
                                         </div>
                                     )}
 
                                     {(freshCustomerAddress || quote.customerAddress) && (
-                                        <div className="flex items-start gap-2.5 max-w-[300px]">
-                                            <MapPin size={14} className="text-slate-400 mt-0.5 shrink-0" />
-                                            <p className="text-xs text-slate-500 leading-snug font-medium uppercase">{freshCustomerAddress || quote.customerAddress}</p>
+                                        <div className="flex items-start gap-1.5 text-xs text-slate-500 font-medium uppercase leading-snug">
+                                            <MapPin size={12} className="text-slate-400 mt-0.5 shrink-0" />
+                                            <span className="line-clamp-2">{freshCustomerAddress || quote.customerAddress}</span>
                                         </div>
                                     )}
 
-                                    <div className="flex gap-6 border-l border-slate-300/50 pl-6">
-                                        <div className="flex flex-col">
-                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.1em] mb-0.5 text-right">Validade</span>
-                                            <span className="text-xs font-bold text-slate-800">{quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : '—'}</span>
-                                        </div>
+                                    <div className="flex items-center justify-between sm:flex-col sm:items-end border-t sm:border-t-0 sm:border-l border-slate-200 pt-2 sm:pt-0 sm:pl-4">
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Validade</span>
+                                        <span className="text-xs font-bold text-slate-800">{quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : '—'}</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/30 p-3.5 sm:p-4 flex flex-col justify-center">
+                        <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-md shadow-slate-100 p-3.5 sm:p-5 flex flex-col justify-center">
                             <SectionHeader icon={<FileText size={15} />} title="Resumo Comercial" />
-                            <div className="grid grid-cols-2 gap-y-4 gap-x-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                 <InfoPill
                                     label="Validade da Proposta"
                                     value={quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : 'Não informada'}
@@ -1074,11 +1138,11 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                                     value={new Date(quote.createdAt).toLocaleDateString()}
                                 />
                                 {(quote.title || quote.description) && (
-                                    <div className="col-span-2 pt-4 border-t border-slate-200 mt-2">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Objeto / Escopo Técnico</p>
-                                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                            {quote.title && <p className="text-sm font-bold text-slate-800 uppercase mb-2">{quote.title}</p>}
-                                            {quote.description && <p className="text-sm text-slate-600 font-medium italic whitespace-pre-wrap leading-relaxed">{quote.description}</p>}
+                                    <div className="sm:col-span-2 pt-3 border-t border-slate-100 mt-1">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Objeto / Escopo Técnico</p>
+                                        <div className="bg-slate-50 p-3 sm:p-4 rounded-xl border border-slate-100">
+                                            {quote.title && <p className="text-xs sm:text-sm font-bold text-slate-800 uppercase mb-1.5">{quote.title}</p>}
+                                            {quote.description && <p className="text-xs sm:text-sm text-slate-600 font-medium italic whitespace-pre-wrap leading-relaxed">{quote.description}</p>}
                                         </div>
                                     </div>
                                 )}
@@ -1087,16 +1151,48 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                     </div>
 
                     {/* ── ROW 2: Tabela de Itens ── */}
-                    <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 overflow-hidden">
-                        <div className="p-8 sm:p-10 pb-6">
+                    <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-lg shadow-slate-100/50 overflow-hidden">
+                        <div className="p-4 sm:p-8 pb-3 sm:pb-4">
                             <SectionHeader icon={<DollarSign size={15} />} title="Composição de Preços e Serviços" color="text-emerald-600" />
                         </div>
 
-                        <div className="px-8 sm:px-10 pb-10 overflow-x-auto custom-scrollbar">
+                        {/* 📱 Mobile Items View (Card-based, 100% full width, zero scrollbar) */}
+                        <div className="px-3 sm:hidden pb-4 space-y-2.5">
+                            {quote.items.map((item: any, i: number) => (
+                                <div key={i} className="bg-slate-50/80 rounded-xl p-3 border border-slate-200/70 space-y-2">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <span className="w-5 h-5 inline-flex items-center justify-center bg-white border border-slate-200 rounded text-[9px] font-bold text-slate-400 shrink-0">
+                                                {String(i + 1).padStart(2, '0')}
+                                            </span>
+                                            <span className="text-xs font-bold text-slate-800 uppercase leading-snug line-clamp-2">
+                                                {item.description || item.title}
+                                            </span>
+                                        </div>
+                                        {(item.stockCode || item.stock_code) && (
+                                            <span className="text-[9px] font-mono font-bold text-[#3e5b99] bg-[#3e5b99]/10 px-1.5 py-0.5 rounded shrink-0">
+                                                {item.stockCode || item.stock_code}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-xs">
+                                        <span className="text-slate-500 font-medium">
+                                            {item.quantity} un × R$ {(item.unitPrice || item.unit_price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </span>
+                                        <span className="text-sm font-black text-[#1c2d4f] tracking-tight">
+                                            R$ {(item.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* 💻 Desktop Table View (Hidden on mobile) */}
+                        <div className="hidden sm:block px-8 pb-8 overflow-x-auto custom-scrollbar">
                             <div className="min-w-[600px] border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
                                 <table className="w-full text-left table-auto">
                                     <thead className="bg-slate-100/80 border-b border-slate-200">
-                                        <tr className="text-[10px] sm:text-xs font-bold text-slate-500 tracking-widest uppercase">
+                                        <tr className="text-xs font-bold text-slate-500 tracking-widest uppercase">
                                             <th className="px-4 py-3 w-16 text-center border-r border-slate-200/50">#</th>
                                             <th className="px-4 py-3 w-32 border-r border-slate-200/50">Código</th>
                                             <th className="px-4 py-3 border-r border-slate-200/50">Descrição / Item</th>
@@ -1116,7 +1212,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                                                 <td className="px-4 py-3 text-xs font-bold text-[#3e5b99] tracking-wider uppercase font-mono border-r border-slate-100/50">
                                                     {item.stockCode || item.stock_code || <span className="text-slate-300 font-normal">—</span>}
                                                 </td>
-                                                <td className="px-4 py-3 text-xs sm:text-sm font-bold text-slate-800 uppercase leading-snug border-r border-slate-100/50">
+                                                <td className="px-4 py-3 text-sm font-bold text-slate-800 uppercase leading-snug border-r border-slate-100/50">
                                                     {item.description || item.title}
                                                 </td>
                                                 <td className="px-4 py-3 text-xs font-bold text-slate-600 text-center border-r border-slate-100/50">
@@ -1137,36 +1233,32 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
 
                         {/* ── CONDIÇÕES DE PAGAMENTO (WEB) ── */}
                         {(quote.paymentMethod || quote.paymentNotes) && (
-                            <div className="px-8 sm:px-10 pb-8">
-                                <div className="bg-indigo-50/50 border border-indigo-100/50 rounded-2xl p-6 flex flex-col sm:flex-row gap-6 justify-between items-start">
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-bold text-indigo-800/60 uppercase tracking-widest flex items-center gap-2">
-                                            <CreditCard size={12} /> Condições de Pagamento
+                            <div className="px-3 sm:px-8 pb-4 sm:pb-6">
+                                <div className="bg-indigo-50/60 border border-indigo-100/70 rounded-xl p-3 sm:p-5 flex flex-col gap-2">
+                                    <p className="text-[10px] font-bold text-indigo-800 uppercase tracking-widest flex items-center gap-1.5">
+                                        <CreditCard size={12} /> Condições de Pagamento
+                                    </p>
+                                    {quote.paymentMethod && (
+                                        <p className="text-xs sm:text-sm font-bold text-indigo-900 uppercase">
+                                            Forma: {quote.paymentMethod.replace('_', ' ')}
+                                            {quote.installments > 1 && <span className="ml-1.5 text-indigo-600 font-semibold">({quote.installments}x)</span>}
                                         </p>
-                                        <div className="flex flex-col gap-1 mt-2">
-                                            {quote.paymentMethod && (
-                                                <p className="text-sm font-bold text-indigo-900 uppercase">
-                                                    Forma: {quote.paymentMethod.replace('_', ' ')}
-                                                    {quote.installments > 1 && <span className="ml-2 text-indigo-600/80">({quote.installments}x)</span>}
-                                                </p>
-                                            )}
-                                            {quote.paymentNotes && (
-                                                <p className="text-xs font-medium text-slate-600 max-w-md mt-1 whitespace-pre-wrap">{quote.paymentNotes}</p>
-                                            )}
-                                        </div>
-                                    </div>
+                                    )}
+                                    {quote.paymentNotes && (
+                                        <p className="text-xs text-slate-600 font-medium whitespace-pre-wrap leading-relaxed">{quote.paymentNotes}</p>
+                                    )}
                                 </div>
                             </div>
                         )}
 
-                        <div className="bg-emerald-50/50 p-8 sm:p-10 border-t border-emerald-100/50 flex flex-col sm:flex-row items-center justify-between gap-6">
-                            <div className="flex items-center gap-4 order-2 sm:order-1">
-                                <ShieldCheck className="text-emerald-500" size={16} />
-                                <p className="text-xs font-bold text-emerald-800/60 uppercase tracking-widest max-w-[200px] leading-tight flex-1">
-                                    Condições comerciai regidas pela emissora do documento
+                        <div className="bg-emerald-50/50 p-4 sm:p-8 border-t border-emerald-100/60 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-2 order-2 sm:order-1 text-slate-500">
+                                <ShieldCheck className="text-emerald-500 shrink-0" size={16} />
+                                <p className="text-[10px] sm:text-xs font-bold text-emerald-800/70 uppercase tracking-wider leading-tight">
+                                    Condições comerciais regidas pela emissora do documento
                                 </p>
                             </div>
-                            <div className="flex flex-col items-center sm:items-end order-1 sm:order-2 gap-1 w-full sm:w-auto">
+                            <div className="flex flex-col items-end order-1 sm:order-2 gap-1 w-full sm:w-64">
                                 {(() => {
                                     const subtotal = quote.items.reduce((a: number, i: any) => a + (i.total || 0), 0);
                                     const disc = Number(quote.discount) || 0;
@@ -1178,19 +1270,19 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
 
                                     return (
                                         <>
-                                            <div className="flex justify-between items-center py-1 w-full sm:w-64">
-                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Subtotal</p>
-                                                <p className="text-sm font-bold text-slate-600">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                            <div className="flex justify-between items-center py-0.5 w-full">
+                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Subtotal</p>
+                                                <p className="text-xs sm:text-sm font-bold text-slate-700">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                             </div>
                                             {dv > 0 && (
-                                                <div className="flex justify-between items-center py-1 w-full sm:w-64">
-                                                    <p className="text-xs font-bold text-rose-500 uppercase tracking-widest">Desconto Aplicado {type === 'percent' ? `(${disc}%)` : ''}</p>
-                                                    <p className="text-sm font-bold text-rose-500 tracking-tight">- R$ {dv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                <div className="flex justify-between items-center py-0.5 w-full">
+                                                    <p className="text-xs font-bold text-rose-500 uppercase tracking-wider">Desconto {type === 'percent' ? `(${disc}%)` : ''}</p>
+                                                    <p className="text-xs sm:text-sm font-bold text-rose-500 tracking-tight">- R$ {dv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                                 </div>
                                             )}
-                                            <div className="flex justify-between items-center pt-3 mt-1 border-t border-slate-200 w-full sm:w-64">
-                                                <p className="text-xs font-bold text-emerald-600/70 uppercase tracking-widest">Investimento Total</p>
-                                                <p className="text-xl font-bold text-emerald-700 tracking-tighter italic">R$ {(quote.totalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                            <div className="flex justify-between items-center pt-2.5 mt-1 border-t border-slate-200/80 w-full">
+                                                <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Investimento Total</p>
+                                                <p className="text-lg sm:text-xl font-black text-emerald-700 tracking-tight">R$ {(quote.totalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                             </div>
                                         </>
                                     );
@@ -1202,7 +1294,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                     {/* ── ACTIONS / STATUS VIEW ── */}
 
                     {quote.status === 'REJEITADO' && (
-                        <div className="bg-white rounded-3xl border border-rose-100 shadow-2xl shadow-rose-100/30 p-8 sm:p-10 overflow-hidden relative">
+                        <div className="bg-white rounded-2xl sm:rounded-3xl border border-rose-100 shadow-xl sm:shadow-2xl shadow-rose-100/30 p-4 sm:p-8 md:p-10 overflow-hidden relative">
                             {/* Background hint */}
                             <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
                                 <XCircle size={120} className="text-rose-600" />
@@ -1210,29 +1302,29 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
 
                             <SectionHeader icon={<ShieldCheck size={15} />} title="Registro de Recusa" color="text-rose-700" />
                             
-                            <div className="mb-8 p-4 bg-rose-50 border border-rose-100 rounded-2xl relative z-10">
-                                <p className="text-xs font-bold text-rose-800 tracking-widest uppercase mb-1">Motivo da Recusa</p>
-                                <p className="text-sm font-bold text-rose-600/80 italic uppercase">
+                            <div className="mb-6 sm:mb-8 p-3.5 sm:p-4 bg-rose-50 border border-rose-100 rounded-xl sm:rounded-2xl relative z-10">
+                                <p className="text-xs font-bold text-rose-800 tracking-wider uppercase mb-1">Motivo da Recusa</p>
+                                <p className="text-xs sm:text-sm font-bold text-rose-600/80 italic uppercase">
                                     {quote.rejectionReason || rejectionReason || 'Nenhum motivo específico informado.'}
                                 </p>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 relative z-10">
-                                <div className="space-y-5">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 relative z-10">
+                                <div className="space-y-3 sm:space-y-5">
                                     <InfoPill label="Recusado por" value={quote.approvedByName || 'Cliente'} />
                                     <InfoPill label="Data e hora da recusa" value={quote.approvedAt ? new Date(quote.approvedAt).toLocaleString() : 'N/D'} mono />
                                 </div>
-                                <div className="border border-rose-100 bg-rose-50/30 rounded-xl p-4 flex flex-col items-center justify-center min-h-[140px]">
+                                <div className="border border-rose-100 bg-rose-50/30 rounded-xl p-3 sm:p-4 flex flex-col items-center justify-center min-h-[120px] sm:min-h-[140px]">
                                     {quote.approvalSignature ? (
                                         <>
                                             <img
                                                 src={quote.approvalSignature}
                                                 alt="Assinatura"
-                                                className="max-h-24 w-auto object-contain mix-blend-multiply cursor-zoom-in"
+                                                className="max-h-20 sm:max-h-24 w-auto object-contain mix-blend-multiply cursor-zoom-in"
                                                 onClick={() => setFullscreenImage(quote.approvalSignature)}
                                             />
-                                            <p className="text-xs text-rose-600/50  tracking-widest uppercase mt-1">Registro Auditado</p>
-                                            <p className="text-xs font-bold text-rose-800 uppercase text-center mt-1">Assinado por {quote.approvedByName || 'Cliente'}</p>
+                                            <p className="text-[10px] text-rose-600/60 tracking-wider uppercase mt-1">Registro Auditado</p>
+                                            <p className="text-xs font-bold text-rose-800 uppercase text-center mt-0.5">Assinado por {quote.approvedByName || 'Cliente'}</p>
                                         </>
                                     ) : (
                                         <p className="text-xs font-bold text-slate-400 uppercase italic">Assinatura não disponível</p>
@@ -1243,29 +1335,29 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                     )}
 
                     {(quote.status === 'APROVADO' || quote.status === 'CONVERTIDO') && (
-                        <div className="bg-white rounded-3xl border border-emerald-100 shadow-2xl shadow-emerald-100/30 p-8 sm:p-10 overflow-hidden relative">
+                        <div className="bg-white rounded-2xl sm:rounded-3xl border border-emerald-100 shadow-xl sm:shadow-2xl shadow-emerald-100/30 p-4 sm:p-8 md:p-10 overflow-hidden relative">
                             {/* Background hint */}
                             <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
                                 <CheckCircle size={120} className="text-emerald-600" />
                             </div>
 
                             <SectionHeader icon={<ShieldCheck size={15} />} title="Assinatura e Auditoria Digital" color="text-emerald-700" />
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 relative z-10">
-                                <div className="space-y-5">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 relative z-10">
+                                <div className="space-y-3 sm:space-y-5">
                                     <InfoPill label="Assinado por" value={quote.approvedByName || 'Alex Cruz'} />
                                     <InfoPill label="Data e hora da assinatura" value={quote.approvedAt ? new Date(quote.approvedAt).toLocaleString() : 'N/D'} mono />
                                 </div>
-                                <div className="border border-emerald-100 bg-emerald-50/30 rounded-xl p-4 flex flex-col items-center justify-center min-h-[140px]">
+                                <div className="border border-emerald-100 bg-emerald-50/30 rounded-xl p-3 sm:p-4 flex flex-col items-center justify-center min-h-[120px] sm:min-h-[140px]">
                                     {quote.approvalSignature ? (
                                         <>
                                             <img
                                                 src={quote.approvalSignature}
                                                 alt="Assinatura"
-                                                className="max-h-24 w-auto object-contain mix-blend-multiply cursor-zoom-in"
+                                                className="max-h-20 sm:max-h-24 w-auto object-contain mix-blend-multiply cursor-zoom-in"
                                                 onClick={() => setFullscreenImage(quote.approvalSignature)}
                                             />
-                                            <p className="text-xs text-emerald-600/50  tracking-widest uppercase mt-1">Visto Eletrônico Válido</p>
-                                            <p className="text-xs font-bold text-emerald-800 uppercase text-center mt-1">Assinado por {quote.approvedByName || 'Alex Cruz'}</p>
+                                            <p className="text-[10px] text-emerald-600/60 tracking-wider uppercase mt-1">Visto Eletrônico Válido</p>
+                                            <p className="text-xs font-bold text-emerald-800 uppercase text-center mt-0.5">Assinado por {quote.approvedByName || 'Alex Cruz'}</p>
                                         </>
                                     ) : (
                                         <p className="text-xs font-bold text-slate-400 uppercase italic">Assinatura não disponível</p>
@@ -1277,68 +1369,88 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
 
                     {/* AREA DE RECUSA TEMÁTICA - Form */}
                     {isRejectMode && (
-                        <div ref={rejectFormRef} className="bg-white border-2 border-rose-200 rounded-3xl shadow-2xl shadow-rose-100/30 p-5 sm:p-8 md:p-10 animate-fade-in-up print:hidden space-y-6">
+                        <div ref={rejectFormRef} className="bg-white border-2 border-rose-200 rounded-2xl sm:rounded-3xl shadow-xl sm:shadow-2xl shadow-rose-100/30 p-4 sm:p-8 md:p-10 animate-fade-in-up print:hidden space-y-4 sm:space-y-6">
                             <SectionHeader icon={<XCircle size={18} />} title="Formalizar Recusa da Proposta" color="text-rose-600" />
 
-                            <div className="space-y-5">
+                            <div className="space-y-4 sm:space-y-5">
                                 <div>
-                                    <label className="text-xs font-bold text-slate-700 uppercase mb-1.5 block tracking-widest">Motivo da Recusa (Obrigatório)</label>
+                                    <label className="text-xs font-bold text-slate-700 uppercase mb-1.5 block tracking-wider">Motivo da Recusa (Obrigatório)</label>
                                     <textarea
                                         value={rejectionReason}
                                         onChange={e => setRejectionReason(e.target.value)}
                                         placeholder="Descreva o motivo da recusa..."
-                                        className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:bg-white focus:border-rose-400 focus:ring-4 focus:ring-rose-100 transition-all min-h-[90px]"
+                                        className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl sm:rounded-2xl px-3.5 sm:px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:bg-white focus:border-rose-400 focus:ring-4 focus:ring-rose-100 transition-all min-h-[90px]"
                                     />
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-slate-700 uppercase mb-1.5 block tracking-widest">Nome do Responsável pela Recusa</label>
+                                    <label className="text-xs font-bold text-slate-700 uppercase mb-1.5 block tracking-wider">Nome do Responsável pela Recusa</label>
                                     <input
                                         type="text"
                                         value={approverName}
                                         onChange={e => setApproverName(e.target.value)}
                                         placeholder={quote.customerName ? `Ex: ${quote.customerName}` : "Nome completo"}
-                                        className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-sm sm:text-base font-bold text-slate-800 outline-none focus:bg-white focus:border-rose-400 focus:ring-4 focus:ring-rose-100 transition-all"
+                                        className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl sm:rounded-2xl px-3.5 sm:px-4 py-3 sm:py-3.5 text-sm sm:text-base font-bold text-slate-800 outline-none focus:bg-white focus:border-rose-400 focus:ring-4 focus:ring-rose-100 transition-all"
                                     />
                                 </div>
 
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <label className="text-xs font-bold text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
+                                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                                             <SignatureIcon size={14} className="text-rose-500" /> Assine no Campo Abaixo
                                         </label>
-                                        <button onClick={() => sigCanvas.current?.clear()} className="text-xs font-bold text-rose-500 hover:text-rose-700 uppercase tracking-wider px-2 py-1 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200">
+                                        <button 
+                                            type="button" 
+                                            onClick={() => sigCanvas.current?.clear()} 
+                                            className="text-[11px] font-bold text-rose-500 hover:text-rose-700 uppercase tracking-wider px-2 py-1 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200 transition-colors cursor-pointer"
+                                        >
                                             Limpar Assinatura
                                         </button>
                                     </div>
-                                    <div className="bg-white border-2 border-dashed border-rose-300 rounded-2xl overflow-hidden shadow-inner relative touch-none">
+                                    <div
+                                        tabIndex={-1}
+                                        onPointerDown={dismissActiveKeyboard}
+                                        onTouchStart={dismissActiveKeyboard}
+                                        onMouseDown={dismissActiveKeyboard}
+                                        className="bg-white border-2 border-dashed border-rose-300 rounded-2xl overflow-hidden shadow-inner relative touch-none select-none"
+                                        style={{ touchAction: 'none', WebkitUserSelect: 'none' }}
+                                    >
                                         {SignaturePad ? (
                                             <SignaturePad
                                                 ref={sigCanvas}
                                                 penColor="#e11d48"
-                                                minWidth={0.5}
-                                                maxWidth={1.5}
-                                                canvasProps={{ className: "w-full h-56 sm:h-72 cursor-crosshair bg-slate-50/50 touch-none", style: { touchAction: 'none' } }}
+                                                minWidth={1.5}
+                                                maxWidth={3.5}
+                                                velocityFilterWeight={0.7}
+                                                canvasProps={{
+                                                    className: "w-full h-56 sm:h-72 cursor-crosshair bg-slate-50/50 touch-none select-none",
+                                                    style: { touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none' },
+                                                    tabIndex: -1,
+                                                    onPointerDown: dismissActiveKeyboard,
+                                                    onTouchStart: dismissActiveKeyboard,
+                                                    onMouseDown: dismissActiveKeyboard
+                                                }}
                                             />
                                         ) : (
                                             <div className="h-48 flex flex-col items-center justify-center p-4">
                                                 <p className="text-xs font-bold text-rose-500 uppercase tracking-widest text-center">Desculpe, a assinatura falhou. Recarregue a página.</p>
                                             </div>
                                         )}
-                                        <div className="absolute bottom-3 left-6 right-6 border-b border-slate-300/60 pointer-events-none flex justify-between items-center pb-1">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Assine acima da linha</span>
-                                            <span className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">Recusa Registrada</span>
+                                        <div className="absolute bottom-3 left-4 right-4 sm:left-6 sm:right-6 border-b border-slate-300/60 pointer-events-none flex justify-between items-center pb-1">
+                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">✍️ Assine com o dedo no quadro</span>
+                                            <span className="text-[9px] font-bold text-rose-500 uppercase tracking-wider">Recusa Formal</span>
                                         </div>
                                     </div>
+                                    <p className="text-[11px] text-slate-400 font-medium">Toque no quadro acima e use o dedo para assinar (o teclado não irá abrir).</p>
                                 </div>
                             </div>
 
-                            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 border-t border-slate-200">
-                                <button disabled={isSubmitting} onClick={() => exitSignatureMode('reject')} className="w-full sm:w-auto px-6 py-3.5 text-xs font-bold uppercase text-slate-500 hover:text-slate-700 transition-all tracking-widest bg-slate-100 rounded-2xl border border-slate-200 text-center">Cancelar</button>
+                            <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-4 pt-3 sm:pt-4 border-t border-slate-200">
+                                <button disabled={isSubmitting} onClick={() => exitSignatureMode('reject')} className="w-full sm:w-auto px-6 py-3.5 text-xs font-bold uppercase text-slate-500 hover:text-slate-700 transition-all tracking-wider bg-slate-100 rounded-xl sm:rounded-2xl border border-slate-200 text-center cursor-pointer">Cancelar</button>
                                 <button
                                     disabled={isSubmitting}
                                     onClick={handleConfirmReject}
-                                    className="flex-1 py-4 bg-rose-600 text-white rounded-2xl text-xs sm:text-sm font-bold uppercase tracking-wider shadow-lg shadow-rose-600/20 flex items-center justify-center gap-2 hover:bg-rose-700 transition-all active:scale-[0.98]"
+                                    className="flex-1 py-3.5 sm:py-4 bg-rose-600 text-white rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold uppercase tracking-wider shadow-lg shadow-rose-600/20 flex items-center justify-center gap-2 hover:bg-rose-700 transition-all active:scale-[0.98] cursor-pointer"
                                 >
                                     {isSubmitting ? <span className="animate-spin"><Loader2 size={16} /></span> : <><Send size={16} /> Enviar Recusa Oficial</>}
                                 </button>
@@ -1348,13 +1460,13 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
 
                     {/* AREA DE APROVAÇÃO - Form */}
                     {isApproveMode && (
-                        <div ref={approveFormRef} className="bg-white border-2 border-emerald-500/30 rounded-3xl shadow-2xl shadow-emerald-500/10 p-5 sm:p-8 md:p-10 animate-fade-in-up print:hidden space-y-6">
+                        <div ref={approveFormRef} className="bg-white border-2 border-emerald-500/30 rounded-2xl sm:rounded-3xl shadow-xl sm:shadow-2xl shadow-emerald-500/10 p-4 sm:p-8 md:p-10 animate-fade-in-up print:hidden space-y-4 sm:space-y-6">
                             <SectionHeader icon={<ShieldCheck size={20} />} title="Aprovação e Aceite Digital da Proposta" color="text-emerald-700" />
 
-                            <div className="space-y-6">
-                                {/* Campo Nome do Aprovador */}
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
+                            <div className="space-y-4 sm:space-y-6">
+                                {/* Campo Nome do Aprovador (Sem autoFocus para não subir o teclado de forma indesejada no mobile) */}
+                                <div className="space-y-1.5 sm:space-y-2">
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                                         <User size={14} className="text-emerald-600" /> Nome do Responsável pela Aprovação <span className="text-rose-500">*</span>
                                     </label>
                                     <input
@@ -1362,8 +1474,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                                         value={approverName}
                                         onChange={e => setApproverName(e.target.value)}
                                         placeholder={quote.customerName ? `Ex: ${quote.customerName}` : "Digite seu nome completo..."}
-                                        className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-sm sm:text-base font-bold text-slate-800 outline-none focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all shadow-sm"
-                                        autoFocus
+                                        className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl sm:rounded-2xl px-3.5 sm:px-4 py-3 sm:py-3.5 text-sm sm:text-base font-bold text-slate-800 outline-none focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all shadow-sm"
                                     />
                                     <p className="text-[11px] text-slate-400 font-medium">Digite o nome completo da pessoa que está autorizando a proposta comercial.</p>
                                 </div>
@@ -1371,58 +1482,70 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                                 {/* Campo Assinatura Digital Expandido */}
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <label className="text-xs font-bold text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
+                                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                                             <SignatureIcon size={14} className="text-emerald-600" /> Assinatura Digital no Campo Abaixo <span className="text-rose-500">*</span>
                                         </label>
                                         <button
                                             type="button"
                                             onClick={() => sigCanvas.current?.clear()}
-                                            className="text-xs font-bold text-rose-500 hover:text-rose-700 uppercase tracking-wider px-2.5 py-1 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200 transition-colors"
+                                            className="text-[11px] font-bold text-rose-500 hover:text-rose-700 uppercase tracking-wider px-2.5 py-1 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200 transition-colors cursor-pointer"
                                         >
                                             Limpar Assinatura
                                         </button>
                                     </div>
 
                                     {/* Contêiner de Assinatura com Área Expandida */}
-                                    <div className="bg-white border-2 border-dashed border-emerald-400/80 rounded-2xl overflow-hidden shadow-inner relative group touch-none">
+                                    <div
+                                        tabIndex={-1}
+                                        onPointerDown={dismissActiveKeyboard}
+                                        onTouchStart={dismissActiveKeyboard}
+                                        onMouseDown={dismissActiveKeyboard}
+                                        className="bg-white border-2 border-dashed border-emerald-400/80 rounded-2xl overflow-hidden shadow-inner relative group touch-none select-none"
+                                        style={{ touchAction: 'none', WebkitUserSelect: 'none' }}
+                                    >
                                         {SignaturePad ? (
                                             <SignaturePad
                                                 ref={sigCanvas}
                                                 penColor="#0f172a"
-                                                minWidth={0.5}
-                                                maxWidth={1.5}
+                                                minWidth={1.5}
+                                                maxWidth={3.5}
+                                                velocityFilterWeight={0.7}
                                                 canvasProps={{
-                                                    className: "w-full h-64 sm:h-80 md:h-96 cursor-crosshair bg-slate-50/50 touch-none",
-                                                    style: { touchAction: 'none' }
+                                                    className: "w-full h-56 sm:h-80 md:h-96 cursor-crosshair bg-slate-50/50 touch-none select-none",
+                                                    style: { touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none' },
+                                                    tabIndex: -1,
+                                                    onPointerDown: dismissActiveKeyboard,
+                                                    onTouchStart: dismissActiveKeyboard,
+                                                    onMouseDown: dismissActiveKeyboard
                                                 }}
                                             />
                                         ) : (
-                                            <div className="h-64 flex flex-col items-center justify-center p-4">
+                                            <div className="h-56 flex flex-col items-center justify-center p-4">
                                                 <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest text-center">Desculpe, a assinatura falhou ao carregar. Recarregue a página.</p>
                                             </div>
                                         )}
-                                        <div className="absolute bottom-4 left-6 right-6 border-b border-slate-300/60 pointer-events-none flex justify-between items-center pb-1">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Assine acima da linha com o dedo ou mouse</span>
-                                            <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Aceite Digital Certificado</span>
+                                        <div className="absolute bottom-3 left-4 right-4 sm:left-6 sm:right-6 border-b border-slate-300/60 pointer-events-none flex justify-between items-center pb-1">
+                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">✍️ Assine com o dedo ou mouse no quadro</span>
+                                            <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider">Aceite Digital</span>
                                         </div>
                                     </div>
-                                    <p className="text-[11px] text-slate-400 font-medium">Use o dedo na tela do celular para desenhar a sua assinatura na caixa acima.</p>
+                                    <p className="text-[11px] text-slate-400 font-medium">Toque no quadro acima e use o dedo para desenhar sua assinatura (o teclado não irá abrir).</p>
                                 </div>
                             </div>
 
                             {/* Botões de confirmação */}
-                            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 border-t border-slate-100">
+                            <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-4 pt-3 sm:pt-4 border-t border-slate-100">
                                 <button
                                     disabled={isSubmitting}
                                     onClick={() => exitSignatureMode('approve')}
-                                    className="w-full sm:w-auto px-6 py-3.5 text-xs font-bold uppercase text-slate-500 hover:text-slate-700 transition-all tracking-widest bg-slate-100 hover:bg-slate-200 rounded-2xl border border-slate-200 text-center"
+                                    className="w-full sm:w-auto px-6 py-3.5 text-xs font-bold uppercase text-slate-500 hover:text-slate-700 transition-all tracking-wider bg-slate-100 hover:bg-slate-200 rounded-xl sm:rounded-2xl border border-slate-200 text-center cursor-pointer"
                                 >
                                     Cancelar
                                 </button>
                                 <button
                                     disabled={isSubmitting}
                                     onClick={handleApprove}
-                                    className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs sm:text-sm font-bold uppercase tracking-wider shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
+                                    className="flex-1 py-3.5 sm:py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold uppercase tracking-wider shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer"
                                 >
                                     {isSubmitting ? (
                                         <>
@@ -1442,16 +1565,17 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
 
                     {/* BOTÕES INICIAIS DE AÇÃO */}
                     {(quote.status === 'ABERTO' || quote.status === 'PENDENTE') && !isApproveMode && !isRejectMode && (
-                        <div className="flex flex-col sm:flex-row gap-4 print:hidden">
+                        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 print:hidden">
                             <button
                                 onClick={() => enterSignatureMode('approve')}
-                                className="flex-[2] py-5 bg-emerald-600 text-white rounded-2xl text-xs font-bold uppercase shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 active:scale-95 transition-all flex items-center justify-center gap-3 order-1 sm:order-2"
+                                className="flex-[2] py-4 sm:py-5 px-6 bg-emerald-600 text-white rounded-2xl text-xs sm:text-sm font-bold uppercase shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 active:scale-95 transition-all flex items-center justify-center gap-2.5 order-1 sm:order-2 cursor-pointer"
                             >
-                                Aprovar Proposta Comercial <ArrowRight size={16} />
+                                <span>Aprovar Proposta Comercial</span>
+                                <ArrowRight size={18} />
                             </button>
                             <button
                                 onClick={() => enterSignatureMode('reject')}
-                                className="flex-1 py-5 bg-white border border-slate-200 text-slate-500 rounded-2xl text-xs font-bold uppercase hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all order-2 sm:order-1"
+                                className="flex-1 py-3.5 sm:py-5 px-6 bg-white border border-slate-200 text-slate-600 rounded-2xl text-xs sm:text-sm font-bold uppercase hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all order-2 sm:order-1 cursor-pointer"
                             >
                                 Avaliar Recusa
                             </button>

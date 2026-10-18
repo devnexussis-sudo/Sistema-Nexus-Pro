@@ -4,7 +4,7 @@ import { logger } from '../lib/logger';
 import { GlobalStorage, SessionStorage } from '../lib/sessionStorage';
 import { adminAuthProxy, supabase, publicSupabase, safeUrl, safeKey } from '../lib/supabase';
 import { tenantContext, getCurrentTenantId as _getTenantId } from '../lib/tenantContext';
-import { User, UserRole, AppScope, ADMIN_PERMISSIONS, DEFAULT_PERMISSIONS } from '../types';
+import { User, UserRole, AppScope, ADMIN_PERMISSIONS, DEFAULT_PERMISSIONS, normalizeUserPermissions } from '../types';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 const MOCK_USERS_POOL = []; // Removing mock data dependency for clean separation, assuming cloud first
@@ -462,7 +462,7 @@ export const AuthService = {
                     if (group.name?.toLowerCase() === 'administradores') {
                         permissions = ADMIN_PERMISSIONS;
                     } else {
-                        permissions = group.permissions;
+                        permissions = normalizeUserPermissions(group.permissions);
                     }
                 }
             }
@@ -487,7 +487,9 @@ export const AuthService = {
             groupIds: parsedGroupIds.length > 0 ? parsedGroupIds : (dbUser.group_id ? [dbUser.group_id] : []),
             groupName: groupName,
             permissions: permissions,
-            appScope: (dbUser.app_scope as AppScope) || AppScope.WEB
+            appScope: (dbUser.app_scope as AppScope) || AppScope.WEB,
+            userCode: dbUser.user_code,
+            user_code: dbUser.user_code
         };
             } finally {
                 if (_fetchFullUserId === authId) {

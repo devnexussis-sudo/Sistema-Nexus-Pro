@@ -23,6 +23,8 @@ import {
     Loader2,
     Calendar,
     Timer,
+    Package,
+    DollarSign,
 } from 'lucide-react';
 import { VisitService } from '../../services/visitService';
 import { ServiceVisit, VisitStatusEnum } from '../../types';
@@ -316,6 +318,33 @@ export const VisitHistoryTab: React.FC<VisitHistoryTabProps> = ({
                                                 <p className="text-[11px] text-slate-600 leading-relaxed">
                                                     {typeof visit.notes === 'string' ? visit.notes : typeof visit.notes === 'object' ? JSON.stringify(visit.notes) : String(visit.notes)}
                                                 </p>
+                                            </div>
+                                        )}
+
+                                        {/* Custos e Peças Desta Visita */}
+                                        {Array.isArray(visit.formData?.items) && visit.formData.items.length > 0 && (
+                                            <div className="p-3 bg-white/80 rounded-xl border border-slate-200/80 space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <p className="text-[9px] font-semibold text-slate-500 uppercase flex items-center gap-1.5">
+                                                        <Package size={11} className="text-primary-500" />
+                                                        Custos / Peças Desta Visita ({visit.formData.items.length})
+                                                    </p>
+                                                    <span className="text-[10px] font-bold text-slate-800 font-mono">
+                                                        R$ {(visit.formData.totalValue || visit.formData.items.reduce((acc: number, i: any) => acc + (Number(i.total) || 0), 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                    </span>
+                                                </div>
+                                                <div className="space-y-1 divide-y divide-slate-100">
+                                                    {visit.formData.items.map((it: any, iIdx: number) => (
+                                                        <div key={it.id || iIdx} className="pt-1 flex items-center justify-between text-[10px]">
+                                                            <span className="text-slate-700 font-medium truncate max-w-[220px]">
+                                                                {it.description}
+                                                            </span>
+                                                            <span className="text-slate-500 font-mono">
+                                                                {it.quantity}x R$ {Number(it.unitPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} = <strong className="text-slate-800">R$ {Number(it.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
                                         )}
 

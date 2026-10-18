@@ -1,29 +1,112 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { MapPin, Navigation, Clock, Activity, Map, CheckCircle2 } from 'lucide-react';
-import { ServiceVisit } from '../../types';
+import { ServiceVisit, ServiceOrder } from '../../types';
 
 interface DisplacementTabProps {
   visits: ServiceVisit[];
+  order?: ServiceOrder | null;
 }
 
-export function DisplacementTab({ visits }: DisplacementTabProps) {
+export function DisplacementTab({ visits, order }: DisplacementTabProps) {
   const displacementData = useMemo(() => {
-    return visits
+    let sourceVisits: any[] = Array.isArray(visits) ? [...visits] : [];
+
+    // Fallback: se não houver visitas registradas na tabela service_visits, mas a OS possui dados de deslocamento/timeline
+    if (sourceVisits.length === 0 && order) {
+      const orderTimeline = (order.timeline || {}) as any;
+      const orderDisplacement = ((order.formData as any)?.displacement || {}) as any;
+      const isTraveling = String(order.status || '').toUpperCase().includes('DESLOCAMENTO');
+      const isInProgress = String(order.status || '').toUpperCase().includes('ANDAMENTO');
+
+      if (
+        orderTimeline.travelStartAt ||
+        orderTimeline.arrivedAt ||
+        orderDisplacement.start_time ||
+        orderDisplacement.arrival_time ||
+        order.startDate ||
+        isTraveling ||
+        isInProgress
+      ) {
+        sourceVisits = [
+          {
+            id: order.id,
+            tenantId: order.tenantId || '',
+            orderId: order.id,
+            visitNumber: 1,
+            technicianId: order.assignedTo || '',
+            technicianName: '',
+            status: isTraveling ? 'pending' : (isInProgress ? 'ongoing' : 'completed'),
+            scheduledDate: order.scheduledDate,
+            arrivalTime: orderTimeline.arrivedAt || orderDisplacement.arrival_time || order.startDate,
+            departureTime: orderTimeline.completedAt || orderDisplacement.finish_time || order.endDate,
+            formData: {
+              displacement: {
+                start_time: orderTimeline.travelStartAt || orderDisplacement.start_time || (isTraveling ? order.updatedAt : null),
+                arrival_time: orderTimeline.arrivedAt || orderDisplacement.arrival_time || order.startDate,
+                start_lat: order.checkinLocation?.lat,
+                start_lon: order.checkinLocation?.lng,
+                arrival_lat: order.checkinLocation?.lat,
+                arrival_lon: order.checkinLocation?.lng,
+              }
+            },
+            isLocked: false,
+            createdAt: order.createdAt,
+            updatedAt: order.updatedAt
+          }
+        ];
+      }
+    }
+
+    const formatDuration = (mins: number) => {
+      if (mins <= 0) return '0m';
+      const hours = Math.floor(mins / 60);
+      const remainingMins = mins % 60;
+      if (hours > 0 && remainingMins > 0) return `${hours}h ${remainingMins}m`;
+      if (hours > 0) return `${hours}h`;
+      return `${remainingMins}m`;
+    };
+
+    return sourceVisits
       .map((v, index) => {
-        const d = v.formData?.displacement || {};
-        
+        const d = (v.formData?.displacement || (order?.formData as any)?.displacement || {}) as any;
+        const orderTimeline = (order?.timeline || {}) as any;
+
+        const isTravelingNow = String(order?.status || '').toUpperCase().includes('DESLOCAMENTO');
+        const isWorkingNow = String(order?.status || '').toUpperCase().includes('ANDAMENTO');
+
+        // 1. Início de Deslocamento (quando o técnico colocou status em deslocamento)
+        const startTimeStr =
+          d.start_time ||
+          (index === 0 ? orderTimeline.travelStartAt : null) ||
+          (v.formData as any)?.start_time ||
+          (index === 0 && isTravelingNow ? (order?.updatedAt || v.updatedAt) : null);
+
+        // 2. Chegada no Cliente / Em Execução (quando o técnico mudou para 'cheguei no cliente' / 'em andamento')
+        const arrivalTimeStr =
+          d.arrival_time ||
+          v.arrivalTime ||
+          (index === 0 ? (orderTimeline.arrivedAt || orderTimeline.serviceStartAt || order?.startDate) : null);
+
+        // 3. Fim do Atendimento / Checkout
+        const departureTimeStr =
+          d.finish_time ||
+          v.departureTime ||
+          (index === sourceVisits.length - 1 ? (orderTimeline.completedAt || order?.endDate) : null);
+
         let distanceText = 'N/A';
         let durationText = 'N/A';
+        let serviceDurationText = 'N/A';
         let rawDistanceKm = 0;
+        let rawTravelMins = 0;
+        let rawServiceMins = 0;
 
-        // Try to get location from old displacement object or checkin/checkout locations if available in the future
-        const startLat = d.start_lat || null;
-        const startLon = d.start_lon || null;
+        // Coordenadas para rota
+        const startLat = d.start_lat || (index === 0 ? order?.checkinLocation?.lat : null) || null;
+        const startLon = d.start_lon || (index === 0 ? order?.checkinLocation?.lng : null) || null;
         const arrivalLat = d.arrival_lat || null;
         const arrivalLon = d.arrival_lon || null;
 
         if (startLat && startLon && arrivalLat && arrivalLon) {
-          // Fallback: Haversine formula (linha reta)
           const R = 6371; // km
           const dLat = (arrivalLat - startLat) * Math.PI / 180;
           const dLon = (arrivalLon - startLon) * Math.PI / 180;
@@ -36,39 +119,43 @@ export function DisplacementTab({ visits }: DisplacementTabProps) {
           distanceText = `~${rawDistanceKm.toFixed(2)} km (Linha Reta)`;
         }
 
-        const startTimeStr = d.start_time;
-        const arrivalTimeStr = d.arrival_time || v.arrivalTime;
-        const departureTimeStr = d.finish_time || v.departureTime;
-
-        let rawTravelMins = 0;
-        let rawServiceMins = 0;
-
+        // ⏱️ CÁLCULO DO TEMPO DE VIAGEM:
+        // Diferença entre: [Horário de chegada no cliente em execução] - [Horário de início do deslocamento]
         if (startTimeStr && arrivalTimeStr) {
           const t1 = new Date(startTimeStr).getTime();
           const t2 = new Date(arrivalTimeStr).getTime();
-          rawTravelMins = Math.round(Math.abs(t2 - t1) / 60000);
-          const hours = Math.floor(rawTravelMins / 60);
-          const mins = rawTravelMins % 60;
-          durationText = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+          const diffMs = t2 - t1;
+          rawTravelMins = Math.max(0, Math.round(diffMs / 60000));
+          durationText = formatDuration(rawTravelMins);
+        } else if (startTimeStr && (isTravelingNow || (!arrivalTimeStr && v.status === 'pending'))) {
+          // Se o técnico ainda está em viagem (deslocamento em andamento)
+          const t1 = new Date(startTimeStr).getTime();
+          const t2 = Date.now();
+          const diffMs = t2 - t1;
+          rawTravelMins = Math.max(0, Math.round(diffMs / 60000));
+          durationText = `${formatDuration(rawTravelMins)} (Em viagem)`;
         }
 
-        let serviceDurationText = 'N/A';
+        // ⏱️ CÁLCULO DO TEMPO DE ATENDIMENTO (TRABALHO NO LOCAL):
         if (arrivalTimeStr && departureTimeStr) {
           const t1 = new Date(arrivalTimeStr).getTime();
           const t2 = new Date(departureTimeStr).getTime();
-          rawServiceMins = Math.round(Math.abs(t2 - t1) / 60000);
-          const hours = Math.floor(rawServiceMins / 60);
-          const mins = rawServiceMins % 60;
-          serviceDurationText = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+          rawServiceMins = Math.max(0, Math.round((t2 - t1) / 60000));
+          serviceDurationText = formatDuration(rawServiceMins);
+        } else if (arrivalTimeStr && (isWorkingNow || (!departureTimeStr && (v.status === 'ongoing' || order?.status === 'EM ANDAMENTO')))) {
+          const t1 = new Date(arrivalTimeStr).getTime();
+          const t2 = Date.now();
+          rawServiceMins = Math.max(0, Math.round((t2 - t1) / 60000));
+          serviceDurationText = `${formatDuration(rawServiceMins)} (Em execução)`;
         }
 
         return {
           id: v.id,
           visitNumber: v.visitNumber || index + 1,
-          date: startTimeStr || arrivalTimeStr || departureTimeStr || v.createdAt,
+          date: startTimeStr || arrivalTimeStr || departureTimeStr || v.createdAt || order?.createdAt,
           startTime: startTimeStr ? new Date(startTimeStr).toLocaleString('pt-BR') : 'Aguardando',
-          arrivalTime: arrivalTimeStr ? new Date(arrivalTimeStr).toLocaleString('pt-BR') : 'Aguardando',
-          departureTime: departureTimeStr ? new Date(departureTimeStr).toLocaleString('pt-BR') : 'Aguardando',
+          arrivalTime: arrivalTimeStr ? new Date(arrivalTimeStr).toLocaleString('pt-BR') : (isTravelingNow ? 'Em viagem...' : 'Aguardando'),
+          departureTime: departureTimeStr ? new Date(departureTimeStr).toLocaleString('pt-BR') : (isWorkingNow ? 'Em atendimento...' : 'Aguardando'),
           startLatLon: startLat && startLon ? `${startLat}, ${startLon}` : 'N/A',
           arrivalLatLon: arrivalLat && arrivalLon ? `${arrivalLat}, ${arrivalLon}` : 'N/A',
           startLat,
@@ -84,7 +171,7 @@ export function DisplacementTab({ visits }: DisplacementTabProps) {
         };
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [visits]);
+  }, [visits, order]);
 
   const [routeDistances, setRouteDistances] = useState<Record<string, { distance: string, loading: boolean }>>({});
 
@@ -137,7 +224,9 @@ export function DisplacementTab({ visits }: DisplacementTabProps) {
       const h = Math.floor(mins / 60);
       const m = mins % 60;
       if (h === 0 && m === 0) return '0m';
-      return h > 0 ? `${h}h ${m}m` : `${m}m`;
+      if (h > 0 && m > 0) return `${h}h ${m}m`;
+      if (h > 0) return `${h}h`;
+      return `${m}m`;
     };
 
     return {

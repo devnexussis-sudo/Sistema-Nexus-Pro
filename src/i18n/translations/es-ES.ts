@@ -9,10 +9,11 @@ export const esES: TranslationKeys = {
   // ── Sidebar / Navigation ──
   nav: {
     dashboard: 'Dashboard',
-    orders: 'Actividad',
+    orders: 'Órdenes de Servicio',
     calendar: 'Agenda',
     map: 'Vista de campo',
     financial: 'Financiero',
+    sales_orders: 'Pedidos de Venta',
     quotes: 'Presupuestos',
     stock: 'Inventario',
     contracts: 'Contratos',
@@ -165,6 +166,8 @@ export const esES: TranslationKeys = {
       impedimentDescription: 'Si está activado, el técnico podrá registrar impedimentos en la OT (inicio o fin). Si está desactivado, la opción será eliminada de la app.',
       visitHistory: 'Historial de Visitas',
       visitHistoryDescription: 'Si está activado, el técnico podrá ver el historial completo de todas las visitas anteriores de la OT. Si está desactivado, solo verá la visita final que él completó.',
+      requireClientSignature: 'Firma del Cliente Obligatoria',
+      requireClientSignatureDescription: 'Cuando está desactivado, la app no exigirá la firma del cliente para finalizar o impedir la OT, exigiendo solo el nombre.',
     },
     dashboard: {
       title: 'Parámetros Analíticos',

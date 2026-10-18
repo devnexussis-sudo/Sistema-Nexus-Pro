@@ -32,7 +32,7 @@ export const CONSCIOUSNESS_BASE: KnowledgeNode[] = [
     ],
     description: "Fluxo passo a passo para abertura de Ordens de Serviço (OS) pelo painel administrativo.",
     steps: [
-      "Acesse o menu 'Atividade' na barra lateral esquerda do painel.",
+      "Acesse o menu 'Ordens de Serviço' na barra lateral esquerda do painel.",
       "Clique no botão '+ Nova OS' localizado no canto superior direito.",
       "Etapa 1 (Cliente): Digite o nome ou selecione o cliente desejado no campo de busca.",
       "Etapa 2 (Tipo de Serviço): Escolha o tipo de intervenção (Corretiva, Preventiva, Instalação, etc.).",
@@ -142,6 +142,31 @@ export const CONSCIOUSNESS_BASE: KnowledgeNode[] = [
       "src/components/admin/QuoteManagement.tsx",
       "src/components/public/PublicQuoteView.tsx",
       "src/services/dunoQueryService.ts"
+    ]
+  },
+  {
+    title: "Emissão de Pedidos de Venda (PVD) e Faturamento Balcão",
+    category: "workflow",
+    keywords: [
+      'pedido de venda', 'pvd', 'venda balcao', 'faturar pedido', 'finalizar pedido', 
+      'criar pedido', 'editar pedido', 'pvd-001000', 'itens de venda', 'desconto frete'
+    ],
+    description: "Criação de pedidos diretos de balcão (PVD) para venda de peças e produtos com prefixo sequencial PVD-001000, finalização bloqueada e envio para faturamento.",
+    steps: [
+      "Acesse o menu 'Pedido de Venda' na barra lateral esquerda.",
+      "Clique no botão '+ Novo Pedido' no canto superior direito.",
+      "No topo da tela de criação/edição: selecione o Cliente e confirme seus dados cadastrais.",
+      "Na parte central: adicione peças do estoque (com busca instantânea por Código de Barras, SKU ou Nome) ou insira itens manuais personalizados.",
+      "No rodapé da tela: adicione frete, descontos e informações adicionais. Confira o valor total calculado no formato de PDV padrão.",
+      "O pedido nasce com status 'Pendente', permitindo que o usuário visualize ou edite todos os seus dados.",
+      "Ao concluir as negociações, clique no botão 'Finalizar Pedido'. O status muda para 'Concluído', impedindo edições posteriores e enviando automaticamente os valores para o módulo Financeiro / Faturamento.",
+      "Para impressão ou download em PDF, utilize os botões de ação na listagem ou na tela de visualização do pedido."
+    ],
+    technicalDetails: "• **Frontend:** Gerenciado por `SalesOrderManagement.tsx` e `SalesOrderModal.tsx` com formulário unificado sem abas.\n• **Banco de Dados:** Tabela `public.sales_orders` e `public.sales_order_items` com sequence iniciando em PVD-001000.\n• **Controle de Acesso:** Permissões geridas em `UserGroupsManagement.tsx`.",
+    relatedFiles: [
+      "src/components/admin/salesOrders/SalesOrderManagement.tsx",
+      "src/components/admin/salesOrders/SalesOrderModal.tsx",
+      "src/services/salesOrderService.ts"
     ]
   },
   {
@@ -365,7 +390,7 @@ export const CONSCIOUSNESS_BASE: KnowledgeNode[] = [
       "No menu Configurações > WhatsApp Bot, conecte o número corporativo da empresa.",
       "O bot da Duno IA passará a recepcionar os clientes no WhatsApp.",
       "Quando o cliente relatar um problema, o bot entende, extrai os dados e envia para a fila de Triagem.",
-      "Acesse Atividade > aba Solicitações de Atendimento para ver a caixa de entrada.",
+      "Acesse Ordens de Serviço > aba Solicitações de Atendimento para ver a caixa de entrada.",
       "Para Aceitar: Clique na solicitação. O sistema verifica se o cliente existe. Ao aprovar, o chamado se torna uma OS real vinculada a um técnico.",
       "Para Rejeitar: Você pode cancelar a solicitação e registrar o motivo do cancelamento."
     ],
@@ -627,16 +652,16 @@ export interface CopilotModule {
 
 export const COPILOT_MODULES: CopilotModule[] = [
   {
-    name: "Ordens de Serviço (Atividades)",
+    name: "Ordens de Serviço",
     nouns: ['os', 'ordem', 'ordens', 'servico', 'servicos', 'atividade', 'atividades', 'chamado', 'chamados', 'visita', 'visitas'],
-    menuPath: "Menu Principal > Atividade",
+    menuPath: "Menu Principal > Ordens de Serviço",
     filePath: "src/components/admin/AdminDashboard.tsx",
     dbTable: "orders",
     steps: {
       create: "Clique em '+ Nova OS' no topo direito e complete o assistente em 5 etapas (Cliente, Tipo, Detalhes, Técnico e Revisão).",
       update: "Clique na OS desejada na listagem e depois no botão 'Editar OS' no cabeçalho.",
       delete: "Abra a OS na tela e clique no botão 'Cancelar OS' no topo direito. Confirme no modal.",
-      read: "Veja a listagem de chamados na aba Atividade. Utilize a barra de busca no topo por número ou cliente.",
+      read: "Veja a listagem de chamados na aba Ordens de Serviço. Utilize a barra de busca no topo por número ou cliente.",
       report: "Clique no botão 'Gerar PDF' no cabeçalho interno da OS para exportar o relatório técnico."
     }
   },
@@ -721,7 +746,7 @@ export const COPILOT_MODULES: CopilotModule[] = [
       update: "Abra os detalhes do contrato para pausá-lo, prorrogar a vigência ou mudar as datas de inspeção.",
       delete: "Clique em 'Encerrar Recorrência' ou 'Excluir Plano' nas opções internas do contrato.",
       read: "Acesse a listagem para acompanhar todos os contratos de preventivas recorrentes ativos.",
-      report: "As ordens de serviço preventivas geradas pelo PMOC são agendadas e listadas na tela de Atividades."
+      report: "As ordens de serviço preventivas geradas pelo PMOC são agendadas e listadas na tela de Ordens de Serviço."
     }
   },
   {
@@ -769,11 +794,11 @@ export const COPILOT_MODULES: CopilotModule[] = [
   {
     name: "WhatsApp Bot",
     nouns: ['whatsapp', 'bot', 'zap', 'robo', 'triagem', 'solicitacoes', 'atendimento'],
-    menuPath: "Configurações > WhatsApp Bot ou Atividades > Solicitações",
+    menuPath: "Configurações > WhatsApp Bot ou Ordens de Serviço > Solicitações",
     filePath: "src/components/admin/WhatsAppSettings.tsx",
     dbTable: "service_requests",
     steps: {
-      create: "Acesse Atividades > Solicitações de Atendimento para ver os chamados capturados pelo WhatsApp.",
+      create: "Acesse Ordens de Serviço > Solicitações de Atendimento para ver os chamados capturados pelo WhatsApp.",
       update: "Aprove ou Rejeite o chamado. Ao aprovar, ele vira uma OS (Ordem de Serviço).",
       delete: "Você pode rejeitar o chamado se for inválido.",
       read: "Veja toda a lista de chamados aguardando triagem no painel de solicitações.",

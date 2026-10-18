@@ -888,15 +888,32 @@ serve(async (req: Request) => {
               const d = new Date();
               const dateFolder = `${d.getFullYear()}_${String(d.getMonth() + 1).padStart(2, '0')}_${String(d.getDate()).padStart(2, '0')
                 }`;
+              const rawName = tenant.company_name || tenant.trading_name || 'EMPRESA';
+              const cleanName = rawName
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-zA-Z0-9]/g, '_')
+                .replace(/_+/g, '_')
+                .replace(/^_|_$/g, '')
+                .toUpperCase()
+                .slice(0, 50) || 'EMPRESA';
+
+              const digits = (tenant.cnpj || '').replace(/\D/g, '');
+              const cleanDoc = digits.length >= 8 ? digits : tenant.id.replace(/-/g, '').substring(0, 8).toUpperCase();
+              const masterFolder = `${cleanName}_${cleanDoc}`;
+
+              const cleanPhone = (phone || 'Geral').replace(/\D/g, '') || 'Geral';
+              const conversaFolder = cleanPhone.startsWith('Conversa_') ? cleanPhone : `Conversa_${cleanPhone.replace(/^CONVERSA[-_]/i, '')}`;
+
               const folderName = (hasImage || isUazapiImage)
-                ? 'imagens'
+                ? 'Imagens'
                 : (hasAudio || isUazapiAudio)
-                  ? 'audios'
-                  : 'documentos';
+                  ? 'Audios'
+                  : 'Documentos';
               const fileName = crypto.randomUUID() + '.' + fileExt;
 
               const r2Path =
-                `whatsapp/${tenant.id}/${phone}/${folderName}/${dateFolder}/${fileName}`;
+                `${masterFolder}/WhatsApp/Conversas/${conversaFolder}/${folderName}/${dateFolder}/${fileName}`;
 
               let contentType = 'application/octet-stream';
               if (hasImage || isUazapiImage) contentType = 'image/webp';

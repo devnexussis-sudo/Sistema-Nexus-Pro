@@ -8,10 +8,11 @@ export const ptBR = {
   // ── Sidebar / Navigation ──
   nav: {
     dashboard: 'Dashboard',
-    orders: 'Atividade',
+    orders: 'Ordens de Serviço',
     calendar: 'Agenda',
     map: 'Visão de campo',
     financial: 'Financeiro',
+    sales_orders: 'Pedidos de Venda',
     quotes: 'Orçamentos',
     stock: 'Estoque',
     contracts: 'Contratos',
@@ -164,6 +165,8 @@ export const ptBR = {
       impedimentDescription: 'Se ativado, o técnico poderá registrar impedimentos na OS (início ou fim). Se desativado, a opção será removida do app.',
       visitHistory: 'Histórico de Visitas',
       visitHistoryDescription: 'Se ativado, o técnico consegue ver o histórico completo de todas as visitas anteriores da OS. Se desativado, verá apenas a visita final que ele finalizou.',
+      requireClientSignature: 'Assinatura do Cliente Obrigatória',
+      requireClientSignatureDescription: 'Quando desativado, o app não exigirá a assinatura gráfica do cliente para conclusão ou impedimento da OS, exigindo apenas o nome.',
     },
     dashboard: {
       title: 'Parâmetros Analíticos',
