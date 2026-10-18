@@ -8,22 +8,6 @@ interface InlineVideoPlayerProps {
   autoPlay?: boolean;
 }
 
-/**
- * Detecta o tipo MIME com base na extensão/URL do vídeo.
- * Navegadores mobile (iOS Safari, Chrome Android) são exigentes com MIME types.
- */
-const detectVideoMime = (url: string): string => {
-  const lower = url.toLowerCase().split('?')[0].split('#')[0];
-  if (lower.endsWith('.mp4') || lower.includes('/form_videos/') || lower.includes('/videos/')) return 'video/mp4';
-  if (lower.endsWith('.webm')) return 'video/webm';
-  if (lower.endsWith('.mov')) return 'video/quicktime';
-  if (lower.endsWith('.3gp')) return 'video/3gpp';
-  if (lower.endsWith('.avi')) return 'video/x-msvideo';
-  if (lower.endsWith('.mkv')) return 'video/x-matroska';
-  // Padrão seguro para maioria dos vídeos de campo (gravados pelo celular = mp4/h264)
-  return 'video/mp4';
-};
-
 export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({
   src,
   poster,
@@ -31,16 +15,13 @@ export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({
   autoPlay = true,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const [isMuted, setIsMuted] = useState(true);
   const [hasFatalError, setHasFatalError] = useState(false);
   const [needsTapToPlay, setNeedsTapToPlay] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
 
-  const mimeType = detectVideoMime(src);
-
-  // Inicialização e reinício ao trocar de mídia
+  // Inicialização robusta ao trocar de mídia
   useEffect(() => {
     setHasFatalError(false);
     setNeedsTapToPlay(false);
@@ -50,15 +31,58 @@ export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({
     const video = videoRef.current;
     if (!video) return;
 
+    // Reset completo do estado do vídeo
+    video.muted = true;
+    setIsMuted(true);
+    video.removeAttribute('src');
+    video.load(); // Limpa o buffer do player
+
+    // Redefine src após reset limpo (evita cache corrompido no WebKit mobile)
+    requestAnimationFrame(() => {
+      if (!videoRef.current) return;
+      videoRef.current.src = src;
+      videoRef.current.load();
+
+      if (autoPlay) {
+        // Delay mínimo para o WebKit mobile processar o load
+        setTimeout(() => {
+          if (!videoRef.current) return;
+          const playPromise = videoRef.current.play();
+          if (playPromise && typeof playPromise.then === 'function') {
+            playPromise
+              .then(() => {
+                setIsPlaying(true);
+                setNeedsTapToPlay(false);
+              })
+              .catch(() => {
+                // Autoplay bloqueado pelo browser mobile — mostra overlay de tap-to-play
+                setNeedsTapToPlay(true);
+                setIsPlaying(false);
+              });
+          }
+        }, 150);
+      } else {
+        setNeedsTapToPlay(true);
+      }
+    });
+  }, [src, autoPlay]);
+
+  // Handler para tap-to-play (obrigatório para iOS Safari)
+  const handleTapToPlay = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const video = videoRef.current;
+    if (!video) return;
+
     video.muted = true;
     setIsMuted(true);
 
-    // Carrega a nova fonte explicitamente
+    // iOS Safari precisa de load() antes de play() quando vindo de user gesture
     video.load();
-
-    if (autoPlay) {
-      // Tenta autoplay mudo — permitido pela maioria dos browsers mobile
-      const playPromise = video.play();
+    
+    setTimeout(() => {
+      if (!videoRef.current) return;
+      const playPromise = videoRef.current.play();
       if (playPromise && typeof playPromise.then === 'function') {
         playPromise
           .then(() => {
@@ -66,42 +90,13 @@ export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({
             setNeedsTapToPlay(false);
           })
           .catch(() => {
-            // Autoplay bloqueado pelo navegador mobile — mostra overlay de tap-to-play
-            setNeedsTapToPlay(true);
-            setIsPlaying(false);
+            setHasFatalError(true);
           });
       }
-    } else {
-      setNeedsTapToPlay(true);
-    }
-  }, [src, autoPlay]);
-
-  // Handler para tap-to-play (obrigatório para iOS Safari sem autoplay)
-  const handleTapToPlay = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    const video = videoRef.current;
-    if (!video) return;
-
-    video.muted = true; // Começa mudo para garantir que o play seja permitido
-    setIsMuted(true);
-    video.load();
-    
-    const playPromise = video.play();
-    if (playPromise && typeof playPromise.then === 'function') {
-      playPromise
-        .then(() => {
-          setIsPlaying(true);
-          setNeedsTapToPlay(false);
-        })
-        .catch(() => {
-          // Última tentativa: abrir em nova aba
-          setHasFatalError(true);
-        });
-    }
+    }, 100);
   }, []);
 
-  // Desbloqueio de áudio em 1 toque
+  // Toggle som
   const handleToggleSound = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -111,14 +106,14 @@ export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({
     if (video.muted) {
       video.muted = false;
       setIsMuted(false);
-      video.play().catch(() => {});
+      if (video.paused) video.play().catch(() => {});
     } else {
       video.muted = true;
       setIsMuted(true);
     }
   }, []);
 
-  // Retry handler com reload
+  // Retry
   const handleRetry = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -131,52 +126,45 @@ export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({
 
     video.muted = true;
     setIsMuted(true);
+    video.src = src;
     video.load();
     
     setTimeout(() => {
-      const p = video.play();
-      if (p && typeof p.then === 'function') {
-        p.then(() => {
-          setIsPlaying(true);
-        }).catch(() => {
-          setNeedsTapToPlay(true);
-        });
-      }
+      if (!videoRef.current) return;
+      videoRef.current.play()
+        .then(() => setIsPlaying(true))
+        .catch(() => setNeedsTapToPlay(true));
     }, 300);
-  }, []);
+  }, [src]);
 
   return (
     <div
-      ref={containerRef}
       className={`relative flex items-center justify-center bg-black overflow-hidden select-none rounded-2xl sm:rounded-3xl shadow-2xl ${className}`}
       onClick={(e) => e.stopPropagation()}
     >
-      {/* 
-        <video> com <source> explícito e type MIME para mobile browsers.
-        crossOrigin="anonymous" necessário para R2/Cloudflare CDN com CORS.
-        Controles nativos ativados para máxima compatibilidade de hardware.
+      {/*
+        REGRAS CRÍTICAS PARA MOBILE:
+        1. NÃO usar crossOrigin — R2 public bucket não retorna CORS headers nos arquivos
+        2. NÃO usar <source> — usar src direto no <video> é mais confiável no WebKit mobile
+        3. SEMPRE ter controls + playsInline
+        4. preload="auto" para forçar download do conteúdo
       */}
       <video
         ref={videoRef}
-        key={`${src}-${retryCount}`}
+        key={`v-${retryCount}`}
         poster={poster}
         controls
         playsInline
-        // Atributos essenciais para iOS Safari e WebView Android
         {...({
           'webkit-playsinline': 'true',
           'x-webkit-airplay': 'allow',
           'x5-playsinline': 'true',
           'x5-video-player-type': 'h5-page',
-          'x5-video-player-fullscreen': 'true',
         } as any)}
-        autoPlay={autoPlay}
         muted={isMuted}
         preload="auto"
-        crossOrigin="anonymous"
         className="max-w-full max-h-[75vh] sm:max-h-[82vh] w-auto h-auto object-contain bg-black block pointer-events-auto"
         style={{
-          // Força dimensionamento correto no Safari mobile
           WebkitTransform: 'translateZ(0)',
           transform: 'translateZ(0)',
         }}
@@ -186,55 +174,45 @@ export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({
         }}
         onPause={() => setIsPlaying(false)}
         onVolumeChange={() => {
-          if (videoRef.current) {
-            setIsMuted(videoRef.current.muted);
-          }
+          if (videoRef.current) setIsMuted(videoRef.current.muted);
         }}
         onLoadedData={() => {
           setHasFatalError(false);
-          setNeedsTapToPlay(false);
         }}
         onCanPlay={() => {
-          // Quando o vídeo está pronto para tocar, tenta play novamente se necessário
-          if (autoPlay && !isPlaying) {
-            const video = videoRef.current;
-            if (video && video.paused) {
-              video.play().then(() => {
+          if (autoPlay && !isPlaying && videoRef.current?.paused) {
+            videoRef.current.play()
+              .then(() => {
                 setIsPlaying(true);
                 setNeedsTapToPlay(false);
-              }).catch(() => {
-                setNeedsTapToPlay(true);
-              });
-            }
+              })
+              .catch(() => setNeedsTapToPlay(true));
           }
         }}
         onError={(e) => {
-          const video = e.currentTarget;
-          const err = video.error;
-          console.warn('[InlineVideoPlayer] Evento de erro:', err?.code, err?.message, 'src:', src);
-          // Apenas exibe aviso caso haja erro irrecuperável comprovado de codec/rede
+          const err = e.currentTarget.error;
+          console.warn('[InlineVideoPlayer] Error:', err?.code, err?.message, 'src:', src);
           if (err && (err.code === 3 || err.code === 4)) {
             setHasFatalError(true);
-          } else if (err && err.code === 2) {
-            // Network error — pode ser CORS ou conexão. Tenta de novo 1x.
-            if (retryCount < 1) {
-              setRetryCount(prev => prev + 1);
-              setTimeout(() => {
-                video.load();
-                video.play().catch(() => setNeedsTapToPlay(true));
-              }, 500);
-            } else {
-              setHasFatalError(true);
-            }
+          } else if (err && err.code === 2 && retryCount < 1) {
+            // Network error — retry 1x
+            setRetryCount(prev => prev + 1);
+            setTimeout(() => {
+              const v = videoRef.current;
+              if (!v) return;
+              v.src = src;
+              v.load();
+              v.play().catch(() => setNeedsTapToPlay(true));
+            }, 500);
+          } else if (err) {
+            setHasFatalError(true);
           }
         }}
       >
-        {/* <source> com type explícito — essencial para mobile browsers detectarem codec */}
-        <source src={src} type={mimeType} />
-        Seu navegador não suporta a reprodução deste vídeo.
+        Seu navegador não suporta reprodução de vídeo.
       </video>
 
-      {/* Overlay tap-to-play para navegadores mobile que bloqueiam autoplay */}
+      {/* Overlay tap-to-play para mobile */}
       {needsTapToPlay && !hasFatalError && (
         <div
           className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm cursor-pointer"
@@ -250,7 +228,7 @@ export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({
         </div>
       )}
 
-      {/* Pílula de ativar som (se o vídeo estiver mudo e tocando) */}
+      {/* Pílula de ativar som */}
       {isMuted && isPlaying && !hasFatalError && !needsTapToPlay && (
         <button
           onClick={handleToggleSound}
@@ -262,7 +240,7 @@ export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({
         </button>
       )}
 
-      {/* Som ativado - botão para mutar novamente */}
+      {/* Som ativado */}
       {!isMuted && isPlaying && !hasFatalError && (
         <button
           onClick={handleToggleSound}
@@ -274,13 +252,12 @@ export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({
         </button>
       )}
 
-      {/* Aviso de falha com retry e link direto */}
+      {/* Erro fatal com retry + link direto */}
       {hasFatalError && (
         <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/85 backdrop-blur-md p-6 text-center">
           <div className="bg-red-950/90 border border-red-500/50 rounded-2xl p-5 max-w-sm w-full shadow-2xl">
-            <p className="text-white text-sm font-semibold mb-1">Vídeo indisponível no navegador</p>
-            <p className="text-red-200/80 text-xs mb-4">Formato não suportado ou erro de rede. Tente as opções abaixo.</p>
-            
+            <p className="text-white text-sm font-semibold mb-1">Vídeo indisponível</p>
+            <p className="text-red-200/80 text-xs mb-4">Formato não suportado ou erro de rede.</p>
             <div className="flex flex-col gap-2">
               <button
                 onClick={handleRetry}
@@ -289,7 +266,6 @@ export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({
                 <RotateCcw size={14} />
                 Tentar novamente
               </button>
-              
               <a
                 href={src}
                 target="_blank"

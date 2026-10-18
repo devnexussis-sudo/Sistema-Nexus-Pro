@@ -444,7 +444,7 @@ const VisitCard: React.FC<{
                             className="w-[80px] h-[80px] sm:w-[100px] sm:h-[100px] shrink-0 rounded-xl overflow-hidden border border-red-200 bg-black cursor-zoom-in group hover:shadow-md transition-all active:scale-95 relative"
                             onClick={() => onImageClick(vUrl, impedimentVideos)}
                           >
-                            <video src={`${vUrl}#t=0.1`} preload="metadata" muted playsInline crossOrigin="anonymous" className="w-full h-full object-cover opacity-60" />
+                            <video src={`${vUrl}#t=0.1`} preload="metadata" muted playsInline className="w-full h-full object-cover opacity-60" />
                             <div className="absolute inset-0 flex items-center justify-center">
                               <Play size={16} className="text-white fill-white group-hover:scale-110 transition-transform" />
                             </div>
@@ -509,7 +509,7 @@ const VisitCard: React.FC<{
                             className="w-[80px] h-[80px] sm:w-[100px] sm:h-[100px] shrink-0 rounded-xl overflow-hidden border border-slate-200 bg-black cursor-zoom-in group hover:shadow-md transition-all active:scale-95 relative"
                             onClick={() => onImageClick(vUrl, allMedia)}
                           >
-                            <video src={`${vUrl}#t=0.1`} preload="metadata" muted playsInline crossOrigin="anonymous" className="w-full h-full object-cover opacity-60" />
+                            <video src={`${vUrl}#t=0.1`} preload="metadata" muted playsInline className="w-full h-full object-cover opacity-60" />
                             <div className="absolute inset-0 flex items-center justify-center">
                               <Play size={16} className="text-white fill-white group-hover:scale-110 transition-transform" />
                             </div>
@@ -523,7 +523,7 @@ const VisitCard: React.FC<{
                           >
                             {isVideoUrl(url) ? (
                               <div className="w-full h-full bg-black relative flex items-center justify-center">
-                                <video src={`${url}#t=0.1`} preload="metadata" muted playsInline crossOrigin="anonymous" className="w-full h-full object-cover opacity-60" />
+                                <video src={`${url}#t=0.1`} preload="metadata" muted playsInline className="w-full h-full object-cover opacity-60" />
                                 <div className="absolute inset-0 flex items-center justify-center">
                                   <Play size={16} className="text-white fill-white group-hover:scale-110 transition-transform" />
                                 </div>
@@ -918,7 +918,7 @@ const CollapsibleFormSection: React.FC<{
                                         }
                                         return (
                                           <div className="w-full h-full relative flex items-center justify-center bg-black">
-                                            <video src={`${url}#t=0.1`} preload="metadata" muted playsInline crossOrigin="anonymous" className="w-full h-full object-cover opacity-60" />
+                                            <video src={`${url}#t=0.1`} preload="metadata" muted playsInline className="w-full h-full object-cover opacity-60" />
                                             <div className="absolute inset-0 flex items-center justify-center shadow-inner">
                                               <div className="w-6 h-6 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 group-hover:bg-white/30 transition-all">
                                                 <Play size={10} className="text-white fill-white ml-0.5" />
@@ -1752,7 +1752,6 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 preload="auto"
                 muted
                 playsInline
-                crossOrigin="anonymous"
                 className="w-full h-full object-cover print-thumbnail-img"
                 style={{
                   display: 'block',
