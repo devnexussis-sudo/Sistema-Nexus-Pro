@@ -13,9 +13,9 @@ import { logger } from './logger';
 import { syncService } from './sync-service';
 import { BUCKET_NAME, supabase } from './supabase';
 
-const DISK_CACHE_FORM_TEMPLATES = '@nexus_form_templates';
-const DISK_CACHE_ACTIVATION_RULES = '@nexus_activation_rules';
-const DISK_CACHE_SERVICE_TYPES = '@nexus_service_types';
+export const DISK_CACHE_FORM_TEMPLATES = '@nexus_form_templates';
+export const DISK_CACHE_ACTIVATION_RULES = '@nexus_activation_rules';
+export const DISK_CACHE_SERVICE_TYPES = '@nexus_service_types';
 
 // Polyfill for arrayBuffer if needed, or assume ArrayBuffer global exists.
 // Ideally we install base64-arraybuffer: npm install base64-arraybuffer
@@ -130,7 +130,7 @@ export class OrderService {
             // 0.1 Deduplicação Big Tech: verificar se o ResilientUpload já subiu ou está subindo este arquivo em background!
             try {
                 const { resilientUpload } = require('./upload-resilient');
-                const existingOrInFlightUrl = await resilientUpload.resolveOrWaitForUpload(uri, 25000);
+                const existingOrInFlightUrl = await resilientUpload.resolveOrWaitForUpload(uri, 8000);
                 if (existingOrInFlightUrl) {
                     console.log(`[OrderService] ⚡ Upload reaproveitado do ResilientUpload (zero re-upload): ${existingOrInFlightUrl}`);
                     return existingOrInFlightUrl;
@@ -675,6 +675,23 @@ export class OrderService {
 
     static async getOrderById(id: string, forceRefresh = false): Promise<ExtendedServiceOrder | undefined> {
         try {
+            // Se estiver em modo offline, tenta primeiro os detalhes persistidos localmente
+            if (syncService.isOfflineModeEnabled()) {
+                const offlineDetail = await syncService.getOrderDetail(id);
+                if (offlineDetail) {
+                    const mapped = this.mapDbOrderToApp(offlineDetail);
+                    mapped.equipments = offlineDetail.equipments || [];
+                    return mapped;
+                }
+                const todayOrders = await syncService.getTodayOrders();
+                const found = todayOrders.find((o: any) => String(o.id) === String(id));
+                if (found) {
+                    const mapped = this.mapDbOrderToApp(found);
+                    mapped.equipments = found.equipments || [];
+                    return mapped;
+                }
+            }
+
             const cacheKey = `order_details_${id}`;
             const cached = await CacheService.get<ExtendedServiceOrder>(cacheKey);
             if (cached && !forceRefresh) return cached;
@@ -1593,8 +1610,8 @@ export class OrderService {
         }
     }
 
-    static async getFormTemplates(): Promise<FormTemplate[]> {
-        if (syncService.isOfflineModeEnabled()) {
+    static async getFormTemplates(forceRefresh = false): Promise<FormTemplate[]> {
+        if (!forceRefresh && syncService.isOfflineModeEnabled()) {
             try {
                 const raw = await AsyncStorage.getItem(DISK_CACHE_FORM_TEMPLATES);
                 if (raw) return JSON.parse(raw);
@@ -1687,8 +1704,8 @@ export class OrderService {
         }
     }
 
-    static async getActivationRules(): Promise<ActivationRule[]> {
-        if (syncService.isOfflineModeEnabled()) {
+    static async getActivationRules(forceRefresh = false): Promise<ActivationRule[]> {
+        if (!forceRefresh && syncService.isOfflineModeEnabled()) {
             try {
                 const raw = await AsyncStorage.getItem(DISK_CACHE_ACTIVATION_RULES);
                 if (raw) {
@@ -1761,8 +1778,8 @@ export class OrderService {
         }
     }
 
-    static async getServiceTypes(): Promise<any[]> {
-        if (syncService.isOfflineModeEnabled()) {
+    static async getServiceTypes(forceRefresh = false): Promise<any[]> {
+        if (!forceRefresh && syncService.isOfflineModeEnabled()) {
             try {
                 const raw = await AsyncStorage.getItem(DISK_CACHE_SERVICE_TYPES);
                 if (raw) return JSON.parse(raw);

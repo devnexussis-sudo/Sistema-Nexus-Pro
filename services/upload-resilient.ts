@@ -328,7 +328,7 @@ class ResilientUploadService {
      * Resolve an already-completed upload OR wait for an in-flight/queued upload matching `uri`.
      * Prevents duplicate uploads when the technician clicks Concluir/Impedir while a background upload is finishing.
      */
-    async resolveOrWaitForUpload(uri: string, timeoutMs: number = 25_000): Promise<string | null> {
+    async resolveOrWaitForUpload(uri: string, timeoutMs: number = 8_000): Promise<string | null> {
         if (!uri) return null;
         if (uri.startsWith('http://') || uri.startsWith('https://')) return uri;
 
@@ -436,7 +436,7 @@ class ResilientUploadService {
      * Aguarda uploads ativos/em fila terminarem antes de submeter o formulário ou impedir OS.
      * Retorna true quando todos terminaram, ou false em caso de timeout.
      */
-    async waitForActiveUploads(timeoutMs: number = 15000): Promise<boolean> {
+    async waitForActiveUploads(timeoutMs: number = 5000): Promise<boolean> {
         if (this.isCurrentlyOffline()) return true;
 
         // Kick queue in case any items are sitting in 'queued' or 'offline_pending'

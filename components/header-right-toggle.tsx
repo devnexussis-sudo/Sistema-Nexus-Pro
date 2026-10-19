@@ -89,30 +89,28 @@ export function HeaderRightToggle() {
             setIsLoading(true);
             setLabel(t('toggleDownloading'));
             try {
-                // Enable offline mode first
+                // 1. PRIMEIRO: Baixar e certificar toda a base (formulários, regras, templates, estoque, OSs) enquanto online
+                const result = await syncService.prefetchAllForOffline((current, total, step) => {
+                    setLabel(step || `${t('toggleDownloading')} ${current}/${total}`);
+                });
+
+                // 2. ATIVAR MODO OFFLINE com dados já gravados e validados no disco
                 await syncService.toggleOfflineMode(true);
                 setIsOfflineMode(true);
-
-                // Download all orders + forms + templates
-                const count = await syncService.prefetchTodayOrders((current, total) => {
-                    setLabel(`${t('toggleDownloading')} ${current}/${total}`);
-                });
 
                 // Only show success after everything is actually downloaded
                 Alert.alert(
                     t('toggleOfflineActiveTitle'),
-                    count > 0
-                        ? t('toggleOfflineActiveMsg').replace('%n', String(count))
+                    result.count > 0
+                        ? t('toggleOfflineActiveMsg').replace('%n', String(result.count))
                         : t('toggleOfflineEmptyMsg'),
                     [{ text: t('homeUnderstood'), style: 'default' }]
                 );
-            } catch (_) {
-                // Download failed — revert to online
-                await syncService.toggleOfflineMode(false);
-                setIsOfflineMode(false);
+            } catch (err: any) {
+                console.error('[HeaderRightToggle] Falha ao preparar Modo Offline:', err);
                 Alert.alert(
                     t('toggleOfflineFailTitle'),
-                    t('toggleOfflineFailMsg')
+                    err?.message || t('toggleOfflineFailMsg')
                 );
             } finally {
                 setIsLoading(false);

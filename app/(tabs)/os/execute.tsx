@@ -561,6 +561,18 @@ export default function ExecuteOSScreen() {
                 (t.serviceTypes && t.serviceTypes.includes(orderData.type!))
             );
         }
+
+        // BIG TECH ROBUSTNESS FALLBACK:
+        // Se ainda não encontrou nenhum template técnico mas temos templates baixados no aparelho:
+        if (!technicalTemplate && Array.isArray(allTemplates) && allTemplates.length > 0) {
+            technicalTemplate = allTemplates.find(t => 
+                (t.title && (t.title.toLowerCase().includes('padr') || t.title.toLowerCase().includes('geral'))) ||
+                (t.id && t.id.toLowerCase().includes('padr')) ||
+                t.is_default
+            ) || allTemplates[0];
+            console.log(`[ExecuteOS] 🛡️ Fallback ativado: usando template padrão/disponível:`, technicalTemplate?.title || technicalTemplate?.id);
+        }
+
         return { technicalTemplate, financialTemplate };
     };
 
@@ -673,7 +685,11 @@ export default function ExecuteOSScreen() {
 
                     // MODO OFFLINE: tentar cache local primeiro
                     if (syncService.isOfflineModeEnabled()) {
-                        const raw = await syncService.getOrderDetail(id as string);
+                        let raw = await syncService.getOrderDetail(id as string);
+                        if (!raw) {
+                            const todayOrders = await syncService.getTodayOrders();
+                            raw = todayOrders.find((o: any) => o.id === id || o.os_number === id || String(o.id) === String(id));
+                        }
                         if (isActive && raw) {
                             const mapped = OrderService.mapDbOrderToApp(raw);
                             mapped.equipments = raw.equipments || [];
@@ -783,10 +799,6 @@ export default function ExecuteOSScreen() {
                             if (cache.clientDoc) setClientDoc(cache.clientDoc);
                             if (cache.videos) setVideos(cache.videos);
                         } 
-
-                        // Limpar cache de regras para garantir dados frescos do servidor
-                        await AsyncStorage.removeItem('@nexus_activation_rules').catch(() => {});
-                        await AsyncStorage.removeItem('@nexus_service_types').catch(() => {});
 
                         const [rules, serviceTypes, allTemplates] = await Promise.all([
                             OrderService.getActivationRules(),
@@ -1785,6 +1797,7 @@ export default function ExecuteOSScreen() {
                         clientName,
                         clientDoc,
                         tenantId: order?.tenantId,
+                        displayId: order?.displayId || (order as any)?.display_id || (order as any)?.os_number || id,
                         videoUrl: videos.map(v => v.uri).join(','),
                     },
                     localPhotos: localPhotosToSync
@@ -2093,6 +2106,7 @@ export default function ExecuteOSScreen() {
                         clientName,
                         clientDoc,
                         tenantId: order?.tenantId,
+                        displayId: order?.displayId || (order as any)?.display_id || (order as any)?.os_number || id,
                         videoUrl: videos.map(v => v.uri).join(','),
                     },
                     localPhotos: localPhotosToSync

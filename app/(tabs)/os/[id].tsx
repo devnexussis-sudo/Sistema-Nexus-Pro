@@ -164,7 +164,11 @@ export default function OrderDetailsScreen() {
 
                     // MODO OFFLINE: tentar cache local primeiro
                     if (syncService.isOfflineModeEnabled()) {
-                        const raw = await syncService.getOrderDetail(id as string);
+                        let raw = await syncService.getOrderDetail(id as string);
+                        if (!raw) {
+                            const todayOrders = await syncService.getTodayOrders();
+                            raw = todayOrders.find((o: any) => o.id === id || o.os_number === id || String(o.id) === String(id));
+                        }
                         if (isActive && raw) {
                             const mapped = OrderService.mapDbOrderToApp(raw);
                             mapped.equipments = raw.equipments || [];

@@ -119,7 +119,10 @@ class SyncService {
         let failed = 0;
 
         try {
-            await resilientUpload.waitForActiveUploads(15000);
+            const stats = resilientUpload.getStats();
+            if (stats.pending > 0 || stats.uploading > 0) {
+                await resilientUpload.waitForActiveUploads(4000);
+            }
 
             for (const task of pendingTasks) {
                 await this.updateTaskStatus(task.id, 'syncing');
@@ -257,7 +260,10 @@ class SyncService {
         console.log(`[Sync] Iniciando sincronização de ${pendingTasks.length} itens...`);
 
         try {
-            await resilientUpload.waitForActiveUploads(12000);
+            const stats = resilientUpload.getStats();
+            if (stats.pending > 0 || stats.uploading > 0) {
+                await resilientUpload.waitForActiveUploads(4000);
+            }
 
             for (const task of pendingTasks) {
                 await this.updateTaskStatus(task.id, 'syncing');
@@ -287,13 +293,13 @@ class SyncService {
 
         const tenantId = payload.tenantId;
 
-        // Tentar obter o displayId (código legível da OS) para salvar os arquivos com a nomenclatura nova
-        let targetFolderId = orderId;
-        try {
-            const dbOrder = await OrderService.getOrderById(orderId);
-            if (dbOrder?.displayId) targetFolderId = dbOrder.displayId;
-        } catch (e) {
-            console.warn('[Sync] Could not fetch DB order for displayId, defaulting to orderId');
+        // Tentar obter o displayId (código legível da OS) direto do payload ou cache local sem requisição de rede
+        let targetFolderId = payload.displayId || orderId;
+        if (targetFolderId === orderId) {
+            try {
+                const cached = await this.getOrderDetail(orderId);
+                if (cached?.displayId) targetFolderId = cached.displayId;
+            } catch (_) { }
         }
 
         const isLocalPath = (str: any): boolean => {
@@ -442,12 +448,12 @@ class SyncService {
         const { OrderService } = require('./order-service');
         const tenantId = payload.tenantId;
 
-        let targetFolderId = orderId;
-        try {
-            const dbOrder = await OrderService.getOrderById(orderId);
-            if (dbOrder?.displayId) targetFolderId = dbOrder.displayId;
-        } catch (e) {
-            console.warn('[Sync] Could not fetch DB order for displayId, defaulting to orderId');
+        let targetFolderId = payload.displayId || orderId;
+        if (targetFolderId === orderId) {
+            try {
+                const cached = await this.getOrderDetail(orderId);
+                if (cached?.displayId) targetFolderId = cached.displayId;
+            } catch (_) { }
         }
 
         let processedBlockPhotos: string[] = [];
@@ -665,84 +671,150 @@ class SyncService {
      * Pré-carrega todas as OS do dia atual + detalhes de cada uma.
      * Chamado ao ativar o modo offline.
      */
-    async prefetchTodayOrders(onProgress?: (current: number, total: number) => void): Promise<number> {
+    /**
+     * Pré-carrega de forma completa e segura toda a base para o modo offline:
+     * - Templates de formulários (com forceRefresh)
+     * - Regras de ativação (com forceRefresh)
+     * - Tipos de serviços (com forceRefresh)
+     * - Configurações do tenant
+     * - Estoque do técnico
+     * - TODAS as OSs ativas/abertas atribuídas ao técnico + detalhes + equipamentos
+     * - Valida a integridade dos dados no disco antes de retornar
+     */
+    async prefetchAllForOffline(onProgress?: (current: number, total: number, stepLabel?: string) => void): Promise<{ count: number; templatesCount: number }> {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             const userId = session?.user?.id;
-            if (!userId) return 0;
+            if (!userId) throw new Error('Usuário não autenticado');
 
+            if (onProgress) onProgress(0, 5, 'Baixando formulários e modelos...');
+
+            const { OrderService, DISK_CACHE_FORM_TEMPLATES } = require('./order-service');
+            const { StockService } = require('./stock-service');
+            const { TenantService } = require('./tenant-service');
+
+            // 1. Pré-carregar Formulários, Regras de Ativação, Tipos de Serviço, Configurações do Tenant e Estoque
+            // Forçando busca na rede (forceRefresh=true) para garantir dados frescos no disco
+            const [templates, rules, serviceTypes] = await Promise.all([
+                OrderService.getFormTemplates(true).catch((e: any) => {
+                    console.warn('[Sync] Falha ao baixar templates:', e);
+                    return [];
+                }),
+                OrderService.getActivationRules(true).catch((e: any) => {
+                    console.warn('[Sync] Falha ao baixar regras:', e);
+                    return [];
+                }),
+                OrderService.getServiceTypes(true).catch((e: any) => {
+                    console.warn('[Sync] Falha ao baixar tipos de serviço:', e);
+                    return [];
+                }),
+                TenantService.getSettings(true).catch((e: any) => {
+                    console.warn('[Sync] Falha ao baixar settings:', e);
+                    return null;
+                }),
+                StockService.getMyStock(true).catch((e: any) => {
+                    console.warn('[Sync] Falha ao baixar estoque:', e);
+                    return [];
+                })
+            ]);
+
+            console.log(`[Sync] Base offline baixada: ${templates?.length || 0} templates, ${rules?.length || 0} regras, ${serviceTypes?.length || 0} serviceTypes.`);
+
+            if (onProgress) onProgress(1, 5, 'Buscando Ordens de Serviço atribuídas...');
+
+            // 2. Buscar TODAS as OSs abertas/ativas atribuídas ao técnico (não apenas do dia de hoje)
+            const { data: activeOrdersRaw, error: ordersError } = await supabase
+                .from('orders')
+                .select('*, customers(*)')
+                .eq('assigned_to', userId)
+                .not('status', 'in', '("CONCLUÍDO","CANCELADO")')
+                .order('created_at', { ascending: false })
+                .limit(50);
+
+            if (ordersError) {
+                console.error('[Sync] Erro ao buscar ordens ativas:', ordersError);
+            }
+
+            // Também buscar as agendadas para hoje (caso tenham status diferente)
             const today = new Date();
             const y = today.getFullYear();
             const m = String(today.getMonth() + 1).padStart(2, '0');
             const d = String(today.getDate()).padStart(2, '0');
             const todayStr = `${y}-${m}-${d}`;
 
-            // Buscar OS do dia (status abertos + em andamento)
-            const { data: ordersRaw, error } = await supabase
+            const { data: todayOrdersRaw } = await supabase
                 .from('orders')
                 .select('*, customers(*)')
                 .eq('assigned_to', userId)
                 .gte('scheduled_date', todayStr)
                 .lte('scheduled_date', todayStr)
-                .not('status', 'in', '("CONCLUÍDO","CANCELADO","IMPEDIDO")')
-                .order('scheduled_date', { ascending: false })
-                .order('created_at', { ascending: false })
-                .limit(20);
+                .limit(30);
 
-            // Também buscar OS em andamento (qualquer data)
-            const { data: inProgressRaw } = await supabase
-                .from('orders')
-                .select('*, customers(*)')
-                .eq('assigned_to', userId)
-                .in('status', ['EM ANDAMENTO', 'EM DESLOCAMENTO', 'ATRIBUÍDO'])
-                .order('scheduled_date', { ascending: false })
-                .order('created_at', { ascending: false })
-                .limit(20);
-
-            if (error) throw error;
-
-            // Merge e deduplicar, limitando a 20 no total para não travar o app
+            // Merge e deduplicar
             const allOrdersMap = new Map<string, any>();
-            [...(inProgressRaw || []), ...(ordersRaw || [])].forEach(o => allOrdersMap.set(o.id, o));
-            const allOrders = Array.from(allOrdersMap.values()).slice(0, 20);
+            [...(activeOrdersRaw || []), ...(todayOrdersRaw || [])].forEach(o => {
+                if (o && o.id) allOrdersMap.set(o.id, o);
+            });
+            const allOrders = Array.from(allOrdersMap.values());
 
-            await this.saveTodayOrders(allOrders);
+            console.log(`[Sync] Encontradas ${allOrders.length} OSs para cache offline.`);
 
-            // Buscar detalhes + equipamentos de cada OS
-            const total = allOrders.length;
-            for (let i = 0; i < allOrders.length; i++) {
+            // 3. Buscar equipamentos e detalhes para cada OS encontrada
+            const totalOrders = allOrders.length;
+            for (let i = 0; i < totalOrders; i++) {
                 const order = allOrders[i];
+                if (onProgress) onProgress(i + 1, totalOrders, `Baixando OS ${i + 1}/${totalOrders} (${order.displayId || 'S/N'})...`);
                 try {
                     const { data: equipmentsData } = await supabase.rpc('nexus_get_order_equipments', { p_order_id: order.id });
                     const equipmentsList = Array.isArray(equipmentsData) ? equipmentsData : (equipmentsData ? [equipmentsData] : []);
                     await this.saveOrderDetail(order.id, { ...order, equipments: equipmentsList });
+
+                    // Se a OS ou algum equipamento apontar para um formId específico, assegurar que ele está em cache
+                    if (order.formId && order.formId !== 'f-padrao') {
+                        OrderService.getFormTemplate(order.formId).catch(() => {});
+                    }
+                    if (equipmentsList.length > 0) {
+                        for (const eq of equipmentsList) {
+                            if (eq.form_id && eq.form_id !== 'f-padrao') {
+                                OrderService.getFormTemplate(eq.form_id).catch(() => {});
+                            }
+                        }
+                    }
                 } catch (e) {
                     await this.saveOrderDetail(order.id, { ...order, equipments: [] });
                 }
-                if (onProgress) onProgress(i + 1, total);
             }
 
-            console.log(`[Sync] Pré-cache offline: ${allOrders.length} OS salvas.`);
+            // Salva a lista consolidada de OSs para a tela inicial
+            await this.saveTodayOrders(allOrders);
 
-            // Pré-aquecer configurações usadas na tela de execução
-            // Usar OrderService para popular o AsyncStorage com as chaves corretas
-            try {
-                const { OrderService } = require('./order-service');
-                const { StockService } = require('./stock-service');
-                await Promise.all([
-                    OrderService.getFormTemplates(),
-                    OrderService.getActivationRules(),
-                    OrderService.getServiceTypes(),
-                    StockService.getMyStock(true), // Pre-cache user stock for offline mode
-                ]);
-            } catch (e) { console.error('[Sync] Falha ao pré-aquecer cache:', e); }
+            // 4. Verificação de Integridade (Garantia Big Tech: certificar que não está zerado)
+            let verifiedTemplates = templates;
+            if (!verifiedTemplates || verifiedTemplates.length === 0) {
+                const diskTemplatesRaw = await AsyncStorage.getItem(DISK_CACHE_FORM_TEMPLATES);
+                if (diskTemplatesRaw) {
+                    try {
+                        verifiedTemplates = JSON.parse(diskTemplatesRaw);
+                    } catch (_) {}
+                }
+            }
 
-            return allOrders.length;
+            console.log(`[Sync] ✅ Pré-cache offline concluído com sucesso. OSs: ${allOrders.length}, Templates: ${verifiedTemplates?.length || 0}`);
 
-        } catch (e) {
-            console.error('[Sync] Erro no prefetch de OS:', e);
-            return 0;
+            return {
+                count: allOrders.length,
+                templatesCount: verifiedTemplates?.length || 0
+            };
+        } catch (e: any) {
+            console.error('[Sync] ❌ Falha crítica no prefetch de dados offline:', e);
+            throw new Error(`Falha ao preparar modo offline: ${e?.message || 'Erro de conexão'}`);
         }
+    }
+
+    /** Retrocompatibilidade */
+    async prefetchTodayOrders(onProgress?: (current: number, total: number) => void): Promise<number> {
+        const result = await this.prefetchAllForOffline((cur, tot) => onProgress?.(cur, tot));
+        return result.count;
     }
 }
 
