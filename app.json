@@ -28,8 +28,8 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Permitir acesso contínuo à localização para rastrear rotas de atendimento e registrar deslocamento técnico em tempo real, mesmo com o aplicativo em segundo plano.",
         "NSLocationAlwaysUsageDescription": "Permitir que o aplicativo utilize sua localização em segundo plano para rastrear rotas e registrar check-in nos atendimentos.",
         "NSLocationWhenInUseUsageDescription": "Permitir que o aplicativo utilize sua localização para validar check-in e check-out nos atendimentos técnicos.",
-        "NSMicrophoneUsageDescription": "Permitir acesso ao microfone para transcrição do relatório e laudos por voz.",
-        "NSSpeechRecognitionUsageDescription": "Permitir reconhecimento de voz para transcrever o relatório técnico automaticamente.",
+        "NSMicrophoneUsageDescription": "Permitir acesso ao microfone para transcrição de voz nos laudos.",
+        "NSSpeechRecognitionUsageDescription": "Permitir reconhecimento de fala para preencher os formulários automaticamente.",
         "NSCameraUsageDescription": "Permitir acesso à câmera para tirar fotos e gravar vídeos de evidências das ordens de serviço.",
         "NSPhotoLibraryUsageDescription": "Permitir acesso à galeria para anexar fotos de evidências das ordens de serviço.",
         "NSPhotoLibraryAddUsageDescription": "Permitir salvar fotos, evidências e laudos técnicos na galeria do dispositivo.",
@@ -54,7 +54,13 @@
         "POST_NOTIFICATIONS",
         "MODIFY_AUDIO_SETTINGS",
         "INTERNET",
-        "CAMERA"
+        "CAMERA",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -130,9 +136,9 @@
         "origin": false
       },
       "eas": {
-        "projectId": "c9b16e0f-37af-47bd-9ed8-48677de635e2"
+        "projectId": "7caab797-5453-4704-8029-c84d7a8153a1"
       }
     },
-    "owner": "duno-up"
+    "owner": "dunoupapp"
   }
 }
