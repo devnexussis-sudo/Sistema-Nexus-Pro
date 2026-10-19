@@ -566,25 +566,44 @@ export class OrderService {
     public static mapDbOrderToApp(dbOrder: any): ExtendedServiceOrder {
         // Map status
         let status: OrderStatus = 'pending';
-        switch (dbOrder.status?.toUpperCase()) {
+        const rawUpper = String(dbOrder.status || '').trim().toUpperCase();
+        switch (rawUpper) {
             case 'PENDENTE':
+            case 'PENDING':
             case 'ABERTA':
             case 'ABERTO':
             case 'NOVA':
                 status = 'pending'; break;
             case 'ATRIBUÍDO':
+            case 'ATRIBUIDO':
+            case 'ASSIGNED':
                 status = 'assigned'; break;
             case 'EM DESLOCAMENTO':
+            case 'TRAVELING':
                 status = 'traveling'; break;
             case 'EM ANDAMENTO':
+            case 'IN_PROGRESS':
                 status = 'in_progress'; break;
             case 'CONCLUÍDO':
+            case 'CONCLUIDO':
+            case 'COMPLETED':
                 status = 'completed'; break;
             case 'CANCELADO':
+            case 'CANCELED':
+            case 'CANCELLED':
                 status = 'canceled'; break;
             case 'IMPEDIDO':
+            case 'BLOCKED':
+            case 'BLOQUEADO':
                 status = 'blocked'; break;
-            default: status = 'pending';
+            default:
+                if (rawUpper.includes('ANDAMENTO') || rawUpper.includes('PROGRESS')) status = 'in_progress';
+                else if (rawUpper.includes('DESLOC')) status = 'traveling';
+                else if (rawUpper.includes('ATRIBU')) status = 'assigned';
+                else if (rawUpper.includes('CONCLU')) status = 'completed';
+                else if (rawUpper.includes('IMPED') || rawUpper.includes('BLOQ')) status = 'blocked';
+                else if (rawUpper.includes('CANCEL')) status = 'canceled';
+                else status = 'pending';
         }
 
         // Map execution details from form_data
@@ -738,6 +757,21 @@ export class OrderService {
             });
         } catch (error) {
             logger.log(`Exception fetching order: ${error}`, 'error');
+            try {
+                const offlineDetail = await syncService.getOrderDetail(id);
+                if (offlineDetail) {
+                    const mapped = this.mapDbOrderToApp(offlineDetail);
+                    mapped.equipments = offlineDetail.equipments || [];
+                    return mapped;
+                }
+                const todayOrders = await syncService.getTodayOrders();
+                const found = todayOrders.find((o: any) => String(o.id) === String(id));
+                if (found) {
+                    const mapped = this.mapDbOrderToApp(found);
+                    mapped.equipments = found.equipments || [];
+                    return mapped;
+                }
+            } catch (_) {}
             return undefined;
         }
     }

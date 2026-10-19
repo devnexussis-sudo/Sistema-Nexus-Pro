@@ -950,7 +950,13 @@ class SyncService {
     async prefetchAllForOffline(onProgress?: (current: number, total: number, stepLabel?: string) => void): Promise<{ count: number; templatesCount: number }> {
         try {
             const { data: { session } } = await supabase.auth.getSession();
-            const userId = session?.user?.id;
+            let userId = session?.user?.id;
+            if (!userId) {
+                try {
+                    const { authService } = require('./auth-service');
+                    userId = authService.getCurrentUserId();
+                } catch (_) {}
+            }
             if (!userId) throw new Error('Usuário não autenticado');
 
             if (onProgress) onProgress(0, 5, 'Baixando formulários e modelos...');
@@ -989,54 +995,102 @@ class SyncService {
             if (onProgress) onProgress(1, 5, 'Buscando Ordens de Serviço abertas (<30 dias)...');
 
             // 2. Data limite: menos de 30 dias a partir de hoje
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            thirtyDaysAgo.setHours(0, 0, 0, 0);
-            const thirtyDaysAgoISO = thirtyDaysAgo.toISOString();
-            const thirtyDaysAgoDateStr = thirtyDaysAgoISO.split('T')[0];
+            const thirtyDaysAgoMs = Date.now() - (30 * 24 * 60 * 60 * 1000);
+            const thirtyDaysAgoIso = new Date(thirtyDaysAgoMs).toISOString();
+            const thirtyDaysAgoDateOnly = thirtyDaysAgoIso.split('T')[0];
 
-            // Status proibidos explicitamente: Concluídas, Impedidas e Canceladas
-            const forbiddenStatuses = [
-                'CONCLUÍDO', 'CONCLUIDO', 'completed', 'COMPLETED',
-                'IMPEDIDO', 'bloqueado', 'blocked', 'BLOCKED',
-                'CANCELADO', 'canceled', 'CANCELED'
-            ];
-            const forbiddenStatusList = `("${forbiddenStatuses.join('","')}")`;
+            // Buscar OSs atribuídas ESPECIFICAMENTE ao técnico autenticado.
+            let activeOrdersRaw: any[] = [];
 
-            // Buscar OSs atribuídas ESPECIFICAMENTE ao técnico autenticado,
-            // que NÃO estejam concluídas ou impedidas, e tenham menos de 30 dias
-            const { data: activeOrdersRaw, error: ordersError } = await supabase
-                .from('orders')
-                .select('*, customers(*)')
-                .eq('assigned_to', userId)
-                .not('status', 'in', forbiddenStatusList)
-                .or(`created_at.gte.${thirtyDaysAgoISO},scheduled_date.gte.${thirtyDaysAgoDateStr}`)
-                .order('created_at', { ascending: false })
-                .limit(100);
+            // Tentativa 1: query rica com joins
+            try {
+                const { data: directOrders, error: ordersError } = await supabase
+                    .from('orders')
+                    .select('*, customers(*), service_visits(count)')
+                    .eq('assigned_to', userId)
+                    .order('created_at', { ascending: false })
+                    .limit(200);
 
-            if (ordersError) {
-                console.error('[Sync] Erro ao buscar ordens para modo offline:', ordersError);
+                if (!ordersError && directOrders && directOrders.length > 0) {
+                    activeOrdersRaw = directOrders;
+                } else if (ordersError) {
+                    console.warn('[Sync] Erro na query direta de ordens:', ordersError);
+                }
+            } catch (queryErr) {
+                console.error('[Sync] Exceção na query direta de ordens:', queryErr);
+            }
+
+            // Tentativa 2: query direta sem joins (caso haja restrição de chave estrangeira)
+            if (activeOrdersRaw.length === 0) {
+                try {
+                    const { data: simpleOrders, error: simpleError } = await supabase
+                        .from('orders')
+                        .select('*')
+                        .eq('assigned_to', userId)
+                        .order('created_at', { ascending: false })
+                        .limit(200);
+
+                    if (!simpleError && simpleOrders && simpleOrders.length > 0) {
+                        activeOrdersRaw = simpleOrders;
+                    }
+                } catch (simpleErr) {
+                    console.warn('[Sync] Tentativa 2 direta sem joins falhou:', simpleErr);
+                }
+            }
+
+            // Tentativa 3: buscar por scheduled_date recente
+            if (activeOrdersRaw.length === 0) {
+                try {
+                    const { data: schedOrders } = await supabase
+                        .from('orders')
+                        .select('*, customers(*)')
+                        .eq('assigned_to', userId)
+                        .gte('scheduled_date', thirtyDaysAgoDateOnly)
+                        .order('scheduled_date', { ascending: false })
+                        .limit(200);
+
+                    if (schedOrders && schedOrders.length > 0) {
+                        activeOrdersRaw = schedOrders;
+                    }
+                } catch (_) {}
+            }
+
+            // Fallback de alta confiabilidade: se a query direta não trouxe registros, busca via OrderService
+            if (activeOrdersRaw.length === 0) {
+                try {
+                    const fallbackRes = await OrderService.getAllOrders({ pageSize: 100, forceRefresh: true });
+                    if (fallbackRes?.orders && fallbackRes.orders.length > 0) {
+                        console.log(`[Sync] Fallback OrderService encontrou ${fallbackRes.orders.length} ordens.`);
+                        activeOrdersRaw = fallbackRes.orders;
+                    }
+                } catch (fallbackErr) {
+                    console.warn('[Sync] Fallback OrderService não obteve ordens:', fallbackErr);
+                }
             }
 
             // Deduplicação e validação estrita em memória:
             // Apenas status: abertas (pending), atribuídas (assigned), ou em andamento (in_progress/traveling)
             // OSs concluídas e impedidas NUNCA são baixadas
             const validStatusKeys = new Set(['pending', 'assigned', 'in_progress', 'traveling']);
-            const thirtyDaysAgoMs = thirtyDaysAgo.getTime();
 
             const allOrdersMap = new Map<string, any>();
             (activeOrdersRaw || []).forEach(o => {
                 if (!o || !o.id) return;
 
-                // 1. Garantir que é especificamente para aquele técnico
+                // 1. Garantir que é especificamente para aquele técnico (quando houver assigned_to)
                 if (o.assigned_to && o.assigned_to !== userId) return;
 
                 // 2. Mapeamento de status no padrão do sistema
                 const mapped = OrderService.mapDbOrderToApp(o);
                 const status = mapped.status;
+                const rawStatus = String(o.status || o.rawStatus || '').toUpperCase();
 
-                // 3. REGRA CRÍTICA: Concluídas e impedidas NÃO devem ser baixadas
-                if (status === 'completed' || status === 'blocked' || status === 'canceled') {
+                // 3. REGRA CRÍTICA: Concluídas, Impedidas e Canceladas NUNCA devem ser baixadas
+                if (
+                    status === 'completed' || status === 'blocked' || status === 'canceled' ||
+                    rawStatus.includes('CONCLU') || rawStatus.includes('IMPED') ||
+                    rawStatus.includes('BLOQ') || rawStatus.includes('CANCEL')
+                ) {
                     return;
                 }
 
@@ -1054,7 +1108,14 @@ class SyncService {
                     }
                 }
 
-                allOrdersMap.set(o.id, o);
+                // Salvar objeto híbrido com dados do DB e campos mapeados do App
+                allOrdersMap.set(o.id, {
+                    ...o,
+                    ...mapped,
+                    id: o.id,
+                    status: status,
+                    rawStatus: o.status || status,
+                });
             });
 
             const allOrders = Array.from(allOrdersMap.values());
@@ -1064,7 +1125,7 @@ class SyncService {
             const totalOrders = allOrders.length;
             for (let i = 0; i < totalOrders; i++) {
                 const order = allOrders[i];
-                if (onProgress) onProgress(i + 1, totalOrders, `Baixando OS ${i + 1}/${totalOrders} (${order.displayId || 'S/N'})...`);
+                if (onProgress) onProgress(i + 1, Math.max(totalOrders, 1), `Baixando OS ${i + 1}/${totalOrders} (${order.displayId || 'S/N'})...`);
                 try {
                     const { data: equipmentsData } = await supabase.rpc('nexus_get_order_equipments', { p_order_id: order.id });
                     const equipmentsList = Array.isArray(equipmentsData) ? equipmentsData : (equipmentsData ? [equipmentsData] : []);

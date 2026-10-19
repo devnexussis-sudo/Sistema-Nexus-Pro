@@ -31,6 +31,7 @@ export function HeaderRightToggle() {
     const router = useRouter();
 
     const [isOfflineMode, setIsOfflineMode] = useState(syncService.isOfflineModeEnabled());
+    const [optimisticOnline, setOptimisticOnline] = useState(!syncService.isOfflineModeEnabled());
     const [isConnected, setIsConnected] = useState(true);
     const [isSyncing, setIsSyncing] = useState(syncService.getSyncingState());
     const [isLoading, setIsLoading] = useState(false);
@@ -47,7 +48,7 @@ export function HeaderRightToggle() {
     const [modeState, setModeState] = useState<ModeHUDState>(modeHUDService.getState());
 
     const isBusy = isLoading || isSyncing;
-    const isOnline = !isOfflineMode;
+    const isOnline = optimisticOnline;
 
     const checkUnreadNotifications = async () => {
         try {
@@ -87,7 +88,9 @@ export function HeaderRightToggle() {
         const unNet = NetInfo.addEventListener(s => setIsConnected(!!s.isConnected));
 
         const unQueue = syncService.subscribe((updatedQueue) => {
-            setIsOfflineMode(syncService.isOfflineModeEnabled());
+            const offlineActive = syncService.isOfflineModeEnabled();
+            setIsOfflineMode(offlineActive);
+            setOptimisticOnline(!offlineActive);
             setQueue(updatedQueue);
             const pending = updatedQueue.filter(task => task.status === 'pending' || task.status === 'error').length;
             setPendingCount(pending);
@@ -147,26 +150,47 @@ export function HeaderRightToggle() {
 
     // Alternar modo online / offline
     const handleToggle = async (newValue: boolean) => {
-        if (isBusy) return;
+        if (isLoading) return;
 
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+
+        // 🚀 Feedback instantâneo no toque: o switch e o label viram na mesma fração de segundo!
+        setOptimisticOnline(newValue);
+        setIsLoading(true);
 
         if (!newValue) {
             // ══════════════════════════════════════════════
             // GOING OFFLINE
             // ══════════════════════════════════════════════
             if (!isConnected) {
-                modeHUDService.show({
-                    type: 'offline',
-                    status: 'error',
-                    title: 'Sem Conexão',
-                    subtitle: 'Conecte-se à internet para baixar suas Ordens de Serviço antes de ativar o modo offline.',
-                });
-                openPanel();
-                return;
+                const cachedOrders = await syncService.getTodayOrders();
+                if (cachedOrders && cachedOrders.length > 0) {
+                    await syncService.toggleOfflineMode(true);
+                    setIsOfflineMode(true);
+                    setOptimisticOnline(false);
+                    DeviceEventEmitter.emit('offlineModeChanged', true);
+                    modeHUDService.show({
+                        type: 'offline',
+                        status: 'success',
+                        title: 'Modo Offline Ativado',
+                        subtitle: `${cachedOrders.length} ordens disponíveis em cache local.`,
+                    });
+                    setIsLoading(false);
+                    return;
+                } else {
+                    setOptimisticOnline(true);
+                    setIsLoading(false);
+                    modeHUDService.show({
+                        type: 'offline',
+                        status: 'error',
+                        title: 'Sem Conexão',
+                        subtitle: 'Conecte-se à internet para baixar suas Ordens de Serviço antes de ativar o modo offline.',
+                    });
+                    openPanel();
+                    return;
+                }
             }
 
-            setIsLoading(true);
             modeHUDService.show({
                 type: 'offline',
                 status: 'progress',
@@ -185,6 +209,10 @@ export function HeaderRightToggle() {
 
                 await syncService.toggleOfflineMode(true);
                 setIsOfflineMode(true);
+                setOptimisticOnline(false);
+
+                // ⚡ Notifica a tela Home para recarregar e fixar as ordens offline imediatamente!
+                DeviceEventEmitter.emit('offlineModeChanged', true);
 
                 modeHUDService.show({
                     type: 'offline',
@@ -196,12 +224,17 @@ export function HeaderRightToggle() {
                 });
             } catch (err: any) {
                 console.error('[HeaderRightToggle] Falha ao preparar Modo Offline:', err);
+                setOptimisticOnline(true);
+                setIsOfflineMode(false);
+                DeviceEventEmitter.emit('offlineModeChanged', false);
+
                 modeHUDService.show({
                     type: 'offline',
                     status: 'error',
                     title: 'Falha no Modo Offline',
                     subtitle: err?.message || 'Não foi possível baixar os dados para o celular.',
                 });
+                openPanel();
             } finally {
                 setIsLoading(false);
                 refreshQueue();
@@ -210,7 +243,6 @@ export function HeaderRightToggle() {
             // ══════════════════════════════════════════════
             // GOING ONLINE
             // ══════════════════════════════════════════════
-            setIsLoading(true);
             modeHUDService.show({
                 type: 'online',
                 status: 'progress',
@@ -221,6 +253,8 @@ export function HeaderRightToggle() {
             try {
                 const isStable = await syncService.testConnectionQuality();
                 if (!isStable) {
+                    setOptimisticOnline(false);
+                    setIsOfflineMode(true);
                     modeHUDService.show({
                         type: 'online',
                         status: 'error',
@@ -231,8 +265,12 @@ export function HeaderRightToggle() {
                     return;
                 }
 
-                setIsOfflineMode(false);
                 await syncService.toggleOfflineMode(false);
+                setIsOfflineMode(false);
+                setOptimisticOnline(true);
+
+                // ⚡ Notifica a tela Home para recarregar do servidor imediatamente!
+                DeviceEventEmitter.emit('offlineModeChanged', false);
 
                 const q = await syncService.getQueue();
                 const count = q.filter(t => t.status === 'pending' || t.status === 'error').length;
@@ -258,6 +296,9 @@ export function HeaderRightToggle() {
                 }
             } catch (err: any) {
                 console.error('[HeaderRightToggle] Erro ao alternar para Online:', err);
+                setOptimisticOnline(false);
+                setIsOfflineMode(true);
+                DeviceEventEmitter.emit('offlineModeChanged', true);
                 modeHUDService.show({
                     type: 'online',
                     status: 'error',
@@ -354,7 +395,7 @@ export function HeaderRightToggle() {
                         ios_backgroundColor="#ef4444"
                         onValueChange={handleToggle}
                         value={isOnline}
-                        disabled={isBusy}
+                        disabled={false}
                         style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }], marginHorizontal: -2 }}
                     />
                 </View>

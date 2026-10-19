@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, View, Linking, Modal } from 'react-native';
+import { ActivityIndicator, Alert, DeviceEventEmitter, FlatList, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, View, Linking, Modal } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useI18n } from '@/services/i18n';
 import { TenantService } from '@/services/tenant-service';
@@ -231,7 +231,18 @@ export default function HomeScreen() {
         fetchOrdersRef.current(true);
       }
     });
-    return () => { unQueue(); unSync(); };
+    // Subscribe na alternância do modo offline/online
+    const unOffline = DeviceEventEmitter.addListener('offlineModeChanged', () => {
+      console.log('[HomeScreen] 🔄 offlineModeChanged recebido! Recarregando ordens imediatamente...');
+      if (fetchOrdersRef.current) {
+        fetchOrdersRef.current(true);
+      }
+    });
+    return () => {
+      unQueue();
+      unSync();
+      unOffline?.remove?.();
+    };
   }, []);
 
   const cacheKey = useMemo(() => {
@@ -251,11 +262,18 @@ export default function HomeScreen() {
         if (fetchIdRef.current !== thisId) return; // 🛡️ Stale — discard
         const mapped = raw.map((o: any) => OrderService.mapDbOrderToApp(o));
 
-        // Filtrar pelo status selecionado
+        // Filtrar pelo status selecionado:
+        // Na aba 'pending' (Abertas), exibimos todas as ordens ativas para o técnico:
+        // abertas, atribuídas, em deslocamento E em andamento, mantendo tudo fixo na tela!
         const filtered = selectedFilter === 'all'
           ? mapped
           : mapped.filter((o: any) => {
-            if (selectedFilter === 'pending') return ['pending', 'assigned', 'traveling'].includes(o.status);
+            if (selectedFilter === 'pending') {
+              return ['pending', 'assigned', 'traveling', 'in_progress'].includes(o.status);
+            }
+            if (selectedFilter === 'in_progress') {
+              return ['in_progress', 'traveling'].includes(o.status);
+            }
             return o.status === selectedFilter;
           });
 
@@ -281,19 +299,15 @@ export default function HomeScreen() {
         setTotalOrders(filtered.length);
         const stats: Record<string, number> = { all: mapped.length, pending: 0, in_progress: 0, blocked: 0, completed: 0 };
         mapped.forEach((o: any) => {
-          if (stats[o.status] !== undefined) stats[o.status]++;
           if (['assigned', 'traveling', 'pending'].includes(o.status)) stats.pending++;
+          if (['in_progress', 'traveling'].includes(o.status)) stats.in_progress++;
+          if (o.status === 'blocked') stats.blocked++;
+          if (o.status === 'completed') stats.completed++;
         });
         setServerStats(stats);
       } catch (e) {
         console.error('[Home] Error fetching offline orders:', e);
       } finally {
-        const elapsed = Date.now() - startTime;
-        const remaining = Math.max(0, 1000 - elapsed);
-        if (remaining > 0) {
-          await new Promise(resolve => setTimeout(resolve, remaining));
-        }
-        
         if (fetchIdRef.current === thisId) {
           setIsLoading(false);
           setRefreshing(false);
