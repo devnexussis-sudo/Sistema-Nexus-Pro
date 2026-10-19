@@ -89,6 +89,32 @@ const customFetch = async (url: RequestInfo | URL, options?: RequestInit): Promi
         }
     }
 
+    // ⚡ Edge Functions (r2-operations, AI, etc.) requerem tempo maior (cold-start + assinatura Cloudflare R2)
+    const isFunctions = urlStr.includes('/functions/v1/');
+    if (isFunctions) {
+        const FUNCTION_TIMEOUT_MS = 35000;
+        const FUNCTION_RETRIES = 2;
+        for (let attempt = 0; attempt < FUNCTION_RETRIES; attempt++) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), FUNCTION_TIMEOUT_MS);
+            try {
+                const response = await fetch(url, { ...options, signal: controller.signal });
+                clearTimeout(timeoutId);
+                return response;
+            } catch (e: any) {
+                clearTimeout(timeoutId);
+                const isAbort = e.name === 'AbortError' || e.message === 'Aborted' || e.message?.toLowerCase().includes('cancel') || e.message?.toLowerCase().includes('abort');
+                if (attempt < FUNCTION_RETRIES - 1) {
+                    console.warn(`[Supabase Fetch] ⚠️ Falha na Edge Function (tentativa ${attempt + 1}/${FUNCTION_RETRIES}): ${e.message}. Aguardando 1.5s para tentar novamente...`);
+                    await new Promise(r => setTimeout(r, 1500));
+                    continue;
+                }
+                if (isAbort) throw new Error('Network request failed: edge function timeout');
+                throw e;
+            }
+        }
+    }
+
     // ─── Carrier-Aware Timeouts (Section 0.5 + 1.5) ─────────────────────
     // Claro CGNAT: 8s/12s/18s (mais tempo para DNS AAAA + TLS handshake)
     // Outras operadoras: 6s/8s/12s (margem normal mas nunca <5s)

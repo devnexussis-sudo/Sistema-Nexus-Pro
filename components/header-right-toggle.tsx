@@ -125,57 +125,59 @@ export function HeaderRightToggle() {
             setIsLoading(true);
             setLabel(t('toggleTestingConnection'));
 
-            // Step 1: Test connection quality with real round-trip
-            const isStable = await syncService.testConnectionQuality();
-            if (!isStable) {
-                setIsLoading(false);
-                setLabel('');
-                Alert.alert(
-                    t('toggleUnstableTitle'),
-                    t('toggleUnstableMsg'),
-                    [{ text: t('homeUnderstood'), style: 'default' }]
-                );
-                return; // Do NOT switch to online
-            }
-
-            // Step 2: Check if there are pending tasks to sync
-            const queue = await syncService.getQueue();
-            const pendingCount = queue.filter(task => task.status === 'pending' || task.status === 'error').length;
-
-            if (pendingCount > 0) {
-                // Step 3: Sync pending tasks
-                setLabel(t('toggleSyncing'));
-
-                const result = await syncService.safeSyncBeforeOnline();
-
-                if (result.failed > 0) {
-                    // Some tasks failed — keep offline, cache preserved
-                    setIsLoading(false);
-                    setLabel('');
+            try {
+                // Step 1: Test connection quality with real round-trip
+                const isStable = await syncService.testConnectionQuality();
+                if (!isStable) {
                     Alert.alert(
-                        t('toggleSyncFailTitle'),
-                        t('toggleSyncFailMsg')
-                            .replace('%s', String(result.success))
-                            .replace('%f', String(result.failed)),
+                        t('toggleUnstableTitle'),
+                        t('toggleUnstableMsg'),
                         [{ text: t('homeUnderstood'), style: 'default' }]
                     );
-                    return; // Stay offline — cache preserved
+                    return; // Do NOT switch to online
                 }
+
+                // Step 2: Check if there are pending tasks to sync
+                const queue = await syncService.getQueue();
+                const pendingCount = queue.filter(task => task.status === 'pending' || task.status === 'error').length;
+
+                if (pendingCount > 0) {
+                    // Step 3: Sync pending tasks
+                    setLabel(t('toggleSyncing'));
+
+                    const result = await syncService.safeSyncBeforeOnline();
+
+                    if (result.failed > 0) {
+                        // Some tasks failed — keep offline, cache preserved
+                        Alert.alert(
+                            t('toggleSyncFailTitle'),
+                            t('toggleSyncFailMsg')
+                                .replace('%s', String(result.success))
+                                .replace('%f', String(result.failed)),
+                            [{ text: t('homeUnderstood'), style: 'default' }]
+                        );
+                        return; // Stay offline — cache preserved
+                    }
+                }
+
+                // Step 4: Everything synced (or nothing to sync) — go online
+                setIsOfflineMode(false);
+                await syncService.toggleOfflineMode(false);
+
+                Alert.alert(
+                    t('toggleOnlineTitle'),
+                    pendingCount > 0
+                        ? t('toggleOnlineSyncedMsg')
+                        : t('toggleOnlineMsg'),
+                    [{ text: t('toggleOnlineOk'), style: 'default' }]
+                );
+            } catch (err: any) {
+                console.error('[HeaderRightToggle] Erro ao alternar para Online:', err);
+                Alert.alert('Erro ao ativar Modo Online', err?.message || 'Falha ao sincronizar dados. Tente novamente.');
+            } finally {
+                setIsLoading(false);
+                setLabel('');
             }
-
-            // Step 4: Everything synced (or nothing to sync) — go online
-            setIsOfflineMode(false);
-            await syncService.toggleOfflineMode(false);
-            setIsLoading(false);
-            setLabel('');
-
-            Alert.alert(
-                t('toggleOnlineTitle'),
-                pendingCount > 0
-                    ? t('toggleOnlineSyncedMsg')
-                    : t('toggleOnlineMsg'),
-                [{ text: t('toggleOnlineOk'), style: 'default' }]
-            );
         }
     };
 

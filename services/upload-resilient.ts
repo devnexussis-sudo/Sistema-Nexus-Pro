@@ -124,7 +124,12 @@ class ResilientUploadService {
     findMatchingTask(uri: string): UploadTask | undefined {
         if (!uri) return undefined;
         const norm = uri.toLowerCase();
-        const filename = norm.split('/').pop();
+        const rawFilename = norm.split('/').pop() || '';
+        // Normalizar removendo prefixos gerados internamente por caches offline e cópias seguras
+        const cleanFilename = rawFilename
+            .replace(/^offline_/, '')
+            .replace(/^nexus_upload_\d+_/, '')
+            .replace(/^safe_/, '');
 
         // Prefer completed or active tasks first
         const sorted = [...this.queue].sort((a, b) => {
@@ -139,12 +144,21 @@ class ResilientUploadService {
             if (t.localUri === uri) return true;
             if (t.resultUrl && t.resultUrl === uri) return true;
             if (norm.includes(t.remotePath.toLowerCase())) return true;
-            if (filename && filename.length > 6) {
-                if (t.originalUri && t.originalUri.toLowerCase().endsWith(filename)) return true;
-                if (t.compressedUri && t.compressedUri.toLowerCase().endsWith(filename)) return true;
-                if (t.localUri.toLowerCase().endsWith(filename)) return true;
-                if (t.remotePath.toLowerCase().endsWith(filename)) return true;
+
+            const tOriginal = (t.originalUri || '').toLowerCase();
+            const tCompressed = (t.compressedUri || '').toLowerCase();
+            const tLocal = (t.localUri || '').toLowerCase();
+            const tRemote = (t.remotePath || '').toLowerCase();
+
+            // Match full URI containing the clean file name
+            if (rawFilename && rawFilename.length > 5) {
+                if (tOriginal.endsWith(rawFilename) || tCompressed.endsWith(rawFilename) || tLocal.endsWith(rawFilename) || tRemote.endsWith(rawFilename)) return true;
             }
+
+            if (cleanFilename && cleanFilename.length > 5) {
+                if (tOriginal.includes(cleanFilename) || tCompressed.includes(cleanFilename) || tLocal.includes(cleanFilename) || tRemote.includes(cleanFilename)) return true;
+            }
+
             return false;
         });
     }
@@ -573,10 +587,21 @@ class ResilientUploadService {
                     return;
                 }
 
-                // Get signed URL from R2 Edge Function
-                const { data: signData, error: signError } = await supabase.functions.invoke('r2-operations', {
-                    body: { action: 'upload', path: task.remotePath, bucketType: 'private', contentType: task.contentType }
-                });
+                // Get signed URL from R2 Edge Function (com retry para concorrência e resiliência)
+                let signData: any = null;
+                let signError: any = null;
+                for (let signAttempt = 0; signAttempt < 2; signAttempt++) {
+                    const res = await supabase.functions.invoke('r2-operations', {
+                        body: { action: 'upload', path: task.remotePath, bucketType: 'private', contentType: task.contentType }
+                    });
+                    signData = res.data;
+                    signError = res.error;
+                    if (!signError && signData?.signedUrl) break;
+                    if (signAttempt === 0) {
+                        console.warn(`[Upload] ⚠️ Falha ao obter Signed URL para ${task.id} (tentativa 1/2): ${signError?.message}. Retentando...`);
+                        await new Promise(r => setTimeout(r, 1200));
+                    }
+                }
                 if (signError || !signData?.signedUrl) {
                     throw new Error(signError?.message || 'Failed to get signed URL');
                 }

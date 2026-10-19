@@ -118,28 +118,32 @@ class SyncService {
         let success = 0;
         let failed = 0;
 
-        for (const task of pendingTasks) {
-            await this.updateTaskStatus(task.id, 'syncing');
-            try {
-                if (task.type === 'complete_os') {
-                    await this.syncCompleteOS(task);
-                } else if (task.type === 'block_os') {
-                    await this.syncBlockOS(task);
-                }
-                // Only remove from queue after confirmed success
-                await this.removeFromQueue(task.id);
-                success++;
-                console.log(`[Sync] Task ${task.id} synced successfully.`);
-            } catch (error: any) {
-                failed++;
-                console.error(`[Sync] Task ${task.id} failed:`, error);
-                // Keep in queue with error status - cache preserved
-                await this.updateTaskStatus(task.id, 'error', error.message);
-            }
-        }
+        try {
+            await resilientUpload.waitForActiveUploads(15000);
 
-        this.isSyncing = false;
-        this.notifySyncingSubscribers(false);
+            for (const task of pendingTasks) {
+                await this.updateTaskStatus(task.id, 'syncing');
+                try {
+                    if (task.type === 'complete_os') {
+                        await this.syncCompleteOS(task);
+                    } else if (task.type === 'block_os') {
+                        await this.syncBlockOS(task);
+                    }
+                    // Only remove from queue after confirmed success
+                    await this.removeFromQueue(task.id);
+                    success++;
+                    console.log(`[Sync] Task ${task.id} synced successfully.`);
+                } catch (error: any) {
+                    failed++;
+                    console.error(`[Sync] Task ${task.id} failed:`, error);
+                    // Keep in queue with error status - cache preserved
+                    await this.updateTaskStatus(task.id, 'error', error.message);
+                }
+            }
+        } finally {
+            this.isSyncing = false;
+            this.notifySyncingSubscribers(false);
+        }
 
         return { success, failed, total: pendingTasks.length };
     }
@@ -252,27 +256,29 @@ class SyncService {
         this.notifySyncingSubscribers(true);
         console.log(`[Sync] Iniciando sincronização de ${pendingTasks.length} itens...`);
 
-        await resilientUpload.waitForActiveUploads(12000);
+        try {
+            await resilientUpload.waitForActiveUploads(12000);
 
-        for (const task of pendingTasks) {
-            await this.updateTaskStatus(task.id, 'syncing');
-            try {
-                if (task.type === 'complete_os') {
-                    await this.syncCompleteOS(task);
-                } else if (task.type === 'block_os') {
-                    await this.syncBlockOS(task);
+            for (const task of pendingTasks) {
+                await this.updateTaskStatus(task.id, 'syncing');
+                try {
+                    if (task.type === 'complete_os') {
+                        await this.syncCompleteOS(task);
+                    } else if (task.type === 'block_os') {
+                        await this.syncBlockOS(task);
+                    }
+                    await this.removeFromQueue(task.id);
+                    console.log(`[Sync] Tarefa ${task.id} sincronizada com sucesso.`);
+                } catch (error: any) {
+                    console.error(`[Sync] Falha na tarefa ${task.id}:`, error);
+                    await this.updateTaskStatus(task.id, 'error', error.message);
                 }
-                await this.removeFromQueue(task.id);
-                console.log(`[Sync] Tarefa ${task.id} sincronizada com sucesso.`);
-            } catch (error: any) {
-                console.error(`[Sync] Falha na tarefa ${task.id}:`, error);
-                await this.updateTaskStatus(task.id, 'error', error.message);
             }
+        } finally {
+            this.isSyncing = false;
+            this.notifySyncingSubscribers(false);
+            console.log('[Sync] Sincronização concluída.');
         }
-
-        this.isSyncing = false;
-        this.notifySyncingSubscribers(false);
-        console.log('[Sync] Sincronização concluída.');
     }
 
     private async syncCompleteOS(task: SyncTask) {
@@ -312,6 +318,8 @@ class SyncService {
             const results = await Promise.all(
                 payload.extraPhotos.map(async (uri: string) => {
                     if (isLocalPath(uri)) {
+                        const existingUrl = resilientUpload.getCompletedUrl(uri);
+                        if (existingUrl) return existingUrl;
                         try {
                             const url = await OrderService.uploadFile(uri, `orders/${targetFolderId}/extra_photos`, tenantId);
                             return url || null;
@@ -335,6 +343,8 @@ class SyncService {
                     const uploadedUrls = await Promise.all(
                         value.map(async (item: any) => {
                             if (isLocalPath(item)) {
+                                const existingUrl = resilientUpload.getCompletedUrl(item);
+                                if (existingUrl) return existingUrl;
                                 try {
                                     const isVideo = item.toLowerCase().endsWith('.mov') || item.toLowerCase().endsWith('.mp4');
                                     const url = await OrderService.uploadFile(item, `orders/${targetFolderId}/${isVideo ? 'videos' : 'form_photos'}`, tenantId, isVideo ? 'video/mp4' : undefined);
@@ -355,6 +365,8 @@ class SyncService {
                         const uploadedUrls = await Promise.all(
                             urls.map(async (item) => {
                                 if (isLocalPath(item)) {
+                                    const existingUrl = resilientUpload.getCompletedUrl(item);
+                                    if (existingUrl) return existingUrl;
                                     try {
                                         const isVideo = item.toLowerCase().endsWith('.mov') || item.toLowerCase().endsWith('.mp4');
                                         const url = await OrderService.uploadFile(item, `orders/${targetFolderId}/${isVideo ? 'videos' : 'form_photos'}`, tenantId, isVideo ? 'video/mp4' : undefined);
@@ -393,6 +405,8 @@ class SyncService {
             const uploadedUrls = await Promise.all(
                 urls.map(async (vUri) => {
                     if (vUri.startsWith('file://') || (FileSystem.documentDirectory && vUri.startsWith(FileSystem.documentDirectory))) {
+                        const existingUrl = resilientUpload.getCompletedUrl(vUri);
+                        if (existingUrl) return existingUrl;
                         try {
                             const url = await OrderService.uploadFile(vUri, `orders/${targetFolderId}/videos`, tenantId, 'video/mp4');
                             return url || vUri;
@@ -441,6 +455,8 @@ class SyncService {
             const results = await Promise.all(
                 payload.blockPhotoUrls.map(async (uri: string) => {
                     if (typeof uri === 'string' && (uri.startsWith('file://') || (FileSystem.documentDirectory && uri.startsWith(FileSystem.documentDirectory)))) {
+                        const existingUrl = resilientUpload.getCompletedUrl(uri);
+                        if (existingUrl) return existingUrl;
                         try {
                             const url = await OrderService.uploadFile(uri, `orders/${targetFolderId}/block_photos`, tenantId);
                             return url || null;
@@ -461,6 +477,8 @@ class SyncService {
             const results = await Promise.all(
                 urls.map(async (vUri) => {
                     if (vUri.startsWith('file://') || vUri.startsWith('/var/') || vUri.startsWith('/private/') || (FileSystem.documentDirectory && vUri.startsWith(FileSystem.documentDirectory))) {
+                        const existingUrl = resilientUpload.getCompletedUrl(vUri);
+                        if (existingUrl) return existingUrl;
                         try {
                             const url = await OrderService.uploadFile(vUri, `orders/${targetFolderId}/videos`, tenantId, 'video/mp4');
                             return url || null;

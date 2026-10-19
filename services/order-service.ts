@@ -190,10 +190,21 @@ export class OrderService {
 
             const fileName = `${finalFolder}/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`.replace(/\/+/g, '/');
 
-            // 2. Obter Signed URL da Edge Function r2-operations
-            const { data: signData, error: signError } = await supabase.functions.invoke('r2-operations', {
-                body: { action: 'upload', path: fileName, bucketType: 'private', contentType: finalContentType }
-            });
+            // 2. Obter Signed URL da Edge Function r2-operations (com retry para concorrência de rede)
+            let signData: any = null;
+            let signError: any = null;
+            for (let signAttempt = 0; signAttempt < 2; signAttempt++) {
+                const res = await supabase.functions.invoke('r2-operations', {
+                    body: { action: 'upload', path: fileName, bucketType: 'private', contentType: finalContentType }
+                });
+                signData = res.data;
+                signError = res.error;
+                if (!signError && signData?.signedUrl) break;
+                if (signAttempt === 0) {
+                    console.warn(`[OrderService] ⚠️ Falha ao obter Signed URL (tentativa 1/2): ${signError?.message}. Retentando em 1.2s...`);
+                    await new Promise(r => setTimeout(r, 1200));
+                }
+            }
 
             if (signError || !signData?.signedUrl) {
                 console.error(`[OrderService] ❌ Erro ao obter Signed URL da Edge Function:`, signError?.message);
