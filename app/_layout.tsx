@@ -31,6 +31,7 @@ import { BootstrapService } from '@/services/bootstrap-service';
 import { resilientUpload } from '@/services/upload-resilient';
 import { autoCheckinEvents, AUTO_CHECKIN_EVENT } from '@/services/auto-checkin-service';
 import { CacheCleanupService } from '@/services/cache-cleanup-service';
+import { SystemHUD } from '@/components/system-hud';
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 
@@ -141,13 +142,12 @@ function LayoutContent() {
 
   return (
     <>
-      <StatusBar style="light" backgroundColor="#1c2d4f" translucent={false} />
+      <StatusBar style="light" />
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: '#1c2d4f' },
           headerTintColor: '#fff',
           headerTitleStyle: { fontWeight: 'bold' },
-          headerBackTitleVisible: false,
           headerBackTitle: 'Voltar',
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -156,6 +156,9 @@ function LayoutContent() {
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>
+
+      {/* 🚀 Big Tech Unified Status HUD for Mode Transitions & Sync */}
+      <SystemHUD />
 
       {/* "Sincronizando..." overlay — never shows error */}
       {showSyncOverlay && (

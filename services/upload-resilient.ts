@@ -630,6 +630,13 @@ class ResilientUploadService {
                 task.uploadedBytes = task.totalBytes;
                 this.sessionCompletedCount++;
 
+                try {
+                    const { assetCacheService } = require('./asset-cache-service');
+                    assetCacheService.setRemoteUrl(task.localUri, signData.publicUrl).catch(() => {});
+                    if (task.originalUri) assetCacheService.setRemoteUrl(task.originalUri, signData.publicUrl).catch(() => {});
+                    if (task.compressedUri) assetCacheService.setRemoteUrl(task.compressedUri, signData.publicUrl).catch(() => {});
+                } catch (_) { }
+
                 console.log(`[Upload] ✅ ${task.id} → ${signData.publicUrl}`);
                 await this.saveQueue();
                 this.notifyProgress(task);

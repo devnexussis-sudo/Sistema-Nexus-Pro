@@ -2618,9 +2618,9 @@ export default function ExecuteOSScreen() {
     React.useEffect(() => {
         if (isAnySignatureOpen) return;
         if (isLoading) {
-            navigation.setOptions({ title: 'Carregando Execução' });
+            navigation.setOptions({ title: 'Execução' });
         } else {
-            navigation.setOptions({ title: `Execução - Página ${currentPage + 1}/${totalPages}` });
+            navigation.setOptions({ title: `Execução ${currentPage + 1}/${totalPages}` });
         }
     }, [isLoading, currentPage, totalPages, navigation, isAnySignatureOpen]);
 

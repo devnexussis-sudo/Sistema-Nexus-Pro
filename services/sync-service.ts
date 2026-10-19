@@ -3,6 +3,7 @@ import NetInfo from '@react-native-community/netinfo';
 import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from './supabase';
 import { resilientUpload } from './upload-resilient';
+import { assetCacheService } from './asset-cache-service';
 
 const OFFLINE_ORDERS_KEY = '@nexus_offline_today_orders';
 const OFFLINE_ORDER_DETAIL_PREFIX = '@nexus_offline_order_';
@@ -18,6 +19,33 @@ export interface SyncTask {
     localPhotos?: string[]; // Array of local URIs
 }
 
+export interface SyncItemProgress {
+    orderId: string;
+    displayId: string;
+    type: 'complete_os' | 'block_os';
+    status: 'pending' | 'syncing' | 'completed' | 'error';
+    currentStep?: string;
+    errorReason?: string;
+}
+
+export interface DetailedSyncProgress {
+    isSyncing: boolean;
+    total: number;
+    completed: number;
+    failed: number;
+    currentIndex: number;
+    currentOrderId?: string;
+    currentDisplayId?: string;
+    currentStep?: string;
+    percent: number; // 0 to 100
+    isStalled: boolean;
+    stalledReason?: string;
+    status: 'idle' | 'syncing' | 'stalled' | 'error' | 'success';
+    items: SyncItemProgress[];
+    errorMessage?: string;
+    lastCompletedAt?: number;
+}
+
 const SYNC_QUEUE_KEY = '@nexus_sync_queue';
 const OFFLINE_CACHE_KEY = '@nexus_offline_orders';
 const APP_OFFLINE_MODE_KEY = '@nexus_offline_mode_enabled';
@@ -26,8 +54,25 @@ class SyncService {
     private isSyncing = false;
     private subscribers: ((queue: SyncTask[]) => void)[] = [];
     private syncingSubscribers: ((syncing: boolean) => void)[] = [];
+    private progressSubscribers: ((progress: DetailedSyncProgress) => void)[] = [];
     private unsubscribeNetInfo: (() => void) | null = null;
     private offlineModeEnabled = false;
+
+    private progressState: DetailedSyncProgress = {
+        isSyncing: false,
+        total: 0,
+        completed: 0,
+        failed: 0,
+        currentIndex: 0,
+        percent: 0,
+        isStalled: false,
+        status: 'idle',
+        items: [],
+    };
+
+    private watchdogTimer: ReturnType<typeof setInterval> | null = null;
+    private watchdogLastActivity = Date.now();
+    private autoClearTimer: ReturnType<typeof setTimeout> | null = null;
 
     constructor() {
         this.loadSettings();
@@ -95,60 +140,274 @@ class SyncService {
         }
     }
 
+    // ========== Progress & Watchdog Methods ========== //
+
+    subscribeProgress(callback: (progress: DetailedSyncProgress) => void) {
+        this.progressSubscribers.push(callback);
+        callback({ ...this.progressState });
+        return () => {
+            this.progressSubscribers = this.progressSubscribers.filter(cb => cb !== callback);
+        };
+    }
+
+    getProgress(): DetailedSyncProgress {
+        return { ...this.progressState };
+    }
+
+    resetProgress(): void {
+        if (this.autoClearTimer) {
+            clearTimeout(this.autoClearTimer);
+            this.autoClearTimer = null;
+        }
+        this.progressState = {
+            isSyncing: false,
+            total: 0,
+            completed: 0,
+            failed: 0,
+            currentIndex: 0,
+            percent: 0,
+            isStalled: false,
+            status: 'idle',
+            items: [],
+            lastCompletedAt: undefined,
+            currentStep: undefined,
+            errorMessage: undefined,
+            stalledReason: undefined,
+        };
+        this.notifyProgress();
+    }
+
+    private notifyProgress() {
+        const stateCopy = { ...this.progressState, items: [...this.progressState.items] };
+        this.progressSubscribers.forEach(cb => {
+            try { cb(stateCopy); } catch (e) { console.error('[Sync] Erro no progress subscriber:', e); }
+        });
+    }
+
+    private startWatchdog(stepDescription: string) {
+        this.stopWatchdog();
+        this.watchdogLastActivity = Date.now();
+        this.watchdogTimer = setInterval(() => {
+            const idleMs = Date.now() - this.watchdogLastActivity;
+            if (idleMs > 25000 && this.isSyncing) {
+                console.warn(`[SyncWatchdog] ⚠️ Conexão ociosa ou oscilando em: "${stepDescription}" (${Math.round(idleMs / 1000)}s sem resposta)`);
+                this.progressState.isStalled = true;
+                this.progressState.status = 'stalled';
+                this.progressState.stalledReason = 'Conexão ociosa na operadora. Restabelecendo...';
+                this.notifyProgress();
+            }
+        }, 5000);
+    }
+
+    private touchWatchdog() {
+        this.watchdogLastActivity = Date.now();
+        if (this.progressState.isStalled) {
+            this.progressState.isStalled = false;
+            if (this.progressState.status === 'stalled') {
+                this.progressState.status = 'syncing';
+                this.progressState.stalledReason = undefined;
+            }
+            this.notifyProgress();
+        }
+    }
+
+    private stopWatchdog() {
+        if (this.watchdogTimer) {
+            clearInterval(this.watchdogTimer);
+            this.watchdogTimer = null;
+        }
+    }
+
+    // ========== Queue Execution With Rich Progress ========== //
+
     /**
-     * Attempts to sync all pending tasks. Returns { success, failed, total }.
-     * On failure, tasks remain in the queue (cache preserved).
+     * Executa a fila de sincronização com acompanhamento detalhado e atômico.
+     * Retorna { success, failed, total }.
      */
-    async safeSyncBeforeOnline(): Promise<{ success: number; failed: number; total: number }> {
-        // Liberar motor de upload resiliente para R2 antes de sincronizar as OSs
+    async processSyncQueueWithProgress(force = false): Promise<{ success: number; failed: number; total: number }> {
+        if (this.isSyncing) {
+            return {
+                success: this.progressState.completed,
+                failed: this.progressState.failed,
+                total: this.progressState.total,
+            };
+        }
+
+        if (!force && this.offlineModeEnabled) {
+            return { success: 0, failed: 0, total: 0 };
+        }
+
+        const netState = await NetInfo.fetch();
+        if (!netState.isConnected || netState.isInternetReachable === false) {
+            this.progressState.status = 'error';
+            this.progressState.errorMessage = 'Sem conexão com a internet. Os dados permanecem seguros no aparelho.';
+            this.notifyProgress();
+            return { success: 0, failed: 0, total: 0 };
+        }
+
+        // Cancelar timer de limpeza anterior
+        if (this.autoClearTimer) {
+            clearTimeout(this.autoClearTimer);
+            this.autoClearTimer = null;
+        }
+
         resilientUpload.setForcedOfflineMode(false);
-        await resilientUpload.resumeAll();
-        await resilientUpload.waitForActiveUploads(15000);
+        await resilientUpload.resumeAll().catch(() => {});
 
         const queue = await this.getQueue();
         const pendingTasks = queue.filter(t => t.status === 'pending' || t.status === 'error');
 
         if (pendingTasks.length === 0) {
+            this.resetProgress();
             return { success: 0, failed: 0, total: 0 };
         }
 
         this.isSyncing = true;
         this.notifySyncingSubscribers(true);
 
+        const total = pendingTasks.length;
         let success = 0;
         let failed = 0;
 
+        // Montar lista inicial de itens
+        const itemsList: SyncItemProgress[] = pendingTasks.map(t => ({
+            orderId: t.orderId,
+            displayId: t.payload?.displayId || t.orderId,
+            type: t.type,
+            status: 'pending',
+            currentStep: 'Aguardando envio',
+        }));
+
+        this.progressState = {
+            isSyncing: true,
+            total,
+            completed: 0,
+            failed: 0,
+            currentIndex: 0,
+            currentOrderId: pendingTasks[0].orderId,
+            currentDisplayId: pendingTasks[0].payload?.displayId || pendingTasks[0].orderId,
+            currentStep: 'Iniciando sincronização inteligente...',
+            percent: 5,
+            isStalled: false,
+            status: 'syncing',
+            items: itemsList,
+        };
+        this.notifyProgress();
+
         try {
+            // Aguarda uploads paralelos em andamento no motor de resiliência por até 3s
             const stats = resilientUpload.getStats();
             if (stats.pending > 0 || stats.uploading > 0) {
-                await resilientUpload.waitForActiveUploads(4000);
+                await resilientUpload.waitForActiveUploads(3000);
             }
 
-            for (const task of pendingTasks) {
+            for (let i = 0; i < pendingTasks.length; i++) {
+                const task = pendingTasks[i];
+                const displayId = task.payload?.displayId || task.orderId;
+
+                // Checa conectividade antes de cada OS
+                const currentNet = await NetInfo.fetch();
+                if (!currentNet.isConnected || currentNet.isInternetReachable === false) {
+                    console.warn('[Sync] ⚠️ Internet caiu no meio do processo.');
+                    failed += (pendingTasks.length - i);
+                    this.progressState.isStalled = false;
+                    this.progressState.status = 'error';
+                    this.progressState.errorMessage = `Conexão interrompida. ${success} OS enviada(s) com sucesso. ${pendingTasks.length - i} OS salvas no celular.`;
+                    this.notifyProgress();
+                    break;
+                }
+
+                this.progressState.currentIndex = i + 1;
+                this.progressState.currentOrderId = task.orderId;
+                this.progressState.currentDisplayId = displayId;
+                this.progressState.percent = Math.max(5, Math.round(((i) / total) * 100));
+
+                if (this.progressState.items[i]) {
+                    this.progressState.items[i].status = 'syncing';
+                }
+
                 await this.updateTaskStatus(task.id, 'syncing');
+
                 try {
+                    const stepUpdater = (step: string) => {
+                        this.touchWatchdog();
+                        this.progressState.currentStep = `${displayId}: ${step}`;
+                        if (this.progressState.items[i]) {
+                            this.progressState.items[i].currentStep = step;
+                        }
+                        this.notifyProgress();
+                    };
+
+                    this.startWatchdog(`Sincronizando OS ${displayId}`);
+
                     if (task.type === 'complete_os') {
-                        await this.syncCompleteOS(task);
+                        await this.syncCompleteOS(task, stepUpdater);
                     } else if (task.type === 'block_os') {
-                        await this.syncBlockOS(task);
+                        await this.syncBlockOS(task, stepUpdater);
                     }
-                    // Only remove from queue after confirmed success
+
+                    this.stopWatchdog();
+
+                    // Confirmar sucesso e remover da fila
                     await this.removeFromQueue(task.id);
                     success++;
-                    console.log(`[Sync] Task ${task.id} synced successfully.`);
-                } catch (error: any) {
+
+                    if (this.progressState.items[i]) {
+                        this.progressState.items[i].status = 'completed';
+                        this.progressState.items[i].currentStep = 'Concluída com sucesso';
+                    }
+                    this.progressState.completed = success;
+                    this.progressState.percent = Math.round(((i + 1) / total) * 100);
+                    this.notifyProgress();
+
+                } catch (taskError: any) {
+                    this.stopWatchdog();
                     failed++;
-                    console.error(`[Sync] Task ${task.id} failed:`, error);
-                    // Keep in queue with error status - cache preserved
-                    await this.updateTaskStatus(task.id, 'error', error.message);
+                    console.error(`[Sync] Falha na OS ${displayId}:`, taskError);
+
+                    if (this.progressState.items[i]) {
+                        this.progressState.items[i].status = 'error';
+                        this.progressState.items[i].errorReason = taskError?.message || 'Falha de envio';
+                    }
+                    this.progressState.failed = failed;
+                    await this.updateTaskStatus(task.id, 'error', taskError?.message);
+                    this.notifyProgress();
                 }
             }
         } finally {
+            this.stopWatchdog();
             this.isSyncing = false;
             this.notifySyncingSubscribers(false);
+
+            if (failed === 0 && success > 0) {
+                this.progressState.status = 'success';
+                this.progressState.percent = 100;
+                this.progressState.currentStep = `Todas as ${success} OSs sincronizadas com sucesso!`;
+                this.progressState.lastCompletedAt = Date.now();
+                this.notifyProgress();
+
+                // Auto-clear após 3.5 segundos para garantir que o estado seja limpo completamente
+                if (this.autoClearTimer) clearTimeout(this.autoClearTimer);
+                this.autoClearTimer = setTimeout(() => {
+                    this.resetProgress();
+                }, 3500);
+            } else if (failed > 0) {
+                this.progressState.status = 'error';
+                this.progressState.errorMessage = `${failed} OS aguardando envio seguro. ${success} sincronizada(s) com sucesso.`;
+                this.notifyProgress();
+            } else {
+                this.resetProgress();
+            }
         }
 
-        return { success, failed, total: pendingTasks.length };
+        return { success, failed, total };
+    }
+
+    /**
+     * Retrocompatibilidade para toggle e chamadores existentes
+     */
+    async safeSyncBeforeOnline(): Promise<{ success: number; failed: number; total: number }> {
+        return this.processSyncQueueWithProgress(true);
     }
 
     isOfflineModeEnabled() {
@@ -237,6 +496,19 @@ class SyncService {
         }
     }
 
+    async updateTaskPayload(taskId: string, payload: any) {
+        try {
+            const queue = await this.getQueue();
+            const task = queue.find(t => t.id === taskId);
+            if (task) {
+                task.payload = payload;
+                await this.saveQueue(queue);
+            }
+        } catch (e) {
+            console.error('[Sync] Erro ao atualizar payload da tarefa:', e);
+        }
+    }
+
     // ========== Process Queue ========== //
 
     async triggerSync(force = false) {
@@ -247,47 +519,10 @@ class SyncService {
         const state = await NetInfo.fetch();
         if (!state.isConnected || state.isInternetReachable === false) return;
 
-        // Garantir que uploads de mídia pendentes no ResilientUploadService subam
-        resilientUpload.resumeAll().catch(() => {});
-
-        const queue = await this.getQueue();
-        const pendingTasks = queue.filter(t => t.status === 'pending' || t.status === 'error');
-
-        if (pendingTasks.length === 0) return;
-
-        this.isSyncing = true;
-        this.notifySyncingSubscribers(true);
-        console.log(`[Sync] Iniciando sincronização de ${pendingTasks.length} itens...`);
-
-        try {
-            const stats = resilientUpload.getStats();
-            if (stats.pending > 0 || stats.uploading > 0) {
-                await resilientUpload.waitForActiveUploads(4000);
-            }
-
-            for (const task of pendingTasks) {
-                await this.updateTaskStatus(task.id, 'syncing');
-                try {
-                    if (task.type === 'complete_os') {
-                        await this.syncCompleteOS(task);
-                    } else if (task.type === 'block_os') {
-                        await this.syncBlockOS(task);
-                    }
-                    await this.removeFromQueue(task.id);
-                    console.log(`[Sync] Tarefa ${task.id} sincronizada com sucesso.`);
-                } catch (error: any) {
-                    console.error(`[Sync] Falha na tarefa ${task.id}:`, error);
-                    await this.updateTaskStatus(task.id, 'error', error.message);
-                }
-            }
-        } finally {
-            this.isSyncing = false;
-            this.notifySyncingSubscribers(false);
-            console.log('[Sync] Sincronização concluída.');
-        }
+        await this.processSyncQueueWithProgress(force);
     }
 
-    private async syncCompleteOS(task: SyncTask) {
+    private async syncCompleteOS(task: SyncTask, onStep?: (step: string) => void) {
         const { orderId, payload } = task;
         const { OrderService } = require('./order-service');
 
@@ -318,78 +553,110 @@ class SyncService {
             );
         };
 
-        // 1. Processar fotos extras em paralelo — substituir file:// ou rotas locais por URLs remotas
-        let processedExtraPhotos: string[] = [];
-        if (payload.extraPhotos && Array.isArray(payload.extraPhotos)) {
-            const results = await Promise.all(
-                payload.extraPhotos.map(async (uri: string) => {
-                    if (isLocalPath(uri)) {
-                        const existingUrl = resilientUpload.getCompletedUrl(uri);
-                        if (existingUrl) return existingUrl;
-                        try {
-                            const url = await OrderService.uploadFile(uri, `orders/${targetFolderId}/extra_photos`, tenantId);
-                            return url || null;
-                        } catch (e) {
-                            console.error('[Sync] Falha foto extra:', e);
-                            return null;
-                        }
-                    }
-                    return uri;
-                })
+        // Helper para upload de mídia atômico:
+        // Se já foi enviado (em tentativa anterior antes de queda de rede), reusa a URL em 0ms!
+        // Quando sobe com sucesso, grava imediatamente no cache persistente e atualiza o payload.
+        let payloadChanged = false;
+
+        const uploadSingleAsset = async (uri: string, folder: string, isVideo = false): Promise<string> => {
+            if (!isLocalPath(uri)) return uri;
+
+            // 1. Checar se já foi subido anteriormente
+            const cachedRemote = assetCacheService.getRemoteUrl(uri) || resilientUpload.getCompletedUrl(uri);
+            if (cachedRemote) {
+                console.log(`[Sync] ⚡ Mídia reaproveitada (já enviada): ${cachedRemote}`);
+                return cachedRemote;
+            }
+
+            // 2. Upload com streaming direto
+            this.touchWatchdog();
+            const url = await OrderService.uploadFile(
+                uri,
+                `orders/${targetFolderId}/${folder}`,
+                tenantId,
+                isVideo ? 'video/mp4' : undefined
             );
-            processedExtraPhotos = results.filter((u): u is string => !!u);
+
+            if (!url) {
+                throw new Error(`Falha no upload de mídia (${isVideo ? 'vídeo' : 'foto'})`);
+            }
+
+            // 3. Salvar no cache atômico de mídias imediatamente
+            await assetCacheService.setRemoteUrl(uri, url);
+            this.touchWatchdog();
+            return url;
+        };
+
+        // 1. Processar fotos extras
+        if (payload.extraPhotos && Array.isArray(payload.extraPhotos)) {
+            const totalPhotos = payload.extraPhotos.length;
+            const processedList: string[] = [];
+
+            for (let i = 0; i < totalPhotos; i++) {
+                const uri = payload.extraPhotos[i];
+                if (isLocalPath(uri)) {
+                    onStep?.(`Subindo foto extra ${i + 1}/${totalPhotos}...`);
+                    const uploadedUrl = await uploadSingleAsset(uri, 'extra_photos', false);
+                    processedList.push(uploadedUrl);
+                    if (uploadedUrl !== uri) {
+                        payload.extraPhotos[i] = uploadedUrl;
+                        payloadChanged = true;
+                    }
+                } else {
+                    processedList.push(uri);
+                }
+            }
+
+            if (payloadChanged) {
+                await this.updateTaskPayload(task.id, payload);
+            }
         }
 
-        // 2. UPLOAD DE MÍDIAS DENTRO DOS FORMULÁRIOS DINÂMICOS (em paralelo)
+        // 2. Processar mídias nos formulários dinâmicos
         const finalFormData: Record<string, any> = payload.formData || {};
-        await Promise.all(
-            Object.keys(finalFormData).map(async (key) => {
-                const value = finalFormData[key];
-                if (Array.isArray(value)) {
-                    const uploadedUrls = await Promise.all(
-                        value.map(async (item: any) => {
-                            if (isLocalPath(item)) {
-                                const existingUrl = resilientUpload.getCompletedUrl(item);
-                                if (existingUrl) return existingUrl;
-                                try {
-                                    const isVideo = item.toLowerCase().endsWith('.mov') || item.toLowerCase().endsWith('.mp4');
-                                    const url = await OrderService.uploadFile(item, `orders/${targetFolderId}/${isVideo ? 'videos' : 'form_photos'}`, tenantId, isVideo ? 'video/mp4' : undefined);
-                                    return url || item;
-                                } catch (e) {
-                                    console.error('[Sync] Falha foto/vídeo form:', e);
-                                    return item;
-                                }
-                            }
-                            return item;
-                        })
-                    );
-                    finalFormData[key] = uploadedUrls;
-                } else if (typeof value === 'string') {
-                    const urls = value.split(',').map(u => u.trim()).filter(Boolean);
-                    const hasLocalFiles = urls.some(u => isLocalPath(u));
-                    if (hasLocalFiles) {
-                        const uploadedUrls = await Promise.all(
-                            urls.map(async (item) => {
-                                if (isLocalPath(item)) {
-                                    const existingUrl = resilientUpload.getCompletedUrl(item);
-                                    if (existingUrl) return existingUrl;
-                                    try {
-                                        const isVideo = item.toLowerCase().endsWith('.mov') || item.toLowerCase().endsWith('.mp4');
-                                        const url = await OrderService.uploadFile(item, `orders/${targetFolderId}/${isVideo ? 'videos' : 'form_photos'}`, tenantId, isVideo ? 'video/mp4' : undefined);
-                                        return url || item;
-                                    } catch (e) {
-                                        console.error('[Sync] Falha foto/vídeo form:', e);
-                                        return item;
-                                    }
-                                }
-                                return item;
-                            })
-                        );
-                        finalFormData[key] = uploadedUrls.join(',');
+        const formKeys = Object.keys(finalFormData);
+
+        for (const key of formKeys) {
+            const value = finalFormData[key];
+            if (Array.isArray(value)) {
+                const newArray: any[] = [];
+                for (let i = 0; i < value.length; i++) {
+                    const item = value[i];
+                    if (isLocalPath(item)) {
+                        const isVideo = item.toLowerCase().endsWith('.mov') || item.toLowerCase().endsWith('.mp4');
+                        onStep?.(`Subindo ${isVideo ? 'vídeo' : 'foto'} do formulário...`);
+                        const uploaded = await uploadSingleAsset(item, isVideo ? 'videos' : 'form_photos', isVideo);
+                        newArray.push(uploaded);
+                        if (uploaded !== item) payloadChanged = true;
+                    } else {
+                        newArray.push(item);
                     }
                 }
-            })
-        );
+                finalFormData[key] = newArray;
+            } else if (typeof value === 'string') {
+                const urls = value.split(',').map(u => u.trim()).filter(Boolean);
+                if (urls.some(u => isLocalPath(u))) {
+                    const newArray: string[] = [];
+                    for (const item of urls) {
+                        if (isLocalPath(item)) {
+                            const isVideo = item.toLowerCase().endsWith('.mov') || item.toLowerCase().endsWith('.mp4');
+                            onStep?.(`Subindo ${isVideo ? 'vídeo' : 'foto'} do formulário...`);
+                            const uploaded = await uploadSingleAsset(item, isVideo ? 'videos' : 'form_photos', isVideo);
+                            newArray.push(uploaded);
+                            if (uploaded !== item) payloadChanged = true;
+                        } else {
+                            newArray.push(item);
+                        }
+                    }
+                    finalFormData[key] = newArray.join(',');
+                }
+            }
+        }
+
+        if (payloadChanged) {
+            payload.formData = finalFormData;
+            await this.updateTaskPayload(task.id, payload);
+        }
 
         // 3. Processar assinatura
         let processedSignature = payload.signature || null;
@@ -398,39 +665,45 @@ class SyncService {
                 const sigPath = `${FileSystem.documentDirectory}sig_${orderId}_${Date.now()}.png`;
                 const base64Data = processedSignature.split(',')[1];
                 await FileSystem.writeAsStringAsync(sigPath, base64Data, { encoding: FileSystem.EncodingType.Base64 });
-                processedSignature = sigPath; // uploadFile no completeOrder vai lidar com isso
+                processedSignature = sigPath;
             } catch (e) {
                 console.error('[Sync] Falha ao converter assinatura:', e);
             }
         }
 
-        // 4. Processar videoUrls locais em paralelo (suporta múltiplos separados por vírgula)
+        // 4. Processar vídeos da OS
         let processedVideoUrl = payload.videoUrl || null;
         if (processedVideoUrl && typeof processedVideoUrl === 'string') {
             const urls = processedVideoUrl.split(',').map(u => u.trim()).filter(Boolean);
-            const uploadedUrls = await Promise.all(
-                urls.map(async (vUri) => {
-                    if (vUri.startsWith('file://') || (FileSystem.documentDirectory && vUri.startsWith(FileSystem.documentDirectory))) {
-                        const existingUrl = resilientUpload.getCompletedUrl(vUri);
-                        if (existingUrl) return existingUrl;
-                        try {
-                            const url = await OrderService.uploadFile(vUri, `orders/${targetFolderId}/videos`, tenantId, 'video/mp4');
-                            return url || vUri;
-                        } catch (e) {
-                            console.error('[Sync] Falha upload de vídeo:', e);
-                            return vUri;
-                        }
-                    }
-                    return vUri;
-                })
-            );
-            processedVideoUrl = uploadedUrls.length > 0 ? uploadedUrls.join(',') : null;
+            const uploadedUrls: string[] = [];
+
+            for (let i = 0; i < urls.length; i++) {
+                const vUri = urls[i];
+                if (isLocalPath(vUri)) {
+                    onStep?.(`Subindo vídeo ${i + 1}/${urls.length}...`);
+                    const uploaded = await uploadSingleAsset(vUri, 'videos', true);
+                    uploadedUrls.push(uploaded);
+                    if (uploaded !== vUri) payloadChanged = true;
+                } else {
+                    uploadedUrls.push(vUri);
+                }
+            }
+
+            processedVideoUrl = uploadedUrls.join(',');
+            if (payloadChanged) {
+                payload.videoUrl = processedVideoUrl;
+                await this.updateTaskPayload(task.id, payload);
+            }
         }
+
+        // 5. Finalizar OS no Supabase
+        onStep?.('Gravando finalização da OS no sistema...');
+        this.touchWatchdog();
 
         await OrderService.completeOrder(orderId, {
             technicalReport: payload.technical_report || '',
             partsUsed: payload.parts_used || '',
-            photos: processedExtraPhotos,
+            photos: payload.extraPhotos || [],
             signature: processedSignature,
             videoUrl: processedVideoUrl,
             formData: finalFormData,
@@ -440,10 +713,10 @@ class SyncService {
             items: payload.usedItems
         });
 
-        console.log(`[Sync] OS ${orderId} sincronizada com sucesso via completeOrder.`);
+        console.log(`[Sync] ✅ OS ${orderId} finalizada e confirmada no servidor.`);
     }
 
-    private async syncBlockOS(task: SyncTask) {
+    private async syncBlockOS(task: SyncTask, onStep?: (step: string) => void) {
         const { orderId, payload } = task;
         const { OrderService } = require('./order-service');
         const tenantId = payload.tenantId;
@@ -456,48 +729,80 @@ class SyncService {
             } catch (_) { }
         }
 
+        const isLocalPath = (str: any): boolean => {
+            if (typeof str !== 'string') return false;
+            const s = str.trim();
+            if (!s || s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:')) return false;
+            return Boolean(
+                s.startsWith('file://') ||
+                s.startsWith('/var/') ||
+                s.startsWith('/private/') ||
+                (FileSystem.documentDirectory && s.startsWith(FileSystem.documentDirectory))
+            );
+        };
+
+        let payloadChanged = false;
+
+        const uploadSingleAsset = async (uri: string, folder: string, isVideo = false): Promise<string> => {
+            if (!isLocalPath(uri)) return uri;
+
+            const cachedRemote = assetCacheService.getRemoteUrl(uri) || resilientUpload.getCompletedUrl(uri);
+            if (cachedRemote) {
+                return cachedRemote;
+            }
+
+            this.touchWatchdog();
+            const url = await OrderService.uploadFile(
+                uri,
+                `orders/${targetFolderId}/${folder}`,
+                tenantId,
+                isVideo ? 'video/mp4' : undefined
+            );
+
+            if (!url) throw new Error('Falha no upload da foto de impedimento');
+
+            await assetCacheService.setRemoteUrl(uri, url);
+            this.touchWatchdog();
+            return url;
+        };
+
         let processedBlockPhotos: string[] = [];
         if (payload.blockPhotoUrls && Array.isArray(payload.blockPhotoUrls)) {
-            const results = await Promise.all(
-                payload.blockPhotoUrls.map(async (uri: string) => {
-                    if (typeof uri === 'string' && (uri.startsWith('file://') || (FileSystem.documentDirectory && uri.startsWith(FileSystem.documentDirectory)))) {
-                        const existingUrl = resilientUpload.getCompletedUrl(uri);
-                        if (existingUrl) return existingUrl;
-                        try {
-                            const url = await OrderService.uploadFile(uri, `orders/${targetFolderId}/block_photos`, tenantId);
-                            return url || null;
-                        } catch (e) {
-                            console.error('[Sync] Falha foto block:', e);
-                            return null;
-                        }
+            for (let i = 0; i < payload.blockPhotoUrls.length; i++) {
+                const uri = payload.blockPhotoUrls[i];
+                if (isLocalPath(uri)) {
+                    onStep?.(`Subindo foto de impedimento ${i + 1}/${payload.blockPhotoUrls.length}...`);
+                    const uploaded = await uploadSingleAsset(uri, 'block_photos', false);
+                    processedBlockPhotos.push(uploaded);
+                    if (uploaded !== uri) {
+                        payload.blockPhotoUrls[i] = uploaded;
+                        payloadChanged = true;
                     }
-                    return uri;
-                })
-            );
-            processedBlockPhotos = results.filter((u): u is string => !!u);
+                } else {
+                    processedBlockPhotos.push(uri);
+                }
+            }
         }
 
         let processedVideoUrl = payload.videoUrl || null;
         if (processedVideoUrl && typeof processedVideoUrl === 'string') {
             const urls = processedVideoUrl.split(',').map(u => u.trim()).filter(Boolean);
-            const results = await Promise.all(
-                urls.map(async (vUri) => {
-                    if (vUri.startsWith('file://') || vUri.startsWith('/var/') || vUri.startsWith('/private/') || (FileSystem.documentDirectory && vUri.startsWith(FileSystem.documentDirectory))) {
-                        const existingUrl = resilientUpload.getCompletedUrl(vUri);
-                        if (existingUrl) return existingUrl;
-                        try {
-                            const url = await OrderService.uploadFile(vUri, `orders/${targetFolderId}/videos`, tenantId, 'video/mp4');
-                            return url || null;
-                        } catch (e) {
-                            console.warn(`[Sync] ⚠️ Falha no upload de vídeo, será tratado pelo LAST-GATE: ${vUri.substring(0, 50)}`);
-                            return null;
-                        }
-                    }
-                    return vUri;
-                })
-            );
-            const uploadedUrls = results.filter((u): u is string => !!u);
-            processedVideoUrl = uploadedUrls.length > 0 ? uploadedUrls.join(',') : null;
+            const uploadedUrls: string[] = [];
+            for (let i = 0; i < urls.length; i++) {
+                const vUri = urls[i];
+                if (isLocalPath(vUri)) {
+                    onStep?.(`Subindo vídeo de impedimento ${i + 1}/${urls.length}...`);
+                    const uploaded = await uploadSingleAsset(vUri, 'videos', true);
+                    uploadedUrls.push(uploaded);
+                    if (uploaded !== vUri) payloadChanged = true;
+                } else {
+                    uploadedUrls.push(vUri);
+                }
+            }
+            processedVideoUrl = uploadedUrls.join(',');
+            if (payloadChanged) {
+                payload.videoUrl = processedVideoUrl;
+            }
         }
 
         const finalFormData = payload.additionalData?.formData || {};
@@ -505,54 +810,15 @@ class SyncService {
             finalFormData.video_url = processedVideoUrl;
         }
 
-        // 3.5 UPLOAD DE MÍDIAS DENTRO DOS FORMULÁRIOS DINÂMICOS em paralelo
-        await Promise.all(
-            Object.keys(finalFormData).map(async (key) => {
-                const value = finalFormData[key];
-                if (Array.isArray(value)) {
-                    const results = await Promise.all(
-                        value.map(async (item: any) => {
-                            if (typeof item === 'string' && (item.startsWith('file://') || item.startsWith('/var/') || item.startsWith('/private/') || (FileSystem.documentDirectory && item.startsWith(FileSystem.documentDirectory)))) {
-                                try {
-                                    const isVideo = item.toLowerCase().endsWith('.mov') || item.toLowerCase().endsWith('.mp4');
-                                    const url = await OrderService.uploadFile(item, `orders/${targetFolderId}/${isVideo ? 'videos' : 'form_photos'}`, tenantId, isVideo ? 'video/mp4' : undefined);
-                                    return url || null;
-                                } catch (e) {
-                                    console.error('[Sync] Falha foto/vídeo form impedido:', e);
-                                    return null;
-                                }
-                            }
-                            return item;
-                        })
-                    );
-                    finalFormData[key] = results.filter(Boolean);
-                } else if (typeof value === 'string') {
-                    const urls = value.split(',').map(u => u.trim()).filter(Boolean);
-                    const hasLocalFiles = urls.some(u => u.startsWith('file://') || (FileSystem.documentDirectory && u.startsWith(FileSystem.documentDirectory)));
-                    if (hasLocalFiles) {
-                        const results = await Promise.all(
-                            urls.map(async (item) => {
-                                if (item.startsWith('file://') || item.startsWith('/var/') || item.startsWith('/private/') || (FileSystem.documentDirectory && item.startsWith(FileSystem.documentDirectory))) {
-                                    try {
-                                        const isVideo = item.toLowerCase().endsWith('.mov') || item.toLowerCase().endsWith('.mp4');
-                                        const url = await OrderService.uploadFile(item, `orders/${targetFolderId}/${isVideo ? 'videos' : 'form_photos'}`, tenantId, isVideo ? 'video/mp4' : undefined);
-                                        return url || null;
-                                    } catch (e) {
-                                        console.error('[Sync] Falha foto/vídeo form impedido:', e);
-                                        return null;
-                                    }
-                                }
-                                return item;
-                            })
-                        );
-                        finalFormData[key] = results.filter(Boolean).join(',');
-                    }
-                }
-            })
-        );
+        if (payloadChanged) {
+            await this.updateTaskPayload(task.id, payload);
+        }
+
+        onStep?.('Gravando impedimento da OS no sistema...');
+        this.touchWatchdog();
 
         await OrderService.blockOrder(orderId, payload.reason, processedBlockPhotos.length > 0 ? processedBlockPhotos : null, { formData: finalFormData, items: payload.additionalData?.items });
-        console.log(`[Sync] OS ${orderId} bloqueada com sucesso via blockOrder.`);
+        console.log(`[Sync] ✅ OS ${orderId} bloqueada e confirmada no servidor.`);
     }
 
     // ========== Listeners ========== //
@@ -720,44 +986,79 @@ class SyncService {
 
             console.log(`[Sync] Base offline baixada: ${templates?.length || 0} templates, ${rules?.length || 0} regras, ${serviceTypes?.length || 0} serviceTypes.`);
 
-            if (onProgress) onProgress(1, 5, 'Buscando Ordens de Serviço atribuídas...');
+            if (onProgress) onProgress(1, 5, 'Buscando Ordens de Serviço abertas (<30 dias)...');
 
-            // 2. Buscar TODAS as OSs abertas/ativas atribuídas ao técnico (não apenas do dia de hoje)
+            // 2. Data limite: menos de 30 dias a partir de hoje
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            thirtyDaysAgo.setHours(0, 0, 0, 0);
+            const thirtyDaysAgoISO = thirtyDaysAgo.toISOString();
+            const thirtyDaysAgoDateStr = thirtyDaysAgoISO.split('T')[0];
+
+            // Status proibidos explicitamente: Concluídas, Impedidas e Canceladas
+            const forbiddenStatuses = [
+                'CONCLUÍDO', 'CONCLUIDO', 'completed', 'COMPLETED',
+                'IMPEDIDO', 'bloqueado', 'blocked', 'BLOCKED',
+                'CANCELADO', 'canceled', 'CANCELED'
+            ];
+            const forbiddenStatusList = `("${forbiddenStatuses.join('","')}")`;
+
+            // Buscar OSs atribuídas ESPECIFICAMENTE ao técnico autenticado,
+            // que NÃO estejam concluídas ou impedidas, e tenham menos de 30 dias
             const { data: activeOrdersRaw, error: ordersError } = await supabase
                 .from('orders')
                 .select('*, customers(*)')
                 .eq('assigned_to', userId)
-                .not('status', 'in', '("CONCLUÍDO","CANCELADO")')
+                .not('status', 'in', forbiddenStatusList)
+                .or(`created_at.gte.${thirtyDaysAgoISO},scheduled_date.gte.${thirtyDaysAgoDateStr}`)
                 .order('created_at', { ascending: false })
-                .limit(50);
+                .limit(100);
 
             if (ordersError) {
-                console.error('[Sync] Erro ao buscar ordens ativas:', ordersError);
+                console.error('[Sync] Erro ao buscar ordens para modo offline:', ordersError);
             }
 
-            // Também buscar as agendadas para hoje (caso tenham status diferente)
-            const today = new Date();
-            const y = today.getFullYear();
-            const m = String(today.getMonth() + 1).padStart(2, '0');
-            const d = String(today.getDate()).padStart(2, '0');
-            const todayStr = `${y}-${m}-${d}`;
+            // Deduplicação e validação estrita em memória:
+            // Apenas status: abertas (pending), atribuídas (assigned), ou em andamento (in_progress/traveling)
+            // OSs concluídas e impedidas NUNCA são baixadas
+            const validStatusKeys = new Set(['pending', 'assigned', 'in_progress', 'traveling']);
+            const thirtyDaysAgoMs = thirtyDaysAgo.getTime();
 
-            const { data: todayOrdersRaw } = await supabase
-                .from('orders')
-                .select('*, customers(*)')
-                .eq('assigned_to', userId)
-                .gte('scheduled_date', todayStr)
-                .lte('scheduled_date', todayStr)
-                .limit(30);
-
-            // Merge e deduplicar
             const allOrdersMap = new Map<string, any>();
-            [...(activeOrdersRaw || []), ...(todayOrdersRaw || [])].forEach(o => {
-                if (o && o.id) allOrdersMap.set(o.id, o);
-            });
-            const allOrders = Array.from(allOrdersMap.values());
+            (activeOrdersRaw || []).forEach(o => {
+                if (!o || !o.id) return;
 
-            console.log(`[Sync] Encontradas ${allOrders.length} OSs para cache offline.`);
+                // 1. Garantir que é especificamente para aquele técnico
+                if (o.assigned_to && o.assigned_to !== userId) return;
+
+                // 2. Mapeamento de status no padrão do sistema
+                const mapped = OrderService.mapDbOrderToApp(o);
+                const status = mapped.status;
+
+                // 3. REGRA CRÍTICA: Concluídas e impedidas NÃO devem ser baixadas
+                if (status === 'completed' || status === 'blocked' || status === 'canceled') {
+                    return;
+                }
+
+                // 4. REGRA: Apenas abertas, atribuídas ou em andamento
+                if (!validStatusKeys.has(status)) {
+                    return;
+                }
+
+                // 5. REGRA: Menos de 30 dias
+                const orderDateVal = o.scheduled_date || o.scheduledDate || o.created_at || o.createdAt;
+                if (orderDateVal) {
+                    const orderTime = new Date(orderDateVal).getTime();
+                    if (!isNaN(orderTime) && orderTime < thirtyDaysAgoMs) {
+                        return; // OS mais antiga que 30 dias descartada
+                    }
+                }
+
+                allOrdersMap.set(o.id, o);
+            });
+
+            const allOrders = Array.from(allOrdersMap.values());
+            console.log(`[Sync] Base offline: ${allOrders.length} OSs válidas (<30d, abertas/atribuídas/em andamento) para o técnico ${userId}.`);
 
             // 3. Buscar equipamentos e detalhes para cada OS encontrada
             const totalOrders = allOrders.length;

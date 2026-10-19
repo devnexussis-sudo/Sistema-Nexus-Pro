@@ -559,20 +559,6 @@ export default function HomeScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      {/* OFFLINE SYNC BADGE */}
-      {pendingSyncCount > 0 && syncService.isOfflineModeEnabled() && (
-        <View style={styles.offlineBadge}>
-          <Ionicons name="cloud-offline-outline" size={20} color="#fff" />
-          <Text style={styles.offlineBadgeText}>
-            {pendingSyncCount} {pendingSyncCount === 1 ? t('homeOsPending') : t('homeOsPendings')} {t('homeOsSyncMessage')}
-          </Text>
-          <View style={styles.syncBtn}>
-            <Ionicons name="information-circle-outline" size={16} color="#fff" />
-            <Text style={{ color: '#fff', fontSize: 11, fontWeight: 'bold', marginLeft: 4 }}>{t('homeOfflineSwitch')}</Text>
-          </View>
-        </View>
-      )}
-
       <View style={styles.dashboardContainer}>
         <View style={{ alignItems: 'center', marginBottom: 8 }}>
           <ThemedText style={styles.sectionTitle}>{t('homeOverview')}</ThemedText>
@@ -883,10 +869,28 @@ const styles = StyleSheet.create({
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   orderId: { fontWeight: 'bold', fontSize: 16, color: '#1c2d4f' },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
-  statusText: { fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase' },
-  offlineBadge: { backgroundColor: '#e11d48', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 8, gap: 8, zIndex: 99 },
-  offlineBadgeText: { color: '#fff', fontSize: 13, fontWeight: 'bold', flex: 1 },
-  syncBtn: { backgroundColor: 'rgba(0,0,0,0.2)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, flexDirection: 'row', alignItems: 'center' },
+  offlineBadge: {
+    backgroundColor: '#ffffff',
+    borderColor: '#1c2d4f',
+    borderWidth: 1.5,
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    gap: 8,
+    shadowColor: '#1c2d4f',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  offlineBadgeText: { color: '#1c2d4f', fontSize: 13, fontWeight: '600', flex: 1 },
+  syncBtn: { backgroundColor: '#1c2d4f', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, flexDirection: 'row', alignItems: 'center' },
   customerName: { fontSize: 14, color: '#333', fontWeight: '600', marginBottom: 4 },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 },
   addressText: { fontSize: 12, color: '#666' },

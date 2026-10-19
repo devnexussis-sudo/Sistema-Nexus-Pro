@@ -50,6 +50,15 @@ export default function TabLayout() {
           },
           headerTitleAlign: 'left',
           headerTintColor: '#fff',
+          headerTitleStyle: {
+            fontSize: 18,
+            fontWeight: '700',
+            color: '#fff',
+          },
+          headerTitleContainerStyle: {
+            maxWidth: Platform.OS === 'android' ? '58%' : '54%',
+          },
+          headerRight: () => <HeaderRightToggle />,
           headerLeft: () => (
             <Pressable
               style={{ marginLeft: 15, position: 'relative' }}
@@ -63,8 +72,12 @@ export default function TabLayout() {
           name="index"
           options={{
             title: t('tabHome'),
+            headerTitleStyle: {
+              fontSize: 20,
+              fontWeight: '700',
+              color: '#fff',
+            },
             tabBarIcon: ({ color }) => <IconSymbol size={24} name="house.fill" color={color} />,
-            headerRight: () => <HeaderRightToggle />
           }}
           listeners={({ navigation }) => ({
             tabPress: async (e) => {

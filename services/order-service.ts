@@ -127,7 +127,17 @@ export class OrderService {
                 return uri;
             }
 
-            // 0.1 Deduplicação Big Tech: verificar se o ResilientUpload já subiu ou está subindo este arquivo em background!
+            // 0.1 Deduplicação Big Tech: verificar se já existe URL remota no AssetCacheService
+            try {
+                const { assetCacheService } = require('./asset-cache-service');
+                const cachedRemoteUrl = assetCacheService.getRemoteUrl(uri);
+                if (cachedRemoteUrl) {
+                    console.log(`[OrderService] ⚡ Upload reaproveitado do AssetCacheService (zero re-upload): ${cachedRemoteUrl}`);
+                    return cachedRemoteUrl;
+                }
+            } catch (_) { }
+
+            // 0.2 Verificar se o ResilientUpload já subiu ou está subindo este arquivo em background!
             try {
                 const { resilientUpload } = require('./upload-resilient');
                 const existingOrInFlightUrl = await resilientUpload.resolveOrWaitForUpload(uri, 8000);
@@ -252,6 +262,15 @@ export class OrderService {
 
             // 4. Gerar URL Pública — vem diretamente da Edge Function r2-operations
             const publicUrl = signData.publicUrl;
+
+            // 4.1 Salvar no cache atômico para deduplicação instantânea
+            try {
+                const { assetCacheService } = require('./asset-cache-service');
+                assetCacheService.setRemoteUrl(uri, publicUrl).catch(() => {});
+                if (processUri && processUri !== uri) {
+                    assetCacheService.setRemoteUrl(processUri, publicUrl).catch(() => {});
+                }
+            } catch (_) { }
 
             console.log(`[OrderService/R2] 🔗 URL Gerada: ${publicUrl}`);
             return publicUrl;
