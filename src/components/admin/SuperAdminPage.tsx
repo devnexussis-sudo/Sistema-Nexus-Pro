@@ -237,6 +237,8 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
   };
 
   const handleSaveTenant = async () => {
+    if (isSaving) return;
+
     if (!formData.companyName || !formData.id) {
       alert("Preencha o nome e o identificador (Slug)");
       return;
@@ -253,6 +255,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
     }
 
     try {
+      setIsSaving(true);
       // Unified Mapping (Frontend -> Database Schema)
       const payload = {
         name: formData.companyName,
@@ -311,6 +314,8 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
     } catch (e: any) {
       console.error("DETAILED ERROR FROM SUPABASE:", e);
       alert(`Erro ao salvar empresa: ${e.message || 'Verifique o console para detalhes'}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1379,9 +1384,14 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
               </div>
 
               <div className="px-6 py-4 border-t border-white/5 bg-black/20 flex justify-end gap-3 rounded-b-2xl shrink-0">
-                <NexusButton variant="secondary" onClick={closeModal} className="rounded-xl border-white/10 text-gray-400 px-6 py-2 text-xs">Descartar</NexusButton>
-                <NexusButton onClick={handleSaveTenant} className="bg-primary-600 hover:bg-primary-500 rounded-xl px-8 py-2 font-medium  text-xs shadow-lg shadow-primary-600/20 active:scale-95 transition-all">
-                  <Save size={16} className="mr-2" /> {editingTenant ? 'Atualizar' : 'Provisionar'}
+                <NexusButton variant="secondary" onClick={closeModal} disabled={isSaving} className="rounded-xl border-white/10 text-gray-400 px-6 py-2 text-xs">Descartar</NexusButton>
+                <NexusButton
+                  onClick={handleSaveTenant}
+                  disabled={isSaving}
+                  isLoading={isSaving}
+                  className="bg-primary-600 hover:bg-primary-500 rounded-xl px-8 py-2 font-medium text-xs shadow-lg shadow-primary-600/20 active:scale-95 transition-all"
+                >
+                  <Save size={16} className="mr-2" /> {isSaving ? (editingTenant ? 'Salvando...' : 'Provisionando...') : (editingTenant ? 'Atualizar' : 'Provisionar')}
                 </NexusButton>
               </div>
             </div>

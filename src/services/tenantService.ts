@@ -224,6 +224,9 @@ export const TenantService = {
 
             if (error) {
                 console.error("❌ Nexus Tenant Create Error:", error);
+                if (error.code === '23505' || error.message?.includes('tenants_slug_key')) {
+                    throw new Error(`O identificador (Slug) "${processedTenant.slug || processedTenant.id}" já está cadastrado no sistema. Escolha outro identificador.`);
+                }
                 throw new Error(`Erro ao criar empresa: ${error.message} (Código: ${error.code})`);
             }
 
@@ -498,7 +501,7 @@ export const TenantService = {
         console.log(`💀 Iniciando exclusão total da empresa: ${tenantId}`);
 
         try {
-            // 1. Obter todos os usuários vinculados à empresa
+            // 1. Obter todos os usuários vinculados à empresa e deletar do Auth
             const { data: users } = await supabase.from('users').select('id').eq('tenant_id', tenantId);
 
             if (users && users.length > 0) {
@@ -509,8 +512,54 @@ export const TenantService = {
                 }
             }
 
-            // 2. Remover todos os dados operacionais (cascade manual)
-            const tables = ['orders', 'customers', 'equipments', 'stock_items', 'form_templates', 'contracts', 'quotes', 'technicians', 'users', 'user_groups'];
+            // 2. Tenta exclusão atômica via RPC Master (Transacional, RLS-Safe e blindada contra audit_logs)
+            try {
+                const { data: rpcRes, error: rpcErr } = await supabase
+                    .rpc('delete_tenant_master', { p_tenant_id: tenantId });
+                if (!rpcErr && rpcRes && rpcRes.success) {
+                    console.log(`✅ [TenantService] Empresa ${tenantId} excluída atomicamente via delete_tenant_master.`);
+                    CacheManager.invalidate('master_tenants_list');
+                    CacheManager.clearAll();
+                    return;
+                }
+                if (rpcErr) {
+                    console.warn('[TenantService] RPC delete_tenant_master aviso/indisponível, usando fallback manual:', rpcErr);
+                }
+            } catch (rpcEx) {
+                console.warn('[TenantService] RPC delete_tenant_master exceção, usando fallback manual:', rpcEx);
+            }
+
+            // 3. Fallback: Limpeza manual em cascata defensiva
+            // Nota: audit_logs é limpo antes e depois para evitar que triggers de DELETE em orders/quotes travem a chave estrangeira
+            const tables = [
+                'audit_logs',
+                'ai_knowledge_base',
+                'service_order_equipments',
+                'service_visits',
+                'order_items',
+                'orders',
+                'quotes',
+                'invoice_installments',
+                'invoice_items',
+                'invoices',
+                'accounts_payable',
+                'cash_flow',
+                'stock_movements',
+                'stock_items',
+                'stock_categories',
+                'customers',
+                'equipments',
+                'form_templates',
+                'contracts',
+                'defect_types',
+                'technicians',
+                'technician_gps_pings',
+                'whatsapp_messages',
+                'whatsapp_conversations',
+                'users',
+                'user_groups',
+                'audit_logs' // Segunda passagem indispensável devido a triggers AFTER DELETE em orders/quotes
+            ];
 
             for (const table of tables) {
                 try {
@@ -518,11 +567,12 @@ export const TenantService = {
                 } catch { /* ignora erros de tabelas inexistentes */ }
             }
 
-            // 3. Por fim, deletar o registro da empresa
+            // 4. Por fim, deletar o registro da empresa
             const { error: tenantDeleteError } = await supabase.from('tenants').delete().eq('id', tenantId);
             if (tenantDeleteError) throw tenantDeleteError;
 
             CacheManager.invalidate('master_tenants_list');
+            CacheManager.clearAll();
 
         } catch (err: any) {
             console.error("❌ Falha crítica ao excluir empresa:", err.message);
