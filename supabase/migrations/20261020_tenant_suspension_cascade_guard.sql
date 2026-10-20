@@ -4,9 +4,9 @@
 -- 1. Unban geral no auth.users (Big Tech nunca usa banned_until para tenancy de billing)
 -- 2. Restaura técnicos e usuários de empresas ATIVAS
 -- 3. Bloqueia técnicos e usuários de empresas SUSPENSAS
--- 4. Corrige RLS de public.tenants para que Master Admin liste todas sem erro de enum
+-- 4. Corrige RLS e Grants de public.tenants para que Master Admin liste e edite todas
 -- 5. RPC get_admin_tenants_list (Security Definer) para listagem garantida no Super Admin
--- 6. RPC toggle_tenant_status_master (Security Definer) para alternância atômica do cadeado
+-- 6. RPC toggle_tenant_status_master (Security Definer) com cast explícito tenant_status
 -- 7. RPC check_tenant_suspended_by_email para consulta segura pré-login e app mobile
 -- 8. Trigger fn_cascade_tenant_status_change para sincronização contínua
 -- ==============================================================================
@@ -35,7 +35,7 @@ BEGIN
     END IF;
 
     -- Consulta via users
-    SELECT COALESCE(t.company_name, t.name, 'sua empresa'), t.status 
+    SELECT COALESCE(t.company_name, t.name, 'sua empresa'), t.status::text 
     INTO v_company_name, v_status
     FROM public.users u
     JOIN public.tenants t ON t.id = u.tenant_id
@@ -44,7 +44,7 @@ BEGIN
 
     -- Se não achou na users, consulta via technicians
     IF v_status IS NULL THEN
-        SELECT COALESCE(t.company_name, t.name, 'sua empresa'), t.status 
+        SELECT COALESCE(t.company_name, t.name, 'sua empresa'), t.status::text 
         INTO v_company_name, v_status
         FROM public.technicians tech
         JOIN public.tenants t ON t.id = tech.tenant_id
@@ -77,7 +77,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.get_admin_tenants_list() TO anon, authenticated, service_role;
 
 
--- 4. RPC PARA ALTERNÂNCIA ATÔMICA DO CADEADO NO PAINEL MASTER ADMIN
+-- 4. RPC PARA ALTERNÂNCIA ATÔMICA DO CADEADO NO PAINEL MASTER ADMIN (COM CAST EXPLICITO tenant_status)
 CREATE OR REPLACE FUNCTION public.toggle_tenant_status_master(p_tenant_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -89,7 +89,7 @@ DECLARE
     v_new_status text;
     v_company_name text;
 BEGIN
-    SELECT status, COALESCE(company_name, name, 'Empresa')
+    SELECT status::text, COALESCE(company_name, name, 'Empresa')
     INTO v_current_status, v_company_name
     FROM public.tenants
     WHERE id = p_tenant_id;
@@ -104,9 +104,9 @@ BEGIN
         v_new_status := 'suspended';
     END IF;
 
-    -- Atualiza status da empresa
+    -- Atualiza status da empresa com cast explícito para o enum tenant_status
     UPDATE public.tenants
-    SET status = v_new_status, updated_at = now()
+    SET status = v_new_status::public.tenant_status, updated_at = now()
     WHERE id = p_tenant_id;
 
     -- Sincroniza técnicos da empresa
@@ -140,7 +140,7 @@ SECURITY DEFINER
 SET search_path = public, auth
 AS $$
 BEGIN
-    IF NEW.status = 'suspended' AND (OLD.status IS DISTINCT FROM 'suspended') THEN
+    IF NEW.status::text = 'suspended' AND (OLD.status::text IS DISTINCT FROM 'suspended') THEN
         -- Desativa técnicos no app
         UPDATE public.technicians
         SET active = false
@@ -152,7 +152,7 @@ BEGIN
         WHERE tenant_id = NEW.id
           AND id NOT IN (SELECT user_id FROM public.global_admins);
 
-    ELSIF NEW.status = 'active' AND (OLD.status IS DISTINCT FROM 'active') THEN
+    ELSIF NEW.status::text = 'active' AND (OLD.status::text IS DISTINCT FROM 'active') THEN
         -- Reativa técnicos no app
         UPDATE public.technicians
         SET active = true
@@ -176,7 +176,10 @@ FOR EACH ROW
 EXECUTE FUNCTION public.fn_cascade_tenant_status_change();
 
 
--- 6. POLÍTICAS RLS EM public.tenants (Compatível com enum user_role e global_admins)
+-- 6. GRANTS E POLÍTICAS RLS EM public.tenants
+GRANT SELECT, UPDATE ON public.tenants TO authenticated;
+GRANT SELECT ON public.tenants TO anon;
+
 DROP POLICY IF EXISTS "tenants_read_isolation" ON public.tenants;
 CREATE POLICY "tenants_read_isolation" ON public.tenants
   FOR SELECT TO authenticated
@@ -208,20 +211,20 @@ CREATE POLICY "tenants_update_admin" ON public.tenants
 -- A) Reativa técnicos e usuários de empresas ATIVAS
 UPDATE public.technicians
 SET active = true
-WHERE tenant_id IN (SELECT id FROM public.tenants WHERE status = 'active');
+WHERE tenant_id IN (SELECT id FROM public.tenants WHERE status::text = 'active');
 
 UPDATE public.users
 SET active = true
-WHERE tenant_id IN (SELECT id FROM public.tenants WHERE status = 'active');
+WHERE tenant_id IN (SELECT id FROM public.tenants WHERE status::text = 'active');
 
 -- B) Garante técnicos e usuários desativados em empresas SUSPENSAS
 UPDATE public.technicians
 SET active = false
-WHERE tenant_id IN (SELECT id FROM public.tenants WHERE status = 'suspended');
+WHERE tenant_id IN (SELECT id FROM public.tenants WHERE status::text = 'suspended');
 
 UPDATE public.users
 SET active = false
-WHERE tenant_id IN (SELECT id FROM public.tenants WHERE status = 'suspended')
+WHERE tenant_id IN (SELECT id FROM public.tenants WHERE status::text = 'suspended')
   AND id NOT IN (SELECT user_id FROM public.global_admins);
 
 COMMIT;
