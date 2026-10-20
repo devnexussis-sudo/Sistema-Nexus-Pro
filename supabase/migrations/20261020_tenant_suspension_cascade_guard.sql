@@ -4,7 +4,7 @@
 -- 1. Unban geral no auth.users (Big Tech nunca usa banned_until para tenancy de billing)
 -- 2. Restaura técnicos e usuários de empresas ATIVAS
 -- 3. Bloqueia técnicos e usuários de empresas SUSPENSAS
--- 4. Corrige RLS de public.tenants para que Master Admin / Super Admin liste todas
+-- 4. Corrige RLS de public.tenants para que Master Admin liste todas sem erro de enum
 -- 5. RPC get_admin_tenants_list (Security Definer) para listagem garantida no Super Admin
 -- 6. RPC toggle_tenant_status_master (Security Definer) para alternância atômica do cadeado
 -- 7. RPC check_tenant_suspended_by_email para consulta segura pré-login e app mobile
@@ -114,11 +114,11 @@ BEGIN
     SET active = (v_new_status = 'active')
     WHERE tenant_id = p_tenant_id;
 
-    -- Sincroniza usuários da empresa (preserva SUPER_ADMIN / MOROS_ADMIN)
+    -- Sincroniza usuários da empresa (preserva Master Admin da tabela global_admins)
     UPDATE public.users
     SET active = (v_new_status = 'active')
     WHERE tenant_id = p_tenant_id
-      AND UPPER(role::text) NOT IN ('SUPER_ADMIN', 'MOROS_ADMIN');
+      AND id NOT IN (SELECT user_id FROM public.global_admins);
 
     RETURN jsonb_build_object(
         'success', true,
@@ -146,11 +146,11 @@ BEGIN
         SET active = false
         WHERE tenant_id = NEW.id;
 
-        -- Desativa usuários web (preservando Super Admin)
+        -- Desativa usuários web (preservando Master Admin)
         UPDATE public.users
         SET active = false
         WHERE tenant_id = NEW.id
-          AND UPPER(role::text) NOT IN ('SUPER_ADMIN', 'MOROS_ADMIN');
+          AND id NOT IN (SELECT user_id FROM public.global_admins);
 
     ELSIF NEW.status = 'active' AND (OLD.status IS DISTINCT FROM 'active') THEN
         -- Reativa técnicos no app
@@ -176,7 +176,7 @@ FOR EACH ROW
 EXECUTE FUNCTION public.fn_cascade_tenant_status_change();
 
 
--- 6. POLÍTICAS RLS EM public.tenants (Permite isolamento de tenant + acesso total do Master Admin)
+-- 6. POLÍTICAS RLS EM public.tenants (Compatível com enum user_role e global_admins)
 DROP POLICY IF EXISTS "tenants_read_isolation" ON public.tenants;
 CREATE POLICY "tenants_read_isolation" ON public.tenants
   FOR SELECT TO authenticated
@@ -184,7 +184,7 @@ CREATE POLICY "tenants_read_isolation" ON public.tenants
     id = get_auth_tenant_id()
     OR is_master_admin()
     OR (current_setting('request.jwt.claims', true)::jsonb -> 'user_metadata' ->> 'role') IN ('moros_admin', 'SUPER_ADMIN')
-    OR (SELECT role FROM public.users WHERE id = auth.uid() LIMIT 1) IN ('SUPER_ADMIN', 'moros_admin')
+    OR EXISTS (SELECT 1 FROM public.global_admins WHERE user_id = auth.uid())
   );
 
 DROP POLICY IF EXISTS "tenants_update_admin" ON public.tenants;
@@ -194,13 +194,13 @@ CREATE POLICY "tenants_update_admin" ON public.tenants
     id = get_auth_tenant_id()
     OR is_master_admin()
     OR (current_setting('request.jwt.claims', true)::jsonb -> 'user_metadata' ->> 'role') IN ('moros_admin', 'SUPER_ADMIN')
-    OR (SELECT role FROM public.users WHERE id = auth.uid() LIMIT 1) IN ('SUPER_ADMIN', 'moros_admin')
+    OR EXISTS (SELECT 1 FROM public.global_admins WHERE user_id = auth.uid())
   )
   WITH CHECK (
     id = get_auth_tenant_id()
     OR is_master_admin()
     OR (current_setting('request.jwt.claims', true)::jsonb -> 'user_metadata' ->> 'role') IN ('moros_admin', 'SUPER_ADMIN')
-    OR (SELECT role FROM public.users WHERE id = auth.uid() LIMIT 1) IN ('SUPER_ADMIN', 'moros_admin')
+    OR EXISTS (SELECT 1 FROM public.global_admins WHERE user_id = auth.uid())
   );
 
 
@@ -222,6 +222,6 @@ WHERE tenant_id IN (SELECT id FROM public.tenants WHERE status = 'suspended');
 UPDATE public.users
 SET active = false
 WHERE tenant_id IN (SELECT id FROM public.tenants WHERE status = 'suspended')
-  AND UPPER(role::text) NOT IN ('SUPER_ADMIN', 'MOROS_ADMIN');
+  AND id NOT IN (SELECT user_id FROM public.global_admins);
 
 COMMIT;
