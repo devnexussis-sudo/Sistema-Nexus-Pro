@@ -400,6 +400,27 @@ export const TenantService = {
             if (error) throw error;
             if (!data) throw new Error("Não foi possível localizar o registro da empresa para atualização.");
 
+            // 🛡️ Propagação de Suspensão / Reativação para App Móvel e Usuários
+            if (processedUpdate.status !== undefined) {
+                const isActivating = processedUpdate.status === 'active';
+                try {
+                    // 1. Atualiza status dos técnicos (derruba o acesso do app se suspenso)
+                    await supabase
+                        .from('technicians')
+                        .update({ active: isActivating })
+                        .eq('tenant_id', id);
+
+                    // 2. Atualiza status dos usuários da empresa (preserva Master Admin)
+                    await supabase
+                        .from('users')
+                        .update({ active: isActivating })
+                        .eq('tenant_id', id)
+                        .not('role', 'in', '("SUPER_ADMIN","moros_admin")');
+                } catch (cascadeErr) {
+                    console.warn('[TenantService] Erro ao sincronizar status de técnicos/usuários:', cascadeErr);
+                }
+            }
+
             CacheManager.invalidate('master_tenants_list');
             CacheManager.clearAll(); // Limpa cache global para forçar reload de dados se módulos foram alterados
             return data as any;
@@ -448,6 +469,7 @@ export const TenantService = {
     toggleTenantStatus: async (tenantId: string, currentStatus: string): Promise<void> => {
         if (!isCloudEnabled) return;
         const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
+        const isActivating = newStatus === 'active';
         
         const { error } = await supabase
             .from('tenants')
@@ -457,6 +479,23 @@ export const TenantService = {
         if (error) {
             console.error("❌ Erro ao alterar status da empresa:", error);
             throw new Error(`Falha ao alterar status: ${error.message}`);
+        }
+
+        try {
+            // 1. Atualiza status dos técnicos (derruba o acesso do app se suspenso)
+            await supabase
+                .from('technicians')
+                .update({ active: isActivating })
+                .eq('tenant_id', tenantId);
+
+            // 2. Atualiza status dos usuários da empresa (preserva Master Admin)
+            await supabase
+                .from('users')
+                .update({ active: isActivating })
+                .eq('tenant_id', tenantId)
+                .not('role', 'in', '("SUPER_ADMIN","moros_admin")');
+        } catch (cascadeErr) {
+            console.warn('[TenantService] Erro ao sincronizar status de técnicos/usuários:', cascadeErr);
         }
         
         CacheManager.invalidate('master_tenants_list');
