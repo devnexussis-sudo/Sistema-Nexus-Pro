@@ -23,6 +23,27 @@ export const TenantService = {
                 if (cached) return cached;
 
                 return CacheManager.deduplicate(cacheKey, async () => {
+                    // Strategy 0: RPC get_admin_tenants_list (Security Definer - Padrão Big Tech)
+                    try {
+                        const { data: rpcData, error: rpcErr } = await supabase
+                            .rpc('get_admin_tenants_list');
+                        if (!rpcErr && rpcData && rpcData.length > 0) {
+                            console.log('[TenantService] ✅ Loaded tenants via RPC get_admin_tenants_list:', rpcData.length);
+                            rpcData.forEach((t: any) => {
+                                StorageService.registerTenantMetadata(t.id, {
+                                    companyName: t.company_name,
+                                    tradeName: t.trading_name || t.trade_name,
+                                    name: t.name,
+                                    cnpj: t.cnpj,
+                                    document: t.document
+                                });
+                            });
+                            CacheManager.set(cacheKey, rpcData, CacheManager.TTL.SHORT);
+                            return rpcData as DbTenantStats[];
+                        }
+                        if (rpcErr) console.warn('[TenantService] RPC get_admin_tenants_list failed:', rpcErr.message);
+                    } catch (e) { /* continue */ }
+
                     // Strategy 1: Try view with authenticated client
                     try {
                         const { data, error } = await supabase
@@ -390,6 +411,21 @@ export const TenantService = {
                 delete (processedUpdate as any).video_quality;
             }
 
+            // 🛡️ Se for alteração exclusiva de status, prioriza RPC atômica Master
+            if (processedUpdate.status !== undefined && Object.keys(processedUpdate).filter(k => k !== 'id' && k !== 'status').length === 0) {
+                try {
+                    const { data: rpcRes, error: rpcErr } = await supabase
+                        .rpc('toggle_tenant_status_master', { p_tenant_id: id });
+                    if (!rpcErr && rpcRes && rpcRes.success) {
+                        CacheManager.invalidate('master_tenants_list');
+                        CacheManager.clearAll();
+                        return { id, status: rpcRes.new_status } as any;
+                    }
+                } catch (rpcEx) {
+                    console.warn('[TenantService] RPC toggle fallback to direct update:', rpcEx);
+                }
+            }
+
             const { data, error } = await supabase
                 .from('tenants')
                 .update(processedUpdate as Partial<DbTenantInsert>)
@@ -397,8 +433,36 @@ export const TenantService = {
                 .select()
                 .maybeSingle();
 
-            if (error) throw error;
-            if (!data) throw new Error("Não foi possível localizar o registro da empresa para atualização.");
+            if (error) {
+                // Se o erro foi por RLS ou select restrito, tenta via RPC se tiver status
+                if (processedUpdate.status !== undefined) {
+                    try {
+                        const { data: rpcRes, error: rpcErr } = await supabase
+                            .rpc('toggle_tenant_status_master', { p_tenant_id: id });
+                        if (!rpcErr && rpcRes && rpcRes.success) {
+                            CacheManager.invalidate('master_tenants_list');
+                            CacheManager.clearAll();
+                            return { id, status: rpcRes.new_status } as any;
+                        }
+                    } catch (_) {}
+                }
+                throw error;
+            }
+            if (!data) {
+                // Tenta fallback via RPC
+                if (processedUpdate.status !== undefined) {
+                    try {
+                        const { data: rpcRes, error: rpcErr } = await supabase
+                            .rpc('toggle_tenant_status_master', { p_tenant_id: id });
+                        if (!rpcErr && rpcRes && rpcRes.success) {
+                            CacheManager.invalidate('master_tenants_list');
+                            CacheManager.clearAll();
+                            return { id, status: rpcRes.new_status } as any;
+                        }
+                    } catch (_) {}
+                }
+                throw new Error("Não foi possível localizar o registro da empresa para atualização.");
+            }
 
             // 🛡️ Propagação de Suspensão / Reativação para App Móvel e Usuários
             if (processedUpdate.status !== undefined) {
@@ -468,6 +532,17 @@ export const TenantService = {
 
     toggleTenantStatus: async (tenantId: string, currentStatus: string): Promise<void> => {
         if (!isCloudEnabled) return;
+
+        // 1. Tenta RPC Security Definer (mais rápido e à prova de RLS)
+        try {
+            const { data: rpcRes, error: rpcErr } = await supabase
+                .rpc('toggle_tenant_status_master', { p_tenant_id: tenantId });
+            if (!rpcErr && rpcRes && rpcRes.success) {
+                CacheManager.invalidate('master_tenants_list');
+                return;
+            }
+        } catch (_) {}
+
         const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
         const isActivating = newStatus === 'active';
         

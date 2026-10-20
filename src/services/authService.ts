@@ -36,6 +36,17 @@ export const AuthService = {
         if (!isCloudEnabled || !email) return null;
         try {
             const cleanEmail = email.toLowerCase().trim();
+
+            // 1. Tenta via RPC Security Definer (acessível mesmo sem login / anon)
+            try {
+                const { data: rpcTenantName, error: rpcErr } = await publicSupabase
+                    .rpc('check_tenant_suspended_by_email', { p_email: cleanEmail });
+                if (!rpcErr && rpcTenantName) {
+                    return rpcTenantName;
+                }
+            } catch (_) {}
+
+            // 2. Fallback via tabelas diretas
             const { data: dbUser } = await publicSupabase
                 .from('users')
                 .select('tenant_id')
@@ -98,7 +109,7 @@ export const AuthService = {
                 await supabase.auth.signOut().catch(() => {});
                 SessionStorage.clear();
                 GlobalStorage.remove('persistent_user');
-                throw new Error(`🔒 Acesso bloqueado: ${suspendedCompanyName} está com o acesso suspenso. Entre em contato com o suporte para regularizar sua situação.`);
+                throw new Error(`🔒 Acesso bloqueado: O acesso da empresa ${suspendedCompanyName} foi suspenso. Entre em contato com o suporte DUNO para regularizar sua situação.`);
             }
 
             const { data, error } = await supabase.auth.signInWithPassword({
@@ -109,8 +120,14 @@ export const AuthService = {
             if (error) {
                 console.error("❌ Erro no Login Supabase:", error.message);
                 
+                // Se der erro, checa se a empresa está suspensa para priorizar o aviso do suporte DUNO
+                const isSuspended = await AuthService._checkTenantSuspensionByEmail(cleanEmail);
+                if (isSuspended) {
+                    throw new Error(`🔒 Acesso bloqueado: O acesso da empresa ${isSuspended} foi suspenso. Entre em contato com o suporte DUNO para regularizar sua situação.`);
+                }
+
                 if (error.message === 'User is banned' || error.message.includes('banned')) {
-                    throw new Error('Sua conta foi desativada. Entre em contato com o administrador da sua empresa.');
+                    throw new Error('🔒 Sua conta ou empresa está suspensa. Entre em contato com o suporte DUNO para regularizar sua situação.');
                 }
                 if (error.message === 'Invalid login credentials' || error.message.includes('Invalid login')) {
                     throw new Error('Credenciais inválidas. Verifique seu e-mail e senha.');
@@ -129,8 +146,7 @@ export const AuthService = {
                 const fullUser = await AuthService._fetchFullUser(data.user.id, cleanEmail, data.user.user_metadata);
 
                 if (!fullUser) throw new Error("Usuário autenticado mas sem registro na tabela users.");
-                if (fullUser.active === false) throw new Error("Sua conta foi desativada. Contate o administrador.");
-
+                
                 // 🔒 2. TENANT SUSPENSION CHECK POST-FETCH — Garantia dupla pós-login
                 if (fullUser.tenantId) {
                     const { data: tenantRow } = await publicSupabase
@@ -144,9 +160,11 @@ export const AuthService = {
                         SessionStorage.clear();
                         GlobalStorage.remove('persistent_user');
                         const companyName = tenantRow.company_name || tenantRow.name || 'sua empresa';
-                        throw new Error(`🔒 Acesso bloqueado: ${companyName} está com o acesso suspenso. Entre em contato com o suporte para regularizar sua situação.`);
+                        throw new Error(`🔒 Acesso bloqueado: O acesso da empresa ${companyName} foi suspenso. Entre em contato com o suporte DUNO para regularizar sua situação.`);
                     }
                 }
+
+                if (fullUser.active === false) throw new Error("Sua conta foi desativada. Contate o administrador da sua empresa.");
 
                 // 🛡️ APP_SCOPE GUARD — Bloqueia técnicos MOBILE de acessarem o Painel Web
                 if (fullUser.appScope === AppScope.MOBILE) {

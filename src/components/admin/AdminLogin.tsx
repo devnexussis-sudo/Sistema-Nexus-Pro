@@ -44,6 +44,7 @@ const ModernAdminLogin: React.FC<ThemedLoginProps> = ({ onLogin, onToggleMaster,
     const [error, setError] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [suspendedBanner, setSuspendedBanner] = useState(false);
+    const [suspendedMessage, setSuspendedMessage] = useState('');
     const [expiredBanner, setExpiredBanner] = useState(false);
     const [showForgotPassword, setShowForgotPassword] = useState(false);
     const [resetEmailSent, setResetEmailSent] = useState(false);
@@ -93,6 +94,8 @@ const ModernAdminLogin: React.FC<ThemedLoginProps> = ({ onLogin, onToggleMaster,
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        setSuspendedBanner(false);
+        setSuspendedMessage('');
         setLoading(true);
 
         try {
@@ -118,7 +121,14 @@ const ModernAdminLogin: React.FC<ThemedLoginProps> = ({ onLogin, onToggleMaster,
 
             onLogin(user, keepLoggedIn);
         } catch (err: any) {
-            setError(err.message || 'Erro ao fazer login. Tente novamente.');
+            const msg = err.message || 'Erro ao fazer login. Tente novamente.';
+            if (msg.includes('suspenso') || msg.includes('suspensa') || msg.includes('bloqueado') || msg.includes('suporte DUNO') || msg.includes('desativada')) {
+                setSuspendedBanner(true);
+                setSuspendedMessage(msg.replace(/^🔒\s*/, ''));
+                setError('');
+            } else {
+                setError(msg);
+            }
             setLoading(false);
         }
     };
@@ -390,7 +400,7 @@ const ModernAdminLogin: React.FC<ThemedLoginProps> = ({ onLogin, onToggleMaster,
                                                 <div>
                                                     <p className="text-amber-800 text-xs font-bold">Acesso suspenso</p>
                                                     <p className="text-amber-700 text-[11px] mt-0.5 leading-relaxed">
-                                                        O acesso da sua empresa foi suspenso. Entre em contato com o suporte DUNO para regularizar sua situação.
+                                                        {suspendedMessage || 'O acesso da sua empresa foi suspenso. Entre em contato com o suporte DUNO para regularizar sua situação.'}
                                                     </p>
                                                 </div>
                                             </div>
@@ -408,8 +418,8 @@ const ModernAdminLogin: React.FC<ThemedLoginProps> = ({ onLogin, onToggleMaster,
                                             </div>
                                         )}
 
-                                        {/* Mensagem de Erro */}
-                                        {error && (
+                                        {/* Mensagem de Erro (Apenas se não houver banner de suspensão ativo) */}
+                                        {error && !suspendedBanner && (
                                             <div className="bg-rose-50 border border-rose-100 rounded-xl p-3.5 text-center animate-in fade-in duration-200 mt-2">
                                                 <p className="text-rose-600 text-xs font-semibold leading-tight">{error}</p>
                                             </div>
@@ -540,6 +550,7 @@ const ClassicAdminLogin: React.FC<ThemedLoginProps> = ({ onLogin, onToggleMaster
     const [error, setError] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [suspendedBanner, setSuspendedBanner] = useState(false);
+    const [suspendedMessage, setSuspendedMessage] = useState('');
     const [expiredBanner, setExpiredBanner] = useState(false);
     const [showForgotPassword, setShowForgotPassword] = useState(false);
     const [resetEmailSent, setResetEmailSent] = useState(false);
@@ -564,6 +575,8 @@ const ClassicAdminLogin: React.FC<ThemedLoginProps> = ({ onLogin, onToggleMaster
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        setSuspendedBanner(false);
+        setSuspendedMessage('');
         setLoading(true);
 
         try {
@@ -589,7 +602,14 @@ const ClassicAdminLogin: React.FC<ThemedLoginProps> = ({ onLogin, onToggleMaster
 
             onLogin(user, keepLoggedIn);
         } catch (err: any) {
-            setError(err.message || 'Erro ao fazer login. Tente novamente.');
+            const msg = err.message || 'Erro ao fazer login. Tente novamente.';
+            if (msg.includes('suspenso') || msg.includes('suspensa') || msg.includes('bloqueado') || msg.includes('suporte DUNO') || msg.includes('desativada')) {
+                setSuspendedBanner(true);
+                setSuspendedMessage(msg.replace(/^🔒\s*/, ''));
+                setError('');
+            } else {
+                setError(msg);
+            }
             setLoading(false);
         }
     };
@@ -786,7 +806,7 @@ const ClassicAdminLogin: React.FC<ThemedLoginProps> = ({ onLogin, onToggleMaster
                                         <div>
                                             <p className="text-amber-800 text-xs font-medium leading-tight">Acesso suspenso</p>
                                             <p className="text-amber-600 text-[11px] mt-0.5 leading-relaxed">
-                                                O acesso da sua empresa foi suspenso. Entre em contato com o suporte DUNO para regularizar sua situação.
+                                                {suspendedMessage || 'O acesso da sua empresa foi suspenso. Entre em contato com o suporte DUNO para regularizar sua situação.'}
                                             </p>
                                         </div>
                                     </div>
@@ -804,7 +824,7 @@ const ClassicAdminLogin: React.FC<ThemedLoginProps> = ({ onLogin, onToggleMaster
                                     </div>
                                 )}
 
-                                {error && (
+                                {error && !suspendedBanner && (
                                     <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 animate-in fade-in slide-in-from-top-2 duration-300">
                                         <p className="text-rose-600 text-[11px] font-medium text-center italic leading-tight">{error}</p>
                                     </div>

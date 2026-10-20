@@ -445,8 +445,8 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
         t.id === tenantId ? { ...t, status: newStatus } : t
       ));
 
-      // Dispara a atualização real no banco usando a função já estável e exportada
-      await DataService.updateTenant({ id: tenantId, status: newStatus as any });
+      // Dispara a alternância atômica do status (cadeado)
+      await DataService.toggleTenantStatus(tenantId, currentStatus);
 
       // Nota: Não chamamos loadTenants() aqui intencionalmente para evitar 
       // sobrescrever o estado atualizado com dados antigos do cache (ttl 30s)
