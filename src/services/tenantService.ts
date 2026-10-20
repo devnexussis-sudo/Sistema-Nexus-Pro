@@ -249,137 +249,180 @@ export const TenantService = {
     },
 
     _provisionGroups: async (tenantId: string, processedTenant: any, initialPass: string) => {
-        // Logic for group creation extracted for readability
-
-        let adminGroupId = null;
-        try {
-            const adminGroupData = {
-                tenant_id: tenantId,
-                name: 'Administradores',
-                description: 'Grupo com permissões completas de administração do sistema',
-                is_system: true,
-                permissions: ADMIN_PERMISSIONS
-            };
-
-            const { data: groupData } = await supabase.from('user_groups').insert([adminGroupData]).select().single();
-            if (groupData) adminGroupId = groupData.id;
-
-            // Operadores
-            const opGroup = {
-                tenant_id: tenantId,
-                name: 'Operadores',
-                description: 'Acesso completo aos módulos operacionais (OS, Orçamentos, Clientes, Ativos)',
-                is_system: true,
-                permissions: {
-                    orders: { create: true, read: true, update: true, delete: false },
-                    customers: { create: true, read: true, update: true, delete: false },
-                    equipments: { create: true, read: true, update: true, delete: false },
-                    technicians: { create: false, read: true, update: false, delete: false },
-                    quotes: { create: true, read: true, update: true, delete: false },
-                    sales_orders: { create: true, read: true, update: true, delete: false },
-                    contracts: { create: true, read: true, update: true, delete: false },
-                    stock: { create: true, read: true, update: true, delete: false },
-                    forms: { create: true, read: true, update: true, delete: false },
-                    settings: false,
-                    manageUsers: false,
-                    manageGroups: false,
-                    accessSuperAdmin: false,
-                    financial: { read: true, update: false, invoice: false, discounts: false },
-                    menuAccess: {
-                        dashboard: true,
-                        orders: true,
-                        calendar: true,
-                        map: true,
-                        financial: false,
-                        quotes: true,
-                        sales_orders: true,
-                        stock: true,
-                        contracts: true,
-                        customers: true,
-                        equipments: true,
-                        forms: true,
-                        technicians: true,
-                        users: false,
-                        settings: false,
-                    }
-                }
-            };
-            await supabase.from('user_groups').insert([opGroup]);
-        } catch (e) {
-            console.warn("Groups provision error:", e);
+        const adminEmail = (processedTenant.admin_email || processedTenant.adminEmail) as string | undefined;
+        if (!adminEmail) {
+            console.warn("[TenantService] ⚠️ Nenhum e-mail de administrador fornecido para o tenant:", tenantId);
+            return;
         }
 
-        // Criar usuário ADMIN inicial
-        const adminEmail = (processedTenant.admin_email || processedTenant.adminEmail) as string | undefined;
-        if (adminEmail) {
-            try {
-                const targetEmail = adminEmail.toLowerCase().trim();
-                console.log(`[TenantService] 🚀 Provisionando usuário Admin inicial: ${targetEmail} (Tenant: ${tenantId})`);
+        const targetEmail = adminEmail.toLowerCase().trim();
+        const companyName = processedTenant.name || processedTenant.company_name || 'Admin';
+        console.log(`[TenantService] 🚀 Provisionando usuário Admin inicial: ${targetEmail} (Tenant: ${tenantId})`);
 
-                // 1. Tenta criar no Auth via Edge Function
-                const { data: authUser, error: authErr } = await adminAuthProxy.admin.createUser({
+        let newUserId: string | null = null;
+        let userCode: string | null = null;
+
+        try {
+            userCode = await generateUniqueUnifiedCode(tenantId).catch(() => null);
+        } catch {
+            userCode = null;
+        }
+
+        // 1. Cria ou sincroniza o usuário no Supabase Auth via Edge Function (adminAuthProxy)
+        try {
+            const { data: authUser, error: authErr } = await adminAuthProxy.admin.createUser({
+                email: targetEmail,
+                password: initialPass,
+                user_metadata: {
+                    name: companyName,
+                    role: UserRole.ADMIN,
+                    tenantId: tenantId,
+                    appScope: AppScope.WEB,
+                    userCode: userCode || undefined,
+                    avatar: ''
+                },
+                email_confirm: true
+            });
+
+            if (authUser?.user?.id) {
+                newUserId = authUser.user.id;
+            } else if (authErr) {
+                console.warn("[TenantService] ⚠️ adminAuthProxy.createUser warning:", authErr.message || authErr);
+            }
+
+            // Se o e-mail já existia no Auth, localiza o UID e atualiza a senha e metadata
+            if (!newUserId) {
+                try {
+                    const { data: listData } = await adminAuthProxy.admin.listUsers();
+                    const existing = (listData?.users || []).find((u: any) => u.email?.toLowerCase() === targetEmail);
+                    if (existing) {
+                        newUserId = existing.id;
+                        await adminAuthProxy.admin.updateUserById(newUserId, {
+                            password: initialPass,
+                            user_metadata: {
+                                ...existing.user_metadata,
+                                name: companyName,
+                                role: UserRole.ADMIN,
+                                tenantId: tenantId,
+                                appScope: AppScope.WEB,
+                                userCode: userCode || existing.user_metadata?.userCode
+                            }
+                        }).catch(e => console.warn('[TenantService] Aviso ao atualizar user Auth existente:', e));
+                    }
+                } catch (e) {
+                    console.warn("[TenantService] ⚠️ List users fallback warning:", e);
+                }
+            }
+        } catch (err) {
+            console.error("[TenantService] ❌ Erro ao criar conta de autenticação:", err);
+        }
+
+        if (!newUserId) {
+            console.error("[TenantService] ❌ Não foi possível gerar/localizar UID para o e-mail admin:", targetEmail);
+            return;
+        }
+
+        // 2. Provisionamento atômico no Banco via RPC SECURITY DEFINER (Bypass RLS nativo e seguro)
+        let rpcSuccess = false;
+        try {
+            const { data: rpcRes, error: rpcErr } = await supabase.rpc('provision_tenant_initial_admin', {
+                p_tenant_id: tenantId,
+                p_user_id: newUserId,
+                p_email: targetEmail,
+                p_name: companyName,
+                p_user_code: userCode
+            });
+
+            if (!rpcErr && (rpcRes as any)?.success) {
+                rpcSuccess = true;
+                console.log(`[TenantService] ✅ Grupos e Usuário Admin provisionados com sucesso via RPC!`, rpcRes);
+            } else {
+                console.warn("[TenantService] ⚠️ RPC provision_tenant_initial_admin notice:", rpcErr || rpcRes);
+            }
+        } catch (rpcCatch) {
+            console.warn("[TenantService] ⚠️ Falha ao chamar RPC provision_tenant_initial_admin:", rpcCatch);
+        }
+
+        // 3. Fallback via Edge Function (Service Role Key tem bypass total de RLS) se a RPC falhar
+        if (!rpcSuccess) {
+            try {
+                console.log("[TenantService] 🔄 Executando fallback de provisionamento via adminAuthProxy...");
+                const { data: edgeRes, error: edgeErr } = await adminAuthProxy.admin.provisionTenantAdmin({
+                    tenantId,
+                    userId: newUserId,
                     email: targetEmail,
-                    password: initialPass,
-                    user_metadata: {
-                        name: processedTenant.name || processedTenant.company_name || 'Admin',
-                        role: UserRole.ADMIN,
-                        tenantId: tenantId,
-                        avatar: ''
-                    },
-                    email_confirm: true
+                    name: companyName,
+                    userCode: userCode || undefined
                 });
 
-                let newUserId = authUser?.user?.id;
-
-                if (authErr) {
-                    console.warn("[TenantService] ⚠️ adminAuthProxy.createUser warning:", authErr.message || authErr);
-                }
-
-                // 2. Se o e-mail já existia no Auth (ex: reutilizado), busca o ID do usuário
-                if (!newUserId) {
-                    try {
-                        const { data: listData } = await adminAuthProxy.admin.listUsers();
-                        const existing = (listData?.users || []).find((u: any) => u.email?.toLowerCase() === targetEmail);
-                        if (existing) {
-                            newUserId = existing.id;
-                            // Atualiza os metadados do Auth
-                            await adminAuthProxy.admin.updateUserById(newUserId, {
-                                user_metadata: {
-                                    name: processedTenant.name || processedTenant.company_name || 'Admin',
-                                    role: UserRole.ADMIN,
-                                    tenantId: tenantId
-                                }
-                            }).catch(() => {});
-                        }
-                    } catch (e) {
-                        console.warn("[TenantService] ⚠️ List users fallback warning:", e);
-                    }
-                }
-
-                // 3. Garante o registro na tabela users
-                if (newUserId) {
-                    const dbUser = {
-                        id: newUserId,
-                        name: `Admin - ${processedTenant.name || processedTenant.company_name || 'Nova Empresa'}`,
-                        email: targetEmail,
-                        role: UserRole.ADMIN,
-                        active: true,
-                        tenant_id: tenantId,
-                        group_id: adminGroupId,
-                        avatar: '',
-                        permissions: {}
-                    };
-                    const { error: dbErr } = await supabase.from('users').upsert([dbUser]);
-                    if (dbErr) {
-                        console.error("[TenantService] ❌ Erro ao salvar usuário admin no banco:", dbErr);
-                    } else {
-                        console.log(`[TenantService] ✅ Usuário admin ${targetEmail} provisionado com sucesso no banco (UID: ${newUserId})!`);
-                    }
+                if (!edgeErr && edgeRes?.success) {
+                    rpcSuccess = true;
+                    console.log("[TenantService] ✅ Provisionamento concluído com sucesso via Edge Function fallback!");
                 } else {
-                    console.error("[TenantService] ❌ Não foi possível gerar/localizar UID para o e-mail admin:", targetEmail);
+                    console.warn("[TenantService] ⚠️ Edge Function provision notice:", edgeErr || edgeRes);
                 }
-            } catch (err) {
-                console.error("[TenantService] ❌ Falha crítica ao criar usuário admin inicial:", err);
+            } catch (edgeCatch) {
+                console.warn("[TenantService] ⚠️ Falha no fallback Edge Function:", edgeCatch);
+            }
+        }
+
+        // 4. Fallback direto no client (para ambientes locais ou sem RLS restritivo)
+        if (!rpcSuccess) {
+            try {
+                let adminGroupId: string | null = null;
+                const { data: groupData } = await supabase.from('user_groups').insert([{
+                    tenant_id: tenantId,
+                    name: 'Administradores',
+                    description: 'Grupo com permissões completas de administração do sistema',
+                    is_system: true,
+                    permissions: ADMIN_PERMISSIONS
+                }]).select().single();
+                if (groupData) adminGroupId = groupData.id;
+
+                await supabase.from('user_groups').insert([{
+                    tenant_id: tenantId,
+                    name: 'Operadores',
+                    description: 'Acesso completo aos módulos operacionais (OS, Orçamentos, Clientes, Ativos)',
+                    is_system: true,
+                    permissions: {
+                        orders: { create: true, read: true, update: true, delete: false },
+                        customers: { create: true, read: true, update: true, delete: false },
+                        equipments: { create: true, read: true, update: true, delete: false },
+                        technicians: { create: false, read: true, update: false, delete: false },
+                        quotes: { create: true, read: true, update: true, delete: false },
+                        sales_orders: { create: true, read: true, update: true, delete: false },
+                        contracts: { create: true, read: true, update: true, delete: false },
+                        stock: { create: true, read: true, update: true, delete: false },
+                        forms: { create: true, read: true, update: true, delete: false },
+                        settings: false, manageUsers: false, manageGroups: false, accessSuperAdmin: false,
+                        financial: { read: true, update: false, invoice: false, discounts: false }
+                    }
+                }]);
+
+                const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(companyName)}&background=1c2d4f&color=fff&bold=true`;
+                await supabase.from('users').upsert([{
+                    id: newUserId,
+                    name: companyName,
+                    email: targetEmail,
+                    role: UserRole.ADMIN,
+                    active: true,
+                    tenant_id: tenantId,
+                    group_id: adminGroupId,
+                    group_ids: adminGroupId ? [adminGroupId] : [],
+                    avatar: defaultAvatar,
+                    permissions: {},
+                    app_scope: AppScope.WEB,
+                    user_code: userCode
+                }]);
+
+                await supabase.from('tenants').update({
+                    admin_email: targetEmail,
+                    admin_user_id: newUserId
+                }).eq('id', tenantId);
+
+                console.log(`[TenantService] ✅ Usuário admin e grupos provisionados via client direct!`);
+            } catch (directErr) {
+                console.error("[TenantService] ❌ Erro no fallback direto:", directErr);
             }
         }
     },

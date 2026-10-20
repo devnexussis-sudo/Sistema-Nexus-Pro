@@ -39,12 +39,21 @@ export const publicSupabase = createClient(safeUrl, safeKey, {
 const EDGE_FUNCTION_URL = import.meta.env.VITE_EDGE_FUNCTION_URL ||
     `${safeUrl}/functions/v1/admin-operations`;
 
-/**
- * Gets the JWT token for the currently authenticated user
- */
 async function getUserToken(): Promise<string | null> {
     const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token || null;
+    if (session?.access_token) return session.access_token;
+    try {
+        const token = sessionStorage.getItem('master_session_token');
+        if (token) {
+            try {
+                const parsed = JSON.parse(token);
+                return typeof parsed === 'string' ? parsed : token;
+            } catch {
+                return token;
+            }
+        }
+    } catch {}
+    return null;
 }
 
 // Typing for adminAuthProxy
@@ -175,6 +184,32 @@ export const adminAuthProxy = {
                 return { data: { user: data.user }, error: null };
             } catch (e: any) {
                 return { data: { user: null }, error: e };
+            }
+        },
+
+        provisionTenantAdmin: async (payload: { tenantId: string; userId: string; email: string; name: string; userCode?: string }): Promise<{ data: any; error: Error | null }> => {
+            try {
+                const token = await getUserToken();
+                if (!token) throw new Error('User not authenticated');
+
+                const response = await fetch(EDGE_FUNCTION_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        action: 'provision_tenant_admin',
+                        payload
+                    })
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Failed to provision tenant admin');
+                return { data, error: null };
+            } catch (e: any) {
+                console.error("Admin provisionTenantAdmin error:", e);
+                return { data: null, error: e };
             }
         }
     }

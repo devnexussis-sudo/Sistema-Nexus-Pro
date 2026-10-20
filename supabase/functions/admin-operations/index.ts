@@ -113,14 +113,199 @@ serve(async (req: Request) => {
                     created_by: operator.id
                 };
 
+                const cleanEmail = email.toLowerCase().trim();
+                let userRecord = null;
+
                 const { data, error } = await adminClient.auth.admin.createUser({
-                    email: email.toLowerCase().trim(),
+                    email: cleanEmail,
                     password,
                     email_confirm: true,
                     user_metadata: finalMetadata
                 });
-                if (error) throw error;
-                result = { user: data.user };
+
+                if (error) {
+                    // Se o usuário já existir no Auth, recupera e atualiza a senha e metadata
+                    if (error.message?.includes('already') || (error as any).status === 422) {
+                        const { data: listData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+                        const existing = (listData?.users || []).find((u: any) => u.email?.toLowerCase() === cleanEmail);
+                        if (existing) {
+                            const updateFields: any = {
+                                user_metadata: {
+                                    ...existing.user_metadata,
+                                    ...finalMetadata
+                                }
+                            };
+                            if (password) updateFields.password = password;
+                            const { data: updatedData, error: updateErr } = await adminClient.auth.admin.updateUserById(existing.id, updateFields);
+                            if (updateErr) throw updateErr;
+                            userRecord = updatedData.user;
+                        } else {
+                            throw error;
+                        }
+                    } else {
+                        throw error;
+                    }
+                } else {
+                    userRecord = data.user;
+                }
+
+                result = { user: userRecord };
+                break;
+            }
+
+            case 'provision_tenant_admin': {
+                const { tenantId, userId, email, name, userCode } = payload;
+                if (!tenantId || !userId || !email) {
+                    throw new Error("tenantId, userId e email são obrigatórios.");
+                }
+
+                if (!isGlobalAdmin) {
+                    throw new Error("Apenas administradores globais podem provisionar novos tenants.");
+                }
+
+                const cleanEmail = email.toLowerCase().trim();
+                const displayName = name || 'Administrador';
+
+                // 1. Tenta chamar a RPC provision_tenant_initial_admin
+                const { data: rpcData, error: rpcErr } = await adminClient.rpc('provision_tenant_initial_admin', {
+                    p_tenant_id: tenantId,
+                    p_user_id: userId,
+                    p_email: cleanEmail,
+                    p_name: displayName,
+                    p_user_code: userCode || null
+                });
+
+                if (!rpcErr && rpcData?.success) {
+                    result = rpcData;
+                    break;
+                }
+
+                console.warn("[admin-operations] RPC failed, using service_role fallback:", rpcErr?.message || rpcErr);
+
+                // 2. Fallback via adminClient (Service Role Key bypassa RLS)
+                let adminGroupId: string | null = null;
+                const { data: existingGroup } = await adminClient
+                    .from('user_groups')
+                    .select('id')
+                    .eq('tenant_id', tenantId)
+                    .ilike('name', 'Administradores')
+                    .maybeSingle();
+
+                if (existingGroup) {
+                    adminGroupId = existingGroup.id;
+                } else {
+                    const { data: newGroup } = await adminClient
+                        .from('user_groups')
+                        .insert([{
+                            tenant_id: tenantId,
+                            name: 'Administradores',
+                            description: 'Grupo com permissões completas de administração do sistema',
+                            is_system: true,
+                            active: true,
+                            permissions: {
+                                orders: { create: true, read: true, update: true, delete: true },
+                                customers: { create: true, read: true, update: true, delete: true },
+                                equipments: { create: true, read: true, update: true, delete: true },
+                                technicians: { create: true, read: true, update: true, delete: true },
+                                quotes: { create: true, read: true, update: true, delete: true },
+                                sales_orders: { create: true, read: true, update: true, delete: true },
+                                contracts: { create: true, read: true, update: true, delete: true },
+                                stock: { create: true, read: true, update: true, delete: true },
+                                forms: { create: true, read: true, update: true, delete: true },
+                                whatsapp: { create: true, read: true, update: true, delete: true },
+                                solicitacoes: { create: true, read: true, update: true, delete: true },
+                                regions: { create: true, read: true, update: true, delete: true },
+                                integrations: { create: true, read: true, update: true, delete: true },
+                                settings: true,
+                                settingsTabs: { company: true, system: true, app: true, dashboard: true },
+                                manageUsers: true,
+                                manageGroups: true,
+                                accessSuperAdmin: false,
+                                financial: { read: true, update: true, invoice: true, discounts: true },
+                                menuAccess: {
+                                    dashboard: true, orders: true, calendar: true, map: true, financial: true,
+                                    quotes: true, sales_orders: true, stock: true, contracts: true,
+                                    customers: true, equipments: true, forms: true, technicians: true,
+                                    users: true, settings: true
+                                }
+                            }
+                        }])
+                        .select('id')
+                        .single();
+
+                    if (newGroup) adminGroupId = newGroup.id;
+                }
+
+                // Grupo Operadores
+                const { data: existingOp } = await adminClient
+                    .from('user_groups')
+                    .select('id')
+                    .eq('tenant_id', tenantId)
+                    .ilike('name', 'Operadores')
+                    .maybeSingle();
+
+                if (!existingOp) {
+                    await adminClient
+                        .from('user_groups')
+                        .insert([{
+                            tenant_id: tenantId,
+                            name: 'Operadores',
+                            description: 'Acesso completo aos módulos operacionais (OS, Orçamentos, Clientes, Ativos)',
+                            is_system: true,
+                            active: true,
+                            permissions: {
+                                orders: { create: true, read: true, update: true, delete: false },
+                                customers: { create: true, read: true, update: true, delete: false },
+                                equipments: { create: true, read: true, update: true, delete: false },
+                                technicians: { create: false, read: true, update: false, delete: false },
+                                quotes: { create: true, read: true, update: true, delete: false },
+                                sales_orders: { create: true, read: true, update: true, delete: false },
+                                contracts: { create: true, read: true, update: true, delete: false },
+                                stock: { create: true, read: true, update: true, delete: false },
+                                forms: { create: true, read: true, update: true, delete: false },
+                                settings: false, manageUsers: false, manageGroups: false, accessSuperAdmin: false,
+                                financial: { read: true, update: false, invoice: false, discounts: false },
+                                menuAccess: {
+                                    dashboard: true, orders: true, calendar: true, map: true, financial: false,
+                                    quotes: true, sales_orders: true, stock: true, contracts: true,
+                                    customers: true, equipments: true, forms: true, technicians: true,
+                                    users: false, settings: false
+                                }
+                            }
+                        }]);
+                }
+
+                // Inserir / atualizar em public.users
+                const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=1c2d4f&color=fff&bold=true`;
+                const finalUserCode = userCode || Math.random().toString(36).slice(-6).toUpperCase();
+
+                const { data: savedUser, error: userErr } = await adminClient
+                    .from('users')
+                    .upsert([{
+                        id: userId,
+                        tenant_id: tenantId,
+                        email: cleanEmail,
+                        name: displayName,
+                        role: 'ADMIN',
+                        active: true,
+                        group_id: adminGroupId,
+                        group_ids: adminGroupId ? [adminGroupId] : [],
+                        avatar: defaultAvatar,
+                        app_scope: 'WEB',
+                        user_code: finalUserCode
+                    }])
+                    .select()
+                    .single();
+
+                if (userErr) throw userErr;
+
+                // Atualizar tenants
+                await adminClient
+                    .from('tenants')
+                    .update({ admin_email: cleanEmail, admin_user_id: userId })
+                    .eq('id', tenantId);
+
+                result = { success: true, user: savedUser, adminGroupId };
                 break;
             }
 

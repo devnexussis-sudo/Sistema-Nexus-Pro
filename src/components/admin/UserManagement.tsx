@@ -35,7 +35,9 @@ import {
   Sparkles,
   Smartphone,
   Hash,
-  ShoppingBag
+  ShoppingBag,
+  Power,
+  PowerOff
 } from 'lucide-react';
 import { useUserGroups, useUsers } from '../../hooks/nexusHooks';
 import { useI18n } from '../../i18n/I18nContext';
