@@ -82,6 +82,7 @@ class AuthService {
             }
             
             let companyName = null;
+            let isTenantSuspended = false;
             if (techData && techData.tenant_id) {
                 const { data: tenant } = await supabase
                     .from('tenants')
@@ -92,23 +93,38 @@ class AuthService {
                     companyName = tenant.name;
                     // 🛡️ Se a empresa estiver suspensa, derruba o acesso técnico imediatamente
                     if (tenant.status === 'suspended') {
+                        isTenantSuspended = true;
                         techData.active = false;
                     }
                 }
+            }
+
+            // Fallback via RPC para checagem garantida de suspensão de empresa
+            if (!isTenantSuspended && email) {
+                try {
+                    const { data: rpcSuspended } = await supabase
+                        .rpc('check_tenant_suspended_by_email', { p_email: email.toLowerCase().trim() });
+                    if (rpcSuspended) {
+                        isTenantSuspended = true;
+                        if (techData) techData.active = false;
+                        if (!companyName) companyName = rpcSuspended;
+                    }
+                } catch (_) {}
             }
 
             // 5. Fallback if no record in DB yet (e.g. fresh user metadata)
             if (!techData) {
                 return {
                     id: userId,
-                    active: true,
+                    active: !isTenantSuspended,
                     name: email ? email.split('@')[0] : 'Técnico',
                     avatar: null,
-                    companyName: null,
+                    companyName: companyName,
+                    isTenantSuspended,
                 };
             }
 
-            return { ...techData, companyName };
+            return { ...techData, companyName, isTenantSuspended };
         } catch (e) {
             return {
                 id: userId,
@@ -116,6 +132,7 @@ class AuthService {
                 name: email ? email.split('@')[0] : 'Técnico',
                 avatar: null,
                 companyName: null,
+                isTenantSuspended: false,
             };
         }
     }
@@ -137,8 +154,8 @@ class AuthService {
 
                 const techData = await this.fetchTechProfile(session.user.id, session.user.email);
 
-                if (techData.active === false) {
-                    logger.log(`Session terminalized: User ${session.user.email} lost App Access rights.`, 'warn');
+                if (techData.isTenantSuspended || techData.active === false) {
+                    logger.log(`Session terminalized: User ${session.user.email} lost App Access rights (tenant suspended or inactive).`, 'warn');
                     await this.logout();
                     return false;
                 }
@@ -199,8 +216,16 @@ class AuthService {
 
             if (error) {
                 logger.log(`Supabase login error: ${error.message}`, 'error');
+                try {
+                    const { data: suspendedCo } = await supabase
+                        .rpc('check_tenant_suspended_by_email', { p_email: email.toLowerCase().trim() });
+                    if (suspendedCo) {
+                        return { success: false, errorType: 'TENANT_SUSPENDED' };
+                    }
+                } catch (_) {}
+
                 if (error.message.toLowerCase().includes('ban') || error.message.toLowerCase().includes('suspend')) {
-                    return { success: false, errorType: 'BLOCKED' };
+                    return { success: false, errorType: 'TENANT_SUSPENDED' };
                 }
                 return { success: false, errorType: 'INVALID_CREDENTIALS' };
             }
@@ -208,7 +233,22 @@ class AuthService {
             if (data.session) {
                 const techData = await this.fetchTechProfile(data.user.id, data.user.email);
 
+                if (techData.isTenantSuspended) {
+                    logger.log(`Login denied: Company is suspended.`, 'warn');
+                    await this.logout();
+                    return { success: false, errorType: 'TENANT_SUSPENDED' };
+                }
+
                 if (techData.active === false) {
+                    try {
+                        const { data: suspendedCo } = await supabase
+                            .rpc('check_tenant_suspended_by_email', { p_email: data.user.email?.toLowerCase().trim() });
+                        if (suspendedCo) {
+                            await this.logout();
+                            return { success: false, errorType: 'TENANT_SUSPENDED' };
+                        }
+                    } catch (_) {}
+
                     logger.log(`Login denied: Technician account is suspended.`, 'warn');
                     await this.logout();
                     return { success: false, errorType: 'BLOCKED' };

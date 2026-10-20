@@ -105,7 +105,9 @@ export default function LoginScreen() {
                     console.warn('[Login] Background lifecycle init warning:', err);
                 });
             } else {
-                if (result.errorType === 'BLOCKED') {
+                if (result.errorType === 'TENANT_SUSPENDED') {
+                    showAlert('Acesso Suspenso', "O acesso da sua empresa foi suspenso. Favor entrar em contato com o suporte.", 'alert-circle-outline', '#f59e0b');
+                } else if (result.errorType === 'BLOCKED') {
                     showAlert('Alerta!', "Usuário bloqueado pelo admin da empresa.");
                 } else if (result.errorType === 'SCOPE_BLOCKED') {
                     showAlert('Acesso Restrito', "Esta conta é exclusiva do painel web. Para acessar o app, solicite ao administrador a liberação de acesso mobile.", 'shield-outline', '#1c2d4f');
