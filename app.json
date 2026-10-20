@@ -2,7 +2,7 @@
   "expo": {
     "name": "Duno",
     "slug": "nexus-mobile",
-    "version": "3.1.40",
+    "version": "3.1.41",
     "orientation": "default",
     "backgroundColor": "#ffffff",
     "icon": "./assets/images/app-icon-duno-v6.png",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nexus.mobile",
-      "buildNumber": "3.1.40",
+      "buildNumber": "3.1.41",
       "infoPlist": {
         "CFBundleDevelopmentRegion": "pt_BR",
         "CFBundleAllowMixedLocalizations": true,
@@ -38,7 +38,7 @@
     },
     "android": {
       "package": "com.nexus.mobile",
-      "versionCode": 26,
+      "versionCode": 27,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
