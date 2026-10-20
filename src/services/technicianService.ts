@@ -324,9 +324,10 @@ export const TechnicianService = {
             let userId: string | null = null;
             let existingAuthUser: any = null;
 
+            const cleanEmail = (tech.email || '').trim().toLowerCase();
             try {
                 const { data: listData } = await adminAuthProxy.admin.listUsers();
-                existingAuthUser = (listData.users || []).find(u => u.email?.toLowerCase() === tech.email.toLowerCase());
+                existingAuthUser = (listData.users || []).find(u => u.email?.toLowerCase() === cleanEmail);
 
                 if (existingAuthUser) {
                     throw new Error("Este e-mail já está em uso por outra empresa. Para evitar conflitos de acesso, é necessário usar um outro e-mail.");
@@ -347,7 +348,7 @@ export const TechnicianService = {
                 // Provisionamento de novo usuário no Supabase Auth
                 const tempPassword = Math.random().toString(36).slice(-10) + 'A1!'; // Gera senha aleatória segura
                 const { data: authData, error: authError } = await adminAuthProxy.admin.createUser({
-                    email: tech.email.toLowerCase(),
+                    email: cleanEmail,
                     password: tempPassword,
                     user_metadata: {
                         name: tech.name,
@@ -363,7 +364,13 @@ export const TechnicianService = {
                     email_confirm: true
                 });
 
-                if (authError) throw authError;
+                if (authError) {
+                    const errText = (authError.message || '').toLowerCase();
+                    if (errText.includes('unable to validate email') || errText.includes('invalid format') || errText.includes('email address is invalid')) {
+                        throw new Error("Formato de e-mail inválido. Por favor, verifique se digitou o endereço de e-mail corretamente.");
+                    }
+                    throw authError;
+                }
                 userId = authData.user?.id || null;
             }
 
@@ -458,7 +465,7 @@ export const TechnicianService = {
 
             // Se o e-mail mudou, atualiza também
             if (tech.email) {
-                updateAuthData.email = tech.email.toLowerCase();
+                updateAuthData.email = tech.email.trim().toLowerCase();
             }
 
             const { error: authError } = await adminAuthProxy.admin.updateUserById(
@@ -468,6 +475,10 @@ export const TechnicianService = {
 
             if (authError) {
                 console.error("Erro ao atualizar Auth:", authError);
+                const errText = (authError.message || '').toLowerCase();
+                if (errText.includes('unable to validate email') || errText.includes('invalid format') || errText.includes('email address is invalid')) {
+                    throw new Error("Formato de e-mail inválido. Por favor, verifique se digitou o endereço de e-mail corretamente.");
+                }
                 throw authError;
             }
 

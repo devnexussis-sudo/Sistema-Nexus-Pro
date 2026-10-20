@@ -383,7 +383,7 @@ export const TenantService = {
                     tenant_id: tenantId,
                     name: 'Operadores',
                     description: 'Acesso completo aos módulos operacionais (OS, Orçamentos, Clientes, Ativos)',
-                    is_system: true,
+                    is_system: false,
                     permissions: {
                         orders: { create: true, read: true, update: true, delete: false },
                         customers: { create: true, read: true, update: true, delete: false },
@@ -798,7 +798,7 @@ export const TenantService = {
                         name: 'Operadores / Atendimento',
                         description: 'Acesso às rotas operacionais, ordens de serviço e clientes',
                         permissions: DEFAULT_PERMISSIONS,
-                        isSystem: true,
+                        isSystem: false,
                         active: true
                     }
                 ];
@@ -955,6 +955,13 @@ export const TenantService = {
             } else {
                 console.warn("⚠️ adminAuthProxy.createUser notice:", authError?.message || authError);
 
+                if (authError) {
+                    const errText = (authError.message || '').toLowerCase();
+                    if (errText.includes('unable to validate email') || errText.includes('invalid format') || errText.includes('email address is invalid')) {
+                        throw new Error("Formato de e-mail inválido. Por favor, verifique se digitou o endereço de e-mail corretamente.");
+                    }
+                }
+
                 // 2. Se o e-mail já existir no Auth, recupera o UID e atualiza o metadata
                 try {
                     const { data: listData } = await adminAuthProxy.admin.listUsers();
@@ -975,10 +982,20 @@ export const TenantService = {
                             }
                         }).catch(() => {});
                     } else if (authError) {
+                        const errText = (authError.message || '').toLowerCase();
+                        if (errText.includes('unable to validate email') || errText.includes('invalid format') || errText.includes('email address is invalid')) {
+                            throw new Error("Formato de e-mail inválido. Por favor, verifique se digitou o endereço de e-mail corretamente.");
+                        }
                         throw authError;
                     }
                 } catch (e: any) {
-                    if (authError) throw authError;
+                    if (authError) {
+                        const errText = (authError.message || '').toLowerCase();
+                        if (errText.includes('unable to validate email') || errText.includes('invalid format') || errText.includes('email address is invalid')) {
+                            throw new Error("Formato de e-mail inválido. Por favor, verifique se digitou o endereço de e-mail corretamente.");
+                        }
+                        throw authError;
+                    }
                     throw e;
                 }
             }

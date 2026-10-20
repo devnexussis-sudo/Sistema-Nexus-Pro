@@ -34,6 +34,7 @@ export const TechnicianManagement: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
 
+  const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState<any>({
     name: '', email: '', avatar: '', active: true, phone: '', jobTitle: ''
   });
@@ -42,8 +43,8 @@ export const TechnicianManagement: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 12;
 
-  const loadTechs = async () => {
-    setLoading(true);
+  const loadTechs = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const techs = await DataService.getAllTechnicians(undefined, undefined, true);
       setTechnicians(techs || []);
@@ -54,7 +55,7 @@ export const TechnicianManagement: React.FC = () => {
     } catch (error) {
       console.error("Erro ao carregar técnicos:", error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -65,7 +66,7 @@ export const TechnicianManagement: React.FC = () => {
     TechnicianService.backfillMissingCodes().then((count) => {
       if (count > 0) {
         console.log(`[TechnicianManagement] Backfill atribuiu códigos a ${count} técnicos/usuários.`);
-        loadTechs();
+        loadTechs(true);
       }
     }).catch(console.warn);
   }, []);
@@ -106,34 +107,44 @@ export const TechnicianManagement: React.FC = () => {
     e.preventDefault();
     setSaveError(null);
 
+    const cleanEmail = (formData.email || '').trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+      const msg = "Formato de e-mail inválido. Por favor, verifique se digitou o endereço de e-mail corretamente.";
+      setSaveError(msg);
+      alert(msg);
+      return;
+    }
+
     try {
-      setLoading(true);
+      setIsSaving(true);
       console.log("=== INICIANDO SALVAMENTO DE TÉCNICO ===");
-      console.log("Dados do Form:", formData);
+      const payload = { ...formData, email: cleanEmail };
+      console.log("Dados do Form:", payload);
 
       if (editingId) {
         // Validação de Limite de Licenças na Edição (tentando reativar)
         const tenant = await DataService.getTenantById();
         if (tenant && tenant.max_technicians !== undefined && tenant.max_technicians > 0) {
            const countToEvaluate = technicians.filter(t => t.id !== editingId && t.active).length;
-           if (formData.active && countToEvaluate >= tenant.max_technicians) {
+           if (payload.active && countToEvaluate >= tenant.max_technicians) {
                throw new Error(`Limite de licenças excedido! O plano atual permite no máximo ${tenant.max_technicians} técnico(s) ativo(s). Desative ou remova um técnico antigo ou faça um upgrade.`);
            }
         }
-        await DataService.updateTechnician({ ...formData, id: editingId });
+        await DataService.updateTechnician({ ...payload, id: editingId });
       } else {
         // Validação de Limite de Licenças na Criação
         const tenant = await DataService.getTenantById();
         if (tenant && tenant.max_technicians !== undefined && tenant.max_technicians > 0) {
            const countToEvaluate = technicians.filter(t => t.active).length;
-           if (formData.active && countToEvaluate >= tenant.max_technicians) {
+           if (payload.active && countToEvaluate >= tenant.max_technicians) {
                throw new Error(`Limite de licenças excedido! O plano atual permite no máximo ${tenant.max_technicians} técnico(s) ativo(s) no total. Remova ou desative um técnico antigo ou contate o suporte para upgrade.`);
            }
         }
-        await DataService.createTechnician(formData);
+        await DataService.createTechnician(payload);
       }
 
-      await loadTechs();
+      await loadTechs(true);
       setIsModalOpen(false);
       setEditingId(null);
       setIsReadOnly(false);
@@ -142,13 +153,16 @@ export const TechnicianManagement: React.FC = () => {
     } catch (error: any) {
       console.error("❌ ERRO FATAL AO SALVAR TÉCNICO:", error);
       let msg = error?.message || "Erro desconhecido no sistema.";
-      if (msg.includes("already been registered")) {
+      const lower = msg.toLowerCase();
+      if (lower.includes("already been registered") || lower.includes("already registered") || lower.includes("já está em uso")) {
         msg = "Este e-mail já está em uso por outra empresa. Para evitar conflitos de acesso, é necessário usar um outro e-mail.";
+      } else if (lower.includes("unable to validate email") || lower.includes("invalid format") || lower.includes("email address is invalid")) {
+        msg = "Formato de e-mail inválido. Por favor, verifique se digitou o endereço de e-mail corretamente.";
       }
       setSaveError(msg);
-      alert(msg); // <--- Adicionado para garantir que o usuário veja
+      alert(msg);
     } finally {
-      setLoading(false);
+      setIsSaving(false);
     }
   };
 
@@ -551,7 +565,7 @@ export const TechnicianManagement: React.FC = () => {
                             required
                             disabled={isReadOnly}
                             type="email"
-                            placeholder="tecnico@nexus.pro"
+                            placeholder="tecnico@duno.pro"
                             value={formData.email}
                             onChange={e => setFormData({ ...formData, email: e.target.value })}
                             className="rounded-xl py-2 text-xs font-normal border-slate-300 bg-white text-slate-800 focus:border-[#1c2d4f] focus:ring-2 focus:ring-[#1c2d4f]/10 shadow-xs disabled:bg-slate-50"
@@ -653,11 +667,11 @@ export const TechnicianManagement: React.FC = () => {
                 {!isReadOnly && (
                   <Button
                     onClick={handleSubmit as any}
-                    disabled={loading}
+                    disabled={isSaving}
                     className="h-9 px-6 rounded-xl text-xs font-semibold bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white disabled:opacity-70 disabled:cursor-not-allowed transition-all shadow-xs"
                   >
-                    {loading ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Save size={14} className="mr-2" />}
-                    {loading ? 'Salvando...' : editingId ? 'Salvar Alterações' : 'Confirmar Cadastro'}
+                    {isSaving ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Save size={14} className="mr-2" />}
+                    {isSaving ? 'Salvando...' : editingId ? 'Salvar Alterações' : 'Confirmar Cadastro'}
                   </Button>
                 )}
               </div>

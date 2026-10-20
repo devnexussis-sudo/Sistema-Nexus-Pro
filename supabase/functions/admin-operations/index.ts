@@ -251,7 +251,7 @@ serve(async (req: Request) => {
                             tenant_id: tenantId,
                             name: 'Operadores',
                             description: 'Acesso completo aos módulos operacionais (OS, Orçamentos, Clientes, Ativos)',
-                            is_system: true,
+                            is_system: false,
                             active: true,
                             permissions: {
                                 orders: { create: true, read: true, update: true, delete: false },

@@ -695,7 +695,7 @@ export const UserManagement: React.FC = () => {
       );
     }
     if (selectedGroup) {
-      const isMasterGroup = selectedGroup.name.toLowerCase() === 'administradores' || selectedGroup.isSystem;
+      const isMasterGroup = selectedGroup.name.toLowerCase() === 'administradores';
       const groupUsers = users.filter(u => (u.groupIds || []).includes(selectedGroup.id) || u.groupId === selectedGroup.id);
       return (
         <PermissionEditor
@@ -958,80 +958,96 @@ export const UserManagement: React.FC = () => {
                     filteredGroups.map((group) => (
                       <tr key={group.id} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md">
                         <td className="px-4 py-2 text-left">
-                          <div className="flex items-center gap-3">
-                            <div className="shrink-0">
-                              <div className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${group.isSystem ? 'bg-amber-50 border-amber-200 text-amber-500' : 'bg-slate-50 border-slate-200 text-slate-400 group-hover:text-[#1c2d4f] group-hover:bg-white group-hover:border-[#1c2d4f]/20'}`}>
-                                {group.isSystem ? <ShieldCheck size={16} /> : <FolderTree size={16} />}
+                          {(() => {
+                            const isMaster = (group.name || '').trim().toLowerCase() === 'administradores';
+                            return (
+                              <div className="flex items-center gap-3">
+                                <div className="shrink-0">
+                                  <div className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${isMaster ? 'bg-amber-50 border-amber-200 text-amber-500' : 'bg-slate-50 border-slate-200 text-slate-400 group-hover:text-[#1c2d4f] group-hover:bg-white group-hover:border-[#1c2d4f]/20'}`}>
+                                    {isMaster ? <ShieldCheck size={16} /> : <FolderTree size={16} />}
+                                  </div>
+                                </div>
+                                <div className="truncate text-left">
+                                  <p className="text-[13px] font-medium text-slate-900 truncate max-w-[250px]">{group.name}</p>
+                                  <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[300px]">{group.description}</p>
+                                </div>
                               </div>
-                            </div>
-                            <div className="truncate text-left">
-                              <p className="text-[13px] font-medium text-slate-900 truncate max-w-[250px]">{group.name}</p>
-                              <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[300px]">{group.description}</p>
-                            </div>
-                          </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-4 py-2 text-left whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium border ${group.isSystem ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
-                              {group.isSystem ? 'Sistema Protegido' : 'Customizado'}
-                            </span>
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium border ${group.active === false ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${group.active === false ? 'bg-rose-500' : 'bg-emerald-500'}`} />
-                              {group.active === false ? 'Inativo' : 'Ativo'}
-                            </span>
-                          </div>
+                          {(() => {
+                            const isMaster = (group.name || '').trim().toLowerCase() === 'administradores';
+                            const isDefaultOp = (group.name || '').trim().toLowerCase() === 'operadores';
+                            return (
+                              <div className="flex items-center gap-2">
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium border ${isMaster ? 'bg-amber-50 text-amber-700 border-amber-200' : isDefaultOp ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                                  {isMaster ? 'Sistema Protegido' : isDefaultOp ? 'Padrão' : 'Customizado'}
+                                </span>
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium border ${group.active === false ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${group.active === false ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+                                  {group.active === false ? 'Inativo' : 'Ativo'}
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-4 py-2 text-right pr-4">
-                          <div className="flex items-center justify-end gap-1 transition-all">
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                if (group.isSystem) {
-                                  alert("Grupos do sistema são protegidos e não podem ser desativados.");
-                                  return;
-                                }
-                                const newActive = group.active === false ? true : false;
-                                const actionText = newActive ? 'ativar' : 'inativar';
-                                if (!confirm(`Deseja realmente ${actionText} o grupo "${group.name}"?`)) return;
-                                try {
-                                  await TenantService.updateUserGroup({ ...group, active: newActive });
-                                  await loadData();
-                                } catch (err: any) {
-                                  alert("Erro ao alterar status do grupo: " + err.message);
-                                }
-                              }}
-                              disabled={group.isSystem}
-                              className={`p-1.5 bg-slate-50 rounded-lg border border-slate-200/60 transition-all ${group.isSystem ? 'opacity-40 cursor-not-allowed text-slate-300' : group.active === false ? 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-100' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-100'}`}
-                              title={group.isSystem ? "Grupo protegido" : group.active === false ? "Ativar Grupo" : "Inativar Grupo"}
-                            >
-                              {group.active === false ? <Power size={15} /> : <PowerOff size={15} />}
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingGroup(group);
-                                setGroupFormData({ name: group.name, description: group.description });
-                                setIsGroupModalOpen(true);
-                              }}
-                              className="p-1.5 bg-slate-50 text-slate-400 hover:text-primary-700 hover:bg-primary-100 rounded-lg border border-slate-200/60 transition-all"
-                              title="Editar Nome e Descrição"
-                            >
-                              <Edit3 size={15} />
-                            </button>
-                            <button onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }} className="p-1.5 bg-slate-50 text-slate-400 hover:text-primary-700 hover:bg-primary-100 rounded-lg border border-slate-200/60 transition-all" title="Configurar Regras de Acesso">
-                              <Settings size={15} />
-                            </button>
-                            {!group.isSystem && (
-                              <button
-                                onClick={() => setGroupToDelete(group)}
-                                disabled={isSaving}
-                                className="p-1.5 bg-slate-50 text-slate-400 hover:text-rose-600 hover:bg-rose-100 rounded-lg border border-slate-200/60 transition-all"
-                                title="Excluir Grupo"
-                              >
-                                <Trash2 size={15} />
-                              </button>
-                            )}
-                          </div>
+                          {(() => {
+                            const isMaster = (group.name || '').trim().toLowerCase() === 'administradores';
+                            return (
+                              <div className="flex items-center justify-end gap-1 transition-all">
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    if (isMaster) {
+                                      alert("O grupo Administradores é protegido pelo sistema e não pode ser desativado.");
+                                      return;
+                                    }
+                                    const newActive = group.active === false ? true : false;
+                                    const actionText = newActive ? 'ativar' : 'inativar';
+                                    if (!confirm(`Deseja realmente ${actionText} o grupo "${group.name}"?`)) return;
+                                    try {
+                                      await TenantService.updateUserGroup({ ...group, active: newActive });
+                                      await loadData();
+                                    } catch (err: any) {
+                                      alert("Erro ao alterar status do grupo: " + err.message);
+                                    }
+                                  }}
+                                  disabled={isMaster}
+                                  className={`p-1.5 bg-slate-50 rounded-lg border border-slate-200/60 transition-all ${isMaster ? 'opacity-40 cursor-not-allowed text-slate-300' : group.active === false ? 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-100' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-100'}`}
+                                  title={isMaster ? "Grupo protegido" : group.active === false ? "Ativar Grupo" : "Inativar Grupo"}
+                                >
+                                  {group.active === false ? <Power size={15} /> : <PowerOff size={15} />}
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingGroup(group);
+                                    setGroupFormData({ name: group.name, description: group.description });
+                                    setIsGroupModalOpen(true);
+                                  }}
+                                  className="p-1.5 bg-slate-50 text-slate-400 hover:text-primary-700 hover:bg-primary-100 rounded-lg border border-slate-200/60 transition-all"
+                                  title="Editar Nome e Descrição"
+                                >
+                                  <Edit3 size={15} />
+                                </button>
+                                <button onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }} className="p-1.5 bg-slate-50 text-slate-400 hover:text-primary-700 hover:bg-primary-100 rounded-lg border border-slate-200/60 transition-all" title="Configurar Regras de Acesso">
+                                  <Settings size={15} />
+                                </button>
+                                {!isMaster && (
+                                  <button
+                                    onClick={() => setGroupToDelete(group)}
+                                    disabled={isSaving}
+                                    className="p-1.5 bg-slate-50 text-slate-400 hover:text-rose-600 hover:bg-rose-100 rounded-lg border border-slate-200/60 transition-all"
+                                    title="Excluir Grupo"
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                       </tr>
                     ))
@@ -1164,74 +1180,87 @@ export const UserManagement: React.FC = () => {
                     onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${group.isSystem ? 'bg-amber-50 border-amber-200 text-amber-500' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
-                          {group.isSystem ? <ShieldCheck size={18} /> : <FolderTree size={18} />}
-                        </div>
-                        <div className="min-w-0">
-                          <h3 className="text-sm font-bold text-slate-900 truncate leading-tight">{group.name}</h3>
-                          <p className="text-[11px] text-slate-500 truncate mt-0.5">{group.description || 'Sem descrição'}</p>
-                        </div>
-                      </div>
-                      <span className={`px-2.5 py-1 rounded-full text-[9px] font-bold border shrink-0 ${group.isSystem ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
-                        {group.isSystem ? 'Sistema' : 'Customizado'}
-                      </span>
+                      {(() => {
+                        const isMaster = (group.name || '').trim().toLowerCase() === 'administradores';
+                        const isDefaultOp = (group.name || '').trim().toLowerCase() === 'operadores';
+                        return (
+                          <>
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${isMaster ? 'bg-amber-50 border-amber-200 text-amber-500' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
+                                {isMaster ? <ShieldCheck size={18} /> : <FolderTree size={18} />}
+                              </div>
+                              <div className="min-w-0">
+                                <h3 className="text-sm font-bold text-slate-900 truncate leading-tight">{group.name}</h3>
+                                <p className="text-[11px] text-slate-500 truncate mt-0.5">{group.description || 'Sem descrição'}</p>
+                              </div>
+                            </div>
+                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-bold border shrink-0 ${isMaster ? 'bg-amber-50 text-amber-600 border-amber-200' : isDefaultOp ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                              {isMaster ? 'Sistema' : isDefaultOp ? 'Padrão' : 'Customizado'}
+                            </span>
+                          </>
+                        );
+                      })()}
                     </div>
 
                     <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
                       <span className="text-[10px] text-slate-400 font-medium">Toque para regras de acesso</span>
-                      <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-                        <button
-                          onClick={async () => {
-                            if (group.isSystem) {
-                              alert("Grupos do sistema são protegidos e não podem ser desativados.");
-                              return;
-                            }
-                            const newActive = group.active === false ? true : false;
-                            const actionText = newActive ? 'ativar' : 'inativar';
-                            if (!confirm(`Deseja realmente ${actionText} o grupo "${group.name}"?`)) return;
-                            try {
-                              await TenantService.updateUserGroup({ ...group, active: newActive });
-                              await loadData();
-                            } catch (err: any) {
-                              alert("Erro ao alterar status do grupo: " + err.message);
-                            }
-                          }}
-                          disabled={group.isSystem}
-                          className={`p-2 rounded-lg transition-colors ${group.isSystem ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-300' : group.active === false ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100' : 'text-amber-700 bg-amber-50 hover:bg-amber-100'}`}
-                          title={group.isSystem ? "Grupo protegido" : group.active === false ? "Ativar Grupo" : "Inativar Grupo"}
-                        >
-                          {group.active === false ? <Power size={14} /> : <PowerOff size={14} />}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditingGroup(group);
-                            setGroupFormData({ name: group.name, description: group.description });
-                            setIsGroupModalOpen(true);
-                          }}
-                          className="p-2 text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
-                          title="Editar Nome e Descrição"
-                        >
-                          <Edit3 size={14} />
-                        </button>
-                        <button
-                          onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }}
-                          className="p-2 text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
-                          title="Configurar Regras de Acesso"
-                        >
-                          <Settings size={14} />
-                        </button>
-                        {!group.isSystem && (
-                          <button
-                            onClick={() => setGroupToDelete(group)}
-                            disabled={isSaving}
-                            className="p-2 text-rose-500 bg-rose-50 rounded-lg hover:bg-rose-100 transition-colors"
-                            title="Excluir Grupo"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
-                      </div>
+                      {(() => {
+                        const isMaster = (group.name || '').trim().toLowerCase() === 'administradores';
+                        return (
+                          <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                            <button
+                              onClick={async () => {
+                                if (isMaster) {
+                                  alert("O grupo Administradores é protegido pelo sistema e não pode ser desativado.");
+                                  return;
+                                }
+                                const newActive = group.active === false ? true : false;
+                                const actionText = newActive ? 'ativar' : 'inativar';
+                                if (!confirm(`Deseja realmente ${actionText} o grupo "${group.name}"?`)) return;
+                                try {
+                                  await TenantService.updateUserGroup({ ...group, active: newActive });
+                                  await loadData();
+                                } catch (err: any) {
+                                  alert("Erro ao alterar status do grupo: " + err.message);
+                                }
+                              }}
+                              disabled={isMaster}
+                              className={`p-2 rounded-lg transition-colors ${isMaster ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-300' : group.active === false ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100' : 'text-amber-700 bg-amber-50 hover:bg-amber-100'}`}
+                              title={isMaster ? "Grupo protegido" : group.active === false ? "Ativar Grupo" : "Inativar Grupo"}
+                            >
+                              {group.active === false ? <Power size={14} /> : <PowerOff size={14} />}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingGroup(group);
+                                setGroupFormData({ name: group.name, description: group.description });
+                                setIsGroupModalOpen(true);
+                              }}
+                              className="p-2 text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
+                              title="Editar Nome e Descrição"
+                            >
+                              <Edit3 size={14} />
+                            </button>
+                            <button
+                              onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }}
+                              className="p-2 text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
+                              title="Configurar Regras de Acesso"
+                            >
+                              <Settings size={14} />
+                            </button>
+                            {!isMaster && (
+                              <button
+                                onClick={() => setGroupToDelete(group)}
+                                disabled={isSaving}
+                                className="p-2 text-rose-500 bg-rose-50 rounded-lg hover:bg-rose-100 transition-colors"
+                                title="Excluir Grupo"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 ))
@@ -1678,7 +1707,7 @@ export const UserManagement: React.FC = () => {
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-slate-900 tracking-tight leading-none">{editingGroup ? 'Editar Grupo' : 'Novo Grupo de Acesso'}</h2>
-                    <p className="text-[10px] text-slate-400 font-bold mt-0.5">Nexus Operacional • categorização de regras</p>
+                    <p className="text-[10px] text-slate-400 font-bold mt-0.5">Duno Operacional • categorização de regras</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">

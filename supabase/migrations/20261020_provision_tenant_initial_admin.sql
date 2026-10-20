@@ -152,7 +152,7 @@ BEGIN
             p_tenant_id,
             'Operadores',
             'Acesso completo aos módulos operacionais (OS, Orçamentos, Clientes, Ativos)',
-            true,
+            false,
             true,
             v_op_perms
         )
@@ -260,9 +260,15 @@ BEGIN
 
             IF NOT EXISTS (SELECT 1 FROM public.user_groups WHERE tenant_id = t.id AND lower(name) = 'operadores') THEN
                 INSERT INTO public.user_groups (tenant_id, name, description, is_system, active)
-                VALUES (t.id, 'Operadores', 'Acesso completo aos módulos operacionais', true, true);
+                VALUES (t.id, 'Operadores', 'Acesso completo aos módulos operacionais', false, true);
             END IF;
         END IF;
     END LOOP;
 END;
 $$;
+
+-- Garantir que todos os grupos de Operadores existentes não sejam marcados como protegidos do sistema
+UPDATE public.user_groups
+SET is_system = false
+WHERE lower(name) = 'operadores' AND is_system = true;
+
