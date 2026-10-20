@@ -1,13 +1,28 @@
 -- ==============================================================================
 -- 🚀 MIGRATION: 20261020_provision_tenant_initial_admin.sql
 -- DESCRIÇÃO:
--- 1. Cria a RPC SECURITY DEFINER `provision_tenant_initial_admin` para que todo
+-- 1. Garante a existência de colunas essenciais em `user_groups` (como `active`, `is_system`, `permissions`)
+--    e em `users` (como `group_id`, `group_ids`, `app_scope`, `user_code`, `active`).
+-- 2. Cria a RPC SECURITY DEFINER `provision_tenant_initial_admin` para que todo
 --    provisionamento de nova empresa cadastre atomicamente o admin no grupo 'Administradores'
 --    e na tabela de usuários públicos, contornando bloqueios de RLS cross-tenant.
--- 2. Executa BACKFILL imediato para garantir que todas as empresas existentes no banco
+-- 3. Executa BACKFILL imediato para garantir que todas as empresas existentes no banco
 --    tenham seus grupos 'Administradores' e 'Operadores' criados e seus usuários admin
 --    devidamente vinculados e visíveis na página de usuários.
 -- ==============================================================================
+
+-- 0. GARANTIR COLUNAS NAS TABELAS ENVOLVIDAS
+ALTER TABLE public.user_groups ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;
+ALTER TABLE public.user_groups ADD COLUMN IF NOT EXISTS is_system BOOLEAN DEFAULT false;
+ALTER TABLE public.user_groups ADD COLUMN IF NOT EXISTS permissions JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public.user_groups ADD COLUMN IF NOT EXISTS description TEXT;
+
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS group_id UUID;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS group_ids JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS user_code VARCHAR(10);
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS app_scope VARCHAR(20) DEFAULT 'WEB';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS avatar TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;
 
 -- 1. CRIAR A RPC ATÔMICA COM SECURITY DEFINER
 CREATE OR REPLACE FUNCTION public.provision_tenant_initial_admin(
@@ -37,7 +52,7 @@ BEGIN
     v_avatar := 'https://ui-avatars.com/api/?name=' || replace(v_display_name, ' ', '+') || '&background=1c2d4f&color=fff&bold=true';
     v_user_code := coalesce(nullif(trim(p_user_code), ''), substring(upper(md5(random()::text)) from 1 for 6));
 
-    -- Matriz de permissões padrão
+    -- Matriz de permissões padrão para Administradores
     v_admin_perms := '{
         "orders": {"create": true, "read": true, "update": true, "delete": true},
         "customers": {"create": true, "read": true, "update": true, "delete": true},
@@ -66,6 +81,7 @@ BEGIN
         }
     }'::jsonb;
 
+    -- Matriz de permissões padrão para Operadores
     v_op_perms := '{
         "orders": {"create": true, "read": true, "update": true, "delete": false},
         "customers": {"create": true, "read": true, "update": true, "delete": false},
