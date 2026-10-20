@@ -416,8 +416,7 @@ export const TenantService = {
                 }]);
 
                 await supabase.from('tenants').update({
-                    admin_email: targetEmail,
-                    admin_user_id: newUserId
+                    admin_email: targetEmail
                 }).eq('id', tenantId);
 
                 console.log(`[TenantService] ✅ Usuário admin e grupos provisionados via client direct!`);

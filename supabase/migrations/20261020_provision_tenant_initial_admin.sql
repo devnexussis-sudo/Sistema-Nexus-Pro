@@ -199,9 +199,7 @@ BEGIN
 
     -- 4. Atualizar registro do tenant
     UPDATE public.tenants
-    SET admin_email = v_clean_email,
-        admin_user_id = p_user_id,
-        updated_at = now()
+    SET admin_email = v_clean_email
     WHERE id = p_tenant_id;
 
     RETURN jsonb_build_object(

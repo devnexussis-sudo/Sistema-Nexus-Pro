@@ -302,7 +302,7 @@ serve(async (req: Request) => {
                 // Atualizar tenants
                 await adminClient
                     .from('tenants')
-                    .update({ admin_email: cleanEmail, admin_user_id: userId })
+                    .update({ admin_email: cleanEmail })
                     .eq('id', tenantId);
 
                 result = { success: true, user: savedUser, adminGroupId };
