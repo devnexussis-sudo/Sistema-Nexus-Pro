@@ -80,9 +80,37 @@ export function HeaderRightToggle() {
         }
     };
 
+    const [ordersMap, setOrdersMap] = useState<Record<string, any>>({});
+
+    const loadOrdersMap = async () => {
+        try {
+            const today = await syncService.getTodayOrders();
+            const map: Record<string, any> = {};
+            (today || []).forEach((o: any) => {
+                if (o?.id) map[o.id] = o;
+            });
+            setOrdersMap(map);
+        } catch (_) {}
+    };
+
+    const formatOrderDisplayTitle = (task: SyncTask): string => {
+        const raw = task.payload?.displayId || task.payload?.display_id || task.payload?.os_number;
+        if (raw && typeof raw === 'string' && raw.trim() !== '' && raw !== task.orderId && raw.length <= 25) {
+            return raw.toUpperCase().startsWith('OS') ? raw : `OS-${raw}`;
+        }
+        const cached = ordersMap[task.orderId];
+        if (cached?.displayId || cached?.display_id) {
+            const d = String(cached.displayId || cached.display_id).trim();
+            return d.toUpperCase().startsWith('OS') ? d : `OS-${d}`;
+        }
+        const shortId = task.orderId ? task.orderId.substring(0, 8).toUpperCase() : 'N/A';
+        return `OS-${shortId}`;
+    };
+
     useEffect(() => {
         checkUnreadNotifications();
         refreshQueue();
+        loadOrdersMap();
 
         const unNotif = DeviceEventEmitter?.addListener?.('refreshNotifications', checkUnreadNotifications);
         const unNet = NetInfo.addEventListener(s => setIsConnected(!!s.isConnected));
@@ -581,7 +609,7 @@ export function HeaderRightToggle() {
                                                         }
                                                     />
                                                     <Text style={styles.queueItemTitle} numberOfLines={1}>
-                                                        OS #{task.orderId ? task.orderId.slice(-6).toUpperCase() : 'N/A'}
+                                                        {formatOrderDisplayTitle(task)}
                                                     </Text>
                                                     <Text style={styles.queueItemType}>
                                                         {task.type === 'complete_os' ? 'Conclusão' : 'Impedimento'}

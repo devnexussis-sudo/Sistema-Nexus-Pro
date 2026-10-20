@@ -12,6 +12,8 @@ import {
   Keyboard,
   useColorScheme,
   Modal,
+  Animated,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -20,6 +22,18 @@ import { supabase } from '@/services/supabase';
 import { searchKnowledgeBase, getAvailableManuals, ManualSummary } from '@/services/duno-ai/dunoQueryService';
 import { useLanguage } from '@/services/i18n';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// Importação condicional para suporte nativo a transcrição de voz
+let ExpoSpeechRecognitionModule: any = null;
+let useSpeechRecognitionEvent: any = (event: string, callback: any) => {};
+
+try {
+  const Speech = require('expo-speech-recognition');
+  ExpoSpeechRecognitionModule = Speech.ExpoSpeechRecognitionModule;
+  useSpeechRecognitionEvent = Speech.useSpeechRecognitionEvent || useSpeechRecognitionEvent;
+} catch (e) {
+  console.warn('ExpoSpeechRecognition native module not found.');
+}
 
 // ── Types ──
 interface Message {
@@ -139,6 +153,102 @@ export default function DunoAIScreen() {
 
   const router = useRouter();
   const [activeOs, setActiveOs] = useState<{ id: string; displayId: string; customer?: string } | null>(null);
+
+  // ── Transcrição de Áudio para Texto (Voz) ──
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [isVoiceProcessing, setIsVoiceProcessing] = useState(false);
+  const voicePulseAnim = useRef(new Animated.Value(1)).current;
+  const inputRef = useRef(input);
+  inputRef.current = input;
+
+  useEffect(() => {
+    if (isRecordingVoice) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(voicePulseAnim, { toValue: 1.25, duration: 600, useNativeDriver: true }),
+          Animated.timing(voicePulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      voicePulseAnim.setValue(1);
+      voicePulseAnim.stopAnimation();
+    }
+  }, [isRecordingVoice, voicePulseAnim]);
+
+  useSpeechRecognitionEvent('start', () => {
+    setIsRecordingVoice(true);
+    setIsVoiceProcessing(false);
+  });
+
+  useSpeechRecognitionEvent('end', () => {
+    setIsRecordingVoice(false);
+    setIsVoiceProcessing(false);
+  });
+
+  useSpeechRecognitionEvent('error', (event: any) => {
+    setIsRecordingVoice(false);
+    setIsVoiceProcessing(false);
+    const errMsg = event?.error || '';
+    const isIgnored = errMsg.includes('no-speech') || errMsg.includes('aborted') || errMsg.includes('network');
+    if (!isIgnored) {
+      console.warn('[DunoIA] Voice Error:', event);
+      Alert.alert('Aviso', 'Não foi possível entender o áudio. Por favor, tente novamente.');
+    }
+  });
+
+  useSpeechRecognitionEvent('result', (event: any) => {
+    if (event.results && event.results.length > 0) {
+      const transcript = event.results[0]?.transcript || '';
+      if (transcript && event.isFinal) {
+        const currentText = inputRef.current || '';
+        const prefix = currentText.length > 0 && !currentText.endsWith(' ') ? ' ' : '';
+        setInput(currentText + prefix + transcript);
+      }
+    }
+  });
+
+  const toggleVoiceRecording = async () => {
+    if (!ExpoSpeechRecognitionModule) {
+      Alert.alert(
+        'Funcionalidade Indisponível',
+        'A digitação por voz requer que o aplicativo seja compilado (não funciona no Expo Go).'
+      );
+      return;
+    }
+
+    if (isRecordingVoice) {
+      try {
+        ExpoSpeechRecognitionModule.stop();
+      } catch (_) {}
+      setIsRecordingVoice(false);
+      setIsVoiceProcessing(false);
+      return;
+    }
+
+    try {
+      const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!result.granted) {
+        Alert.alert(
+          'Permissão Negada',
+          'A permissão de acesso ao microfone é necessária para usar a transcrição de voz.'
+        );
+        return;
+      }
+
+      let voiceLang = 'pt-BR';
+      const currentLocale = typeof language === 'string' ? language.toLowerCase() : '';
+      if (currentLocale.startsWith('en')) voiceLang = 'en-US';
+      else if (currentLocale.startsWith('es')) voiceLang = 'es-ES';
+
+      setIsVoiceProcessing(true);
+      ExpoSpeechRecognitionModule.start({ lang: voiceLang });
+    } catch (e: any) {
+      console.warn('[DunoIA] Voice start error:', e);
+      setIsRecordingVoice(false);
+      setIsVoiceProcessing(false);
+      Alert.alert('Erro ao Iniciar Voz', `Não foi possível iniciar o microfone.\n(${e?.message || 'Erro interno'})`);
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -449,8 +559,12 @@ export default function DunoAIScreen() {
             style={[styles.textInput, isDark && styles.textInputDark]}
             value={input}
             onChangeText={setInput}
-            placeholder={(t('aiInputPlaceholder') || '').replace('%s', firstName)}
-            placeholderTextColor={isDark ? '#64748b' : '#94a3b8'}
+            placeholder={
+              isRecordingVoice
+                ? 'Gravando áudio... Fale agora'
+                : (t('aiInputPlaceholder') || '').replace('%s', firstName)
+            }
+            placeholderTextColor={isRecordingVoice ? '#ef4444' : (isDark ? '#64748b' : '#94a3b8')}
             multiline
             maxLength={1000}
             returnKeyType="send"
@@ -460,6 +574,28 @@ export default function DunoAIScreen() {
               setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
             }}
           />
+
+          {/* Botão de Transcrição de Áudio (Microfone) */}
+          <Pressable
+            style={[
+              styles.micButton,
+              isDark && styles.micButtonDark,
+              isRecordingVoice && styles.micButtonActive,
+            ]}
+            onPress={toggleVoiceRecording}
+            hitSlop={6}
+          >
+            {isRecordingVoice ? (
+              <Animated.View style={{ transform: [{ scale: voicePulseAnim }] }}>
+                <Ionicons name="stop-circle" size={22} color="#ffffff" />
+              </Animated.View>
+            ) : isVoiceProcessing ? (
+              <ActivityIndicator size="small" color={isDark ? '#38bdf8' : '#1c2d4f'} />
+            ) : (
+              <Ionicons name="mic" size={20} color={isDark ? '#cbd5e1' : '#1c2d4f'} />
+            )}
+          </Pressable>
+
           <Pressable
             style={[
               styles.sendButton,
@@ -887,6 +1023,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f172a',
     color: '#f1f5f9',
     borderColor: '#334155',
+  },
+  micButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
+  micButtonDark: {
+    backgroundColor: '#1e293b',
+    borderColor: '#334155',
+  },
+  micButtonActive: {
+    backgroundColor: '#ef4444',
+    borderColor: '#dc2626',
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    elevation: 4,
   },
   sendButton: {
     width: 44,

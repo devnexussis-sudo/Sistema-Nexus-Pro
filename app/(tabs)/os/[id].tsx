@@ -745,6 +745,7 @@ export default function OrderDetailsScreen() {
                         reason: impedimentReason.trim(),
                         blockPhotoUrls: impedimentPhotoUris,
                         tenantId: order.tenantId,
+                        displayId: order.displayId || (order as any).display_id || (order as any).os_number || order.id,
                     },
                     localPhotos: localPhotosToSync
                 });

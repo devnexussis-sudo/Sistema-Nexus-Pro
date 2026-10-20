@@ -303,7 +303,23 @@ class SyncService {
 
             for (let i = 0; i < pendingTasks.length; i++) {
                 const task = pendingTasks[i];
-                const displayId = task.payload?.displayId || task.orderId;
+                let displayId = task.payload?.displayId;
+                if (!displayId || displayId === task.orderId || (typeof displayId === 'string' && displayId.length > 25)) {
+                    try {
+                        const cached = await this.getOrderDetail(task.orderId);
+                        if (cached?.displayId) displayId = cached.displayId;
+                        else if (cached?.display_id) displayId = cached.display_id;
+                        else {
+                            const today = await this.getTodayOrders();
+                            const found = today.find((o: any) => o.id === task.orderId);
+                            if (found?.displayId || found?.display_id) displayId = found.displayId || found.display_id;
+                        }
+                    } catch (_) {}
+                }
+                if (!displayId || displayId === task.orderId || (typeof displayId === 'string' && displayId.length > 25)) {
+                    displayId = `OS-${task.orderId.substring(0, 8).toUpperCase()}`;
+                }
+                if (task.payload) task.payload.displayId = displayId;
 
                 // Checa conectividade antes de cada OS
                 const currentNet = await NetInfo.fetch();
@@ -448,6 +464,24 @@ class SyncService {
             status: 'pending',
             createdAt: Date.now(),
         };
+
+        // Assegurar prefixo e número legível da OS no payload
+        if (!newTask.payload) newTask.payload = {};
+        if (!newTask.payload.displayId || newTask.payload.displayId === newTask.orderId || (typeof newTask.payload.displayId === 'string' && newTask.payload.displayId.length > 25)) {
+            try {
+                const cached = await this.getOrderDetail(newTask.orderId);
+                if (cached?.displayId) newTask.payload.displayId = cached.displayId;
+                else if (cached?.display_id) newTask.payload.displayId = cached.display_id;
+                else {
+                    const today = await this.getTodayOrders();
+                    const found = today.find((o: any) => o.id === newTask.orderId);
+                    if (found?.displayId || found?.display_id) newTask.payload.displayId = found.displayId || found.display_id;
+                }
+            } catch (_) {}
+            if (!newTask.payload.displayId || newTask.payload.displayId === newTask.orderId || (typeof newTask.payload.displayId === 'string' && newTask.payload.displayId.length > 25)) {
+                newTask.payload.displayId = `OS-${newTask.orderId.substring(0, 8).toUpperCase()}`;
+            }
+        }
 
         // Cache local photos into document directory to ensure they aren't deleted by temp cache clearer
         let updatedPayloadString = JSON.stringify(newTask.payload);

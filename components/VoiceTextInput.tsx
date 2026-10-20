@@ -27,7 +27,7 @@ export const VoiceTextInput: React.FC<VoiceTextInputProps> = ({ onChangeText, va
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const { locale } = useI18n();
+  const { lang } = useI18n();
 
   const valueRef = useRef(value);
   valueRef.current = value;
@@ -60,11 +60,11 @@ export const VoiceTextInput: React.FC<VoiceTextInputProps> = ({ onChangeText, va
     setIsProcessing(false);
   });
 
-  useSpeechRecognitionEvent('error', (event) => {
+  useSpeechRecognitionEvent('error', (event: any) => {
     setIsRecording(false);
     setIsProcessing(false);
     
-    const errMsg = event.error || '';
+    const errMsg = event?.error || '';
     const isIgnored = errMsg.includes('no-speech') || errMsg.includes('aborted') || errMsg.includes('network');
     
     if (!isIgnored) {
@@ -73,7 +73,7 @@ export const VoiceTextInput: React.FC<VoiceTextInputProps> = ({ onChangeText, va
     }
   });
 
-  useSpeechRecognitionEvent('result', (event) => {
+  useSpeechRecognitionEvent('result', (event: any) => {
     if (event.results && event.results.length > 0) {
       // Pega o resultado mais confiável do primeiro item (transcrição final)
       const transcript = event.results[0]?.transcript || '';
@@ -110,7 +110,7 @@ export const VoiceTextInput: React.FC<VoiceTextInputProps> = ({ onChangeText, va
 
       // 2. Define idioma
       let voiceLang = 'pt-BR';
-      const currentLocale = typeof locale === 'string' ? locale.toLowerCase() : '';
+      const currentLocale = typeof lang === 'string' ? lang.toLowerCase() : '';
       if (currentLocale.startsWith('en')) voiceLang = 'en-US';
       else if (currentLocale.startsWith('es')) voiceLang = 'es-ES';
 
