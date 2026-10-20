@@ -67,13 +67,13 @@ class AuthService {
             if (!techData) {
                 const { data: userData } = await supabase
                     .from('users')
-                    .select('id, name, avatar, avatar_url, role, tenant_id')
+                    .select('id, active, name, avatar, avatar_url, role, tenant_id')
                     .eq('id', userId)
                     .maybeSingle();
                 if (userData) {
                     techData = {
                         id: userData.id,
-                        active: true,
+                        active: userData.active !== false,
                         name: userData.name,
                         avatar: userData.avatar || userData.avatar_url,
                         tenant_id: userData.tenant_id
@@ -83,8 +83,18 @@ class AuthService {
             
             let companyName = null;
             if (techData && techData.tenant_id) {
-                const { data: tenant } = await supabase.from('tenants').select('name').eq('id', techData.tenant_id).maybeSingle();
-                if (tenant) companyName = tenant.name;
+                const { data: tenant } = await supabase
+                    .from('tenants')
+                    .select('name, status')
+                    .eq('id', techData.tenant_id)
+                    .maybeSingle();
+                if (tenant) {
+                    companyName = tenant.name;
+                    // 🛡️ Se a empresa estiver suspensa, derruba o acesso técnico imediatamente
+                    if (tenant.status === 'suspended') {
+                        techData.active = false;
+                    }
+                }
             }
 
             // 5. Fallback if no record in DB yet (e.g. fresh user metadata)
