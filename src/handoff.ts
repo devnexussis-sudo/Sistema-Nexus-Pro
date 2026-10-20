@@ -14,6 +14,7 @@
 // ============================================================
 
 import SessionStorage from './lib/sessionStorage';
+import { supabase } from './lib/supabaseClient';
 
 // Tipagem global para o flag de impersonation
 declare global {
@@ -49,13 +50,35 @@ if (typeof window !== 'undefined' && SessionStorage.get('is_impersonating')) {
     SessionStorage.set('current_tenant', data.current_tenant);
     SessionStorage.set('is_impersonating', true);
 
-    // ── 3. Copia sessão Supabase Auth (token JWT) para esta aba ──
-    // O Supabase SDK lê de customStorage que checa sessionStorage primeiro.
-    // Sem isso, o SDK emite SIGNED_OUT e o AuthContext limpa tudo.
+    if (data.master_session_token) {
+      SessionStorage.set('master_session_token', data.master_session_token);
+      try {
+        sessionStorage.setItem('master_session_token', data.master_session_token);
+        localStorage.setItem('master_session_token', data.master_session_token);
+      } catch (e) {}
+    }
+
+    if (data.master_session_v2) {
+      SessionStorage.set('master_session_v2', true);
+    }
+
+    // ── 3. Copia e estabelece sessão Supabase Auth (token JWT) para esta aba ──
     if (data.supabase_auth) {
       window.sessionStorage.setItem('nexus-line-auth', data.supabase_auth);
       try {
         window.localStorage.setItem('nexus-line-auth', data.supabase_auth);
+        const parsed = typeof data.supabase_auth === 'string' ? JSON.parse(data.supabase_auth) : data.supabase_auth;
+        const accessToken = parsed?.access_token || parsed?.currentSession?.access_token || parsed?.session?.access_token;
+        const refreshToken = parsed?.refresh_token || parsed?.currentSession?.refresh_token || parsed?.session?.refresh_token;
+
+        if (accessToken && refreshToken) {
+          supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          }).catch(err => {
+            console.warn('[Handoff] Aviso ao estabelecer sessão Supabase na aba filha:', err);
+          });
+        }
       } catch (e) {}
     }
 
@@ -65,7 +88,7 @@ if (typeof window !== 'undefined' && SessionStorage.get('is_impersonating')) {
     // ── 5. Limpa hash para o React Router não quebrar ──
     window.location.hash = '#/admin';
 
-    console.log('[Handoff] ✅ Impersonation ativa para tenant:', data.current_tenant);
+    console.log('[Handoff] ✅ Impersonation ativa e autenticação estabelecida para tenant:', data.current_tenant);
   } catch (e) {
     console.error('[Handoff] ❌ Erro:', e);
   }

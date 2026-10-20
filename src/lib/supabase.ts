@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { supabase, ensureValidSession, supabaseDiagnostics } from './supabaseClient';
 import type { DbUserInsert } from '../types/database';
+import { SessionStorage } from './sessionStorage';
 
 // Export the main singleton and resilience helpers for the application
 export { supabase, ensureValidSession, supabaseDiagnostics };
@@ -40,19 +41,61 @@ const EDGE_FUNCTION_URL = import.meta.env.VITE_EDGE_FUNCTION_URL ||
     `${safeUrl}/functions/v1/admin-operations`;
 
 async function getUserToken(): Promise<string | null> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) return session.access_token;
+    // 1. Tenta pegar a sessão ativa oficial do Supabase Auth
     try {
-        const token = sessionStorage.getItem('master_session_token');
-        if (token) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) return session.access_token;
+    } catch {}
+
+    // 2. Tenta obter o Master Session Token via SessionStorage (isolado por aba)
+    try {
+        const masterToken = SessionStorage.get<string>('master_session_token');
+        if (masterToken && typeof masterToken === 'string' && masterToken.trim().length > 0) {
+            return masterToken.trim();
+        }
+    } catch {}
+
+    // 3. Tenta extrair token do storage persistido de autenticação ('nexus-line-auth')
+    try {
+        const rawAuth = sessionStorage.getItem('nexus-line-auth') || localStorage.getItem('nexus-line-auth');
+        if (rawAuth) {
+            const parsed = JSON.parse(rawAuth);
+            const token = parsed?.access_token || parsed?.currentSession?.access_token || parsed?.session?.access_token;
+            if (token && typeof token === 'string') return token.trim();
+        }
+    } catch {}
+
+    // 4. Fallbacks em sessionStorage e localStorage brutos para master_session_token
+    try {
+        const directToken = sessionStorage.getItem('master_session_token') || localStorage.getItem('master_session_token');
+        if (directToken) {
             try {
-                const parsed = JSON.parse(token);
-                return typeof parsed === 'string' ? parsed : token;
+                const parsed = JSON.parse(directToken);
+                if (typeof parsed === 'string' && parsed.trim().length > 0) return parsed.trim();
             } catch {
-                return token;
+                if (directToken.trim().length > 0) return directToken.trim();
             }
         }
     } catch {}
+
+    // 5. Varredura por chaves dinâmicas com prefixo de sessão (ex: session-xxx_master_session_token)
+    try {
+        for (let i = 0; i < sessionStorage.length; i++) {
+            const key = sessionStorage.key(i);
+            if (key && key.endsWith('_master_session_token')) {
+                const raw = sessionStorage.getItem(key);
+                if (raw) {
+                    try {
+                        const parsed = JSON.parse(raw);
+                        if (typeof parsed === 'string' && parsed.trim().length > 0) return parsed.trim();
+                    } catch {
+                        if (raw.trim().length > 0) return raw.trim();
+                    }
+                }
+            }
+        }
+    } catch {}
+
     return null;
 }
 

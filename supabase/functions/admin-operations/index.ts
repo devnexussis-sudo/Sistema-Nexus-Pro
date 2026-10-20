@@ -34,29 +34,50 @@ serve(async (req: Request) => {
         const authHeader = req.headers.get('Authorization');
         if (!authHeader) throw new Error('Cabeçalho de autorização ausente.');
 
-        const operatorClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
-            global: { headers: { Authorization: authHeader } }
-        });
-
-        const { data: { user: operator }, error: authError } = await operatorClient.auth.getUser();
-        if (authError || !operator) throw new Error("Operador não autenticado.");
-
+        const rawToken = authHeader.replace(/^Bearer\s+/i, '').trim();
+        const masterSecretToken = (Deno.env.get('MASTER_SESSION_TOKEN') || '').trim();
+        const masterEmail = (Deno.env.get('MASTER_EMAIL') || 'master@duno.com.br').trim();
         const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-        // 4. Verificar se o operador é Master / Global Admin
-        const isMasterRole = operator.user_metadata?.role === 'moros_admin' ||
-                             operator.user_metadata?.role === 'SUPER_ADMIN' ||
-                             operator.app_metadata?.role === 'moros_admin';
+        let operator: any = null;
+        let isGlobalAdmin = false;
 
-        let isGlobalAdmin = isMasterRole;
+        // 🛡️ A: Autenticação direta via MASTER_SESSION_TOKEN (Super Admin Master)
+        if (masterSecretToken && rawToken === masterSecretToken) {
+            isGlobalAdmin = true;
+            operator = {
+                id: 'master-superadmin',
+                email: masterEmail,
+                user_metadata: { role: 'SUPER_ADMIN' },
+                app_metadata: { role: 'SUPER_ADMIN' }
+            };
+            console.log(`[Admin Operations] 🛡️ Acesso autorizado diretamente via MASTER_SESSION_TOKEN`);
+        } else {
+            // 🛡️ B: Autenticação via JWT padrão do Supabase Auth
+            const operatorClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
+                global: { headers: { Authorization: authHeader } }
+            });
 
-        if (!isGlobalAdmin) {
-            const { data: globalAdminRow } = await adminClient
-                .from('global_admins')
-                .select('user_id')
-                .eq('user_id', operator.id)
-                .maybeSingle();
-            if (globalAdminRow) isGlobalAdmin = true;
+            const { data: { user: authUser }, error: authError } = await operatorClient.auth.getUser();
+            if (authError || !authUser) throw new Error("Operador não autenticado.");
+            operator = authUser;
+
+            // 4. Verificar se o operador é Master / Global Admin
+            const isMasterRole = operator.user_metadata?.role === 'moros_admin' ||
+                                 operator.user_metadata?.role === 'SUPER_ADMIN' ||
+                                 operator.app_metadata?.role === 'moros_admin' ||
+                                 (operator.email && operator.email.toLowerCase() === masterEmail.toLowerCase());
+
+            isGlobalAdmin = isMasterRole;
+
+            if (!isGlobalAdmin) {
+                const { data: globalAdminRow } = await adminClient
+                    .from('global_admins')
+                    .select('user_id')
+                    .eq('user_id', operator.id)
+                    .maybeSingle();
+                if (globalAdminRow) isGlobalAdmin = true;
+            }
         }
 
         let operatorTenantId: string | null = null;

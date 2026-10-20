@@ -201,6 +201,14 @@ export const TenantService = {
                 processedTenant.name = processedTenant.company_name as string;
             }
 
+            // 🛡️ Sincronização obrigatória de e-mail (admin_email + email)
+            const rawAdminEmail = processedTenant.admin_email || (tenantData as any).adminEmail || processedTenant.email || (tenant as any).adminEmail;
+            if (rawAdminEmail) {
+                const cleanEmail = (rawAdminEmail as string).trim().toLowerCase();
+                processedTenant.admin_email = cleanEmail;
+                processedTenant.email = cleanEmail;
+            }
+
             // 🛡️ Safely store max_ai_manuals inside metadata (JSONB) to prevent schema cache error
             if (processedTenant.max_ai_manuals !== undefined) {
                 const currentMeta = (processedTenant.metadata as Record<string, any>) || {};
@@ -416,7 +424,8 @@ export const TenantService = {
                 }]);
 
                 await supabase.from('tenants').update({
-                    admin_email: targetEmail
+                    admin_email: targetEmail,
+                    email: targetEmail
                 }).eq('id', tenantId);
 
                 console.log(`[TenantService] ✅ Usuário admin e grupos provisionados via client direct!`);
@@ -443,6 +452,15 @@ export const TenantService = {
                 if (key !== snakeKey && (rest as Record<string, unknown>)[snakeKey] !== undefined) return;
                 processedUpdate[snakeKey] = (rest as Record<string, unknown>)[key];
             });
+
+            // 🛡️ Sincronização obrigatória de e-mail (admin_email + email)
+            const rawAdminEmail = processedUpdate.admin_email || (rest as any).adminEmail || processedUpdate.email;
+            let normalizedAdminEmail: string | null = null;
+            if (rawAdminEmail) {
+                normalizedAdminEmail = (rawAdminEmail as string).trim().toLowerCase();
+                processedUpdate.admin_email = normalizedAdminEmail;
+                processedUpdate.email = normalizedAdminEmail;
+            }
 
             // 🛡️ Safely store max_ai_manuals inside metadata (JSONB) to prevent schema cache error
             if (processedUpdate.max_ai_manuals !== undefined) {
@@ -527,6 +545,36 @@ export const TenantService = {
                         .not('role', 'in', '("SUPER_ADMIN","moros_admin")');
                 } catch (cascadeErr) {
                     console.warn('[TenantService] Erro ao sincronizar status de técnicos/usuários:', cascadeErr);
+                }
+            }
+
+            // 🛡️ Sincronização do usuário ADMIN da empresa na tabela users e no Auth
+            if (normalizedAdminEmail) {
+                try {
+                    const { data: adminUsers } = await supabase
+                        .from('users')
+                        .select('id, email')
+                        .eq('tenant_id', id)
+                        .eq('role', 'ADMIN')
+                        .limit(1);
+
+                    if (adminUsers && adminUsers.length > 0) {
+                        const adminUser = adminUsers[0];
+                        if (adminUser.email.toLowerCase() !== normalizedAdminEmail) {
+                            await supabase
+                                .from('users')
+                                .update({ email: normalizedAdminEmail, updated_at: new Date().toISOString() })
+                                .eq('id', adminUser.id);
+
+                            await adminAuthProxy.admin.updateUserById(adminUser.id, {
+                                email: normalizedAdminEmail,
+                                user_metadata: { email: normalizedAdminEmail }
+                            }).catch(() => {});
+                            console.log(`[TenantService] ✅ Usuário ADMIN da empresa sincronizado para: ${normalizedAdminEmail}`);
+                        }
+                    }
+                } catch (syncErr) {
+                    console.warn('[TenantService] Aviso ao sincronizar usuário admin:', syncErr);
                 }
             }
 

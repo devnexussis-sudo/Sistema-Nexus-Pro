@@ -256,13 +256,16 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
 
     try {
       setIsSaving(true);
+      const cleanEmail = (formData.adminEmail || '').trim().toLowerCase();
       // Unified Mapping (Frontend -> Database Schema)
       const payload = {
         name: formData.companyName,
         company_name: formData.companyName,
         trading_name: formData.tradingName || formData.companyName,
         cnpj: formData.cnpj,
-        admin_email: formData.adminEmail,
+        admin_email: cleanEmail,
+        email: cleanEmail,
+        adminEmail: cleanEmail,
         phone: formData.phone,
         website: (formData as any).website || '',
         state_registration: (formData as any).stateRegistration || 'ISENTO',
@@ -401,13 +404,17 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
 
     // 3. Sistema de Handoff (Cross-Tab Impersonation)
     const token = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    const masterSessionToken = SessionStorage.get('master_session_token') || sessionStorage.getItem('master_session_token') || localStorage.getItem('master_session_token');
+    const authSession = localStorage.getItem('nexus-line-auth') || sessionStorage.getItem('nexus-line-auth');
     
     // Armazena temporariamente no localStorage para a nova aba capturar
     localStorage.setItem(`nexus_handoff_${token}`, JSON.stringify({
       user: masterAdminUser,
       is_impersonating: true,
       current_tenant: tenant.id,
-      supabase_auth: localStorage.getItem('nexus-line-auth') || sessionStorage.getItem('nexus-line-auth')
+      master_session_token: masterSessionToken,
+      master_session_v2: true,
+      supabase_auth: authSession
     }));
 
     // 4. Abre a nova aba passando o token pela URL
@@ -543,7 +550,29 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
             <NexusButton onClick={() => setIsMessageModalOpen(true)} variant="secondary" className="rounded-2xl px-4 py-2.5 font-bold uppercase tracking-wider text-[10px] bg-slate-800/60 hover:bg-slate-700/60 text-slate-200 border border-slate-700/80 transition-all flex items-center gap-1.5">
               <MessageSquare size={14} className="text-blue-400" /> Comunicado
             </NexusButton>
-            <NexusButton onClick={() => setIsModalOpen(true)} className="bg-[#1c2d4f] hover:bg-[#253a66] active:bg-[#162440] text-white rounded-2xl px-6 py-2.5 font-bold text-[10px] uppercase tracking-wider shadow-lg shadow-[#1c2d4f]/30 border border-blue-400/20 active:scale-95 transition-all">
+            <NexusButton
+              onClick={() => {
+                setEditingTenant(null);
+                setFormData({
+                  status: 'active',
+                  osPrefix: 'OS-',
+                  osStartNumber: 1000,
+                  adminEmail: '',
+                  companyName: '',
+                  tradingName: '',
+                  cnpj: '',
+                  phone: '',
+                  id: '',
+                  enabled_modules: {
+                    dashboard: true, orders: true, quotes: true, contracts: true,
+                    customers: true, equipments: true, stock: true, technicians: true,
+                    forms: true, users: true, settings: true
+                  }
+                });
+                setIsModalOpen(true);
+              }}
+              className="bg-[#1c2d4f] hover:bg-[#253a66] active:bg-[#162440] text-white rounded-2xl px-6 py-2.5 font-bold text-[10px] uppercase tracking-wider shadow-lg shadow-[#1c2d4f]/30 border border-blue-400/20 active:scale-95 transition-all"
+            >
               <Plus size={15} className="mr-1.5" /> Nova Empresa
             </NexusButton>
           </div>
