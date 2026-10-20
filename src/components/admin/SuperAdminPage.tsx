@@ -345,7 +345,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
     });
   };
 
-  const switchToTenant = (tenant: any) => {
+  const switchToTenant = async (tenant: any) => {
     // MECANISMO DE ACESSO DIRETO (IMPERSONATION)
     // 1. Injeta o Tenant ID no Session Storage (isolado por aba)
     SessionStorage.set('current_tenant', tenant.id);
@@ -405,7 +405,12 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
     // 3. Sistema de Handoff (Cross-Tab Impersonation)
     const token = Math.random().toString(36).substring(2) + Date.now().toString(36);
     const masterSessionToken = SessionStorage.get('master_session_token') || sessionStorage.getItem('master_session_token') || localStorage.getItem('master_session_token');
-    const authSession = localStorage.getItem('nexus-line-auth') || sessionStorage.getItem('nexus-line-auth');
+    
+    // Captura a sessão Supabase ativa oficial de forma assíncrona
+    const { data: { session: currentAuthSession } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
+    const authSession = currentAuthSession 
+      ? JSON.stringify(currentAuthSession) 
+      : (localStorage.getItem('nexus-line-auth') || sessionStorage.getItem('nexus-line-auth'));
     
     // Armazena temporariamente no localStorage para a nova aba capturar
     localStorage.setItem(`nexus_handoff_${token}`, JSON.stringify({

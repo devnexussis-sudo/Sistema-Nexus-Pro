@@ -30,11 +30,15 @@ serve(async (req: Request) => {
             throw new Error("Variáveis de ambiente (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY) não configuradas.");
         }
 
-        // 3. Verificar quem está chamando (Autenticação do Operador)
-        const authHeader = req.headers.get('Authorization');
-        if (!authHeader) throw new Error('Cabeçalho de autorização ausente.');
+        // 3. Ler Body antecipadamente para capturar tokens ou payloads
+        const body = await req.json().catch(() => ({}));
+        const { action, payload } = body;
 
+        const authHeader = req.headers.get('Authorization') || '';
+        const xMasterToken = (req.headers.get('x-master-token') || '').trim();
+        const bodyMasterToken = (body?.master_token || payload?.master_token || '').trim();
         const rawToken = authHeader.replace(/^Bearer\s+/i, '').trim();
+
         const masterSecretToken = (Deno.env.get('MASTER_SESSION_TOKEN') || '').trim();
         const masterEmail = (Deno.env.get('MASTER_EMAIL') || 'master@duno.com.br').trim();
         const adminClient = createClient(supabaseUrl, serviceRoleKey);
@@ -42,8 +46,14 @@ serve(async (req: Request) => {
         let operator: any = null;
         let isGlobalAdmin = false;
 
-        // 🛡️ A: Autenticação direta via MASTER_SESSION_TOKEN (Super Admin Master)
-        if (masterSecretToken && rawToken === masterSecretToken) {
+        // 🛡️ A: Autenticação direta via MASTER_SESSION_TOKEN (Header, x-master-token ou payload)
+        const isMasterTokenMatch = masterSecretToken && (
+            rawToken === masterSecretToken ||
+            xMasterToken === masterSecretToken ||
+            bodyMasterToken === masterSecretToken
+        );
+
+        if (isMasterTokenMatch) {
             isGlobalAdmin = true;
             operator = {
                 id: 'master-superadmin',
@@ -54,6 +64,8 @@ serve(async (req: Request) => {
             console.log(`[Admin Operations] 🛡️ Acesso autorizado diretamente via MASTER_SESSION_TOKEN`);
         } else {
             // 🛡️ B: Autenticação via JWT padrão do Supabase Auth
+            if (!authHeader) throw new Error('Cabeçalho de autorização ausente.');
+
             const operatorClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
                 global: { headers: { Authorization: authHeader } }
             });
@@ -101,10 +113,6 @@ serve(async (req: Request) => {
                 operatorTenantId = operator.user_metadata?.tenantId || operator.user_metadata?.tenant_id || null;
             }
         }
-
-        // 5. Processar o JSON
-        const body = await req.json().catch(() => ({}));
-        const { action, payload } = body;
 
         // Permissão: Ações de edição/criação/exclusão exigem perfil de Admin. Ação 'list_users' permite qualquer usuário autenticado do tenant.
         const canPerformAction = isGlobalAdmin || isAuthorized || (action === 'list_users' && !!operatorTenantId);

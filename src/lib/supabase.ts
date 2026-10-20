@@ -40,63 +40,79 @@ export const publicSupabase = createClient(safeUrl, safeKey, {
 const EDGE_FUNCTION_URL = import.meta.env.VITE_EDGE_FUNCTION_URL ||
     `${safeUrl}/functions/v1/admin-operations`;
 
-async function getUserToken(): Promise<string | null> {
+async function getAdminFetchConfig(): Promise<{ headers: Record<string, string>; masterToken?: string }> {
     // 1. Tenta pegar a sessão ativa oficial do Supabase Auth
+    let jwtToken: string | null = null;
     try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token) return session.access_token;
+        if (session?.access_token) jwtToken = session.access_token;
     } catch {}
 
-    // 2. Tenta obter o Master Session Token via SessionStorage (isolado por aba)
-    try {
-        const masterToken = SessionStorage.get<string>('master_session_token');
-        if (masterToken && typeof masterToken === 'string' && masterToken.trim().length > 0) {
-            return masterToken.trim();
-        }
-    } catch {}
-
-    // 3. Tenta extrair token do storage persistido de autenticação ('nexus-line-auth')
-    try {
-        const rawAuth = sessionStorage.getItem('nexus-line-auth') || localStorage.getItem('nexus-line-auth');
-        if (rawAuth) {
-            const parsed = JSON.parse(rawAuth);
-            const token = parsed?.access_token || parsed?.currentSession?.access_token || parsed?.session?.access_token;
-            if (token && typeof token === 'string') return token.trim();
-        }
-    } catch {}
-
-    // 4. Fallbacks em sessionStorage e localStorage brutos para master_session_token
-    try {
-        const directToken = sessionStorage.getItem('master_session_token') || localStorage.getItem('master_session_token');
-        if (directToken) {
-            try {
-                const parsed = JSON.parse(directToken);
-                if (typeof parsed === 'string' && parsed.trim().length > 0) return parsed.trim();
-            } catch {
-                if (directToken.trim().length > 0) return directToken.trim();
+    // 2. Extrai de storage de autenticação persistida ('nexus-line-auth')
+    if (!jwtToken) {
+        try {
+            const rawAuth = sessionStorage.getItem('nexus-line-auth') || localStorage.getItem('nexus-line-auth');
+            if (rawAuth) {
+                const parsed = JSON.parse(rawAuth);
+                const tok = parsed?.access_token || parsed?.currentSession?.access_token || parsed?.session?.access_token;
+                if (tok && typeof tok === 'string') jwtToken = tok.trim();
             }
-        }
+        } catch {}
+    }
+
+    // 3. Tenta obter o Master Session Token
+    let masterToken: string | null = null;
+    try {
+        masterToken = SessionStorage.get<string>('master_session_token') ||
+                      sessionStorage.getItem('master_session_token') ||
+                      localStorage.getItem('master_session_token');
+        if (typeof masterToken === 'string') masterToken = masterToken.trim();
     } catch {}
 
-    // 5. Varredura por chaves dinâmicas com prefixo de sessão (ex: session-xxx_master_session_token)
-    try {
-        for (let i = 0; i < sessionStorage.length; i++) {
-            const key = sessionStorage.key(i);
-            if (key && key.endsWith('_master_session_token')) {
-                const raw = sessionStorage.getItem(key);
-                if (raw) {
-                    try {
-                        const parsed = JSON.parse(raw);
-                        if (typeof parsed === 'string' && parsed.trim().length > 0) return parsed.trim();
-                    } catch {
-                        if (raw.trim().length > 0) return raw.trim();
+    if (!masterToken) {
+        try {
+            for (let i = 0; i < sessionStorage.length; i++) {
+                const key = sessionStorage.key(i);
+                if (key && key.endsWith('_master_session_token')) {
+                    const raw = sessionStorage.getItem(key);
+                    if (raw) {
+                        try {
+                            const parsed = JSON.parse(raw);
+                            if (typeof parsed === 'string' && parsed.trim().length > 0) {
+                                masterToken = parsed.trim();
+                                break;
+                            }
+                        } catch {
+                            if (raw.trim().length > 0) {
+                                masterToken = raw.trim();
+                                break;
+                            }
+                        }
                     }
                 }
             }
-        }
-    } catch {}
+        } catch {}
+    }
 
-    return null;
+    if (!jwtToken && !masterToken) {
+        throw new Error('User not authenticated');
+    }
+
+    // Passa o JWT real se houver. Se for masterToken avulso, usa safeKey no Bearer para Kong permitir a passagem,
+    // e passa o masterToken em x-master-token e no body para a Edge Function autenticar com privilégio máximo.
+    const bearer = jwtToken || safeKey;
+
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'apikey': safeKey,
+        'Authorization': `Bearer ${bearer}`
+    };
+
+    if (masterToken) {
+        headers['x-master-token'] = masterToken;
+    }
+
+    return { headers, masterToken: masterToken || undefined };
 }
 
 // Typing for adminAuthProxy
@@ -133,23 +149,23 @@ export const adminAuthProxy = {
     admin: {
         createUser: async (attributes: AdminCreateUserAttributes): Promise<AdminUserResult> => {
             try {
-                const token = await getUserToken();
-                if (!token) throw new Error('User not authenticated');
+                const { headers, masterToken } = await getAdminFetchConfig();
 
                 const response = await fetch(EDGE_FUNCTION_URL, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
+                    headers,
                     body: JSON.stringify({
                         action: 'create_user',
-                        payload: attributes
+                        payload: attributes,
+                        ...(masterToken ? { master_token: masterToken } : {})
                     })
                 });
 
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'Failed to create user');
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    const errorMsg = data.error || data.message || data.msg || `Falha ao criar usuário (${response.status})`;
+                    throw new Error(errorMsg);
+                }
                 return { data: { user: data.user }, error: null };
             } catch (e: any) {
                 console.error("Admin createUser error:", e);
@@ -159,23 +175,23 @@ export const adminAuthProxy = {
 
         deleteUser: async (userId: string): Promise<{ data: unknown; error: Error | null }> => {
             try {
-                const token = await getUserToken();
-                if (!token) throw new Error('User not authenticated');
+                const { headers, masterToken } = await getAdminFetchConfig();
 
                 const response = await fetch(EDGE_FUNCTION_URL, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
+                    headers,
                     body: JSON.stringify({
                         action: 'delete_user',
-                        payload: { userId }
+                        payload: { userId },
+                        ...(masterToken ? { master_token: masterToken } : {})
                     })
                 });
 
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'Failed to delete user');
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    const errorMsg = data.error || data.message || data.msg || `Falha ao excluir usuário (${response.status})`;
+                    throw new Error(errorMsg);
+                }
                 return { data, error: null };
             } catch (e: any) {
                 return { data: null, error: e };
@@ -184,20 +200,22 @@ export const adminAuthProxy = {
 
         listUsers: async (): Promise<AdminListUsersResult> => {
             try {
-                const token = await getUserToken();
-                if (!token) throw new Error('User not authenticated');
+                const { headers, masterToken } = await getAdminFetchConfig();
 
                 const response = await fetch(EDGE_FUNCTION_URL, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ action: 'list_users' })
+                    headers,
+                    body: JSON.stringify({
+                        action: 'list_users',
+                        ...(masterToken ? { master_token: masterToken } : {})
+                    })
                 });
 
-                const data = await response.json();
-                if (!response.ok) return { data: { users: [] }, error: data.error || 'API Error' };
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    const errorMsg = data.error || data.message || data.msg || 'API Error';
+                    return { data: { users: [] }, error: errorMsg };
+                }
                 return { data: { users: data.users || [] }, error: null };
             } catch (e: any) {
                 console.error("Admin listUsers error:", e);
@@ -207,23 +225,23 @@ export const adminAuthProxy = {
 
         updateUserById: async (userId: string, updates: AdminUpdateUserAttributes): Promise<AdminUserResult> => {
             try {
-                const token = await getUserToken();
-                if (!token) throw new Error('User not authenticated');
+                const { headers, masterToken } = await getAdminFetchConfig();
 
                 const response = await fetch(EDGE_FUNCTION_URL, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
+                    headers,
                     body: JSON.stringify({
                         action: 'update_user',
-                        payload: { userId, updates }
+                        payload: { userId, updates },
+                        ...(masterToken ? { master_token: masterToken } : {})
                     })
                 });
 
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'Failed to update user');
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    const errorMsg = data.error || data.message || data.msg || `Falha ao atualizar usuário (${response.status})`;
+                    throw new Error(errorMsg);
+                }
                 return { data: { user: data.user }, error: null };
             } catch (e: any) {
                 return { data: { user: null }, error: e };
@@ -232,23 +250,23 @@ export const adminAuthProxy = {
 
         provisionTenantAdmin: async (payload: { tenantId: string; userId: string; email: string; name: string; userCode?: string }): Promise<{ data: any; error: Error | null }> => {
             try {
-                const token = await getUserToken();
-                if (!token) throw new Error('User not authenticated');
+                const { headers, masterToken } = await getAdminFetchConfig();
 
                 const response = await fetch(EDGE_FUNCTION_URL, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
+                    headers,
                     body: JSON.stringify({
                         action: 'provision_tenant_admin',
-                        payload
+                        payload,
+                        ...(masterToken ? { master_token: masterToken } : {})
                     })
                 });
 
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'Failed to provision tenant admin');
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    const errorMsg = data.error || data.message || data.msg || 'Falha ao provisionar admin';
+                    throw new Error(errorMsg);
+                }
                 return { data, error: null };
             } catch (e: any) {
                 console.error("Admin provisionTenantAdmin error:", e);
