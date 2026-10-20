@@ -24,6 +24,7 @@ import { supabase } from '@/services/supabase';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NotificationService } from '@/services/notification-service';
+import { systemAnnouncementService } from '@/services/system-announcement-service';
 
 export function HeaderRightToggle() {
     const { t } = useI18n();
@@ -61,7 +62,8 @@ export function HeaderRightToggle() {
                 .or(`user_id.eq.${session.user.id},user_id.is.null`)
                 .limit(1);
             const unreadFound = !error && data && data.length > 0;
-            setHasUnread(unreadFound);
+            const hasUnreadAnnouncement = await systemAnnouncementService.hasUnread();
+            setHasUnread(Boolean(unreadFound || hasUnreadAnnouncement));
 
             NotificationService.syncAppIconBadge().catch(() => {});
         } catch {
@@ -137,12 +139,17 @@ export function HeaderRightToggle() {
             setModeState(state);
         });
 
+        const unAnnounce = systemAnnouncementService.subscribe(() => {
+            checkUnreadNotifications();
+        });
+
         return () => {
             unNet();
             unQueue();
             unSync();
             unProgress();
             unModeHUD();
+            unAnnounce();
             unNotif?.remove?.();
         };
     }, []);

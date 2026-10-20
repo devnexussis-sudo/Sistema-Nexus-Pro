@@ -32,6 +32,7 @@ import { resilientUpload } from '@/services/upload-resilient';
 import { autoCheckinEvents, AUTO_CHECKIN_EVENT } from '@/services/auto-checkin-service';
 import { CacheCleanupService } from '@/services/cache-cleanup-service';
 import { SystemHUD } from '@/components/system-hud';
+import { SystemAnnouncementModal } from '@/components/system-announcement-modal';
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 
@@ -159,6 +160,9 @@ function LayoutContent() {
 
       {/* 🚀 Big Tech Unified Status HUD for Mode Transitions & Sync */}
       <SystemHUD />
+
+      {/* 📢 Modal Global de Avisos e Atualizações do Painel Master */}
+      <SystemAnnouncementModal />
 
       {/* "Sincronizando..." overlay — never shows error */}
       {showSyncOverlay && (
