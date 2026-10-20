@@ -18,7 +18,7 @@ ALTER TABLE public.user_groups ADD COLUMN IF NOT EXISTS permissions JSONB DEFAUL
 ALTER TABLE public.user_groups ADD COLUMN IF NOT EXISTS description TEXT;
 
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS group_id UUID;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS group_ids JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS group_ids TEXT[] DEFAULT '{}'::text[];
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS user_code VARCHAR(10);
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS app_scope VARCHAR(20) DEFAULT 'WEB';
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS avatar TEXT;
@@ -159,7 +159,7 @@ BEGIN
         RETURNING id INTO v_op_group_id;
     END IF;
 
-    -- 3. Upsert no public.users com group_id e group_ids
+    -- 3. Upsert no public.users com group_id e group_ids (ARRAY de TEXT)
     INSERT INTO public.users (
         id,
         tenant_id,
@@ -180,7 +180,7 @@ BEGIN
         'ADMIN',
         true,
         v_admin_group_id,
-        jsonb_build_array(v_admin_group_id::text),
+        ARRAY[v_admin_group_id::text],
         'WEB',
         v_user_code,
         v_avatar
@@ -192,7 +192,7 @@ BEGIN
         role = 'ADMIN',
         active = true,
         group_id = v_admin_group_id,
-        group_ids = jsonb_build_array(v_admin_group_id::text),
+        group_ids = ARRAY[v_admin_group_id::text],
         app_scope = COALESCE(public.users.app_scope, 'WEB'),
         user_code = COALESCE(public.users.user_code, EXCLUDED.user_code),
         updated_at = now();
