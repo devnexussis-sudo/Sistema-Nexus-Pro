@@ -72,9 +72,9 @@ BEGIN
         VALUES (v_super_user_id)
         ON CONFLICT (user_id) DO NOTHING;
 
-        -- Garante role SUPER_ADMIN na tabela public.users
+        -- Garante role ADMIN e status ativo na tabela public.users
         UPDATE public.users
-        SET role = 'SUPER_ADMIN',
+        SET role = 'ADMIN',
             app_scope = 'WEB',
             active = true
         WHERE id = v_super_user_id;
