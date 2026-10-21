@@ -99,7 +99,7 @@ async function getAdminFetchConfig(): Promise<{ headers: Record<string, string>;
     }
 
     // Passa o JWT real se houver. Se for masterToken avulso, usa safeKey no Bearer para Kong permitir a passagem,
-    // e passa o masterToken em x-master-token e no body para a Edge Function autenticar com privilégio máximo.
+    // e passa o masterToken de forma segura no body JSON para a Edge Function autenticar com privilégio máximo sem ferir o CORS.
     const bearer = jwtToken || safeKey;
 
     const headers: Record<string, string> = {
@@ -107,10 +107,6 @@ async function getAdminFetchConfig(): Promise<{ headers: Record<string, string>;
         'apikey': safeKey,
         'Authorization': `Bearer ${bearer}`
     };
-
-    if (masterToken) {
-        headers['x-master-token'] = masterToken;
-    }
 
     return { headers, masterToken: masterToken || undefined };
 }

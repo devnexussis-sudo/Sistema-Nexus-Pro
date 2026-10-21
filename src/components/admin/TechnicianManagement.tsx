@@ -487,7 +487,7 @@ export const TechnicianManagement: React.FC = () => {
                       {isReadOnly ? 'Detalhes do Técnico' : (editingId ? 'Editar Técnico' : 'Novo Técnico')}
                     </h2>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <p className="text-[11px] font-normal text-slate-400">Nexus Field • credenciais e acesso do aplicativo de campo</p>
+                      <p className="text-[11px] font-normal text-slate-400">Duno Field • credenciais e acesso do aplicativo de campo</p>
                       {editingId && ((formData as any).techCode || (formData as any).tech_code || (formData as any).userCode || (formData as any).user_code) && (
                         <span className="font-mono text-[10px] font-medium text-[#1c2d4f] bg-[#1c2d4f]/8 px-2 py-0.5 rounded border border-[#1c2d4f]/15 tracking-wider">
                           {(formData as any).techCode || (formData as any).tech_code || (formData as any).userCode || (formData as any).user_code}
