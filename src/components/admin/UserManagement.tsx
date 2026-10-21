@@ -512,7 +512,7 @@ export const UserManagement: React.FC = () => {
     try {
       await TenantService.deleteUser(id);
       // 🔄 Remoção otimista
-      setUsers(prev => prev.filter(u => u.id !== id));
+      setUsers(prev => (Array.isArray(prev) ? prev.filter(u => u.id !== id) : []));
       alert("✅ Administrador removido com sucesso!");
       loadData().catch(() => {});
     } catch (error: any) {
@@ -635,14 +635,16 @@ export const UserManagement: React.FC = () => {
 
 
 
-  const filteredUsers = users.filter(u => {
+  const safeUsers = Array.isArray(users) ? users : [];
+
+  const filteredUsers = safeUsers.filter(u => {
     const matchesSearch = u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'ALL' || (statusFilter === 'ACTIVE' ? u.active : !u.active);
     return matchesSearch && matchesStatus;
   });
 
-  const paginatedUsers = users.length > 0 ? filteredUsers.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE) : [];
+  const paginatedUsers = safeUsers.length > 0 ? filteredUsers.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE) : [];
   const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
 
 
@@ -685,7 +687,8 @@ export const UserManagement: React.FC = () => {
     }
     if (selectedGroup) {
       const isMasterGroup = selectedGroup.name.toLowerCase() === 'administradores';
-      const groupUsers = users.filter(u => (u.groupIds || []).includes(selectedGroup.id) || u.groupId === selectedGroup.id);
+      const safeUsers = Array.isArray(users) ? users : [];
+      const groupUsers = safeUsers.filter(u => (u.groupIds || []).includes(selectedGroup.id) || u.groupId === selectedGroup.id);
       return (
         <PermissionEditor
           perms={isMasterGroup ? ADMIN_PERMISSIONS : normalizeUserPermissions(selectedGroup.permissions || DEFAULT_PERMISSIONS)}
@@ -1776,7 +1779,7 @@ export const UserManagement: React.FC = () => {
                     try {
                       await TenantService.deleteUser(userToDelete.id);
                       // 🔄 Remoção otimista: remove da lista local imediatamente
-                      setUsers(prev => prev.filter(u => u.id !== userToDelete.id));
+                      setUsers(prev => (Array.isArray(prev) ? prev.filter(u => u.id !== userToDelete.id) : []));
                       setUserToDelete(null);
                       alert("✅ Usuário excluído permanentemente com sucesso!");
                       // Refresh silencioso do servidor para sincronizar

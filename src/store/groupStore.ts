@@ -17,8 +17,8 @@ export interface GroupState {
   // View control
   activeSubView: 'list' | 'permissions' | 'users';
   // Setters
-  setUsers: (users: User[]) => void;
-  setGroups: (groups: UserGroup[]) => void;
+  setUsers: (users: User[] | ((prev: User[]) => User[])) => void;
+  setGroups: (groups: UserGroup[] | ((prev: UserGroup[]) => UserGroup[])) => void;
   setIsGroupModalOpen: (open: boolean) => void;
   setEditingGroup: (group: UserGroup | null) => void;
   setGroupToDelete: (group: UserGroup | null) => void;
@@ -40,8 +40,12 @@ export const useGroupStore = create<GroupState>()(
     selectedUser: null,
     activeSubView: 'list',
     // setters
-    setUsers: (users) => set((s) => { s.users = users; }),
-    setGroups: (groups) => set((s) => { s.groups = groups; }),
+    setUsers: (users) => set((s) => {
+      s.users = typeof users === 'function' ? (users as (prev: User[]) => User[])(s.users) : users;
+    }),
+    setGroups: (groups) => set((s) => {
+      s.groups = typeof groups === 'function' ? (groups as (prev: UserGroup[]) => UserGroup[])(s.groups) : groups;
+    }),
     setIsGroupModalOpen: (open) => set((s) => { s.isGroupModalOpen = open; }),
     setEditingGroup: (group) => set((s) => { s.editingGroup = group; }),
     setGroupToDelete: (group) => set((s) => { s.groupToDelete = group; }),
