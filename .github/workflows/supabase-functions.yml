@@ -30,6 +30,8 @@ jobs:
         run: |
           supabase functions deploy asaas-webhook --project-ref $PROJECT_ID --no-verify-jwt
           supabase functions deploy admin-operations --project-ref $PROJECT_ID --no-verify-jwt
+          supabase functions deploy master-auth-validate --project-ref $PROJECT_ID --no-verify-jwt
+          supabase functions deploy dashboard-summary --project-ref $PROJECT_ID --no-verify-jwt
           supabase functions deploy whatsapp-bot --project-ref $PROJECT_ID
           supabase functions deploy whatsapp-ai-agent --project-ref $PROJECT_ID
           supabase functions deploy whatsapp-admin-send --project-ref $PROJECT_ID

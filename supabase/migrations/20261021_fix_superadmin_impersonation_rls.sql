@@ -44,7 +44,7 @@ BEGIN
       RETURN true;
     END IF;
 
-    IF (v_claims ->> 'email') IN ('master@dunoup.com.br', 'alex.ksc20@gmail.com') THEN
+    IF (v_claims ->> 'email') IN ('master@dunoup.com.br', 'alex.ksc20@gmail.com', 'master@duno.com.br') THEN
       RETURN true;
     END IF;
   END IF;

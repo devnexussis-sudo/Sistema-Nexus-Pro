@@ -93,6 +93,10 @@ export const MasterLogin: React.FC<MasterLoginProps> = ({ onLogin, onCancel }) =
         // onAuthStateChange or NEXUS_AUTH_EVENT knows that this is a Master session!
         SessionStorage.set('master_session_v2', true);
         SessionStorage.set('master_session_token', result.sessionToken);
+        try {
+          sessionStorage.setItem('master_session_token', result.sessionToken);
+          localStorage.setItem('master_session_token', result.sessionToken);
+        } catch (e) {}
         SessionStorage.remove('force_master');
         localStorage.removeItem(LOCKOUT_KEY);
 

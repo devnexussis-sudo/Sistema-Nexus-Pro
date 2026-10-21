@@ -13,7 +13,7 @@ import { AuthState, User, UserRole, ADMIN_PERMISSIONS } from '../types';
 import { AuthService } from '../services/authService';
 import SessionStorage, { GlobalStorage } from '../lib/sessionStorage';
 import { ensureValidSession, globalSession, globalSessionOk } from '../lib/supabaseClient';
-import { supabase } from '../lib/supabase';
+import { supabase, safeUrl, safeKey } from '../lib/supabase';
 
 interface AuthContextType {
     auth: AuthState;
@@ -109,9 +109,72 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 if (!targetTid) {
                     targetTid = SessionStorage.get('current_tenant') || undefined;
                 }
-                // Garante que a sessão Supabase na aba filha está ativa antes de liberar a UI
+
+                // 🚀 BIG TECH PATTERN: Impersonation Session Provisioning & Validation (AWS STS AssumeRole)
                 try {
                     let activeSession = (await supabase.auth.getSession())?.data?.session;
+                    const sessionTenantId = activeSession?.user?.app_metadata?.tenant_id || 
+                                           activeSession?.user?.user_metadata?.tenantId ||
+                                           activeSession?.user?.user_metadata?.tenant_id;
+                    const isMasterUser = activeSession?.user?.app_metadata?.role === 'SUPER_ADMIN' ||
+                                         activeSession?.user?.app_metadata?.role === 'moros_admin' ||
+                                         activeSession?.user?.user_metadata?.role === 'SUPER_ADMIN' ||
+                                         activeSession?.user?.user_metadata?.role === 'moros_admin' ||
+                                         activeSession?.user?.email === 'master@dunoup.com.br' ||
+                                         activeSession?.user?.email === 'alex.ksc20@gmail.com';
+
+                    const masterToken = SessionStorage.get('master_session_token') || 
+                                        sessionStorage.getItem('master_session_token') || 
+                                        localStorage.getItem('master_session_token');
+
+                    const needsTenantSession = !activeSession || (!isMasterUser && sessionTenantId !== targetTid);
+
+                    if (needsTenantSession && masterToken && targetTid) {
+                        console.log('[AuthContext] 🔑 Solicitando sessão criptografada de impersonation para o tenant:', targetTid);
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+                        try {
+                            const impRes = await fetch(`${safeUrl}/functions/v1/admin-operations`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'apikey': safeKey,
+                                    'Authorization': `Bearer ${safeKey}`,
+                                },
+                                body: JSON.stringify({
+                                    action: 'impersonate_tenant',
+                                    master_token: masterToken,
+                                    payload: { tenantId: targetTid }
+                                }),
+                                signal: controller.signal
+                            });
+                            clearTimeout(timeoutId);
+
+                            if (impRes.ok) {
+                                const impData = await impRes.json();
+                                if (impData.success && impData.token_hash) {
+                                    console.log('[AuthContext] 🚀 Verificando token de impersonation via OTP...');
+                                    const { data: authData, error: authErr } = await supabase.auth.verifyOtp({
+                                        token_hash: impData.token_hash,
+                                        type: 'magiclink'
+                                    });
+                                    if (!authErr && authData?.session) {
+                                        activeSession = authData.session;
+                                        console.log('[AuthContext] ✅ Sessão oficial do tenant estabelecida com sucesso!');
+                                    } else if (authErr) {
+                                        console.warn('[AuthContext] ⚠️ Falha ao verificar OTP de impersonação:', authErr.message);
+                                    }
+                                }
+                            } else {
+                                console.warn('[AuthContext] ⚠️ Resposta de admin-operations (impersonate_tenant):', impRes.status);
+                            }
+                        } catch (fetchErr: any) {
+                            clearTimeout(timeoutId);
+                            console.warn('[AuthContext] ⚠️ Falha na requisição de impersonation:', fetchErr?.message || fetchErr);
+                        }
+                    }
+
                     if (!activeSession) {
                         await ensureValidSession();
                         activeSession = (await supabase.auth.getSession())?.data?.session;

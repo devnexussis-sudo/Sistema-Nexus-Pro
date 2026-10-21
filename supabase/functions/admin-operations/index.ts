@@ -395,6 +395,118 @@ serve(async (req: Request) => {
                 break;
             }
 
+            case 'impersonate_tenant': {
+                const { tenantId } = payload;
+                if (!tenantId) throw new Error("tenantId é obrigatório.");
+
+                if (!isGlobalAdmin) {
+                    throw new Error("Acesso negado: Apenas administradores globais podem assumir sessão de um tenant.");
+                }
+
+                // 1. Buscar o tenant no banco
+                const { data: tenant, error: tenantErr } = await adminClient
+                    .from('tenants')
+                    .select('id, name, slug, admin_email, email')
+                    .eq('id', tenantId)
+                    .maybeSingle();
+
+                if (tenantErr || !tenant) {
+                    throw new Error(`Tenant não encontrado: ${tenantErr?.message || tenantId}`);
+                }
+
+                // 2. Determinar o email do admin do tenant
+                let targetEmail = (tenant.admin_email || tenant.email || '').toLowerCase().trim();
+                let adminName = tenant.name || 'Administrador';
+
+                // Tenta achar na tabela users um usuário ADMIN deste tenant
+                const { data: existingDbAdmin } = await adminClient
+                    .from('users')
+                    .select('id, email, name, role')
+                    .eq('tenant_id', tenantId)
+                    .eq('role', 'ADMIN')
+                    .order('created_at', { ascending: true })
+                    .limit(1)
+                    .maybeSingle();
+
+                if (existingDbAdmin?.email) {
+                    targetEmail = existingDbAdmin.email.toLowerCase().trim();
+                    if (existingDbAdmin.name) adminName = existingDbAdmin.name;
+                }
+
+                if (!targetEmail) {
+                    targetEmail = `admin@${(tenant.slug || 'empresa').toLowerCase().trim()}.duno.pro`;
+                }
+
+                // 3. Garantir que o usuário exista em auth.users com app_metadata.tenant_id
+                const { data: listData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+                let authUser = (listData?.users || []).find((u: any) => u.email?.toLowerCase() === targetEmail);
+
+                if (!authUser) {
+                    const tempPassword = crypto.randomUUID() + 'Aa1!';
+                    const { data: newAuth, error: createAuthErr } = await adminClient.auth.admin.createUser({
+                        email: targetEmail,
+                        password: tempPassword,
+                        email_confirm: true,
+                        user_metadata: {
+                            tenantId: tenantId,
+                            role: 'ADMIN',
+                            name: adminName
+                        },
+                        app_metadata: {
+                            tenant_id: tenantId,
+                            role: 'ADMIN'
+                        }
+                    });
+                    if (createAuthErr) throw createAuthErr;
+                    authUser = newAuth.user;
+
+                    // Também assegura em public.users
+                    await adminClient.from('users').upsert([{
+                        id: authUser.id,
+                        tenant_id: tenantId,
+                        email: targetEmail,
+                        name: adminName,
+                        role: 'ADMIN',
+                        active: true,
+                        app_scope: 'WEB'
+                    }], { onConflict: 'id' });
+                } else {
+                    // Atualiza app_metadata e user_metadata para garantir tenant_id
+                    await adminClient.auth.admin.updateUserById(authUser.id, {
+                        email_confirm: true,
+                        user_metadata: {
+                            ...authUser.user_metadata,
+                            tenantId: tenantId,
+                            role: 'ADMIN'
+                        },
+                        app_metadata: {
+                            ...authUser.app_metadata,
+                            tenant_id: tenantId,
+                            role: 'ADMIN'
+                        }
+                    });
+                }
+
+                // 4. Gerar Magic Link Token para login imediato (sem disparar email)
+                const { data: linkData, error: linkErr } = await adminClient.auth.admin.generateLink({
+                    type: 'magiclink',
+                    email: targetEmail
+                });
+
+                if (linkErr || !linkData?.properties?.hashed_token) {
+                    throw new Error(`Falha ao gerar link de impersonação: ${linkErr?.message || 'Token não gerado'}`);
+                }
+
+                result = {
+                    success: true,
+                    token_hash: linkData.properties.hashed_token,
+                    email: targetEmail,
+                    tenant_id: tenantId,
+                    user_id: authUser.id
+                };
+                break;
+            }
+
             default:
                 throw new Error(`Ação desconhecida: ${action}`);
         }
