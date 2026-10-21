@@ -258,6 +258,34 @@ export const TechnicianService = {
                         if (existingTech) {
                             throw new Error("Este técnico já está cadastrado no sistema. Para editar, utilize o botão de edição na lista de técnicos.");
                         }
+
+                        // 🔄 DUAL-ROLE UPGRADE: Promove app_scope para HYBRID permitindo acesso Web + Mobile
+                        // Atualiza a tabela public.users para HYBRID (acesso duplo)
+                        const { error: scopeUpdateError } = await supabase
+                            .from('users')
+                            .update({ app_scope: AppScope.HYBRID })
+                            .eq('id', userId);
+
+                        if (scopeUpdateError) {
+                            console.warn('⚠️ Falha ao atualizar app_scope para HYBRID na tabela users:', scopeUpdateError);
+                        } else {
+                            console.log(`✅ app_scope promovido para HYBRID no registro users (${userId}) — acesso Web + Mobile liberado.`);
+                        }
+
+                        // Atualiza o user_metadata no Supabase Auth para refletir acesso HYBRID
+                        try {
+                            const updatedMetadata = {
+                                ...(existingAuthUser.user_metadata || {}),
+                                app_scope: AppScope.HYBRID,
+                                appScope: AppScope.HYBRID,
+                            };
+                            await adminAuthProxy.admin.updateUserById(userId, {
+                                user_metadata: updatedMetadata
+                            });
+                            console.log(`✅ user_metadata.app_scope atualizado para HYBRID no Auth (${userId}).`);
+                        } catch (metaErr) {
+                            console.warn('⚠️ Falha ao atualizar user_metadata no Auth:', metaErr);
+                        }
                     } else {
                         throw new Error("Este e-mail já está em uso por outra empresa. Para evitar conflitos de acesso, é necessário usar um outro e-mail.");
                     }

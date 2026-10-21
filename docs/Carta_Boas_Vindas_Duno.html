@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Carta de Boas-Vindas — Duno</title>
+<style>
+  body {
+    font-family: 'Segoe UI', Calibri, Arial, Helvetica, sans-serif;
+    color: #1e293b;
+    background-color: #ffffff;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+    font-size: 14px;
+  }
+  .page {
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 30px;
+    background: #ffffff;
+  }
+  /* Header Oficial Duno */
+  .header-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #1c2d4f;
+    border-radius: 8px;
+    margin-bottom: 25px;
+    border-bottom: 4px solid #10b981;
+  }
+  .header-td {
+    padding: 24px 30px;
+    vertical-align: middle;
+  }
+  .logo-title {
+    font-size: 32px;
+    font-weight: 900;
+    color: #ffffff;
+    letter-spacing: -1px;
+    margin: 0;
+  }
+  .logo-title span {
+    color: #10b981;
+  }
+  .header-sub {
+    font-size: 13px;
+    color: #cbd5e1;
+    margin-top: 4px;
+    font-weight: 400;
+  }
+  .badge-welcome {
+    background-color: #10b981;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 6px 14px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    display: inline-block;
+  }
+  /* Título Principal */
+  h1 {
+    color: #1c2d4f;
+    font-size: 24px;
+    font-weight: 800;
+    margin: 0 0 15px 0;
+    letter-spacing: -0.5px;
+  }
+  p {
+    margin: 0 0 14px 0;
+    color: #334155;
+    font-size: 14px;
+  }
+  .lead-text {
+    font-size: 15px;
+    font-weight: 500;
+    color: #1e293b;
+  }
+  /* Card de Credenciais */
+  .credentials-card {
+    background-color: #f8fafc;
+    border: 2px solid #1c2d4f;
+    border-radius: 8px;
+    margin: 20px 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  .credentials-header {
+    background-color: #1c2d4f;
+    color: #ffffff;
+    padding: 10px 18px;
+    font-weight: 700;
+    font-size: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .cred-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .cred-table td {
+    padding: 10px 18px;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 13.5px;
+  }
+  .cred-table tr:last-child td {
+    border-bottom: none;
+  }
+  .cred-label {
+    font-weight: 700;
+    color: #1c2d4f;
+    width: 32%;
+  }
+  .cred-val {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-weight: 700;
+    color: #0f172a;
+    background-color: #ffffff;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid #cbd5e1;
+    display: inline-block;
+  }
+  .cred-val-url {
+    font-weight: 700;
+    color: #1d4ed8;
+    text-decoration: underline;
+  }
+  .cred-desc {
+    color: #64748b;
+    font-size: 12px;
+  }
+  /* Caixas de Destaque */
+  .alert-box {
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin: 16px 0;
+    font-size: 13px;
+  }
+  .alert-warning {
+    background-color: #fffbeb;
+    border-left: 4px solid #f59e0b;
+    color: #92400e;
+  }
+  .alert-manual {
+    background-color: #eff6ff;
+    border: 2px dashed #3b82f6;
+    border-radius: 8px;
+    padding: 18px;
+    margin: 25px 0;
+  }
+  .alert-manual h3 {
+    margin: 0 0 8px 0;
+    color: #1e40af;
+    font-size: 16px;
+  }
+  /* Lista de Primeiros Passos */
+  .steps-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0 25px 0;
+  }
+  .steps-table td {
+    padding: 10px 12px;
+    vertical-align: top;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .step-num {
+    background-color: #10b981;
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 12px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 24px;
+    display: inline-block;
+  }
+  .step-title {
+    font-weight: 700;
+    color: #1c2d4f;
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
+  .step-desc {
+    color: #475569;
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+  /* Suporte */
+  .support-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    margin: 15px 0 25px 0;
+  }
+  .support-table td {
+    padding: 10px 15px;
+    font-size: 13px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .support-table tr:last-child td {
+    border-bottom: none;
+  }
+  /* Assinatura */
+  .sign-area {
+    margin-top: 35px;
+    padding-top: 20px;
+    border-top: 2px solid #e2e8f0;
+  }
+  .sign-name {
+    font-weight: 700;
+    color: #1c2d4f;
+    font-size: 14px;
+  }
+  .sign-dept {
+    color: #64748b;
+    font-size: 12px;
+  }
+  .btn-link {
+    background-color: #1c2d4f;
+    color: #ffffff;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 12.5px;
+    display: inline-block;
+    margin-top: 8px;
+    margin-right: 8px;
+  }
+  .btn-link:hover {
+    background-color: #253a66;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- BANNER CABEÇALHO -->
+  <table class="header-table">
+    <tr>
+      <td class="header-td" style="width: 70%;">
+        <div class="logo-title">DUNO<span>.</span></div>
+        <div class="header-sub">Sistema de Gestão de Serviços, Manutenção e Operações de Campo</div>
+      </td>
+      <td class="header-td" style="width: 30%; text-align: right;">
+        <span class="badge-welcome">Boas-Vindas</span>
+        <div style="color: #cbd5e1; font-size: 11px; margin-top: 8px;">Edição Oficial 2026</div>
+      </td>
+    </tr>
+  </table>
+
+  <!-- TÍTULO E ABERTURA -->
+  <h1>Seja Muito Bem-Vindo ao Ecossistema Duno!</h1>
+  
+  <p class="lead-text">
+    É uma enorme honra dar as boas-vindas à sua empresa. A partir de hoje, sua gestão de serviços ganha um poderoso aliado para conectar a equipe do escritório aos técnicos em campo, automatizar atendimentos e acelerar seu faturamento.
+  </p>
+
+  <p>
+    O <strong>Duno</strong> foi desenhado com tecnologia de ponta para que sua operação funcione sem papel, sem perda de informações e com total transparência para seus clientes. Abaixo, preparamos suas informações essenciais para início imediato.
+  </p>
+
+  <!-- CARD DE CREDENCIAIS DE ACESSO -->
+  <div class="credentials-card">
+    <div class="credentials-header">
+      <span>DADOS DE ACESSO AO PAINEL ADMINISTRATIVO</span>
+      <span style="font-size: 11px; font-weight: 400; color: #a7f3d0;">Ambiente Corporativo Seguro</span>
+    </div>
+    <table class="cred-table">
+      <tr>
+        <td class="cred-label">Endereço Web (URL):</td>
+        <td>
+          <a href="https://app.duno.com.br" class="cred-val-url" target="_blank">https://app.duno.com.br</a>
+          <div class="cred-desc">Acesso pelo computador ou tablet em qualquer navegador moderno.</div>
+        </td>
+      </tr>
+      <tr>
+        <td class="cred-label">Código da Empresa:</td>
+        <td>
+          <span class="cred-val">[NOME-DA-SUA-EMPRESA]</span>
+          <div class="cred-desc">Identificador exclusivo da sua organização no sistema.</div>
+        </td>
+      </tr>
+      <tr>
+        <td class="cred-label">E-mail do Administrador:</td>
+        <td>
+          <span class="cred-val">admin@suaempresa.com.br</span>
+          <div class="cred-desc">Login principal com permissões totais de configuração.</div>
+        </td>
+      </tr>
+      <tr>
+        <td class="cred-label">Senha Inicial Temporária:</td>
+        <td>
+          <span class="cred-val">Duno@2026#Ativa</span>
+          <div class="cred-desc">Exige redefinição obrigatória logo no primeiro login.</div>
+        </td>
+      </tr>
+      <tr>
+        <td class="cred-label">Código PIN de Segurança:</td>
+        <td>
+          <span class="cred-val">[PIN: 849201]</span>
+          <div class="cred-desc">Assinatura operacional rápida de 6 dígitos para conferências internas.</div>
+        </td>
+      </tr>
+      <tr>
+        <td class="cred-label">Aplicativo do Técnico:</td>
+        <td>
+          <span class="cred-val">App Duno (Android / iOS / PWA)</span>
+          <div class="cred-desc">Disponibilizado para os profissionais de campo com suporte offline.</div>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="alert-box alert-warning">
+    <strong>Aviso Importante de Segurança:</strong> Ao efetuar seu primeiro login, clique no seu nome no canto superior direito do painel, acesse a aba <em>"Alterar Senha"</em> e crie uma senha pessoal segura (mínimo de 8 caracteres, com letra maiúscula e número).
+  </div>
+
+  <!-- CHECKLIST DE PRIMEIROS PASSOS -->
+  <h2 style="color: #1c2d4f; font-size: 18px; margin-top: 30px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">
+    Checklist de Implantação Rápida (Seus Primeiros Passos)
+  </h2>
+
+  <table class="steps-table">
+    <tr>
+      <td style="width: 35px;"><span class="step-num">1</span></td>
+      <td>
+        <div class="step-title">Personalize sua Marca e Dados da Empresa</div>
+        <div class="step-desc">Acesse <strong>Configurações &gt; Empresa</strong>. Insira sua Razão Social, CNPJ, dados de contato e faça o upload do seu <strong>Logotipo</strong>. Ele aparecerá automaticamente em todos os laudos técnicos em PDF e orçamentos.</div>
+      </td>
+    </tr>
+    <tr>
+      <td><span class="step-num">2</span></td>
+      <td>
+        <div class="step-title">Cadastre sua Equipe e Técnicos de Campo</div>
+        <div class="step-desc">Acesse <strong>Cadastros &gt; Usuários</strong> para criar os acessos dos seus atendentes e <strong>Cadastros &gt; Técnicos</strong> para cadastrar a equipe externa. Seus técnicos já poderão autenticar no aplicativo móvel.</div>
+      </td>
+    </tr>
+    <tr>
+      <td><span class="step-num">3</span></td>
+      <td>
+        <div class="step-title">Cadastre Seus Clientes e Equipamentos / Ativos</div>
+        <div class="step-desc">Em <strong>Clientes</strong> e <strong>Equipamentos</strong>, cadastre seus clientes e o parque de máquinas com número de série. Você poderá gerar e imprimir etiquetas com <strong>QR Code</strong> para colar nos aparelhos.</div>
+      </td>
+    </tr>
+    <tr>
+      <td><span class="step-num">4</span></td>
+      <td>
+        <div class="step-title">Estruture Peças e Estoque do Almoxarifado</div>
+        <div class="step-desc">No menu <strong>Estoque</strong>, cadastre os itens e peças mais utilizados e faça a transferência virtual para o veículo de cada técnico para que eles possam consumir peças em campo.</div>
+      </td>
+    </tr>
+    <tr>
+      <td><span class="step-num">5</span></td>
+      <td>
+        <div class="step-title">Emita sua Primeira Ordem de Serviço (OS)</div>
+        <div class="step-desc">No menu <strong>Ordens de Serviço</strong>, clique em <strong>"Nova Ordem de Serviço"</strong>. Preencha o Wizard em 5 etapas e veja a notificação surgir no celular do técnico instantaneamente!</div>
+      </td>
+    </tr>
+  </table>
+
+  <!-- CARD DO MANUAL COMPLETO -->
+  <div class="alert-manual">
+    <h3>Manual Completo do Usuário Duno (Versão 2.5 Pro)</h3>
+    <p style="margin-bottom: 12px; color: #1e3a8a;">
+      Para capacitar toda a sua equipe e consultar o passo a passo ilustrado de cada tela, formulários dinâmicos, atendimento por WhatsApp com Inteligência Artificial (Lia), PMOC e faturamento via Pix/Boleto Asaas, consulte o manual oficial salvo na pasta de documentação:
+    </p>
+    <div>
+      <a href="Manual_Usuario_Duno.pdf" class="btn-link" target="_blank">Abrir Manual em PDF (49 Páginas)</a>
+      <a href="Manual_Usuario_Duno.docx" class="btn-link" style="background-color: #2563eb;" target="_blank">Abrir Manual em Word (DOCX)</a>
+    </div>
+    <div style="margin-top: 10px; font-size: 11.5px; color: #64748b;">
+      Localização dos arquivos na sua pasta de documentação: <code>docs/Manual_Usuario_Duno.pdf</code> e <code>docs/Manual_Usuario_Duno.docx</code>
+    </div>
+  </div>
+
+  <!-- CANAIS DE SUPORTE -->
+  <h2 style="color: #1c2d4f; font-size: 18px; margin-top: 25px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">
+    Canais Oficiais de Suporte e Ajuda
+  </h2>
+  
+  <p>Sua empresa tem suporte direto da nossa equipe sempre que precisar:</p>
+
+  <table class="support-table">
+    <tr>
+      <td style="font-weight: 700; width: 30%; color: #1c2d4f;">Chat Integrado no Painel:</td>
+      <td>Botão verde <strong>"Suporte (Online Agora)"</strong> no rodapé da barra lateral do sistema.</td>
+    </tr>
+    <tr>
+      <td style="font-weight: 700; color: #1c2d4f;">WhatsApp de Suporte:</td>
+      <td><strong>(11) 98765-4321</strong> (Atendimento técnico e operacional).</td>
+    </tr>
+    <tr>
+      <td style="font-weight: 700; color: #1c2d4f;">E-mail de Onboarding:</td>
+      <td><strong>suporte@duno.com.br</strong></td>
+    </tr>
+    <tr>
+      <td style="font-weight: 700; color: #1c2d4f;">Horário de Atendimento:</td>
+      <td>Segunda a Sexta-feira, das 08h00 às 18h00 (Com plantão para emergências).</td>
+    </tr>
+  </table>
+
+  <!-- ASSINATURA -->
+  <div class="sign-area">
+    <p style="font-style: italic; color: #475569; margin-bottom: 15px;">
+      "Desejamos muito sucesso à sua empresa nessa nova etapa de excelência operacional!"
+    </p>
+    <div class="sign-name">Equipe de Onboarding &amp; Sucesso do Cliente</div>
+    <div class="sign-dept">Duno Tecnologia — Sistema de Gestão de Serviços e Manutenção</div>
+    <div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">www.duno.com.br • contato@duno.com.br</div>
+  </div>
+
+</div>
+</body>
+</html>
