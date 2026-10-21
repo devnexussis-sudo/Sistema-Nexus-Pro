@@ -345,13 +345,10 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
     });
   };
 
-  const switchToTenant = async (tenant: any) => {
-    // MECANISMO DE ACESSO DIRETO (IMPERSONATION)
-
-    // 🔑 CRITICAL: Abre a janela IMEDIATAMENTE no contexto do clique do usuário.
-    // Browsers modernos bloqueiam window.open() se chamado APÓS um await,
-    // pois o "user gesture activation" expira durante operações assíncronas.
-    const newTab = window.open('about:blank', '_blank');
+  const switchToTenant = (tenant: any) => {
+    // MECANISMO DE ACESSO DIRETO (IMPERSONATION) — 100% SÍNCRONO
+    // ⚠️ NÃO usar async/await aqui! O window.open() deve ocorrer no mesmo
+    // tick do evento de clique para não ser bloqueado pelo browser.
 
     // 1. Injeta o Tenant ID no Session Storage (isolado por aba)
     SessionStorage.set('current_tenant', tenant.id);
@@ -359,12 +356,12 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
     // 2. Cria o usuário master temporário para este tenant com PERMISSÕES COMPLETAS
     const masterAdminUser = {
       id: 'master-override',
-      tenantId: tenant.id, // Explicit ID for data synchronization
+      tenantId: tenant.id,
       name: `Master (@${tenant.id})`,
       email: tenant.admin_email || tenant.email || tenant.adminEmail || 'master@duno.com.br',
       role: 'ADMIN',
       avatar: '',
-      active: true, // 🔑 PERMISSÕES COMPLETAS DE SUPER ADMIN
+      active: true,
       groupName: 'Administradores',
       permissions: {
         orders: { create: true, read: true, update: true, delete: true },
@@ -412,11 +409,9 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
     const token = Math.random().toString(36).substring(2) + Date.now().toString(36);
     const masterSessionToken = SessionStorage.get('master_session_token') || sessionStorage.getItem('master_session_token') || localStorage.getItem('master_session_token');
     
-    // Captura a sessão Supabase ativa oficial de forma assíncrona
-    const { data: { session: currentAuthSession } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
-    const authSession = currentAuthSession 
-      ? JSON.stringify(currentAuthSession) 
-      : (localStorage.getItem('nexus-line-auth') || sessionStorage.getItem('nexus-line-auth'));
+    // Lê a sessão Supabase SINCRONAMENTE do localStorage/sessionStorage
+    // (onde o SDK Supabase já persiste a sessão ativa — sem necessidade de await)
+    const authSession = localStorage.getItem('nexus-line-auth') || sessionStorage.getItem('nexus-line-auth') || null;
     
     // Armazena temporariamente no localStorage para a nova aba capturar
     localStorage.setItem(`nexus_handoff_${token}`, JSON.stringify({
@@ -428,13 +423,14 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
       supabase_auth: authSession
     }));
 
-    // 4. Navega a aba pré-aberta para a URL com o token de handoff
-    if (newTab) {
-      newTab.location.href = `${window.location.origin}${window.location.pathname}#/?handoff=${token}`;
-    } else {
-      // Fallback: se o popup foi bloqueado mesmo assim, tenta navegar na mesma aba
+    // 4. Abre a nova aba JÁ com a URL correta (tudo síncrono = sem bloqueio de popup)
+    const handoffUrl = `${window.location.origin}${window.location.pathname}#/?handoff=${token}`;
+    const newTab = window.open(handoffUrl, '_blank');
+
+    if (!newTab) {
+      // Fallback: se o popup foi bloqueado, navega na mesma aba
       console.warn('[SuperAdmin] ⚠️ Popup bloqueado pelo navegador. Abrindo na mesma aba...');
-      window.location.hash = `#/?handoff=${token}`;
+      window.location.href = handoffUrl;
     }
   };
 
