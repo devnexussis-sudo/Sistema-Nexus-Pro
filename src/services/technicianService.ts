@@ -360,6 +360,26 @@ export const TechnicianService = {
                     const match = techError.message.match(/NEXUS_LICENSE_LIMIT: (.+)/);
                     throw new Error(match ? match[1] : '🔒 Limite de licenças de técnicos atingido. Contate o suporte DUNO para upgrade do plano.');
                 }
+                // 🛡️ RLS bloqueou (ex: Super Admin impersonation) — fallback via RPC SECURITY DEFINER
+                const errMsg = (techError.message || '').toLowerCase();
+                if (errMsg.includes('permission denied') || errMsg.includes('row-level security') || errMsg.includes('new row violates')) {
+                    console.warn('[TechnicianService] ⚠️ RLS bloqueou upsert direto em technicians. Tentando via RPC...');
+                    const { data: rpcResult, error: rpcError } = await supabase.rpc('upsert_technician_record', {
+                        p_id: dbTech.id,
+                        p_name: dbTech.name,
+                        p_email: dbTech.email,
+                        p_active: dbTech.active,
+                        p_tenant_id: tenantId,
+                        p_phone: dbTech.phone || '',
+                        p_avatar: dbTech.avatar || '',
+                        p_job_title: dbTech.job_title || '',
+                        p_tech_code: dbTech.tech_code || null
+                    });
+                    if (rpcError || (rpcResult && rpcResult.success === false)) {
+                        throw new Error(rpcResult?.error || rpcError?.message || 'Falha ao criar técnico via RPC');
+                    }
+                    return { ...dbTech, tenantId };
+                }
                 console.error("Erro ao sincronizar tabela technicians:", techError);
                 throw techError;
             }
@@ -504,6 +524,26 @@ export const TechnicianService = {
                 if (error.message?.includes('NEXUS_LICENSE_LIMIT')) {
                     const match = error.message.match(/NEXUS_LICENSE_LIMIT: (.+)/);
                     throw new Error(match ? match[1] : '🔒 Limite de licenças atingido. Não é possível reativar este técnico. Contate o suporte DUNO para upgrade do plano.');
+                }
+                // 🛡️ RLS bloqueou (ex: Super Admin impersonation) — fallback via RPC
+                const errMsg = (error.message || '').toLowerCase();
+                if (errMsg.includes('permission denied') || errMsg.includes('row-level security')) {
+                    console.warn('[TechnicianService] ⚠️ RLS bloqueou update em technicians. Tentando via RPC...');
+                    const { data: rpcResult, error: rpcError } = await supabase.rpc('upsert_technician_record', {
+                        p_id: tech.id,
+                        p_name: dbTechData.name,
+                        p_email: dbTechData.email,
+                        p_active: dbTechData.active,
+                        p_tenant_id: tenantId,
+                        p_phone: dbTechData.phone || '',
+                        p_avatar: dbTechData.avatar || '',
+                        p_job_title: dbTechData.job_title || '',
+                        p_tech_code: dbTechData.tech_code || null
+                    });
+                    if (rpcError || (rpcResult && rpcResult.success === false)) {
+                        throw new Error(rpcResult?.error || rpcError?.message || 'Falha ao atualizar técnico via RPC');
+                    }
+                    return { ...dbTechData, id: tech.id, tenantId };
                 }
                 throw error;
             }

@@ -1052,13 +1052,43 @@ export const TenantService = {
                 user_code: userCode
             };
 
+            // 🛡️ Tenta upsert direto (mais rápido — funciona quando RLS permite)
             const { data, error } = await supabase
                 .from('users')
                 .upsert([dbUser])
                 .select()
                 .single();
 
-            if (error) throw error;
+            if (error) {
+                const errMsg = (error.message || '').toLowerCase();
+                // Se RLS bloqueou (ex: impersonation via Super Admin), usa RPC SECURITY DEFINER
+                if (errMsg.includes('permission denied') || errMsg.includes('row-level security') || errMsg.includes('new row violates')) {
+                    console.warn('[TenantService] ⚠️ RLS bloqueou upsert direto em users. Tentando via RPC upsert_user_record...');
+                    const { data: rpcResult, error: rpcError } = await supabase.rpc('upsert_user_record', {
+                        p_id: userId,
+                        p_name: userData.name,
+                        p_email: userData.email,
+                        p_role: userData.role || 'ADMIN',
+                        p_active: userData.active !== false,
+                        p_tenant_id: userData.tenantId,
+                        p_group_id: validGroupId || null,
+                        p_group_ids: userData.groupIds || [],
+                        p_avatar: generatedAvatar,
+                        p_permissions: userData.permissions || {},
+                        p_app_scope: userData.appScope || AppScope.WEB,
+                        p_user_code: userCode || null,
+                        p_phone: (userData as any).phone || null
+                    });
+
+                    if (rpcError || (rpcResult && rpcResult.success === false)) {
+                        throw new Error(rpcResult?.error || rpcError?.message || 'Falha ao criar usuário via RPC');
+                    }
+
+                    // Retorna o dbUser montado (RPC não retorna o row completo)
+                    return dbUser as any;
+                }
+                throw error;
+            }
 
             // Cadastro de usuário isolado: NÃO sincroniza com tabela `technicians`
             // Se o usuário desejar acesso ao app, deve ser cadastrado manualmente na tela de técnicos
@@ -1132,7 +1162,34 @@ export const TenantService = {
                 .select()
                 .single();
 
-            if (error) throw error;
+            if (error) {
+                const errMsg = (error.message || '').toLowerCase();
+                if (errMsg.includes('permission denied') || errMsg.includes('row-level security')) {
+                    console.warn('[TenantService] ⚠️ RLS bloqueou update direto em users. Tentando via RPC upsert_user_record...');
+                    const tid = existingUser?.tenant_id || getCurrentTenantId();
+                    const { data: rpcResult, error: rpcError } = await supabase.rpc('upsert_user_record', {
+                        p_id: userData.id,
+                        p_name: userData.name || existingUser?.name || '',
+                        p_email: existingUser?.email || '',
+                        p_role: (userData.role || existingUser?.role || 'ADMIN') as string,
+                        p_active: userData.active !== undefined ? userData.active : (existingUser?.active !== false),
+                        p_tenant_id: tid,
+                        p_group_id: validGroupId || null,
+                        p_group_ids: userData.groupIds || [],
+                        p_avatar: userData.avatar || '',
+                        p_permissions: userData.permissions || {},
+                        p_app_scope: (userData.appScope || existingUser?.app_scope || AppScope.WEB) as string,
+                        p_user_code: userCode || null,
+                        p_phone: (userData as any).phone || null
+                    });
+                    if (rpcError || (rpcResult && rpcResult.success === false)) {
+                        throw new Error(rpcResult?.error || rpcError?.message || 'Falha ao atualizar usuário via RPC');
+                    }
+                    // Retorna o dbUser como proxy (RPC não retorna row completo)
+                    return { ...existingUser, ...dbUser, id: userData.id } as any;
+                }
+                throw error;
+            }
 
             // Sync Auth status / metadata e appScope / userCode
             const updateMeta: any = {};
