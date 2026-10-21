@@ -109,21 +109,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 if (!targetTid) {
                     targetTid = SessionStorage.get('current_tenant') || undefined;
                 }
-                // Sincroniza o tenant_id no JWT do Supabase para satisfazer políticas RLS baseadas em claims (ex: defect_types)
-                if (targetTid) {
-                    supabase.auth.getSession().then(async ({ data: { session: s } }) => {
-                        if (s?.user) {
-                            const meta = s.user.user_metadata || {};
-                            if (meta.tenant_id !== targetTid || meta.tenantId !== targetTid) {
-                                await supabase.auth.updateUser({
-                                    data: { ...meta, tenant_id: targetTid, tenantId: targetTid }
-                                }).catch(() => {});
-                                await supabase.auth.refreshSession().catch(() => {});
-                            }
-                        }
-                    }).catch(() => {});
+                // Garante que a sessão Supabase na aba filha está ativa antes de liberar a UI
+                try {
+                    let activeSession = (await supabase.auth.getSession())?.data?.session;
+                    if (!activeSession) {
+                        await ensureValidSession();
+                        activeSession = (await supabase.auth.getSession())?.data?.session;
+                    }
+                    if (activeSession && isMounted.current) {
+                        setSession(activeSession);
+                    }
+                } catch (e) {
+                    console.warn('[AuthContext] Aviso ao aguardar sessão na impersonation:', e);
                 }
-                setIsAuthLoading(false);
+                if (isMounted.current) {
+                    setIsAuthLoading(false);
+                }
                 return;
             }
 

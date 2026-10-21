@@ -13,6 +13,7 @@ import { Button as NexusButton } from '../ui/Button';
 import { Input as NexusInput } from '../ui/Input';
 import { BackupEngine } from '../../lib/backupEngine';
 import { StorageService } from '../../services/storageService';
+import { globalSession } from '../../lib/supabaseClient';
 
 interface Tenant {
   id: string;
@@ -409,9 +410,11 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
     const token = Math.random().toString(36).substring(2) + Date.now().toString(36);
     const masterSessionToken = SessionStorage.get('master_session_token') || sessionStorage.getItem('master_session_token') || localStorage.getItem('master_session_token');
     
-    // Lê a sessão Supabase SINCRONAMENTE do localStorage/sessionStorage
-    // (onde o SDK Supabase já persiste a sessão ativa — sem necessidade de await)
-    const authSession = localStorage.getItem('nexus-line-auth') || sessionStorage.getItem('nexus-line-auth') || null;
+    // Lê a sessão Supabase SINCRONAMENTE (Singleton em memória -> sessionStorage -> localStorage)
+    const authSession = (globalSession ? JSON.stringify(globalSession) : null) || 
+      sessionStorage.getItem('nexus-line-auth') || 
+      localStorage.getItem('nexus-line-auth') || 
+      null;
     
     // Armazena temporariamente no localStorage para a nova aba capturar
     localStorage.setItem(`nexus_handoff_${token}`, JSON.stringify({
