@@ -143,94 +143,8 @@ export const TechnicianService = {
                     techData = [];
                 }
 
-                // 2. Busca todos os usuários do tenant utilizando TenantService.getTenantUsers
-                let tenantUsers: any[] = [];
-                try {
-                    const { TenantService } = await import('./tenantService');
-                    tenantUsers = await TenantService.getTenantUsers(tenantId, currentSignal || signal);
-                } catch (userErr) {
-                    console.warn("⚠️ Non-fatal notice querying users table for tech enrichment:", userErr);
-                }
-
-                const techMap = new Map<string, any>();
-
-                // 1. Adiciona os técnicos existentes na tabela `technicians`
-                (techData || []).forEach(d => {
-                    const techObj = TechnicianService._mapTechFromDB(d);
-                    if (techObj && techObj.id) {
-                        techMap.set(techObj.id, techObj);
-                    }
-                });
-
-                // 2. Mescla escopo de acesso e inclui usuários habilitados para o App (HYBRID, MOBILE ou role TECHNICIAN)
-                for (const u of (tenantUsers || [])) {
-                    const rawScope = String((u as any).appScope || (u as any).app_scope || '').toUpperCase();
-                    const rawRole = String(u.role || '').toUpperCase();
-
-                    let userScope = rawScope;
-                    if (!userScope) {
-                        if (rawRole === 'TECHNICIAN' || rawRole === 'TECNICO') userScope = 'MOBILE';
-                        else if (rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN') userScope = 'HYBRID';
-                        else userScope = 'WEB';
-                    }
-
-                    const hasAppAccess = userScope === 'HYBRID' || userScope === 'MOBILE' || rawRole === 'TECHNICIAN' || rawRole === 'TECNICO';
-
-                    if (techMap.has(u.id)) {
-                        const existingTech = techMap.get(u.id);
-                        existingTech.appScope = userScope;
-                        existingTech.app_scope = userScope;
-                        existingTech.userRole = u.role;
-                        if (!existingTech.email && u.email) existingTech.email = u.email;
-                        if ((!existingTech.name || existingTech.name === 'Técnico') && u.name) existingTech.name = u.name;
-                        // Sincroniza código se o registro na tabela de técnicos estava sem código
-                        if (!existingTech.techCode || existingTech.techCode === '---') {
-                            const uCode = (u as any).userCode || (u as any).user_code;
-                            if (uCode && uCode !== '---' && uCode.length <= 10) {
-                                existingTech.techCode = uCode;
-                                existingTech.tech_code = uCode;
-                            }
-                        }
-                    } else if (hasAppAccess) {
-                        const unifiedCode = (u as any).userCode || (u as any).user_code || '';
-                        const validCode = (unifiedCode && unifiedCode.length <= 10 && unifiedCode !== '---') ? unifiedCode : null;
-                        const syntheticTech = {
-                            id: u.id,
-                            name: u.name || u.email || 'Técnico',
-                            email: u.email || '',
-                            active: u.active ?? true,
-                            phone: u.phone || '',
-                            avatar: u.avatar || '',
-                            role: u.role || UserRole.TECHNICIAN,
-                            jobTitle: rawRole === 'ADMIN' ? 'Administrador / Técnico' : 'Técnico de Campo',
-                            techCode: validCode || '---',
-                            tech_code: validCode || undefined,
-                            appScope: userScope,
-                            app_scope: userScope,
-                            tenantId: u.tenantId || tenantId
-                        };
-                        techMap.set(u.id, syntheticTech);
-
-                        if (validCode) {
-                            try {
-                                await supabase.from('technicians').upsert([{
-                                    id: u.id,
-                                    name: u.name || u.email || 'Técnico',
-                                    email: u.email || '',
-                                    active: u.active ?? true,
-                                    phone: u.phone || '',
-                                    avatar: u.avatar || '',
-                                    tech_code: validCode,
-                                    tenant_id: tenantId
-                                }], { onConflict: 'id', ignoreDuplicates: true });
-                            } catch (upsertErr) {
-                                // Silencioso em caso de conflitos não críticos no upsert sintético
-                            }
-                        }
-                    }
-                }
-
-                const result = Array.from(techMap.values());
+                // Retorna apenas técnicos cadastrados na tabela `technicians` (isolamento completo de users)
+                const result = (techData || []).map(d => TechnicianService._mapTechFromDB(d)).filter(Boolean);
                 if (result && result.length > 0) {
                     CacheManager.set(cacheKey, result, CacheManager.TTL.SHORT);
                 }
@@ -320,7 +234,9 @@ export const TechnicianService = {
         CacheManager.invalidate(`techs_${tenantId}`);
 
         if (isCloudEnabled) {
-            // 🔍 Discovery Layer: Verifica se o e-mail já existe no Auth (Provisionamento Inteligente)
+            // 🔍 Discovery Layer Inteligente: Verifica se o e-mail já existe no Auth
+            // Se o e-mail já pertence a um usuário do MESMO tenant, reutiliza a conta Auth (acesso duplo)
+            // Se pertence a OUTRO tenant, bloqueia para evitar conflitos
             let userId: string | null = null;
             let existingAuthUser: any = null;
 
@@ -330,10 +246,24 @@ export const TechnicianService = {
                 existingAuthUser = (listData.users || []).find(u => u.email?.toLowerCase() === cleanEmail);
 
                 if (existingAuthUser) {
-                    throw new Error("Este e-mail já está em uso por outra empresa. Para evitar conflitos de acesso, é necessário usar um outro e-mail.");
+                    const existingTenantId = existingAuthUser.user_metadata?.tenantId || existingAuthUser.user_metadata?.tenant_id;
+
+                    if (existingTenantId === tenantId) {
+                        // ✅ Mesmo tenant: reutiliza a conta Auth existente (o admin já existe como usuário do sistema)
+                        userId = existingAuthUser.id;
+                        console.log(`🔗 E-mail já existe no mesmo tenant. Reutilizando conta Auth ${userId} para cadastro de técnico.`);
+
+                        // Verifica se já tem cadastro de técnico
+                        const { data: existingTech } = await supabase.from('technicians').select('id').eq('id', userId).maybeSingle();
+                        if (existingTech) {
+                            throw new Error("Este técnico já está cadastrado no sistema. Para editar, utilize o botão de edição na lista de técnicos.");
+                        }
+                    } else {
+                        throw new Error("Este e-mail já está em uso por outra empresa. Para evitar conflitos de acesso, é necessário usar um outro e-mail.");
+                    }
                 }
             } catch (e: any) {
-                if (e.message?.includes("já está em uso")) throw e;
+                if (e.message?.includes("já está em uso") || e.message?.includes("já está cadastrado")) throw e;
                 console.warn("⚠️ Falha na busca prévia de usuários (Discovery):", e);
             }
 
@@ -345,8 +275,8 @@ export const TechnicianService = {
                     : (await _generateUniqueTechCode(tenantId));
 
             if (!userId) {
-                // Provisionamento de novo usuário no Supabase Auth
-                const tempPassword = Math.random().toString(36).slice(-10) + 'A1!'; // Gera senha aleatória segura
+                // Provisionamento de novo usuário no Supabase Auth (e-mail novo, nunca cadastrado)
+                const tempPassword = Math.random().toString(36).slice(-10) + 'A1!';
                 const { data: authData, error: authError } = await adminAuthProxy.admin.createUser({
                     email: cleanEmail,
                     password: tempPassword,
@@ -376,31 +306,7 @@ export const TechnicianService = {
 
             if (!userId) throw new Error("ID de usuário não gerado.");
 
-            // 1. Sincronizar com a tabela public.users (Base Profile)
-            // Se o usuário já existe, não sobrescrevemos o papel (role) nem o app_scope para não rebaixar um ADMIN/HYBRID
-            const { data: existingDbUser } = await supabase.from('users').select('role, app_scope').eq('id', userId).single();
-
-            const dbUser: any = {
-                id: userId,
-                name: tech.name,
-                email: tech.email.toLowerCase(),
-                role: (existingDbUser?.role === UserRole.ADMIN || existingDbUser?.role === 'SUPER_ADMIN' as any)
-                    ? existingDbUser.role
-                    : UserRole.TECHNICIAN,
-                active: tech.active ?? true,
-                tenant_id: tenantId,
-                avatar: tech.avatar || '',
-                app_scope: existingDbUser?.app_scope || tech.appScope || AppScope.MOBILE,
-                user_code: techCode
-            };
-
-            const { error: userError } = await supabase.from('users').upsert([dbUser]);
-            if (userError) {
-                console.error("Erro ao sincronizar tabela users:", userError);
-                throw userError;
-            }
-
-            // 2. Sincronizar com a tabela public.technicians
+            // Cadastro isolado: apenas na tabela public.technicians (sem sincronizar com public.users)
             const dbTech: any = {
                 id: userId,
                 name: tech.name,
@@ -417,6 +323,9 @@ export const TechnicianService = {
             if (techError) {
                 if (techError.code === '42703') { // Undefined column
                     throw new Error("Colunas faltantes na tabela 'technicians'. Por favor, execute a migração SQL mais recente no painel do Supabase.");
+                }
+                if (techError.message?.includes('technicians_id_fkey') || techError.message?.includes('foreign key constraint "technicians_id_fkey"')) {
+                    throw new Error("Erro de banco de dados: a tabela 'technicians' ainda possui vínculo com a tabela legada 'users'. Por favor, execute a migração SQL '20261021_fix_technicians_foreign_key_to_auth.sql' no editor SQL do Supabase.");
                 }
                 // 🔒 Camada 2: Erro do trigger de limite de licenças no banco de dados
                 if (techError.message?.includes('NEXUS_LICENSE_LIMIT')) {
@@ -442,15 +351,14 @@ export const TechnicianService = {
         if (isCloudEnabled) {
             console.log("🔄 Atualizando técnico no Auth e na tabela...");
 
-            // Busca escopo e status atual do perfil de usuário base
+            // Verifica se este técnico também possui cadastro de usuário do sistema (acesso duplo)
             const { data: existingUser } = await supabase
                 .from('users')
-                .select('app_scope, active, role')
+                .select('id, active')
                 .eq('id', tech.id)
                 .maybeSingle();
 
-            const userAppScope = existingUser?.app_scope || tech.appScope || AppScope.MOBILE;
-            const isPureMobile = userAppScope === AppScope.MOBILE;
+            const hasUserRecord = !!existingUser;
 
             // 1. Atualiza os metadados no Auth (se houver mudanças de nome, telefone, etc)
             const updateAuthData: any = {
@@ -482,20 +390,20 @@ export const TechnicianService = {
                 throw authError;
             }
 
-            // CONTROLE DE ACESSO: Bloqueia/Desbloqueia a conta no Auth baseado no status e escopo
+            // CONTROLE DE ACESSO: Bloqueia/Desbloqueia a conta no Auth baseado no status
             if (tech.active === false) {
-                if (isPureMobile) {
-                    // Para usuários exclusivamente MOBILE, desabilita a conta no Auth (banimento)
+                if (!hasUserRecord) {
+                    // Técnico puro (sem cadastro de admin): desabilita a conta no Auth
                     await adminAuthProxy.admin.updateUserById(tech.id, {
                         ban_duration: '876000h' // ~100 anos = banimento permanente
                     } as any);
-                    console.log("🚫 Técnico MOBILE bloqueado no sistema de autenticação");
+                    console.log("🚫 Técnico puro bloqueado no sistema de autenticação");
                 } else {
-                    // Para usuários HÍBRIDOS ou WEB, NÃO bane a conta no Auth (mantém acesso web livre)
+                    // Técnico com cadastro de admin: NÃO bane a conta (preserva acesso ao painel)
                     await adminAuthProxy.admin.updateUserById(tech.id, {
                         ban_duration: 'none'
                     } as any);
-                    console.log("ℹ️ Técnico com acesso Web mantido no Auth (apenas status operacional de técnico inativado)");
+                    console.log("ℹ️ Técnico com acesso Admin mantido no Auth (apenas status de técnico inativado)");
                 }
             } else {
                 // Reabilita o técnico - remove o banimento
@@ -541,26 +449,7 @@ export const TechnicianService = {
                 }).catch(() => {});
             }
 
-            // 2. Sincroniza com as tabelas físicas
-            const dbUserData: any = {
-                name: tech.name,
-                email: tech.email?.toLowerCase(),
-                phone: tech.phone || '',
-                avatar: tech.avatar || '',
-                tenant_id: tenantId,
-                user_code: techCode || undefined
-            };
-
-            if (isPureMobile) {
-                dbUserData.active = tech.active ?? true;
-            } else if (tech.active === true) {
-                dbUserData.active = true;
-            }
-
-            // Atualiza tabela users (base)
-            await supabase.from('users').update(dbUserData).eq('id', tech.id).eq('tenant_id', tenantId);
-
-            // Atualiza tabela technicians (específica)
+            // Atualiza apenas tabela technicians (cadastro isolado de users)
             const dbTechData: any = {
                 name: tech.name,
                 email: tech.email?.toLowerCase(),

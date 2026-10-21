@@ -16,6 +16,7 @@ import { TenantService } from '../../services/tenantService';
 import { User as UserType, UserRole, OrderStatus } from '../../types';
 import { StatusBadge } from '../ui/StatusBadge';
 import { usePermissions } from '../../hooks/usePermissions';
+import { useTechnicians } from '../../hooks/nexusHooks';
 
 export const TechnicianManagement: React.FC = () => {
   const { t } = useI18n();
@@ -33,8 +34,17 @@ export const TechnicianManagement: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 🔄 Sincronização com React Query (Cache padrão do sistema)
+  const { data: techsData, isLoading: isTechsLoading, refetch: refetchTechs } = useTechnicians();
+
+  useEffect(() => {
+    if (techsData) {
+      setTechnicians(techsData);
+    }
+  }, [techsData]);
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isOpeningModal, setIsOpeningModal] = useState(false);
   const [formData, setFormData] = useState<any>({
     name: '', email: '', avatar: '', active: true, phone: '', jobTitle: ''
   });
@@ -46,12 +56,14 @@ export const TechnicianManagement: React.FC = () => {
   const loadTechs = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const techs = await DataService.getAllTechnicians(undefined, undefined, true);
-      setTechnicians(techs || []);
-      
-      const tenant = await DataService.getTenantById();
-      setTenantLimit(tenant?.max_technicians || 0);
-      window.dispatchEvent(new Event('tech_limit_updated'));
+      await Promise.all([
+        refetchTechs(),
+        (async () => {
+          const tenant = await DataService.getTenantById();
+          setTenantLimit(tenant?.max_technicians || 0);
+          window.dispatchEvent(new Event('tech_limit_updated'));
+        })()
+      ]);
     } catch (error) {
       console.error("Erro ao carregar técnicos:", error);
     } finally {
@@ -176,16 +188,19 @@ export const TechnicianManagement: React.FC = () => {
   };
 
 
+  // Padrão do sistema: tela de carregamento suave idêntica aos outros módulos
+  if ((loading || isTechsLoading) && technicians.length === 0) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-slate-50/20 h-full animate-fade-in">
+        <div className="w-8 h-8 border-[3px] border-slate-200 border-t-primary-500 rounded-full animate-spin mb-4" />
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em]">carregando dados...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
-      {loading && technicians.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-8 h-full animate-fade-in">
-          <div className="w-8 h-8 border-[3px] border-slate-200 border-t-primary-500 rounded-full animate-spin mb-4" />
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em]">carregando dados...</p>
-        </div>
-      ) : (
-        <>
-          {/* Toolbar */}
+      {/* Toolbar */}
       <div className="mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-[#1c2d4f]/20 bg-white/40 shadow-sm backdrop-blur-md flex flex-col gap-3">
         <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-3">
           
@@ -215,43 +230,50 @@ export const TechnicianManagement: React.FC = () => {
             </div>
 
               <Button
+                disabled={isOpeningModal || !canCreate('technicians')}
                 onClick={async (e) => {
                   e.preventDefault();
                   if (!canCreate('technicians')) { alert('Acesso Negado: Você não tem permissão para esta ação.'); return; }
                   
-                  // Busca o limite em tempo real para ter efeito imediato se alterado no Master
-                  const currentTenant = await DataService.getTenantById();
-                  const currentLimit = currentTenant?.max_technicians || 0;
-                  setTenantLimit(currentLimit); // atualiza o state pra refletir visualmente em outros lugares se precisar
-
-                  if (currentLimit > 0) {
-                      const activeTechs = technicians.filter(t => t.active).length;
-                      if (activeTechs >= currentLimit) {
-                          alert(`Acesso Bloqueado: A empresa já atingiu o limite de ${currentLimit} técnico(s) ativo(s) em seu plano. Para adicionar um novo, desative um técnico antigo ou contate o suporte para upgrade.`);
-                          return;
-                      }
-                  }
-
-                  // 🔑 Gera código único automático do técnico para exibir no formulário
-                  let autoCode = '';
+                  setIsOpeningModal(true);
                   try {
-                    const tid = currentTenant?.id || localStorage.getItem('nexus_current_tenant') || '';
-                    if (tid) {
-                      autoCode = await generateUniqueUnifiedCode(tid);
-                    }
-                  } catch (codeErr) {
-                    console.warn('⚠️ Falha ao gerar código automático do técnico:', codeErr);
-                  }
+                    // Busca o limite em tempo real para ter efeito imediato se alterado no Master
+                    const currentTenant = await DataService.getTenantById();
+                    const currentLimit = currentTenant?.max_technicians || 0;
+                    setTenantLimit(currentLimit);
 
-                  setIsReadOnly(false);
-                  setEditingId(null);
-                  setFormData({ name: '', email: '', active: true, phone: '', jobTitle: '', techCode: autoCode });
-                  setSaveError(null);
-                  setIsModalOpen(true);
+                    if (currentLimit > 0) {
+                        const activeTechs = technicians.filter(t => t.active).length;
+                        if (activeTechs >= currentLimit) {
+                            alert(`Acesso Bloqueado: A empresa já atingiu o limite de ${currentLimit} técnico(s) ativo(s) em seu plano. Para adicionar um novo, desative um técnico antigo ou contate o suporte para upgrade.`);
+                            return;
+                        }
+                    }
+
+                    // 🔑 Gera código único automático do técnico para exibir no formulário
+                    let autoCode = '';
+                    try {
+                      const tid = currentTenant?.id || localStorage.getItem('nexus_current_tenant') || '';
+                      if (tid) {
+                        autoCode = await generateUniqueUnifiedCode(tid);
+                      }
+                    } catch (codeErr) {
+                      console.warn('⚠️ Falha ao gerar código automático do técnico:', codeErr);
+                    }
+
+                    setIsReadOnly(false);
+                    setEditingId(null);
+                    setFormData({ name: '', email: '', active: true, phone: '', jobTitle: '', techCode: autoCode });
+                    setSaveError(null);
+                    setIsModalOpen(true);
+                  } finally {
+                    setIsOpeningModal(false);
+                  }
                 }}
-                className={`h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl whitespace-nowrap text-white ${!canCreate('technicians') ? 'opacity-50 !cursor-not-allowed' : ''}`}
+                className={`h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl whitespace-nowrap text-white ${(!canCreate('technicians') || isOpeningModal) ? 'opacity-50 !cursor-not-allowed' : ''}`}
               >
-                <Plus size={16} /> Novo Técnico
+                {isOpeningModal ? <Loader2 size={15} className="animate-spin" /> : <Plus size={16} />}
+                {isOpeningModal ? 'Abrindo...' : 'Novo Técnico'}
               </Button>
           </div>
         </div>
@@ -267,7 +289,7 @@ export const TechnicianManagement: React.FC = () => {
             <p className="text-xs text-slate-400 mt-1 max-w-sm leading-relaxed">
               {searchTerm || statusFilter !== 'ALL' 
                 ? 'Nenhum técnico corresponde aos termos de busca ou filtros aplicados.' 
-                : 'Nenhum técnico cadastrado ou habilitado. Você pode registrar um novo técnico pelo botão acima ou habilitar o acesso mobile em Usuários.'}
+                : 'Nenhum técnico cadastrado ou habilitado. Você pode registrar um novo técnico pelo botão acima.'}
             </p>
             {(searchTerm || statusFilter !== 'ALL') ? (
               <Button onClick={() => { setSearchTerm(''); setStatusFilter('ALL'); }} className="mt-4 text-xs h-9 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold">
@@ -474,7 +496,17 @@ export const TechnicianManagement: React.FC = () => {
       {
         isModalOpen && createPortal(
           <div className="fixed inset-0 z-[160] flex items-end md:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 md:p-3 lg:p-5 overflow-hidden animate-in fade-in duration-300">
-            <div className="bg-white md:rounded-2xl w-full max-w-[1420px] h-full md:h-[95vh] shadow-2xl md:border border-slate-200 overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-300">
+            <div className="bg-white md:rounded-2xl w-full max-w-[1420px] h-full md:h-[95vh] shadow-2xl md:border border-slate-200 overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-300 relative">
+
+              {/* Spinner padrão do sistema cobrindo o modal durante salvamento */}
+              {isSaving && (
+                <div className="absolute inset-0 bg-white/85 backdrop-blur-[2px] z-50 flex flex-col items-center justify-center animate-fade-in md:rounded-2xl">
+                  <div className="w-8 h-8 border-[3px] border-slate-200 border-t-primary-500 rounded-full animate-spin mb-3" />
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em]">
+                    {editingId ? 'salvando alterações...' : 'cadastrando técnico...'}
+                  </p>
+                </div>
+              )}
 
               {/* HEADER — padrão do sistema */}
               <div className="px-6 py-3.5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
@@ -738,8 +770,6 @@ export const TechnicianManagement: React.FC = () => {
           document.body
         )
       }
-      </>
-      )}
     </div>
   );
 };

@@ -1010,12 +1010,27 @@ export const TenantService = {
                     }
                 }
 
-                // 2. Se o e-mail já existir no Auth, recupera o UID e atualiza o metadata
+                // 2. Se o e-mail já existir no Auth, verifica se pertence ao mesmo tenant e reutiliza
                 try {
                     const { data: listData } = await adminAuthProxy.admin.listUsers();
                     const existing = (listData?.users || []).find((u: any) => u.email?.toLowerCase() === targetEmail);
                     if (existing) {
+                        const existingTenantId = existing.user_metadata?.tenantId || existing.user_metadata?.tenant_id;
+                        
+                        if (existingTenantId && existingTenantId !== userData.tenantId) {
+                            throw new Error("Este e-mail já está em uso por outra empresa. Para evitar conflitos de acesso, é necessário usar um outro e-mail.");
+                        }
+
                         userId = existing.id;
+                        
+                        // Verifica se já tem cadastro de usuário do sistema
+                        const { data: existingDbUser } = await supabase.from('users').select('id').eq('id', userId).maybeSingle();
+                        if (existingDbUser) {
+                            throw new Error("Este usuário já está cadastrado no sistema. Para editar, utilize o botão de edição na lista de usuários.");
+                        }
+
+                        console.log(`🔗 E-mail já existe no mesmo tenant (possivelmente um técnico). Reutilizando conta Auth ${userId} para cadastro de usuário.`);
+                        
                         await adminAuthProxy.admin.updateUserById(userId, {
                             user_metadata: {
                                 ...existing.user_metadata,
@@ -1024,9 +1039,7 @@ export const TenantService = {
                                 tenantId: userData.tenantId,
                                 appScope: userData.appScope || AppScope.WEB,
                                 userCode: userCode,
-                                user_code: userCode,
-                                techCode: isTechUser ? userCode : undefined,
-                                tech_code: isTechUser ? userCode : undefined
+                                user_code: userCode
                             }
                         }).catch(() => {});
                     } else if (authError) {
@@ -1037,6 +1050,7 @@ export const TenantService = {
                         throw authError;
                     }
                 } catch (e: any) {
+                    if (e.message?.includes("já está em uso") || e.message?.includes("já está cadastrado")) throw e;
                     if (authError) {
                         const errText = (authError.message || '').toLowerCase();
                         if (errText.includes('unable to validate email') || errText.includes('invalid format') || errText.includes('email address is invalid')) {
@@ -1080,23 +1094,8 @@ export const TenantService = {
 
             if (error) throw error;
 
-            // 3. Se for usuário com acesso a app/técnico, sincroniza tabela `technicians` com o MESMO código
-            if (isTechUser) {
-                try {
-                    await supabase.from('technicians').upsert([{
-                        id: userId,
-                        name: userData.name,
-                        email: targetEmail,
-                        active: userData.active ?? true,
-                        avatar: generatedAvatar,
-                        tech_code: userCode,
-                        tenant_id: userData.tenantId
-                    }]);
-                } catch (e) {
-                    console.warn("⚠️ Non-fatal upsert tech notice:", e);
-                }
-                CacheManager.invalidate(`techs_${userData.tenantId}`);
-            }
+            // Cadastro de usuário isolado: NÃO sincroniza com tabela `technicians`
+            // Se o usuário desejar acesso ao app, deve ser cadastrado manualmente na tela de técnicos
 
             return data as any;
         }
@@ -1186,28 +1185,8 @@ export const TenantService = {
                 await adminAuthProxy.admin.updateUserById(userData.id, updateMeta).catch(() => {});
             }
 
-            // Sincroniza tabela física `technicians` se o usuário tiver acesso a aplicativo com o MESMO código
-            const finalScope = userData.appScope || existingUser?.app_scope;
-            const finalRole = userData.role || existingUser?.role;
-            const isTechUser = finalScope === AppScope.HYBRID || finalScope === AppScope.MOBILE || finalRole === UserRole.TECHNICIAN;
-
-            if (isTechUser && tid) {
-                const userEmail = userData.email || data?.email || existingUser?.email || '';
-                try {
-                    await supabase.from('technicians').upsert([{
-                        id: userData.id,
-                        name: userData.name || existingUser?.name || 'Técnico',
-                        email: userEmail,
-                        active: userData.active ?? existingUser?.active ?? true,
-                        avatar: userData.avatar || '',
-                        tech_code: userCode,
-                        tenant_id: tid
-                    }]);
-                } catch (e) {
-                    console.warn("⚠️ Non-fatal upsert tech notice:", e);
-                }
-                CacheManager.invalidate(`techs_${tid}`);
-            }
+            // Atualização de usuário isolada: NÃO sincroniza com tabela `technicians`
+            // Se o usuário desejar acesso ao app, deve ser cadastrado/atualizado manualmente na tela de técnicos
 
             return data;
         }
@@ -1335,45 +1314,48 @@ export const TenantService = {
 
     deleteUser: async (userId: string): Promise<void> => {
         if (isCloudEnabled) {
-            // Chama a RPC de exclusão em cascata (auth.users + public.users + public.technicians)
-            const { data, error } = await supabase.rpc('delete_user_cascade', { p_user_id: userId });
-            if (error || (data && data.success === false)) {
-                const errMsg = error?.message || (typeof data === 'object' && data?.error) || 'Erro ao excluir usuário.';
-                console.warn('⚠️ Fallback deleteUser via adminAuthProxy/REST:', errMsg);
+            // Verifica se o usuário também tem cadastro de técnico
+            const { data: techRecord } = await supabase.from('technicians').select('id').eq('id', userId).maybeSingle();
+            const hasTechnicianRecord = !!techRecord;
+
+            // Remove apenas da tabela users
+            const { error: dbErr } = await supabase.from('users').delete().eq('id', userId);
+            if (dbErr) throw dbErr;
+
+            // Se NÃO tem cadastro de técnico, remove também do Auth (a conta não é mais necessária)
+            if (!hasTechnicianRecord) {
                 try {
-                    await adminAuthProxy.admin.deleteUser(userId);
+                    const { data, error } = await supabase.rpc('delete_user_cascade', { p_user_id: userId });
+                    if (error || (data && data.success === false)) {
+                        await adminAuthProxy.admin.deleteUser(userId).catch(() => {});
+                    }
                 } catch (e) {
-                    console.warn('⚠️ adminAuthProxy deleteUser fallback warn:', e);
+                    await adminAuthProxy.admin.deleteUser(userId).catch(() => {});
                 }
-                try {
-                    await supabase.from('technicians').delete().eq('id', userId);
-                } catch (e) {
-                    console.warn('⚠️ technicians delete fallback warn:', e);
-                }
-                const { error: dbErr } = await supabase.from('users').delete().eq('id', userId);
-                if (dbErr) throw dbErr;
             }
         }
     },
 
     deleteTechnician: async (techId: string): Promise<void> => {
         if (isCloudEnabled) {
-            const { data, error } = await supabase.rpc('delete_user_cascade', { p_user_id: techId });
-            if (error || (data && data.success === false)) {
-                const errMsg = error?.message || (typeof data === 'object' && data?.error) || 'Erro ao excluir técnico.';
-                console.warn('⚠️ Fallback deleteTechnician via adminAuthProxy/REST:', errMsg);
+            // Verifica se o técnico também tem cadastro de usuário do sistema
+            const { data: userRecord } = await supabase.from('users').select('id').eq('id', techId).maybeSingle();
+            const hasUserRecord = !!userRecord;
+
+            // Remove apenas da tabela technicians
+            const { error: dbErr } = await supabase.from('technicians').delete().eq('id', techId);
+            if (dbErr) throw dbErr;
+
+            // Se NÃO tem cadastro de usuário, remove também do Auth (a conta não é mais necessária)
+            if (!hasUserRecord) {
                 try {
-                    await adminAuthProxy.admin.deleteUser(techId);
+                    const { data, error } = await supabase.rpc('delete_user_cascade', { p_user_id: techId });
+                    if (error || (data && data.success === false)) {
+                        await adminAuthProxy.admin.deleteUser(techId).catch(() => {});
+                    }
                 } catch (e) {
-                    console.warn('⚠️ adminAuthProxy deleteUser fallback warn:', e);
+                    await adminAuthProxy.admin.deleteUser(techId).catch(() => {});
                 }
-                try {
-                    await supabase.from('users').delete().eq('id', techId);
-                } catch (e) {
-                    console.warn('⚠️ users delete fallback warn:', e);
-                }
-                const { error: dbErr } = await supabase.from('technicians').delete().eq('id', techId);
-                if (dbErr) throw dbErr;
             }
         }
     },

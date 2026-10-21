@@ -448,6 +448,7 @@ export const UserManagement: React.FC = () => {
 
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isOpeningUserModal, setIsOpeningUserModal] = useState(false);
   const [isReadOnly, setIsReadOnly] = useState(false);
   const [formData, setFormData] = useState<Partial<User>>({
     name: '',
@@ -544,20 +545,6 @@ export const UserManagement: React.FC = () => {
         appScope: formData.appScope || AppScope.WEB,
       };
 
-      // 🔒 LICENSE GUARD: Se o usuário estiver ativado com perfil de técnico/app, valida o limite de licenças da empresa
-      const isTechUser = dataToSave.appScope === AppScope.HYBRID || dataToSave.appScope === AppScope.MOBILE || dataToSave.role === UserRole.TECHNICIAN;
-      if (isTechUser && dataToSave.active !== false) {
-        const tenant = await DataService.getTenantById();
-        const limit = tenant?.max_technicians || 0;
-        if (limit > 0) {
-          const techs = await DataService.getAllTechnicians(undefined, undefined, true);
-          const activeTechsCount = techs.filter(t => t.active && t.id !== editingUser?.id).length;
-          if (activeTechsCount >= limit) {
-            const companyName = tenant?.name || tenant?.company_name || 'sua empresa';
-            throw new Error(`🔒 Limite de licenças atingido: A empresa ${companyName} possui um plano para até ${limit} técnico(s) ativo(s). Desative um técnico antigo na tela de Técnicos ou contate o suporte DUNO para ampliar seu plano.`);
-          }
-        }
-      }
 
       if (editingUser) {
         await TenantService.updateUser({ ...dataToSave, id: editingUser.id } as User);
@@ -791,22 +778,30 @@ export const UserManagement: React.FC = () => {
             </div>
 
             {activeTab === 'users' ? (
-              <button onClick={async () => {
-                setEditingUser(null);
-                let autoCode = '';
-                try {
-                  const tid = DataService.getCurrentTenantId() || '';
-                  if (tid) autoCode = await generateUniqueUnifiedCode(tid);
-                } catch (e) {}
-                setFormData({ name: '', email: '', active: true, groupIds: [], permissions: { ...DEFAULT_PERMISSIONS }, appScope: AppScope.WEB, userCode: autoCode });
-                setGroupSearch('');
-                setSaveError(null);
-                setIsReadOnly(false);
-                setIsModalOpen(true);
-              }}
-                className="h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl"
+              <button
+                disabled={isOpeningUserModal}
+                onClick={async () => {
+                  setIsOpeningUserModal(true);
+                  try {
+                    setEditingUser(null);
+                    let autoCode = '';
+                    try {
+                      const tid = DataService.getCurrentTenantId() || '';
+                      if (tid) autoCode = await generateUniqueUnifiedCode(tid);
+                    } catch (e) {}
+                    setFormData({ name: '', email: '', active: true, groupIds: [], permissions: { ...DEFAULT_PERMISSIONS }, appScope: AppScope.WEB, userCode: autoCode });
+                    setGroupSearch('');
+                    setSaveError(null);
+                    setIsReadOnly(false);
+                    setIsModalOpen(true);
+                  } finally {
+                    setIsOpeningUserModal(false);
+                  }
+                }}
+                className={`h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl ${isOpeningUserModal ? 'opacity-70 cursor-not-allowed' : ''}`}
               >
-                <UserPlus size={14} /> Novo Usuário
+                {isOpeningUserModal ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+                {isOpeningUserModal ? 'Abrindo...' : 'Novo Usuário'}
               </button>
             ) : (
               <button onClick={() => {
@@ -867,9 +862,7 @@ export const UserManagement: React.FC = () => {
                         </div>
                         <div className="truncate text-left">
                           <p className="text-[13px] font-medium text-slate-900 truncate max-w-[200px]">{user.name}</p>
-                          {user.appScope === AppScope.HYBRID && (
-                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-violet-100 text-violet-600 text-[8px] font-bold border border-violet-200">WEB + APP</span>
-                          )}
+
                         </div>
                       </div>
                     </td>
@@ -1099,9 +1092,7 @@ export const UserManagement: React.FC = () => {
                         <div className="min-w-0">
                           <h3 className="text-sm font-bold text-slate-900 truncate leading-tight">{user.name}</h3>
                           <p className="text-[11px] text-slate-500 truncate mt-0.5">{user.email}</p>
-                          {user.appScope === AppScope.HYBRID && (
-                            <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-violet-100 text-violet-600 text-[8px] font-bold border border-violet-200">WEB + APP</span>
-                          )}
+
                         </div>
                       </div>
                       <span className={`px-2.5 py-1 rounded-full text-[9px] font-bold border shrink-0 ${user.active ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
@@ -1288,7 +1279,17 @@ export const UserManagement: React.FC = () => {
       {
         isModalOpen && createPortal(
           <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
-            <form onSubmit={handleSaveUser} className="bg-white rounded-xl w-full max-w-[96vw] h-[92vh] shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up" autoComplete="off">
+            <form onSubmit={handleSaveUser} className="bg-white rounded-xl w-full max-w-[96vw] h-[92vh] shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up relative" autoComplete="off">
+
+              {/* Spinner padrão do sistema cobrindo o modal durante salvamento */}
+              {isSaving && (
+                <div className="absolute inset-0 bg-white/85 backdrop-blur-[2px] z-50 flex flex-col items-center justify-center animate-fade-in rounded-xl">
+                  <div className="w-8 h-8 border-[3px] border-slate-200 border-t-primary-500 rounded-full animate-spin mb-3" />
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em]">
+                    {editingUser ? 'salvando alterações...' : 'cadastrando usuário...'}
+                  </p>
+                </div>
+              )}
 
               {/* HEADER — idêntico ao modal de OS */}
               <div className="px-8 py-5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
@@ -1302,7 +1303,7 @@ export const UserManagement: React.FC = () => {
                     </h2>
                     <div className="flex items-center gap-2 mt-0.5">
                       <p className="text-[10px] font-bold text-slate-400">
-                        Nexus Operacional • acesso e privilégios corporativos
+                        Duno Operacional • acesso e privilégios corporativos
                       </p>
                       {(editingUser?.userCode || (editingUser as any)?.user_code || formData.userCode || (formData as any)?.user_code) && (
                         <span className="font-mono text-[10px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2 py-0.5 rounded border border-[#1c2d4f]/15 tracking-widest">
@@ -1484,23 +1485,7 @@ export const UserManagement: React.FC = () => {
                           onClick={async () => {
                             if (isReadOnly) return;
                             const nextActive = !formData.active;
-                            const isTechScope = formData.appScope === AppScope.HYBRID || formData.appScope === AppScope.MOBILE || formData.role === UserRole.TECHNICIAN;
-                            if (nextActive && isTechScope) {
-                              try {
-                                const tenant = await DataService.getTenantById();
-                                const limit = tenant?.max_technicians || 0;
-                                if (limit > 0) {
-                                  const techs = await DataService.getAllTechnicians(undefined, undefined, true);
-                                  const countToEvaluate = techs.filter(t => t.active && t.id !== editingUser?.id).length;
-                                  if (countToEvaluate >= limit) {
-                                    alert(`🔒 Limite de licenças atingido! O plano atual permite no máximo ${limit} técnico(s) ativo(s). Desative um técnico existente na tela de Técnicos para reativar este usuário.`);
-                                    return;
-                                  }
-                                }
-                              } catch (err) {
-                                console.warn("Erro ao verificar limite de licenças:", err);
-                              }
-                            }
+
                             setFormData({ ...formData, active: nextActive });
                           }}
                           className={`flex items-center gap-4 p-5 rounded-xl border transition-all ${!isReadOnly ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'} ${formData.active ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'
@@ -1522,53 +1507,7 @@ export const UserManagement: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Escopo de Plataforma (App Scope) */}
-                      <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 space-y-4">
-                        <h3 className="text-sm font-bold text-slate-900 border-l-4 border-violet-500 pl-3">escopo de acesso</h3>
-                        <div
-                          onClick={async () => {
-                            if (isReadOnly) return;
-                            const nextScope = formData.appScope === AppScope.HYBRID ? AppScope.WEB : AppScope.HYBRID;
-                            if (nextScope === AppScope.HYBRID && formData.active !== false) {
-                              try {
-                                const tenant = await DataService.getTenantById();
-                                const limit = tenant?.max_technicians || 0;
-                                if (limit > 0) {
-                                  const techs = await DataService.getAllTechnicians(undefined, undefined, true);
-                                  const countToEvaluate = techs.filter(t => t.active && t.id !== editingUser?.id).length;
-                                  if (countToEvaluate >= limit) {
-                                    alert(`🔒 Limite de licenças excedido! O plano da sua empresa permite no máximo ${limit} técnico(s) ativo(s). Para habilitar este usuário no aplicativo, desative um técnico antigo na tela de Técnicos ou contate o suporte DUNO para upgrade.`);
-                                    return;
-                                  }
-                                }
-                              } catch (err) {
-                                console.warn("Erro ao verificar limite de licenças:", err);
-                              }
-                            }
-                            setFormData({ ...formData, appScope: nextScope });
-                          }}
-                          className={`flex items-center gap-4 p-5 rounded-xl border transition-all ${!isReadOnly ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'} ${
-                            formData.appScope === AppScope.HYBRID
-                              ? 'bg-violet-50 border-violet-200'
-                              : 'bg-slate-50 border-slate-200'
-                          }`}
-                        >
-                          <div className={`w-10 h-6 rounded-full relative transition-all ${formData.appScope === AppScope.HYBRID ? 'bg-violet-500' : 'bg-slate-300'}`}>
-                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${formData.appScope === AppScope.HYBRID ? 'left-5' : 'left-1'}`} />
-                          </div>
-                          <div>
-                            <p className={`text-xs font-bold flex items-center gap-2 ${formData.appScope === AppScope.HYBRID ? 'text-violet-700' : 'text-slate-500'}`}>
-                              <Smartphone size={14} />
-                              {formData.appScope === AppScope.HYBRID ? 'Acesso Web + App Móvel' : 'Somente Painel Web'}
-                            </p>
-                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                              {formData.appScope === AppScope.HYBRID
-                                ? 'Este usuário pode acessar tanto o painel web quanto o app do técnico.'
-                                : 'Ative para permitir que este usuário também acesse o aplicativo móvel.'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
+
                     </div>
 
                     {/* Coluna direita: seletor multi-grupo com busca */}
