@@ -29,7 +29,7 @@ DECLARE
     v_result json;
 BEGIN
     INSERT INTO public.users (id, name, email, role, active, tenant_id, group_id, group_ids, avatar, permissions, app_scope, user_code, phone)
-    VALUES (p_id, p_name, p_email, p_role, p_active, p_tenant_id, p_group_id, p_group_ids, p_avatar, p_permissions, p_app_scope, p_user_code, p_phone)
+    VALUES (p_id, p_name, p_email, p_role::user_role, p_active, p_tenant_id, p_group_id, p_group_ids, p_avatar, p_permissions, p_app_scope, p_user_code, p_phone)
     ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         email = EXCLUDED.email,
