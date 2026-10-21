@@ -734,45 +734,11 @@ export const TenantService = {
 
             let { data, error } = await query;
 
-            // Fallback 1: Try publicSupabase - REMOVIDO POR SEGURANÇA
-
-            // Fallback 2: Try adminAuthProxy (Edge Function)
-            if (error || !data || data.length === 0) {
-                try {
-                    const adminRes = await adminAuthProxy.admin.listUsers();
-                    if (adminRes.data && adminRes.data.users) {
-                        const filtered = adminRes.data.users.filter((u: any) => {
-                            const userTid = u.user_metadata?.tenantId || u.tenantId || u.tenant_id;
-                            return userTid === tenantId;
-                        });
-                        if (filtered.length > 0) {
-                            return filtered.map((u: any) => {
-                                const meta = u.user_metadata || {};
-                                const rawRole = (meta.role || u.role || 'ADMIN').toString().toUpperCase();
-                                const normalizedRole = (rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN') ? UserRole.ADMIN : (rawRole as UserRole);
-                                const rawCode = meta.userCode || meta.user_code || meta.techCode || meta.tech_code || u.user_code;
-                                return {
-                                    id: u.id,
-                                    name: meta.name || u.name || u.email?.split('@')[0] || 'Usuário',
-                                    email: u.email,
-                                    role: normalizedRole,
-                                    active: u.active !== false,
-                                    avatar: meta.avatar || '',
-                                    groupId: meta.groupId || '',
-                                    groupIds: meta.groupIds || [],
-                                    tenantId: tenantId,
-                                    permissions: meta.permissions || {},
-                                    appScope: (meta.appScope || meta.app_scope || (normalizedRole === UserRole.TECHNICIAN ? AppScope.MOBILE : AppScope.WEB)) as AppScope,
-                                    userCode: formatUserCode(rawCode),
-                                    user_code: formatUserCode(rawCode)
-                                };
-                            });
-                        }
-                    }
-                } catch (e) {
-                    console.warn('[TenantService] Fallback adminAuthProxy error:', e);
-                }
-            }
+            // 🛡️ SEGURANÇA: NÃO usar fallback de listUsers() do Auth Admin aqui!
+            // O listUsers() retorna TODOS os usuários de TODOS os tenants do Supabase Auth,
+            // e a filtragem por user_metadata é fraca, causando vazamento de dados cross-tenant
+            // especialmente durante impersonation via Super Admin (onde o JWT não corresponde ao tenant).
+            // Se RLS bloqueou a query, a resposta correta é retornar vazio — não contornar a segurança.
 
             if (error && (!data || data.length === 0)) {
                 console.error("Error fetching tenant users:", error);
