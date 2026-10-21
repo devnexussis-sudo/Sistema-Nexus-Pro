@@ -347,6 +347,12 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
 
   const switchToTenant = async (tenant: any) => {
     // MECANISMO DE ACESSO DIRETO (IMPERSONATION)
+
+    // 🔑 CRITICAL: Abre a janela IMEDIATAMENTE no contexto do clique do usuário.
+    // Browsers modernos bloqueiam window.open() se chamado APÓS um await,
+    // pois o "user gesture activation" expira durante operações assíncronas.
+    const newTab = window.open('about:blank', '_blank');
+
     // 1. Injeta o Tenant ID no Session Storage (isolado por aba)
     SessionStorage.set('current_tenant', tenant.id);
 
@@ -422,8 +428,14 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
       supabase_auth: authSession
     }));
 
-    // 4. Abre a nova aba passando o token pela URL
-    window.open(`/#/?handoff=${token}`, '_blank');
+    // 4. Navega a aba pré-aberta para a URL com o token de handoff
+    if (newTab) {
+      newTab.location.href = `${window.location.origin}${window.location.pathname}#/?handoff=${token}`;
+    } else {
+      // Fallback: se o popup foi bloqueado mesmo assim, tenta navegar na mesma aba
+      console.warn('[SuperAdmin] ⚠️ Popup bloqueado pelo navegador. Abrindo na mesma aba...');
+      window.location.hash = `#/?handoff=${token}`;
+    }
   };
 
   const handleDeleteTenant = async () => {
