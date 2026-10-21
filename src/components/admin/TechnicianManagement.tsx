@@ -750,9 +750,12 @@ export const TechnicianManagement: React.FC = () => {
                     setIsDeleting(true);
                     try {
                       await TenantService.deleteTechnician(techToDelete.id);
-                      await loadTechs();
+                      // 🔄 Remoção otimista: remove da lista local imediatamente
+                      setTechnicians(prev => prev.filter(t => t.id !== techToDelete.id));
                       setTechToDelete(null);
                       alert("✅ Técnico excluído permanentemente com sucesso!");
+                      // Refresh silencioso do servidor para sincronizar
+                      loadTechs(true).catch(() => {});
                     } catch (err: any) {
                       alert("Erro ao excluir técnico: " + (err.message || err));
                     } finally {

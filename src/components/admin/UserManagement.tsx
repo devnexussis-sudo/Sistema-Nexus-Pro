@@ -511,8 +511,10 @@ export const UserManagement: React.FC = () => {
   const handleDeleteUser = async (id: string) => {
     try {
       await TenantService.deleteUser(id);
-      await loadData();
+      // 🔄 Remoção otimista
+      setUsers(prev => prev.filter(u => u.id !== id));
       alert("✅ Administrador removido com sucesso!");
+      loadData().catch(() => {});
     } catch (error: any) {
       console.error("Failed to delete user:", error);
       alert("ERRO AO REMOVER USUÁRIO:\n" + error.message);
@@ -1773,9 +1775,12 @@ export const UserManagement: React.FC = () => {
                     setIsSaving(true);
                     try {
                       await TenantService.deleteUser(userToDelete.id);
-                      await loadData();
+                      // 🔄 Remoção otimista: remove da lista local imediatamente
+                      setUsers(prev => prev.filter(u => u.id !== userToDelete.id));
                       setUserToDelete(null);
                       alert("✅ Usuário excluído permanentemente com sucesso!");
+                      // Refresh silencioso do servidor para sincronizar
+                      loadData().catch(() => {});
                     } catch (err: any) {
                       alert("Erro ao excluir usuário: " + (err.message || err));
                     } finally {

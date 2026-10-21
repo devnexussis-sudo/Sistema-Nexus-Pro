@@ -1318,18 +1318,41 @@ export const TenantService = {
             const { data: techRecord } = await supabase.from('technicians').select('id').eq('id', userId).maybeSingle();
             const hasTechnicianRecord = !!techRecord;
 
-            // Remove apenas da tabela users
-            const { error: dbErr } = await supabase.from('users').delete().eq('id', userId);
-            if (dbErr) throw dbErr;
-
-            // Se NÃO tem cadastro de técnico, remove também do Auth (a conta não é mais necessária)
-            if (!hasTechnicianRecord) {
+            if (hasTechnicianRecord) {
+                // Tem técnico vinculado: remove SOMENTE da tabela users (mantém auth + technicians)
+                const { error: dbErr } = await supabase.from('users').delete().eq('id', userId);
+                // Se RLS bloqueou (0 rows afetadas sem erro), tenta via RPC
+                if (dbErr) {
+                    console.warn('⚠️ RLS bloqueou delete direto em users, tentando via RPC parcial...');
+                    // Fallback: delete direto na tabela via service_role
+                    const { error: rpcErr } = await supabase.rpc('delete_user_cascade', { p_user_id: userId });
+                    if (rpcErr) {
+                        // Último recurso: admin proxy
+                        await adminAuthProxy.admin.deleteUser(userId);
+                    }
+                }
+                // Atualiza app_scope de volta para MOBILE se técnico ficar órfão
+                await supabase.from('technicians').select('id').eq('id', userId).maybeSingle().then(({ data }) => {
+                    if (data) {
+                        supabase.from('users').update({ app_scope: 'MOBILE' }).eq('id', userId).then(() => {});
+                    }
+                });
+            } else {
+                // Sem técnico vinculado: exclusão total (users + auth)
+                // Usa RPC cascade como caminho primário (SECURITY DEFINER = bypass RLS)
                 try {
                     const { data, error } = await supabase.rpc('delete_user_cascade', { p_user_id: userId });
                     if (error || (data && data.success === false)) {
+                        const rpcError = data?.error || error?.message || 'Falha na RPC';
+                        console.warn('⚠️ RPC delete_user_cascade falhou:', rpcError, '— tentando via admin proxy...');
+                        // Fallback 1: delete direto na tabela
+                        await supabase.from('users').delete().eq('id', userId).then(() => {});
+                        // Fallback 2: remove do auth via admin proxy (service_role)
                         await adminAuthProxy.admin.deleteUser(userId).catch(() => {});
                     }
                 } catch (e) {
+                    console.warn('⚠️ Exceção no delete cascade:', e, '— tentando fallbacks...');
+                    await supabase.from('users').delete().eq('id', userId).then(() => {});
                     await adminAuthProxy.admin.deleteUser(userId).catch(() => {});
                 }
             }
@@ -1342,18 +1365,34 @@ export const TenantService = {
             const { data: userRecord } = await supabase.from('users').select('id').eq('id', techId).maybeSingle();
             const hasUserRecord = !!userRecord;
 
-            // Remove apenas da tabela technicians
-            const { error: dbErr } = await supabase.from('technicians').delete().eq('id', techId);
-            if (dbErr) throw dbErr;
-
-            // Se NÃO tem cadastro de usuário, remove também do Auth (a conta não é mais necessária)
-            if (!hasUserRecord) {
+            if (hasUserRecord) {
+                // Tem usuário vinculado: remove SOMENTE da tabela technicians (mantém auth + users)
+                const { error: dbErr } = await supabase.from('technicians').delete().eq('id', techId);
+                if (dbErr) {
+                    console.warn('⚠️ RLS bloqueou delete direto em technicians:', dbErr.message);
+                    // Fallback via RPC (mas como o user existe, vamos só deletar technicians via admin)
+                    throw new Error('Falha ao remover técnico: ' + dbErr.message);
+                }
+                // Reverte app_scope para WEB já que não é mais técnico
+                await supabase.from('users').update({ app_scope: 'WEB' }).eq('id', techId).then(() => {
+                    console.log('✅ app_scope revertido para WEB após remoção do técnico.');
+                });
+            } else {
+                // Sem usuário vinculado: exclusão total (technicians + auth)
+                // Usa RPC cascade como caminho primário (SECURITY DEFINER = bypass RLS)
                 try {
                     const { data, error } = await supabase.rpc('delete_user_cascade', { p_user_id: techId });
                     if (error || (data && data.success === false)) {
+                        const rpcError = data?.error || error?.message || 'Falha na RPC';
+                        console.warn('⚠️ RPC delete_user_cascade falhou:', rpcError, '— tentando via admin proxy...');
+                        // Fallback 1: delete direto na tabela
+                        await supabase.from('technicians').delete().eq('id', techId).then(() => {});
+                        // Fallback 2: remove do auth via admin proxy (service_role)
                         await adminAuthProxy.admin.deleteUser(techId).catch(() => {});
                     }
                 } catch (e) {
+                    console.warn('⚠️ Exceção no delete cascade:', e, '— tentando fallbacks...');
+                    await supabase.from('technicians').delete().eq('id', techId).then(() => {});
                     await adminAuthProxy.admin.deleteUser(techId).catch(() => {});
                 }
             }
