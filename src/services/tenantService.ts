@@ -1045,7 +1045,7 @@ export const TenantService = {
                 active: userData.active,
                 tenant_id: userData.tenantId,
                 group_id: validGroupId,
-                group_ids: userData.groupIds,
+                group_ids: Array.isArray(userData.groupIds) ? userData.groupIds : (userData.groupIds ? [String(userData.groupIds)] : []),
                 avatar: generatedAvatar,
                 permissions: userData.permissions,
                 app_scope: userData.appScope || AppScope.WEB,
@@ -1062,7 +1062,13 @@ export const TenantService = {
             if (error) {
                 const errMsg = (error.message || '').toLowerCase();
                 // Se RLS bloqueou (ex: impersonation via Super Admin), usa RPC SECURITY DEFINER
-                if (errMsg.includes('permission denied') || errMsg.includes('row-level security') || errMsg.includes('new row violates')) {
+                if (
+                    errMsg.includes('permission denied') || 
+                    errMsg.includes('row-level security') || 
+                    errMsg.includes('new row violates') ||
+                    errMsg.includes('user_role') ||
+                    errMsg.includes('group_ids')
+                ) {
                     console.warn('[TenantService] ⚠️ RLS bloqueou upsert direto em users. Tentando via RPC upsert_user_record...');
                     const { data: rpcResult, error: rpcError } = await supabase.rpc('upsert_user_record', {
                         p_id: userId,
@@ -1072,7 +1078,7 @@ export const TenantService = {
                         p_active: userData.active !== false,
                         p_tenant_id: userData.tenantId,
                         p_group_id: validGroupId || null,
-                        p_group_ids: userData.groupIds || [],
+                        p_group_ids: Array.isArray(userData.groupIds) ? userData.groupIds : (userData.groupIds ? [String(userData.groupIds)] : []),
                         p_avatar: generatedAvatar,
                         p_permissions: userData.permissions || {},
                         p_app_scope: userData.appScope || AppScope.WEB,
@@ -1148,7 +1154,7 @@ export const TenantService = {
                 name: userData.name,
                 active: userData.active,
                 group_id: validGroupId,
-                group_ids: userData.groupIds,
+                group_ids: Array.isArray(userData.groupIds) ? userData.groupIds : (userData.groupIds ? [String(userData.groupIds)] : []),
                 avatar: userData.avatar,
                 permissions: userData.permissions,
                 app_scope: userData.appScope || undefined,
@@ -1164,7 +1170,13 @@ export const TenantService = {
 
             if (error) {
                 const errMsg = (error.message || '').toLowerCase();
-                if (errMsg.includes('permission denied') || errMsg.includes('row-level security')) {
+                if (
+                    errMsg.includes('permission denied') || 
+                    errMsg.includes('row-level security') ||
+                    errMsg.includes('new row violates') ||
+                    errMsg.includes('user_role') ||
+                    errMsg.includes('group_ids')
+                ) {
                     console.warn('[TenantService] ⚠️ RLS bloqueou update direto em users. Tentando via RPC upsert_user_record...');
                     const tid = existingUser?.tenant_id || getCurrentTenantId();
                     const { data: rpcResult, error: rpcError } = await supabase.rpc('upsert_user_record', {
@@ -1175,7 +1187,7 @@ export const TenantService = {
                         p_active: userData.active !== undefined ? userData.active : (existingUser?.active !== false),
                         p_tenant_id: tid,
                         p_group_id: validGroupId || null,
-                        p_group_ids: userData.groupIds || [],
+                        p_group_ids: Array.isArray(userData.groupIds) ? userData.groupIds : (userData.groupIds ? [String(userData.groupIds)] : []),
                         p_avatar: userData.avatar || '',
                         p_permissions: userData.permissions || {},
                         p_app_scope: (userData.appScope || existingUser?.app_scope || AppScope.WEB) as string,

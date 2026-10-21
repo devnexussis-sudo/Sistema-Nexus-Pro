@@ -1,10 +1,37 @@
 -- ============================================================================
--- Migration: upsert_user_record — RPC para criar/atualizar usuário via SECURITY DEFINER
--- Necessário para Super Admin impersonation onde o JWT não corresponde ao tenant alvo.
+-- Migration: upsert_user_record & upsert_technician_record
+-- RPCs SECURITY DEFINER para criar/atualizar usuário e técnico no banco
+-- Necessário para contornar bloqueios de RLS quando o Super Admin opera
+-- em tenant impersonado (onde o JWT do auth não bate com o tenant_id alvo).
 -- ============================================================================
 
 BEGIN;
 
+-- 1. Remove qualquer versão anterior das funções para evitar erro de ambiguidade/overload
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (
+        SELECT oid::regprocedure AS func_signature
+        FROM pg_proc
+        WHERE proname = 'upsert_user_record'
+          AND pronamespace = 'public'::regnamespace
+    ) LOOP
+        EXECUTE 'DROP FUNCTION IF EXISTS ' || r.func_signature || ' CASCADE';
+    END LOOP;
+
+    FOR r IN (
+        SELECT oid::regprocedure AS func_signature
+        FROM pg_proc
+        WHERE proname = 'upsert_technician_record'
+          AND pronamespace = 'public'::regnamespace
+    ) LOOP
+        EXECUTE 'DROP FUNCTION IF EXISTS ' || r.func_signature || ' CASCADE';
+    END LOOP;
+END $$;
+
+-- 2. Criação da RPC upsert_user_record com suporte a enum user_role e text[] para group_ids
 CREATE OR REPLACE FUNCTION public.upsert_user_record(
     p_id UUID,
     p_name TEXT,
@@ -13,7 +40,7 @@ CREATE OR REPLACE FUNCTION public.upsert_user_record(
     p_active BOOLEAN,
     p_tenant_id UUID,
     p_group_id UUID DEFAULT NULL,
-    p_group_ids JSONB DEFAULT '[]'::JSONB,
+    p_group_ids TEXT[] DEFAULT '{}'::TEXT[],
     p_avatar TEXT DEFAULT '',
     p_permissions JSONB DEFAULT '{}'::JSONB,
     p_app_scope TEXT DEFAULT 'WEB',
@@ -27,9 +54,53 @@ SET search_path = public
 AS $$
 DECLARE
     v_result json;
+    v_clean_role public.user_role;
+    v_clean_group_ids TEXT[];
 BEGIN
-    INSERT INTO public.users (id, name, email, role, active, tenant_id, group_id, group_ids, avatar, permissions, app_scope, user_code, phone)
-    VALUES (p_id, p_name, p_email, p_role::user_role, p_active, p_tenant_id, p_group_id, p_group_ids, p_avatar, p_permissions, p_app_scope, p_user_code, p_phone)
+    -- Validação e conversão segura para o enum public.user_role
+    BEGIN
+        v_clean_role := UPPER(COALESCE(p_role, 'ADMIN'))::public.user_role;
+    EXCEPTION WHEN OTHERS THEN
+        v_clean_role := 'ADMIN'::public.user_role;
+    END;
+
+    -- Tratamento seguro de group_ids (TEXT[])
+    v_clean_group_ids := COALESCE(p_group_ids, '{}'::TEXT[]);
+    IF p_group_id IS NOT NULL AND NOT (p_group_id::TEXT = ANY(v_clean_group_ids)) THEN
+        v_clean_group_ids := array_append(v_clean_group_ids, p_group_id::TEXT);
+    END IF;
+
+    -- Inserção / Atualização em public.users
+    INSERT INTO public.users (
+        id, 
+        name, 
+        email, 
+        role, 
+        active, 
+        tenant_id, 
+        group_id, 
+        group_ids, 
+        avatar, 
+        permissions, 
+        app_scope, 
+        user_code, 
+        phone
+    )
+    VALUES (
+        p_id, 
+        p_name, 
+        p_email, 
+        v_clean_role, 
+        COALESCE(p_active, true), 
+        p_tenant_id, 
+        p_group_id, 
+        v_clean_group_ids, 
+        COALESCE(p_avatar, ''), 
+        COALESCE(p_permissions, '{}'::JSONB), 
+        COALESCE(p_app_scope, 'WEB'), 
+        p_user_code, 
+        p_phone
+    )
     ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         email = EXCLUDED.email,
@@ -58,13 +129,10 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.upsert_user_record(UUID, TEXT, TEXT, TEXT, BOOLEAN, UUID, UUID, JSONB, TEXT, JSONB, TEXT, TEXT, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.upsert_user_record(UUID, TEXT, TEXT, TEXT, BOOLEAN, UUID, UUID, JSONB, TEXT, JSONB, TEXT, TEXT, TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION public.upsert_user_record(UUID, TEXT, TEXT, TEXT, BOOLEAN, UUID, UUID, TEXT[], TEXT, JSONB, TEXT, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.upsert_user_record(UUID, TEXT, TEXT, TEXT, BOOLEAN, UUID, UUID, TEXT[], TEXT, JSONB, TEXT, TEXT, TEXT) TO service_role;
 
--- ============================================================================
--- upsert_technician_record — RPC para criar/atualizar técnico via SECURITY DEFINER
--- ============================================================================
-
+-- 3. Criação da RPC upsert_technician_record
 CREATE OR REPLACE FUNCTION public.upsert_technician_record(
     p_id UUID,
     p_name TEXT,
@@ -83,7 +151,7 @@ SET search_path = public
 AS $$
 BEGIN
     INSERT INTO public.technicians (id, name, email, active, tenant_id, phone, avatar, job_title, tech_code)
-    VALUES (p_id, p_name, p_email, p_active, p_tenant_id, p_phone, p_avatar, p_job_title, p_tech_code)
+    VALUES (p_id, p_name, p_email, COALESCE(p_active, true), p_tenant_id, p_phone, p_avatar, p_job_title, p_tech_code)
     ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         email = EXCLUDED.email,
