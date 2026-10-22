@@ -89,29 +89,10 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
   const loadTenants = async () => {
     try {
       const list = await DataService.getTenants();
-      if (list.length === 0) {
-        // Initial Seed if empty (Simulated for Demo)
-        setTenants([
-          {
-            id: 'default',
-            companyName: 'DUNO Pro Principal',
-            tradingName: 'DUNO Principal',
-            cnpj: '00.000.000/0001-00',
-            adminEmail: 'admin@serviceflow.com',
-            phone: '(11) 9999-9999',
-            address: 'Rua Principal, 100',
-            status: 'active',
-            created_at: new Date().toISOString(),
-            userCount: 0,
-            osCount: 0,
-            activeTechs: 0
-          }
-        ]);
-      } else {
-        setTenants(list);
-      }
+      setTenants(Array.isArray(list) ? list : []);
     } catch (e) {
       console.error("Failed to load tenants", e);
+      setTenants([]);
     }
   };
 
@@ -662,7 +643,42 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
           </div>
 
           <div className="space-y-3">
-            {filteredTenants.map(tenant => {
+            {filteredTenants.length === 0 ? (
+              <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-12 text-center flex flex-col items-center justify-center">
+                <Building2 size={36} className="text-slate-600 mb-3" />
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider">Nenhuma Instância Encontrada</h3>
+                <p className="text-slate-400 text-xs mt-1.5 max-w-md">
+                  {searchQuery
+                    ? `Nenhuma empresa corresponde à busca por "${searchQuery}".`
+                    : 'Nenhuma instância corporativa cadastrada no banco de dados. Utilize o botão "Nova Empresa" para provisionar o primeiro tenant.'}
+                </p>
+                {!searchQuery && (
+                  <button
+                    onClick={() => {
+                      setEditingTenant(null);
+                      setFormData({
+                        companyName: '',
+                        tradingName: '',
+                        cnpj: '',
+                        adminEmail: '',
+                        phone: '',
+                        id: '',
+                        enabled_modules: {
+                          dashboard: true, orders: true, quotes: true, contracts: true,
+                          customers: true, equipments: true, stock: true, technicians: true,
+                          forms: true, users: true, settings: true
+                        }
+                      } as any);
+                      setIsModalOpen(true);
+                    }}
+                    className="mt-4 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2"
+                  >
+                    <Plus size={15} /> Provisionar Primeiro Tenant
+                  </button>
+                )}
+              </div>
+            ) : (
+              filteredTenants.map(tenant => {
               const displayTitle = tenant.company_name || tenant.name || tenant.companyName || "Empresa sem Nome";
               const displayEmail = tenant.admin_email || tenant.email || tenant.adminEmail || "sem-email@nexus.com";
               const displayId = tenant.slug || tenant.id;
@@ -812,7 +828,8 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                   </div>
                 </div>
               );
-            })}
+            })
+          )}
           </div>
         </section>
 

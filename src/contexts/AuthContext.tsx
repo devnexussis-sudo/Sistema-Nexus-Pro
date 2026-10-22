@@ -113,6 +113,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 // 🚀 BIG TECH PATTERN: Impersonation Session Provisioning & Validation (AWS STS AssumeRole)
                 try {
                     let activeSession = (await supabase.auth.getSession())?.data?.session;
+
+                    // 🛡️ NASA RIGOR: Validação de expiração do JWT (evita token zombie no handoff)
+                    const isSessionExpired = !activeSession || (
+                        typeof activeSession.expires_at === 'number' && 
+                        (activeSession.expires_at * 1000 <= Date.now() + 60000)
+                    );
+
+                    // Tenta refresh proativo se o token estiver expirado ou perto de expirar
+                    if (isSessionExpired && activeSession?.refresh_token) {
+                        try {
+                            const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+                            if (!refreshErr && refreshed?.session) {
+                                activeSession = refreshed.session;
+                                console.log('[AuthContext] 🔄 Sessão atualizada preventivamente com sucesso.');
+                            }
+                        } catch (re) {
+                            console.warn('[AuthContext] ⚠️ Falha no refresh preventivo:', re);
+                        }
+                    }
+
+                    const isStillExpired = !activeSession || (
+                        typeof activeSession.expires_at === 'number' && 
+                        (activeSession.expires_at * 1000 <= Date.now() + 60000)
+                    );
+
                     const sessionTenantId = activeSession?.user?.app_metadata?.tenant_id || 
                                            activeSession?.user?.user_metadata?.tenantId ||
                                            activeSession?.user?.user_metadata?.tenant_id;
@@ -127,7 +152,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                                         sessionStorage.getItem('master_session_token') || 
                                         localStorage.getItem('master_session_token');
 
-                    const needsTenantSession = !activeSession || (!isMasterUser && sessionTenantId !== targetTid);
+                    const needsTenantSession = isStillExpired || (!isMasterUser && sessionTenantId !== targetTid);
 
                     if (needsTenantSession && masterToken && targetTid) {
                         console.log('[AuthContext] 🔑 Solicitando sessão criptografada de impersonation para o tenant:', targetTid);
@@ -175,7 +200,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         }
                     }
 
-                    if (!activeSession) {
+                    if (!activeSession || (typeof activeSession.expires_at === 'number' && activeSession.expires_at * 1000 <= Date.now() + 60000)) {
                         await ensureValidSession();
                         activeSession = (await supabase.auth.getSession())?.data?.session;
                     }

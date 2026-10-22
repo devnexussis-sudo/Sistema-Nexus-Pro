@@ -70,11 +70,24 @@ if (typeof window !== 'undefined' && SessionStorage.get('is_impersonating')) {
         const parsed = typeof data.supabase_auth === 'string' ? JSON.parse(data.supabase_auth) : data.supabase_auth;
         const accessToken = parsed?.access_token || parsed?.currentSession?.access_token || parsed?.session?.access_token;
         const refreshToken = parsed?.refresh_token || parsed?.currentSession?.refresh_token || parsed?.session?.refresh_token;
+        const expiresAt = parsed?.expires_at || parsed?.currentSession?.expires_at || parsed?.session?.expires_at;
+
+        const isExpired = typeof expiresAt === 'number' ? (expiresAt * 1000 <= Date.now() + 60000) : false;
 
         if (accessToken && refreshToken) {
           supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken
+          }).then(async ({ error }) => {
+            if (error || isExpired) {
+              console.warn('[Handoff] ⚠️ Token de handoff expirado ou prestes a expirar. Tentando refresh preventivo imediato...');
+              try {
+                const { error: refreshErr } = await supabase.auth.refreshSession();
+                if (refreshErr) {
+                  console.warn('[Handoff] ⚠️ Refresh preventivo falhou, AuthContext assumirá via STS impersonation:', refreshErr.message);
+                }
+              } catch (re) {}
+            }
           }).catch(err => {
             console.warn('[Handoff] Aviso ao estabelecer sessão Supabase na aba filha:', err);
           });
